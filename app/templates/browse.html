@@ -1,6 +1,172 @@
 {% extends "base.html" %}
 {% block title %}Browse Recipes{% endblock %}
 {% block content %}
-<h1>Browse Recipes</h1>
-<p>Filter sidebar + recipe grid coming soon.</p>
+<div class="browse-layout">
+    <aside class="filter-sidebar">
+        <h2>Filters</h2>
+
+        {% if filters.types %}
+        <fieldset class="filter-group">
+            <legend>Type</legend>
+            {% for t in filters.types %}
+            <label class="filter-checkbox {% if t in active.type %}checked{% endif %}">
+                <input type="checkbox" name="type" value="{{ t }}"
+                       {% if t in active.type %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ t.capitalize() }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
+        {% if filters.subtypes %}
+        <fieldset class="filter-group">
+            <legend>Subtype</legend>
+            {% for s in filters.subtypes %}
+            <label class="filter-checkbox {% if s in active.subtype %}checked{% endif %}">
+                <input type="checkbox" name="subtype" value="{{ s }}"
+                       {% if s in active.subtype %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ s.capitalize() }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
+        {% if filters.ingredients %}
+        <fieldset class="filter-group scrollable">
+            <legend>Ingredients</legend>
+            {% for ing in filters.ingredients %}
+            <label class="filter-checkbox {% if ing in active.ingredient %}checked{% endif %}">
+                <input type="checkbox" name="ingredient" value="{{ ing }}"
+                       {% if ing in active.ingredient %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ ing }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
+        {% if filters.macros %}
+        <fieldset class="filter-group">
+            <legend>Macros</legend>
+            {% for m in filters.macros %}
+            <label class="filter-checkbox {% if m in active.macro %}checked{% endif %}">
+                <input type="checkbox" name="macro" value="{{ m }}"
+                       {% if m in active.macro %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ m }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
+        {% if filters.calorie_tiers %}
+        <fieldset class="filter-group">
+            <legend>Calories</legend>
+            {% for ct in filters.calorie_tiers %}
+            <label class="filter-checkbox {% if ct in active.calorie_tier %}checked{% endif %}">
+                <input type="checkbox" name="calorie_tier" value="{{ ct }}"
+                       {% if ct in active.calorie_tier %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ ct.capitalize() }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
+        <fieldset class="filter-group">
+            <legend>Max Time (min)</legend>
+            <input type="range" name="max_time" min="0" max="180" step="5"
+                   value="{{ active.max_time if active.max_time else 180 }}"
+                   oninput="this.nextElementSibling.value = this.value; applyFilters()">
+            <output>{{ active.max_time if active.max_time else 180 }}</output>
+        </fieldset>
+
+        <fieldset class="filter-group">
+            <legend>Min Rating</legend>
+            <div class="star-filter">
+                {% for star in [1, 2, 3, 4, 5] %}
+                <button type="button" class="star-btn {% if active.min_rating and star <= active.min_rating %}active{% endif %}"
+                        onclick="setMinRating({{ star }})"
+                        title="{{ star }} star{{ 's' if star > 1 else '' }}">
+                    {{ '★' if (active.min_rating and star <= active.min_rating) else '☆' }}
+                </button>
+                {% endfor %}
+                {% if active.min_rating %}
+                <button type="button" class="star-clear" onclick="setMinRating(null)">✕</button>
+                {% endif %}
+            </div>
+        </fieldset>
+
+        <a href="/" class="clear-filters">Clear Filters</a>
+    </aside>
+
+    <section class="recipe-grid">
+        {% if recipes %}
+            {% for recipe in recipes %}
+            <a href="/recipe/{{ recipe.id }}" class="recipe-card">
+                <div class="card-image">
+                    {% if recipe.photo_path %}
+                    {% set filename = recipe.photo_path.split('/')[-1] %}
+                    <img src="/static/photos/{{ filename }}" alt="{{ recipe.title }}" loading="lazy">
+                    {% else %}
+                    <div class="no-photo">📷</div>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h3 class="card-title">{{ recipe.title }}</h3>
+                    <div class="card-meta">
+                        {% if recipe.rating %}
+                        <span class="stars">{{ '★' * recipe.rating }}{{ '☆' * (5 - recipe.rating) }}</span>
+                        {% endif %}
+                        {% if recipe.total_time %}
+                        <span class="time">⏱ {{ recipe.total_time }}m</span>
+                        {% endif %}
+                        {% if recipe.calorie_tier %}
+                        <span class="tier tier-{{ recipe.calorie_tier }}">{{ recipe.calorie_tier }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <p>No recipes match your filters. <a href="/">Clear filters</a></p>
+            </div>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+function applyFilters() {
+    const form = document.querySelector('.filter-sidebar');
+    const params = new URLSearchParams();
+
+    form.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
+        params.append(cb.name, cb.value);
+    });
+
+    const range = form.querySelector('input[type=range]');
+    if (range && parseInt(range.value) < 180) {
+        params.set('max_time', range.value);
+    }
+
+    {% if active.min_rating %}
+    params.set('min_rating', '{{ active.min_rating }}');
+    {% endif %}
+
+    window.location.search = params.toString();
+}
+
+function setMinRating(star) {
+    const params = new URLSearchParams(window.location.search);
+    if (star === null) {
+        params.delete('min_rating');
+    } else {
+        params.set('min_rating', star);
+    }
+    window.location.search = params.toString();
+}
+</script>
 {% endblock %}
