@@ -48,6 +48,7 @@ static_dir = Path("app/static")
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 templates = Jinja2Templates(directory="app/templates")
+templates.env.cache_size = 0  # work around Jinja2 3.1.6 LRUCache key hashing bug
 
 
 def url_for(path: str) -> str:

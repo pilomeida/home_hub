@@ -1,7 +1,130 @@
 {% extends "base.html" %}
 {% block title %}{{ recipe.title }}{% endblock %}
 {% block content %}
-<h1>{{ recipe.title }}</h1>
-<p>Detail view coming soon.</p>
-<a href="/">Back to browse</a>
+<article class="recipe-detail">
+    <div class="detail-header">
+        <div class="detail-photo">
+            {% if recipe.photo_path %}
+            {% set filename = recipe.photo_path.split('/')[-1] %}
+            <img src="/static/photos/{{ filename }}" alt="{{ recipe.title }}">
+            {% else %}
+            <div class="no-photo large">📷 No photo</div>
+            {% endif %}
+        </div>
+
+        <div class="detail-info">
+            <h1>{{ recipe.title }}</h1>
+            {% if recipe.distinguisher %}
+            <p class="distinguisher">{{ recipe.distinguisher }}</p>
+            {% endif %}
+
+            <div class="rating" id="rating-widget">
+                {% for star in [1, 2, 3, 4, 5] %}
+                <button class="star-btn {% if recipe.rating and star <= recipe.rating %}active{% endif %}"
+                        onclick="rateRecipe({{ star }})"
+                        title="{{ star }} star{{ 's' if star > 1 else '' }}">
+                    {{ '★' if recipe.rating and star <= recipe.rating else '☆' }}
+                </button>
+                {% endfor %}
+                <span id="rating-label">
+                    {% if recipe.rating %}{{ recipe.rating }}/5{% else %}Not rated{% endif %}
+                </span>
+            </div>
+
+            <div class="badges">
+                <span class="badge type-{{ recipe.type }}">{{ recipe.type }}</span>
+                {% if recipe.subtype %}
+                <span class="badge subtype">{{ recipe.subtype }}</span>
+                {% endif %}
+                {% if recipe.calorie_tier %}
+                <span class="badge tier-{{ recipe.calorie_tier }}">{{ recipe.calorie_tier }} cal</span>
+                {% endif %}
+                {% for tag in recipe.macro_tags_list %}
+                <span class="badge macro">{{ tag }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="times">
+                <div><strong>Prep:</strong> {{ recipe.prep_time }}m</div>
+                <div><strong>Cook:</strong> {{ recipe.cook_time if recipe.cook_time else '—' }}m</div>
+                <div><strong>Total:</strong> {{ recipe.total_time }}m</div>
+                {% if recipe.portions %}
+                <div><strong>Portions:</strong> {{ recipe.portions }}</div>
+                {% endif %}
+            </div>
+
+            {% if recipe.source_url %}
+            <a href="{{ recipe.source_url }}" target="_blank" rel="noopener" class="source-link">
+                🔗 View original post
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if recipe.ingredients_list %}
+    <section class="detail-section">
+        <h2>Ingredients</h2>
+        <ul class="ingredients-list">
+            {% for ing in recipe.ingredients_list %}
+            <li>{{ ing }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if recipe.instructions %}
+    <section class="detail-section">
+        <h2>Instructions</h2>
+        <div class="instructions-text">{{ recipe.instructions }}</div>
+    </section>
+    {% endif %}
+
+    {% if linked_recipes %}
+    <section class="detail-section">
+        <h2>Similar Recipes</h2>
+        <div class="linked-cards">
+            {% for linked in linked_recipes %}
+            <a href="/recipe/{{ linked.id }}" class="recipe-card small">
+                <div class="card-body">
+                    <h4>{{ linked.title }}</h4>
+                    <div class="card-meta">
+                        {% if linked.calorie_tier %}
+                        <span class="tier tier-{{ linked.calorie_tier }}">{{ linked.calorie_tier }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <div class="detail-actions">
+        <button onclick="confirmDelete()" class="btn btn-danger">🗑 Delete Recipe</button>
+    </div>
+</article>
+
+<script>
+function confirmDelete() {
+    if (confirm("Delete this recipe? This cannot be undone.")) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/recipe/{{ recipe.id }}/delete';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function rateRecipe(star) {
+    fetch('/recipe/{{ recipe.id }}/rate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({rating: star})
+    }).then(r => r.json()).then(data => {
+        if (data.ok) {
+            location.reload();
+        }
+    });
+}
+</script>
 {% endblock %}
