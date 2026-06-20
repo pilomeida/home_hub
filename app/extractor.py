@@ -79,7 +79,7 @@ async def extract_recipe(text: str, source_url: str) -> dict[str, Any]:
             _validate_extraction(data)
             return data
 
-        except (json.JSONDecodeError, KeyError, IndexError):
+        except (json.JSONDecodeError, KeyError, IndexError, ValueError):
             if attempt == 1:
                 raise ExtractionError(
                     f"Failed to extract valid JSON from LLM response after 2 attempts "

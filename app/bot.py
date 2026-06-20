@@ -74,22 +74,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Extract the URL
     url = _URL_RE.search(text).group(0)
 
-    # Check for duplicate
-    session_gen = get_session()
-    session = next(session_gen)
-    try:
-        existing = session.query(Recipe).filter_by(source_url=url).first()
-        if existing:
-            from app.main import url_for
-            await update.message.reply_text(
-                f"That recipe is already saved:\n"
-                f"{existing.title}\n"
-                f"{url_for(f'/recipe/{existing.id}')}"
-            )
-            return
-    finally:
-        session.close()
-
     # Try to acquire lock; if busy, tell user to wait
     if _extraction_lock.locked():
         await update.message.reply_text("Still processing your previous link, one moment...")
@@ -98,6 +82,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Got it! Extracting recipe...")
 
     async with _extraction_lock:
+        # Check for duplicate (inside lock to avoid TOCTOU race)
+        session_gen = get_session()
+        session = next(session_gen)
+        try:
+            existing = session.query(Recipe).filter_by(source_url=url).first()
+            if existing:
+                from app.main import url_for
+                await update.message.reply_text(
+                    f"That recipe is already saved:\n"
+                    f"{existing.title}\n"
+                    f"{url_for(f'/recipe/{existing.id}')}"
+                )
+                return
+        finally:
+            session.close()
+
         try:
             result = await process_extraction(url)
             if result:

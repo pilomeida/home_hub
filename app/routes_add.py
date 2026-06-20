@@ -159,6 +159,18 @@ async def update_recipe(
     if not recipe:
         return templates.TemplateResponse(request, "404.html", {}, status_code=404)
 
+    # Check for duplicate source_url (if changed)
+    if source_url != recipe.source_url:
+        existing = session.exec(
+            select(Recipe).where(Recipe.source_url == source_url)
+        ).first()
+        if existing:
+            return templates.TemplateResponse("add.html", {
+                "request": request,
+                "recipe": recipe,
+                "error": f"Another recipe already uses this URL: /recipe/{existing.id}",
+            })
+
     recipe.title = title
     recipe.dish_name = dish_name
     recipe.distinguisher = distinguisher or None
