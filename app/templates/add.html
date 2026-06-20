@@ -1,6 +1,121 @@
 {% extends "base.html" %}
-{% block title %}Add Recipe{% endblock %}
+{% block title %}{% if recipe %}Edit Recipe{% else %}Add Recipe{% endif %}{% endblock %}
 {% block content %}
-<h1>Add Recipe</h1>
-<p>Add form coming soon.</p>
+<h1>{% if recipe %}Edit Recipe{% else %}Add Recipe{% endif %}</h1>
+
+{% if error %}
+<div class="error-banner">{{ error }}</div>
+{% endif %}
+
+{% if not recipe %}
+<section class="url-fetch">
+    <h2>From URL</h2>
+    <form id="url-fetch-form" onsubmit="fetchFromUrl(event)">
+        <input type="url" name="url" placeholder="Paste Instagram or recipe URL..." required
+               style="flex:1; padding: 0.5rem;">
+        <button type="submit" class="btn btn-primary">Fetch &amp; Extract</button>
+        <span id="fetch-spinner" class="spinner" style="display:none">Extracting...</span>
+    </form>
+    <div id="fetch-error" class="error-banner" style="display:none"></div>
+</section>
+
+<hr>
+{% endif %}
+
+<form method="post" class="recipe-form" id="recipe-form"
+      action="{% if recipe %}/edit/{{ recipe.id }}{% else %}/add{% endif %}">
+    <fieldset>
+        <legend>Basics</legend>
+        <label>Title: <input name="title" value="{{ recipe.title if recipe else '' }}" required></label>
+        <label>Dish Name: <input name="dish_name" value="{{ recipe.dish_name if recipe else '' }}" required></label>
+        <label>Distinguishing Feature: <input name="distinguisher" value="{{ recipe.distinguisher or '' if recipe else '' }}"></label>
+        <label>Type:
+            <select name="type" required>
+                <option value="sweet" {% if recipe and recipe.type == 'sweet' %}selected{% endif %}>Sweet</option>
+                <option value="savory" {% if recipe and recipe.type == 'savory' %}selected{% endif %}>Savory</option>
+            </select>
+        </label>
+        <label>Subtype:
+            <select name="subtype">
+                <option value="">--</option>
+                {% for opt in ['main', 'dessert', 'snack', 'soup', 'salad', 'breakfast', 'side', 'drink'] %}
+                <option value="{{ opt }}" {% if recipe and recipe.subtype == opt %}selected{% endif %}>{{ opt.capitalize() }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Source URL: <input type="url" name="source_url" value="{{ recipe.source_url if recipe else '' }}" required></label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Times &amp; Portions</legend>
+        <label>Prep Time (min): <input type="number" name="prep_time" min="0" value="{{ recipe.prep_time if recipe else '' }}"></label>
+        <label>Cook Time (min): <input type="number" name="cook_time" min="0" value="{{ recipe.cook_time if recipe else '' }}"></label>
+        <label>Portions: <input type="number" name="portions" min="1" value="{{ recipe.portions if recipe else '' }}"></label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Nutrition</legend>
+        <label>Calories per Portion: <input type="number" name="calories_per_portion" min="0" value="{{ recipe.calories_per_portion if recipe else '' }}"></label>
+        <label>Macro Tags (JSON array):
+            <input name="macro_tags" value='{{ recipe.macro_tags if recipe else "[]" }}' placeholder='["protein-rich","low-carb"]'>
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Ingredients (JSON array)</legend>
+        <textarea name="ingredients" rows="3" placeholder='["egg","flour","chocolate"]'>{{ recipe.ingredients if recipe else "[]" }}</textarea>
+    </fieldset>
+
+    <fieldset>
+        <legend>Instructions (Markdown)</legend>
+        <textarea name="instructions" rows="8" placeholder="1. Step one&#10;2. Step two">{{ recipe.instructions if recipe else '' }}</textarea>
+    </fieldset>
+
+    {% if recipe %}
+    <fieldset>
+        <legend>Rating</legend>
+        <input type="number" name="rating" min="1" max="5" value="{{ recipe.rating if recipe.rating else '' }}">
+    </fieldset>
+    <input type="hidden" name="photo_path" value="{{ recipe.photo_path or '' }}">
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">
+        {% if recipe %}Save Changes{% else %}Save Recipe{% endif %}
+    </button>
+</form>
+
+<script>
+async function fetchFromUrl(event) {
+    event.preventDefault();
+    const url = document.getElementById('url-fetch-form').url.value;
+    const spinner = document.getElementById('fetch-spinner');
+    const error = document.getElementById('fetch-error');
+    spinner.style.display = 'inline';
+    error.style.display = 'none';
+
+    try {
+        const resp = await fetch('/add/fetch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({url}),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            // Pre-fill form
+            for (const [key, val] of Object.entries(data)) {
+                const el = document.querySelector(`[name="${key}"]`);
+                if (el) { el.value = val ?? ''; }
+            }
+        } else {
+            error.textContent = data.error || 'Fetch failed';
+            error.style.display = 'block';
+        }
+    } catch (e) {
+        error.textContent = 'Network error. Try again.';
+        error.style.display = 'block';
+    } finally {
+        spinner.style.display = 'none';
+    }
+}
+</script>
 {% endblock %}
