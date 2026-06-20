@@ -11,7 +11,7 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 from app.config import settings
 from app.database import get_session
 from app.models import Recipe
-from app.scraper import fetch_content, ScrapeError
+from app.scraper import fetch_content
 from app.extractor import extract_recipe, ExtractionError
 from app.linker import detect_and_link
 
@@ -47,8 +47,13 @@ async def start_bot():
     await _tg_app.start()
     await _tg_app.updater.start_polling()
     # Keep running until cancelled
-    while True:
-        await asyncio.sleep(3600)
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        await _tg_app.updater.stop()
+        await _tg_app.stop()
+        await _tg_app.shutdown()
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -70,7 +75,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = _URL_RE.search(text).group(0)
 
     # Check for duplicate
-    with next(get_session()) as session:
+    session_gen = get_session()
+    session = next(session_gen)
+    try:
         existing = session.query(Recipe).filter_by(source_url=url).first()
         if existing:
             from app.main import url_for
@@ -80,6 +87,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{url_for(f'/recipe/{existing.id}')}"
             )
             return
+    finally:
+        session.close()
 
     # Try to acquire lock; if busy, tell user to wait
     if _extraction_lock.locked():
@@ -98,10 +107,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Extraction failed for that link. "
                     f"You can add it manually at http://{settings.VPS_IP}/add"
                 )
-        except ScrapeError:
-            await update.message.reply_text(
-                "Couldn't extract that one -- the post may be private, deleted, or rate-limited."
-            )
         except Exception:
             traceback.print_exc()
             await update.message.reply_text(
@@ -152,9 +157,9 @@ async def process_extraction(url: str) -> dict | None:
         photo_path=content.image_path,
         source_url=url,
     )
-    recipe.compute_derived_fields()
-
-    with next(get_session()) as session:
+    session_gen = get_session()
+    session = next(session_gen)
+    try:
         session.add(recipe)
         session.commit()
         session.refresh(recipe)
@@ -171,6 +176,8 @@ async def process_extraction(url: str) -> dict | None:
             "total_time": recipe.total_time,
             "url": url_for(f"/recipe/{recipe_id}"),
         }
+    finally:
+        session.close()
 
 
 def _success_message(result: dict) -> str:
