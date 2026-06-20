@@ -1,14 +1,21 @@
 """Dual-mode scraper: Instagram via instaloader, generic via httpx+BeautifulSoup."""
 
+import hashlib
+import logging
 import re
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+_MIN_IMAGE_BYTES = 5000
 
 
 class ScrapeError(Exception):
@@ -29,8 +36,7 @@ def fetch_content(url: str) -> ScrapedContent:
     """Fetch recipe content from any URL.
 
     Routes Instagram URLs to instaloader, everything else to the generic
-    HTTP scraper. This is a synchronous wrapper that delegates to the async
-    implementation internally.
+    HTTP scraper. Entirely synchronous.
     """
     parsed = urlparse(url)
     host = parsed.netloc.lower().replace("www.", "")
@@ -83,12 +89,15 @@ def _fetch_instagram(url: str) -> ScrapedContent:
         if post.is_video:
             # For reels, grab the thumbnail
             if post.url:
-                target = photos_dir / f"{shortcode}.jpg"
-                loader.download_pic(target, post.url, post.date_utc)
-                image_path = str(target)
+                video_target = photos_dir / f"{shortcode}.jpg"
+                loader.download_pic(video_target, post.url, post.date_utc)
+                image_path = str(video_target)
         else:
-            target = photos_dir / shortcode
-            loader.download_post(post, target=shortcode)
+            target_dir = photos_dir / shortcode
+            loader.download_post(post, target=str(target_dir))
+            downloaded = list(target_dir.glob("*.jpg")) + list(target_dir.glob("*.mp4"))
+            if downloaded:
+                image_path = str(downloaded[0])
 
         return ScrapedContent(
             text=_clean_text(caption),
@@ -99,6 +108,9 @@ def _fetch_instagram(url: str) -> ScrapedContent:
     except (QueryReturnedNotFoundException, BadResponseException) as e:
         raise ScrapeError(f"Instagram post not found or private: {e}")
     except Exception as e:
+        logger.error(
+            "Instagram fetch failed for %s\n%s", url, traceback.format_exc()
+        )
         raise ScrapeError(f"Instagram fetch failed: {e}")
 
 
@@ -140,8 +152,7 @@ def _fetch_generic(url: str) -> ScrapedContent:
                 img_response = httpx.get(img_url, timeout=10.0)
                 img_response.raise_for_status()
 
-                if len(img_response.content) > 5000:  # skip tiny images/icons
-                    import hashlib
+                if len(img_response.content) > _MIN_IMAGE_BYTES:  # skip tiny images/icons
                     slug = hashlib.md5(url.encode()).hexdigest()[:12]
                     photos_dir = Path(settings.PHOTOS_DIR)
                     photos_dir.mkdir(parents=True, exist_ok=True)
@@ -170,7 +181,6 @@ def _clean_text(text: str) -> str:
 
 def _resolve_url(base_url: str, img_src: str) -> str:
     """Resolve a relative image URL against the page base URL."""
-    from urllib.parse import urljoin
     return urljoin(base_url, img_src)
 
 
