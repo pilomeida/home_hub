@@ -1,0 +1,15 @@
+[Unit]
+Description=Recipe App (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=recipe-app
+WorkingDirectory=/srv/recipe-app
+ExecStart=/srv/recipe-app/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+EnvironmentFile=/srv/recipe-app/.env
+
+[Install]
+WantedBy=multi-user.target

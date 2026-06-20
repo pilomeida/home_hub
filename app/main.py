@@ -66,3 +66,8 @@ from app.routes_add import router as add_router        # noqa: E402
 app.include_router(browse_router)
 app.include_router(detail_router)
 app.include_router(add_router)
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
