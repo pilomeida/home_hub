@@ -59,6 +59,11 @@
     fetch("/import/" + sid + "/status")
       .then(r => r.json())
       .then(d => {
+        if (d.error) {
+          document.getElementById("prog-text").textContent = "Error: " + d.error;
+          document.getElementById("prog-bar").style.background = "var(--danger)";
+          return;  // stop polling
+        }
         if (d.extraction_complete) { window.location.href = "/import/" + sid + "/review"; return; }
         const pct = d.sampled > 0 ? Math.round((d.extracted_so_far / d.sampled) * 80) + 10 : 10;
         document.getElementById("prog-bar").style.width = pct + "%";

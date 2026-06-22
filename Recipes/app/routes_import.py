@@ -34,7 +34,7 @@ def _build_title(dish_name: str, distinguisher: str | None) -> str:
 
 def _int_or_none(val) -> int | None:
     try:
-        return int(val) if val not in (None, "", "None") else None
+        return int(float(val)) if val not in (None, "", "None") else None
     except (ValueError, TypeError):
         return None
 
@@ -55,9 +55,13 @@ async def start_import(
     pdf_file: UploadFile = File(...),
     book_title: str = Form(default=""),
 ):
+    if pdf_file.content_type != "application/pdf":
+        return templates.TemplateResponse(request, "import.html", {
+            "view": "upload", "error": "Only PDF files are accepted.",
+        })
     _PDF_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     sid = str(uuid.uuid4())[:8]
-    dest = _PDF_UPLOAD_DIR / f"{sid}_{pdf_file.filename}"
+    dest = _PDF_UPLOAD_DIR / f"{sid}.pdf"
     with dest.open("wb") as f:
         shutil.copyfileobj(pdf_file.file, f)
 
@@ -110,6 +114,7 @@ async def import_status(sid: str):
         "total_detected": len(session.all_recipes),
         "sampled": len(session.sampled_indices),
         "extracted_so_far": extracted_count,
+        "error": session.error,
     }
 
 
@@ -243,36 +248,17 @@ async def import_more(sid: str, background_tasks: BackgroundTasks):
 
 
 async def _extract_more(session_id: str, new_indices: list[int]):
-    from app.extractor import extract_recipe
-    from app.pdf_extractor import (
-        assemble_recipe_text, extract_page_texts,
-        flag_sparse_pages, vision_pass,
-    )
+    from app.pdf_extractor import _build_full_texts, _extract_one
     session = load_session(session_id)
-    page_texts_raw = extract_page_texts(session.pdf_path)
-    sparse = flag_sparse_pages(page_texts_raw)
-    vision_texts = await vision_pass(session.pdf_path, sparse)
-    full_texts = {num: pt.text for num, pt in page_texts_raw.items()}
-    for num, vtext in vision_texts.items():
-        existing = full_texts.get(num, "")
-        full_texts[num] = (existing + "\n" + vtext).strip() if existing else vtext
-
-    for idx in new_indices:
-        meta = session.all_recipes[idx]
-        text = assemble_recipe_text(full_texts, meta["pages"])
-        source_url = f"pdf:{session.book_slug}#{_slugify(meta['recipe_title'])}"
-        try:
-            data = await extract_recipe(text, source_url)
-        except Exception:
-            data = {k: None for k in (
-                "dish_name", "distinguishing_feature", "type", "subtype",
-                "macro_tags", "calories_per_portion", "ingredients",
-                "prep_time_minutes", "cook_time_minutes", "portions",
-                "instructions", "cooking_types", "protein_g", "fat_g", "carbs_g", "fiber_g",
-            )}
-            data.update({"missing_critical_info": True, "macro_tags": [], "ingredients": [], "cooking_types": []})
-        data.update({"status": "pending", "source_url": source_url, "book_title": session.book_title})
-        session.extracted[str(idx)] = data
-
-    session.extraction_complete = True
-    save_session(session)
+    try:
+        full_texts = await _build_full_texts(session.pdf_path)
+        for idx in new_indices:
+            data = await _extract_one(session.all_recipes[idx], full_texts, session.book_slug, session.book_title)
+            session.extracted[str(idx)] = data
+            save_session(session)
+        session.extraction_complete = True
+    except Exception as exc:
+        session.error = str(exc)
+        session.extraction_complete = True
+    finally:
+        save_session(session)

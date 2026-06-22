@@ -98,3 +98,29 @@ def test_unknown_session_returns_404(tmp_path, monkeypatch):
     monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
     response = client.get("/import/no-such-session/status")
     assert response.status_code == 404
+
+
+def test_submit_review_saves_recipe_to_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
+    _seed_session(tmp_path)
+    form_data = {
+        "action_0": "save",
+        "dish_name_0": "Brownie",
+        "distinguisher_0": "",
+        "type_0": "sweet",
+        "subtype_0": "dessert",
+        "calories_0": "267",
+        "portions_0": "1",
+        "protein_g_0": "37",
+        "fat_g_0": "9",
+        "carbs_g_0": "17",
+        "fiber_g_0": "",
+    }
+    response = client.post("/import/test-sid/review", data=form_data, follow_redirects=False)
+    assert response.status_code == 303
+
+    # Verify recipe was saved and session updated
+    import json as _json
+    session_data = _json.loads((tmp_path / "test-sid.json").read_text())
+    assert session_data["extracted"]["0"]["status"] == "approved"
+    assert "saved_recipe_id" in session_data["extracted"]["0"]

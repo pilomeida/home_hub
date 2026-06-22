@@ -9,6 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import pdfplumber
 from pdf2image import convert_from_path
@@ -146,17 +147,24 @@ async def detect_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
     )
     prompt = _BOUNDARY_PROMPT.format(page_texts=formatted[:40000])
     client = _get_client()
-    message = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        temperature=0,
-        system="You are a precise cookbook analyzer. Return only valid JSON arrays.",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = message.content[0].text.strip()
-    text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
-    return json.loads(text)
+    last_error = None
+    for attempt in range(3):
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            temperature=0,
+            system="You are a precise cookbook analyzer. Return only valid JSON arrays.",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = message.content[0].text.strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as e:
+            last_error = e
+            continue
+    raise ValueError(f"detect_recipe_boundaries failed to parse JSON after 3 attempts: {last_error}")
 
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -172,6 +180,7 @@ class PdfIngestionSession:
     extracted: dict          # str(index) -> recipe dict with "status" key
     extraction_complete: bool
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    error: Optional[str] = None
 
 
 def _session_path(session_id: str) -> Path:
@@ -204,6 +213,42 @@ def get_pending_batch(
     return result
 
 
+# ── Shared pipeline helpers ───────────────────────────────────────────────────
+
+async def _build_full_texts(pdf_path: str) -> dict[int, str]:
+    """Run text pass + vision pass and return merged page texts."""
+    page_texts_raw = extract_page_texts(pdf_path)
+    sparse = flag_sparse_pages(page_texts_raw)
+    vision_texts = await vision_pass(pdf_path, sparse)
+    full_texts: dict[int, str] = {num: pt.text for num, pt in page_texts_raw.items()}
+    for num, vtext in vision_texts.items():
+        existing = full_texts.get(num, "")
+        full_texts[num] = (existing + "\n" + vtext).strip() if existing else vtext
+    return full_texts
+
+
+async def _extract_one(
+    meta: dict, full_texts: dict[int, str], book_slug: str, book_title: str
+) -> dict:
+    """Extract a single recipe and return the annotated dict."""
+    from app.extractor import extract_recipe
+    text = assemble_recipe_text(full_texts, meta["pages"])
+    source_url = f"pdf:{book_slug}#{_slugify(meta['recipe_title'])}"
+    try:
+        data = await extract_recipe(text, source_url)
+    except Exception:
+        data = {k: None for k in (
+            "dish_name", "distinguishing_feature", "type", "subtype",
+            "macro_tags", "calories_per_portion", "ingredients",
+            "prep_time_minutes", "cook_time_minutes", "portions",
+            "instructions", "cooking_types", "protein_g", "fat_g",
+            "carbs_g", "fiber_g",
+        )}
+        data.update({"missing_critical_info": True, "macro_tags": [], "ingredients": [], "cooking_types": []})
+    data.update({"status": "pending", "source_url": source_url, "book_title": book_title})
+    return data
+
+
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 
 async def create_session(
@@ -215,18 +260,8 @@ async def create_session(
     """Run the full PDF pipeline and return a session with extracted recipes."""
     sid = session_id or str(uuid.uuid4())[:8]
 
-    # Step 1: text pass
-    page_texts_raw = extract_page_texts(pdf_path)
-
-    # Step 2: vision pass on sparse pages
-    sparse = flag_sparse_pages(page_texts_raw)
-    vision_texts = await vision_pass(pdf_path, sparse)
-
-    # Merge: supplement existing text with vision output, prefer existing text
-    full_texts: dict[int, str] = {num: pt.text for num, pt in page_texts_raw.items()}
-    for num, vtext in vision_texts.items():
-        existing = full_texts.get(num, "")
-        full_texts[num] = (existing + "\n" + vtext).strip() if existing else vtext
+    # Steps 1–2: text pass + vision pass
+    full_texts = await _build_full_texts(pdf_path)
 
     # Step 3: boundary detection
     raw_boundaries = await detect_recipe_boundaries(full_texts)
@@ -247,32 +282,17 @@ async def create_session(
     )
     save_session(session)
 
-    # Step 5: per-recipe extraction
-    from app.extractor import extract_recipe
-    for idx in sampled_indices:
-        recipe_meta = all_recipes[idx]
-        text = assemble_recipe_text(full_texts, recipe_meta["pages"])
-        source_url = f"pdf:{book_slug}#{_slugify(recipe_meta['recipe_title'])}"
-        try:
-            data = await extract_recipe(text, source_url)
-        except Exception:
-            data = {k: None for k in (
-                "dish_name", "distinguishing_feature", "type", "subtype",
-                "macro_tags", "calories_per_portion", "ingredients",
-                "prep_time_minutes", "cook_time_minutes", "portions",
-                "instructions", "cooking_types", "protein_g", "fat_g",
-                "carbs_g", "fiber_g",
-            )}
-            data["missing_critical_info"] = True
-            data["macro_tags"] = []
-            data["ingredients"] = []
-            data["cooking_types"] = []
+    # Step 5: per-recipe extraction with progress persistence
+    try:
+        for idx in sampled_indices:
+            data = await _extract_one(all_recipes[idx], full_texts, book_slug, book_title)
+            session.extracted[str(idx)] = data
+            save_session(session)  # persist progress so polling endpoint can see it
+        session.extraction_complete = True
+    except Exception as exc:
+        session.error = str(exc)
+        session.extraction_complete = True  # stop polling
+    finally:
+        save_session(session)
 
-        data["status"] = "pending"
-        data["source_url"] = source_url
-        data["book_title"] = book_title
-        session.extracted[str(idx)] = data
-
-    session.extraction_complete = True
-    save_session(session)
     return session
