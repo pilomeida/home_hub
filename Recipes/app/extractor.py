@@ -39,6 +39,37 @@ Text to extract from:
 {text}
 ---"""
 
+_CHUNK_PROMPT = """You are extracting recipes from a cookbook page excerpt.
+
+Extract ONLY complete recipes — ones with at minimum a name, ingredient list, and instructions visible in the excerpt. If a recipe is clearly cut off at the start or end of the excerpt (ingredients or instructions missing), skip it.
+
+For each complete recipe return an object with the same fields as below.
+Return ONLY a valid JSON array. Return [] if no complete recipes are found.
+
+Fields per recipe:
+- dish_name: string
+- distinguishing_feature: string or null — what makes this version unique (≤8 words)
+- type: "sweet" or "savory"
+- subtype: string or null — one of: "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink"
+- macro_tags: array of strings — any from: "protein-rich", "low-carb", "keto", "vegan", "gluten-free", "fiber-rich", "high-fat", "dairy-free"
+- calories_per_portion: integer or null
+- ingredients: array of strings — normalized, singular, lowercase, no quantities (e.g. "egg" not "2 eggs")
+- prep_time_minutes: integer or null
+- cook_time_minutes: integer or null
+- portions: integer or null
+- instructions: string or null — full steps as markdown
+- missing_critical_info: boolean
+- cooking_types: array from: "oven", "cooktop", "microwave", "blender", "no-cook", "air-fryer", "other"
+- protein_g: integer or null — parse from text like "P 37.3g", round to int
+- fat_g: integer or null — parse from "F 9g"
+- carbs_g: integer or null — parse from "C 16.8g"
+- fiber_g: integer or null
+
+Excerpt:
+---
+{chunk_text}
+---"""
+
 
 class ExtractionError(Exception):
     """Raised when LLM extraction fails after retries."""
@@ -98,6 +129,42 @@ async def extract_recipe(text: str, source_url: str) -> dict[str, Any]:
             )
 
     raise ExtractionError("Unreachable")  # pragma: no cover
+
+
+async def extract_recipes_from_chunk(chunk_text: str) -> list[dict]:
+    """Extract all complete recipes from a page chunk. Returns list (possibly empty)."""
+    if not chunk_text.strip():
+        return []
+
+    prompt = _CHUNK_PROMPT.format(chunk_text=chunk_text[:10000])
+
+    for attempt in range(3):
+        try:
+            message = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                temperature=0,
+                system="You are a precise recipe data extractor. Return only valid JSON arrays.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            response_text = message.content[0].text.strip()
+            if response_text.startswith("```"):
+                response_text = re.sub(r"^```(?:json)?\s*", "", response_text)
+                response_text = re.sub(r"\s*```$", "", response_text)
+            parsed = json.loads(response_text)
+            if not isinstance(parsed, list):
+                continue
+            valid = []
+            for recipe in parsed:
+                try:
+                    _validate_extraction(recipe)
+                    valid.append(recipe)
+                except (KeyError, ValueError):
+                    pass
+            return valid
+        except json.JSONDecodeError:
+            continue
+    return []
 
 
 def _validate_extraction(data: dict) -> None:

@@ -21,6 +21,10 @@ from app.pdf_extractor import (
     get_pending_batch,
     load_session,
     save_session,
+    sample_page_windows,
+    _build_window_texts,
+    _extract_window,
+    extract_page_texts,
 )
 
 router = APIRouter(prefix="/import", tags=["import"])
@@ -73,6 +77,7 @@ async def start_import(
         session_id=sid, pdf_path=str(dest), book_title=title,
         book_slug=slug, all_recipes=[], sampled_indices=[],
         extracted={}, extraction_complete=False,
+        total_pages=0, used_windows=[],
     )
     save_session(placeholder)
 
@@ -105,15 +110,14 @@ async def import_status(sid: str):
         session = load_session(sid)
     except FileNotFoundError:
         return JSONResponse({"error": "session not found"}, status_code=404)
-    extracted_count = sum(
-        1 for v in session.extracted.values() if v.get("dish_name")
-    )
+    windows_done = len(session.used_windows)
+    windows_total = max(windows_done, 3)  # always show progress out of 3
     return {
         "extraction_complete": session.extraction_complete,
         "book_title": session.book_title,
         "total_detected": len(session.all_recipes),
-        "sampled": len(session.sampled_indices),
-        "extracted_so_far": extracted_count,
+        "windows_done": windows_done,
+        "windows_total": windows_total,
         "error": session.error,
     }
 
@@ -215,10 +219,11 @@ async def import_summary(sid: str, request: Request):
         return templates.TemplateResponse(request, "404.html", {}, status_code=404)
     saved = [v for v in session.extracted.values() if v.get("status") == "approved"]
     skipped = [v for v in session.extracted.values() if v.get("status") == "skipped"]
-    remaining = sum(1 for r in session.all_recipes if r.get("status") == "pending")
+    used_pages = {p for w in session.used_windows for p in w}
+    can_import_more = session.total_pages > 0 and (session.total_pages - len(used_pages)) >= 12
     return templates.TemplateResponse(request, "import.html", {
         "view": "summary", "session": session, "sid": sid,
-        "saved": saved, "skipped": skipped, "remaining": remaining,
+        "saved": saved, "skipped": skipped, "remaining": 1 if can_import_more else 0,
     })
 
 
@@ -231,34 +236,46 @@ async def import_more(sid: str, background_tasks: BackgroundTasks):
     except FileNotFoundError:
         return JSONResponse({"error": "not found"}, status_code=404)
 
-    already = set(session.sampled_indices)
-    candidates = [i for i in range(len(session.all_recipes)) if i not in already]
-    if not candidates:
+    used_pages = {p for w in session.used_windows for p in w}
+    if session.total_pages == 0 or (session.total_pages - len(used_pages)) < 12:
         return RedirectResponse(url=f"/import/{sid}/summary", status_code=303)
 
-    from app.pdf_extractor import sample_recipe_indices as _sample
-    new_local = _sample([session.all_recipes[i] for i in candidates], n=3)
-    real_indices = [candidates[i] for i in new_local]
-    session.sampled_indices.extend(real_indices)
     session.extraction_complete = False
     save_session(session)
-
-    background_tasks.add_task(_extract_more, sid, real_indices)
+    background_tasks.add_task(_extract_more, sid)
     return RedirectResponse(url=f"/import/{sid}", status_code=303)
 
 
-async def _extract_more(session_id: str, new_indices: list[int]):
-    from app.pdf_extractor import _build_full_texts, _extract_one
+async def _extract_more(session_id: str):
     session = load_session(session_id)
     try:
-        full_texts = await _build_full_texts(session.pdf_path)
-        for idx in new_indices:
-            data = await _extract_one(session.all_recipes[idx], full_texts, session.book_slug, session.book_title)
-            session.extracted[str(idx)] = data
+        used_pages = {p for w in session.used_windows for p in w}
+        new_windows = sample_page_windows(
+            session.total_pages, n=3, window_size=3, exclude_pages=used_pages
+        )
+        if not new_windows:
+            session.extraction_complete = True
             save_session(session)
+            return
+
+        page_texts_raw = extract_page_texts(session.pdf_path)
+        for window in new_windows:
+            print(f"[pdf] _extract_more window: {window}", flush=True)
+            full_texts = await _build_window_texts(session.pdf_path, page_texts_raw, window)
+            recipes = await _extract_window(full_texts, window, session.book_slug, session.book_title)
+            print(f"[pdf] _extract_more window {window}: {len(recipes)} recipe(s)", flush=True)
+            start_idx = len(session.all_recipes)
+            session.all_recipes.extend(recipes)
+            session.sampled_indices.extend(range(start_idx, len(session.all_recipes)))
+            for i, r in enumerate(recipes, start=start_idx):
+                session.extracted[str(i)] = r
+            session.used_windows.append(window)
+            save_session(session)
+
         session.extraction_complete = True
     except Exception as exc:
         session.error = str(exc)
         session.extraction_complete = True
+        print(f"[pdf] _extract_more error: {exc}", flush=True)
     finally:
         save_session(session)
