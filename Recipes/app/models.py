@@ -58,6 +58,11 @@ class Recipe(SQLModel, table=True):
     photo_path: Optional[str] = None
     source_url: str = Field(unique=True)
     rating: Optional[int] = Field(default=None, ge=1, le=5)
+    protein_g: Optional[int] = None
+    fat_g: Optional[int] = None
+    carbs_g: Optional[int] = None
+    fiber_g: Optional[int] = None
+    cooking_types: str = Field(default="[]")  # JSON array
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -87,6 +92,10 @@ class Recipe(SQLModel, table=True):
         return json.loads(self.macro_tags)
 
     @property
+    def cooking_types_list(self) -> list[str]:
+        return json.loads(self.cooking_types)
+
+    @property
     def all_linked_ids(self) -> set[int]:
         """Return all recipe IDs linked to this recipe (both directions)."""
         ids = set()
@@ -114,6 +123,11 @@ class RecipeCreate(SQLModel):
     photo_path: Optional[str] = None
     source_url: str
     rating: Optional[int] = None
+    protein_g: Optional[int] = None
+    fat_g: Optional[int] = None
+    carbs_g: Optional[int] = None
+    fiber_g: Optional[int] = None
+    cooking_types: str = "[]"
 
 
 class RecipeUpdate(SQLModel):
@@ -132,6 +146,11 @@ class RecipeUpdate(SQLModel):
     instructions: Optional[str] = None
     photo_path: Optional[str] = None
     rating: Optional[int] = None
+    protein_g: Optional[int] = None
+    fat_g: Optional[int] = None
+    carbs_g: Optional[int] = None
+    fiber_g: Optional[int] = None
+    cooking_types: Optional[str] = None
 
 
 # Automatically compute derived fields before insert and update

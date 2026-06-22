@@ -23,3 +23,24 @@ def get_session():
     """Yield a database session. Used as FastAPI dependency."""
     with Session(engine) as session:
         yield session
+
+
+_NEW_COLUMNS = [
+    ("protein_g",    "INTEGER"),
+    ("fat_g",        "INTEGER"),
+    ("carbs_g",      "INTEGER"),
+    ("fiber_g",      "INTEGER"),
+    ("cooking_types","TEXT DEFAULT '[]'"),
+]
+
+
+def migrate_db(db_engine=None):
+    """Add any missing columns to the recipes table (idempotent)."""
+    from sqlalchemy import text
+    target = db_engine or engine
+    with target.connect() as conn:
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(recipes)"))}
+        for col_name, col_type in _NEW_COLUMNS:
+            if col_name not in existing:
+                conn.execute(text(f"ALTER TABLE recipes ADD COLUMN {col_name} {col_type}"))
+        conn.commit()

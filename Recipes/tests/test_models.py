@@ -109,3 +109,61 @@ class TestCrossLink:
 
         remaining = db_session.exec(select(CrossLink)).all()
         assert len(remaining) == 0
+
+
+def test_recipe_new_macro_fields():
+    r = Recipe(
+        title="T", dish_name="T", type="savory",
+        source_url="pdf:book#recipe",
+        protein_g=30, fat_g=10, carbs_g=40, fiber_g=5,
+        cooking_types='["oven", "cooktop"]',
+    )
+    assert r.protein_g == 30
+    assert r.fat_g == 10
+    assert r.carbs_g == 40
+    assert r.fiber_g == 5
+    assert r.cooking_types_list == ["oven", "cooktop"]
+
+
+def test_recipe_macro_fields_nullable():
+    r = Recipe(title="T", dish_name="T", type="savory", source_url="pdf:b#r")
+    assert r.protein_g is None
+    assert r.fiber_g is None
+    assert r.cooking_types_list == []
+
+
+def test_recipe_create_accepts_new_fields():
+    from app.models import RecipeCreate
+    rc = RecipeCreate(
+        title="T", dish_name="T", type="savory",
+        source_url="pdf:book#recipe",
+        protein_g=25, fat_g=8, carbs_g=30, fiber_g=None,
+        cooking_types='["microwave"]',
+    )
+    assert rc.protein_g == 25
+    assert rc.cooking_types == '["microwave"]'
+
+
+def test_migrate_db_adds_new_columns(tmp_path):
+    from sqlalchemy import create_engine, text
+    from app.database import migrate_db
+
+    # Build a DB with the OLD schema (no new columns)
+    old_engine = create_engine(f"sqlite:///{tmp_path}/old.db")
+    with old_engine.connect() as conn:
+        conn.execute(text(
+            "CREATE TABLE recipes ("
+            "id INTEGER PRIMARY KEY, title TEXT, dish_name TEXT, "
+            "type TEXT, source_url TEXT UNIQUE, "
+            "macro_tags TEXT DEFAULT '[]', ingredients TEXT DEFAULT '[]', "
+            "created_at TEXT, updated_at TEXT"
+            ")"
+        ))
+        conn.commit()
+
+    migrate_db(old_engine)
+
+    with old_engine.connect() as conn:
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(recipes)"))}
+
+    assert {"protein_g", "fat_g", "carbs_g", "fiber_g", "cooking_types"} <= cols
