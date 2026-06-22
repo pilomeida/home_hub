@@ -1,9 +1,6 @@
-"""Hybrid PDF extraction: pdfplumber text pass + Claude vision fallback."""
+"""PDF extraction: pdfplumber text pass + programmatic recipe boundary detection."""
 
-import base64
-import io
 import json
-import random
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -12,32 +9,22 @@ from pathlib import Path
 from typing import Optional
 
 import pdfplumber
-from pdf2image import convert_from_path
-
-from app.config import settings
 
 _MIN_TEXT_CHARS = 50
 _SESSIONS_DIR = Path("data/import_sessions")
+_MAX_PAGES_PER_RECIPE = 6
 
-_anthropic_client = None
+# Pages containing this pattern are recipe title/photo pages with macro overlays
+_RECIPE_MACRO_RE = re.compile(r'\bKCALS?\s+\d', re.IGNORECASE)
 
 
-def _get_client():
-    global _anthropic_client
-    if _anthropic_client is None:
-        from anthropic import AsyncAnthropic
-        _anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    return _anthropic_client
-
+# ── Sync helpers ──────────────────────────────────────────────────────────────
 
 @dataclass
 class PageText:
     page_num: int
     text: str
-    from_vision: bool = False
 
-
-# ── Sync helpers ──────────────────────────────────────────────────────────────
 
 def extract_page_texts(pdf_path: str) -> dict[int, PageText]:
     """Extract text from every page of a PDF via pdfplumber."""
@@ -49,9 +36,37 @@ def extract_page_texts(pdf_path: str) -> dict[int, PageText]:
     return result
 
 
-def flag_sparse_pages(page_texts: dict[int, PageText]) -> list[int]:
-    """Return page numbers whose text is shorter than _MIN_TEXT_CHARS."""
-    return [num for num, pt in page_texts.items() if len(pt.text) < _MIN_TEXT_CHARS]
+def find_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
+    """Detect recipe pages by finding macro lines (KCALS X P Y F Z C W).
+
+    Each recipe spans from its title/macro page to just before the next one,
+    capped at _MAX_PAGES_PER_RECIPE.
+    """
+    sorted_pages = sorted(page_texts.keys())
+    starts = [
+        p for p in sorted_pages
+        if _RECIPE_MACRO_RE.search(page_texts.get(p, ""))
+    ]
+
+    recipes = []
+    for i, start in enumerate(starts):
+        next_start = starts[i + 1] if i + 1 < len(starts) else start + _MAX_PAGES_PER_RECIPE
+        pages = list(range(start, min(next_start, start + _MAX_PAGES_PER_RECIPE)))
+        title = _title_from_page(page_texts.get(start, ""))
+        recipes.append({"recipe_title": title, "pages": pages})
+
+    return recipes
+
+
+def _title_from_page(text: str) -> str:
+    """Extract recipe title: the lines on the macro page that precede the KCALS line."""
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    title_lines = []
+    for line in lines:
+        if _RECIPE_MACRO_RE.search(line):
+            break
+        title_lines.append(line)
+    return " ".join(title_lines) if title_lines else "Unknown Recipe"
 
 
 def assemble_recipe_text(page_texts: dict[int, str], pages: list[int]) -> str:
@@ -64,86 +79,18 @@ def assemble_recipe_text(page_texts: dict[int, str], pages: list[int]) -> str:
 
 
 def _slugify(text: str) -> str:
-    """Convert a string to a URL-safe slug."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
-def sample_page_windows(
-    total_pages: int,
-    n: int = 3,
-    window_size: int = 3,
-    exclude_pages: set[int] | None = None,
-) -> list[list[int]]:
-    """Sample n windows of window_size consecutive pages, distributed across the book.
-
-    Skips the first 10 pages (usually front matter/TOC). Avoids pages in exclude_pages.
-    Returns fewer than n windows if not enough valid pages remain.
-    """
-    exclude = exclude_pages or set()
-    skip_front = 10
-    usable_start = skip_front + 1
-    usable_end = total_pages - window_size + 1
-
-    if usable_end < usable_start:
-        return []
-
-    # All valid window start positions (window doesn't overlap excluded pages)
-    valid_starts = [
-        p for p in range(usable_start, usable_end + 1)
-        if not any((p + i) in exclude for i in range(window_size))
-    ]
-
-    if not valid_starts:
-        return []
-
-    # Divide valid positions into n segments and pick one start per segment
-    seg = len(valid_starts) // n
-    if seg == 0:
-        seg = 1
-
-    windows = []
-    for i in range(n):
-        chunk = valid_starts[i * seg: (i + 1) * seg if i < n - 1 else len(valid_starts)]
-        if chunk:
-            start = random.choice(chunk)
-            windows.append(list(range(start, start + window_size)))
-
-    return windows
-
-
-# ── Async: vision pass ────────────────────────────────────────────────────────
-
-async def vision_pass(pdf_path: str, page_nums: list[int]) -> dict[int, str]:
-    """Render pages one-at-a-time as images and extract text via Claude vision."""
-    if not page_nums:
-        return {}
-
-    results: dict[int, str] = {}
-    client = _get_client()
-    for page_num in page_nums:
-        images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num, dpi=100)
-        if not images:
-            continue
-        buf = io.BytesIO()
-        images[0].save(buf, format="PNG")
-        b64 = base64.standard_b64encode(buf.getvalue()).decode()
-        message = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=256,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}},
-                    {"type": "text", "text": (
-                        "Extract ALL text visible in this cookbook page. "
-                        "Preserve numbers and units exactly. "
-                        "Return only the extracted text, nothing else."
-                    )},
-                ],
-            }],
-        )
-        results[page_num] = message.content[0].text.strip()
-    return results
+def _empty_recipe_data() -> dict:
+    return {
+        "dish_name": None, "distinguishing_feature": None, "type": "savory",
+        "subtype": None, "macro_tags": [], "calories_per_portion": None,
+        "ingredients": [], "prep_time_minutes": None, "cook_time_minutes": None,
+        "portions": None, "instructions": None, "missing_critical_info": True,
+        "cooking_types": [], "protein_g": None, "fat_g": None,
+        "carbs_g": None, "fiber_g": None,
+    }
 
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -161,7 +108,7 @@ class PdfIngestionSession:
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     error: Optional[str] = None
     total_pages: int = 0
-    used_windows: list = field(default_factory=list)
+    used_windows: list = field(default_factory=list)  # kept for session compat
 
 
 def _session_path(session_id: str) -> Path:
@@ -194,54 +141,6 @@ def get_pending_batch(
     return result
 
 
-# ── Window extraction ─────────────────────────────────────────────────────────
-
-async def _build_window_texts(
-    pdf_path: str,
-    page_texts_raw: dict[int, PageText],
-    pages: list[int],
-) -> dict[int, str]:
-    """Run vision on ALL window pages and merge with pdfplumber text.
-
-    We always vision the full window (not just sparse pages) because cookbook pages
-    may have just enough embedded text to clear the sparse threshold while still
-    having important content (ingredient lists, instructions) in image form.
-    With a 5-page window that's at most 15 vision calls per batch — still fast.
-    """
-    vision_texts = await vision_pass(pdf_path, pages)
-
-    full_texts: dict[int, str] = {}
-    for p in pages:
-        base = page_texts_raw[p].text if p in page_texts_raw else ""
-        vision = vision_texts.get(p, "")
-        # Merge: dedupe repeated text that pdfplumber and vision both got
-        if base and vision and base.strip() == vision.strip():
-            full_texts[p] = base
-        else:
-            full_texts[p] = (base + "\n" + vision).strip() if base else vision
-    return full_texts
-
-
-async def _extract_window(
-    full_texts: dict[int, str],
-    pages: list[int],
-    book_slug: str,
-    book_title: str,
-) -> list[dict]:
-    """Extract all complete recipes from a page window. Returns list (possibly empty)."""
-    from app.extractor import extract_recipes_from_chunk
-    chunk_text = assemble_recipe_text(full_texts, pages)
-    if not chunk_text.strip():
-        return []
-    recipes = await extract_recipes_from_chunk(chunk_text)
-    result = []
-    for recipe in recipes:
-        source_url = f"pdf:{book_slug}#{_slugify(recipe.get('dish_name', ''))}"
-        recipe.update({"status": "pending", "source_url": source_url, "book_title": book_title})
-        result.append(recipe)
-    return result
-
-
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 
 async def create_session(
@@ -250,34 +149,27 @@ async def create_session(
     book_slug: str,
     session_id: str | None = None,
 ) -> PdfIngestionSession:
-    """Sample 3×3-page windows, run vision on sparse pages, extract complete recipes."""
+    """Extract all recipes from a PDF using pdfplumber + programmatic boundary detection.
+
+    Text-only pipeline — no vision pass needed for cookbooks where content is
+    rendered as PDF text objects (not baked into images).
+    """
     sid = session_id or str(uuid.uuid4())[:8]
-    print(f"[pdf] session {sid} starting: {book_title!r}", flush=True)
+    print(f"[pdf] session {sid}: {book_title!r}", flush=True)
 
     # Step 1: text pass on all pages
     print(f"[pdf] text pass: {pdf_path}", flush=True)
     page_texts_raw = extract_page_texts(pdf_path)
-    total_pages = len(page_texts_raw)
-    print(f"[pdf] {total_pages} pages total", flush=True)
+    full_texts = {p: pt.text for p, pt in page_texts_raw.items()}
+    total_pages = len(full_texts)
+    print(f"[pdf] {total_pages} pages", flush=True)
 
-    # Step 2: pick 3 windows of 5 consecutive pages
-    windows = sample_page_windows(total_pages, n=3, window_size=5)
-    print(f"[pdf] windows: {windows}", flush=True)
+    # Step 2: find recipe boundaries from KCALS pattern
+    recipe_metas = find_recipe_boundaries(full_texts)
+    all_recipes = [{**m, "status": "pending"} for m in recipe_metas]
+    print(f"[pdf] {len(all_recipes)} recipes detected", flush=True)
 
-    all_recipes: list[dict] = []
-    error: Optional[str] = None
-
-    try:
-        for i, window in enumerate(windows):
-            print(f"[pdf] window {i+1}/{len(windows)}: pages {window}", flush=True)
-            full_texts = await _build_window_texts(pdf_path, page_texts_raw, window)
-            recipes = await _extract_window(full_texts, window, book_slug, book_title)
-            print(f"[pdf] window {i+1}: found {len(recipes)} complete recipe(s)", flush=True)
-            all_recipes.extend(recipes)
-    except Exception as exc:
-        error = str(exc)
-        print(f"[pdf] session {sid} error: {exc}", flush=True)
-
+    # Save immediately so the progress page can show the total count
     session = PdfIngestionSession(
         session_id=sid,
         pdf_path=pdf_path,
@@ -285,12 +177,39 @@ async def create_session(
         book_slug=book_slug,
         all_recipes=all_recipes,
         sampled_indices=list(range(len(all_recipes))),
-        extracted={str(i): r for i, r in enumerate(all_recipes)},
-        extraction_complete=True,
+        extracted={},
+        extraction_complete=False,
         total_pages=total_pages,
-        used_windows=windows,
-        error=error,
     )
     save_session(session)
-    print(f"[pdf] session {sid} complete: {len(all_recipes)} recipe(s) found", flush=True)
+
+    # Step 3: extract each recipe individually with progress persistence
+    from app.extractor import extract_recipe
+    error: Optional[str] = None
+    try:
+        for idx, meta in enumerate(recipe_metas):
+            title = meta["recipe_title"]
+            print(f"[pdf] extracting {idx + 1}/{len(recipe_metas)}: {title!r}", flush=True)
+            text = assemble_recipe_text(full_texts, meta["pages"])
+            source_url = f"pdf:{book_slug}#{_slugify(title)}"
+            try:
+                data = await extract_recipe(text, source_url)
+            except Exception as exc:
+                data = _empty_recipe_data()
+                print(f"[pdf] extraction failed for {title!r}: {exc}", flush=True)
+            data.update({
+                "status": "pending",
+                "source_url": source_url,
+                "book_title": book_title,
+            })
+            session.extracted[str(idx)] = data
+            save_session(session)
+    except Exception as exc:
+        error = str(exc)
+        print(f"[pdf] session {sid} error: {exc}", flush=True)
+
+    session.extraction_complete = True
+    session.error = error
+    save_session(session)
+    print(f"[pdf] session {sid} complete: {len(session.extracted)} extracted", flush=True)
     return session

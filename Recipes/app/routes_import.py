@@ -21,10 +21,6 @@ from app.pdf_extractor import (
     get_pending_batch,
     load_session,
     save_session,
-    sample_page_windows,
-    _build_window_texts,
-    _extract_window,
-    extract_page_texts,
 )
 
 router = APIRouter(prefix="/import", tags=["import"])
@@ -110,14 +106,11 @@ async def import_status(sid: str):
         session = load_session(sid)
     except FileNotFoundError:
         return JSONResponse({"error": "session not found"}, status_code=404)
-    windows_done = len(session.used_windows)
-    windows_total = max(windows_done, 3)  # always show progress out of 3
     return {
         "extraction_complete": session.extraction_complete,
         "book_title": session.book_title,
         "total_detected": len(session.all_recipes),
-        "windows_done": windows_done,
-        "windows_total": windows_total,
+        "extracted_so_far": len(session.extracted),
         "error": session.error,
     }
 
@@ -231,51 +224,6 @@ async def import_summary(sid: str, request: Request):
 
 @router.post("/{sid}/more")
 async def import_more(sid: str, background_tasks: BackgroundTasks):
-    try:
-        session = load_session(sid)
-    except FileNotFoundError:
-        return JSONResponse({"error": "not found"}, status_code=404)
-
-    used_pages = {p for w in session.used_windows for p in w}
-    if session.total_pages == 0 or (session.total_pages - len(used_pages)) < 12:
-        return RedirectResponse(url=f"/import/{sid}/summary", status_code=303)
-
-    session.extraction_complete = False
-    save_session(session)
-    background_tasks.add_task(_extract_more, sid)
-    return RedirectResponse(url=f"/import/{sid}", status_code=303)
-
-
-async def _extract_more(session_id: str):
-    session = load_session(session_id)
-    try:
-        used_pages = {p for w in session.used_windows for p in w}
-        new_windows = sample_page_windows(
-            session.total_pages, n=3, window_size=5, exclude_pages=used_pages
-        )
-        if not new_windows:
-            session.extraction_complete = True
-            save_session(session)
-            return
-
-        page_texts_raw = extract_page_texts(session.pdf_path)
-        for window in new_windows:
-            print(f"[pdf] _extract_more window: {window}", flush=True)
-            full_texts = await _build_window_texts(session.pdf_path, page_texts_raw, window)
-            recipes = await _extract_window(full_texts, window, session.book_slug, session.book_title)
-            print(f"[pdf] _extract_more window {window}: {len(recipes)} recipe(s)", flush=True)
-            start_idx = len(session.all_recipes)
-            session.all_recipes.extend(recipes)
-            session.sampled_indices.extend(range(start_idx, len(session.all_recipes)))
-            for i, r in enumerate(recipes, start=start_idx):
-                session.extracted[str(i)] = r
-            session.used_windows.append(window)
-            save_session(session)
-
-        session.extraction_complete = True
-    except Exception as exc:
-        session.error = str(exc)
-        session.extraction_complete = True
-        print(f"[pdf] _extract_more error: {exc}", flush=True)
-    finally:
-        save_session(session)
+    # With full-book extraction, all recipes are already extracted upfront.
+    # This route is kept for sessions created by older code that used window sampling.
+    return RedirectResponse(url=f"/import/{sid}/summary", status_code=303)

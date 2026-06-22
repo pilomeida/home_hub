@@ -65,11 +65,13 @@
           return;  // stop polling
         }
         if (d.extraction_complete) { window.location.href = "/import/" + sid + "/review"; return; }
-        const pct = d.windows_total > 0 ? Math.round((d.windows_done / d.windows_total) * 80) + 10 : 10;
+        const total = d.total_detected;
+        const done = d.extracted_so_far;
+        const pct = total > 0 ? Math.round((done / total) * 80) + 10 : 10;
         document.getElementById("prog-bar").style.width = pct + "%";
-        const found = d.total_detected > 0 ? " — " + d.total_detected + " recipe(s) found" : "";
-        document.getElementById("prog-text").textContent =
-          "Scanning page windows… " + d.windows_done + " of " + d.windows_total + " done" + found + "…";
+        document.getElementById("prog-text").textContent = total > 0
+          ? "Extracting recipe " + done + " of " + total + "…"
+          : "Detecting recipes…";
         setTimeout(poll, 2000);
       })
       .catch(() => setTimeout(poll, 3000));
