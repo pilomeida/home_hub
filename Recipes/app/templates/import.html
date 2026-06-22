@@ -1,66 +1,220 @@
 {% extends "base.html" %}
-{% block title %}Import Cookbook{% endblock %}
-{% block content %}
-{% if view == "upload" %}
-<h1>Import PDF Cookbook</h1>
-<form method="post" enctype="multipart/form-data" action="/import">
-    <label>PDF File: <input type="file" name="pdf_file" accept=".pdf" required></label>
-    <label>Book Title: <input type="text" name="book_title" placeholder="Optional"></label>
-    <button type="submit">Import</button>
-</form>
-{% if error %}<p class="error">{{ error }}</p>{% endif %}
 
+{% block title %}
+  {% if view == "upload" %}Import PDF Cookbook
+  {% elif view == "progress" %}Importing {{ session.book_title }}…
+  {% elif view == "review" %}Review — {{ session.book_title }}
+  {% else %}Import complete — {{ session.book_title }}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{# ══════════════════════════ UPLOAD ══════════════════════════ #}
+{% if view == "upload" %}
+<div style="max-width:520px; margin:3rem auto;">
+  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:1.5rem;">Import PDF Cookbook</h1>
+  {% if error %}
+  <div class="error-banner">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="/import" enctype="multipart/form-data"
+        style="display:flex; flex-direction:column; gap:1rem;">
+    <div>
+      <label style="display:block; font-size:0.875rem; font-weight:500; margin-bottom:0.25rem;">Book title</label>
+      <input type="text" name="book_title" placeholder="e.g. Cooking ABS"
+             style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.9rem; font-family:inherit;">
+    </div>
+    <div>
+      <label style="display:block; font-size:0.875rem; font-weight:500; margin-bottom:0.25rem;">PDF file</label>
+      <input type="file" name="pdf_file" accept=".pdf" required
+             style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.9rem; font-family:inherit;">
+    </div>
+    <p style="font-size:0.875rem; color:var(--text-muted);">
+      We'll start with 3 sample recipes. You can import more once you're happy with the results.
+    </p>
+    <button type="submit" class="btn btn-primary" style="width:100%;">Upload &amp; Extract</button>
+  </form>
+</div>
+
+{# ══════════════════════════ PROGRESS ══════════════════════════ #}
 {% elif view == "progress" %}
-<h1>Importing: {{ session.book_title }}</h1>
-<p>Processing PDF, please wait...</p>
+<div style="max-width:520px; margin:3rem auto; text-align:center;"
+     id="progress-wrap" data-sid="{{ sid }}">
+  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:1rem;">
+    Extracting from <em>{{ session.book_title }}</em>
+  </h1>
+  <p style="color:var(--text-muted); margin-bottom:1.5rem;">
+    Analysing pages and extracting 3 sample recipes…
+  </p>
+  <div style="width:100%; background:#dee2e6; border-radius:99px; height:12px; margin-bottom:0.75rem;">
+    <div id="prog-bar"
+         style="background:#28a745; height:12px; border-radius:99px; width:10%; transition:width 0.5s;"></div>
+  </div>
+  <p id="prog-text" style="font-size:0.875rem; color:var(--text-muted);">Starting…</p>
+</div>
 <script>
-(function poll() {
-    fetch("/import/{{ sid }}/status")
-        .then(r => r.json())
-        .then(data => {
-            if (data.extraction_complete) { location.reload(); }
-            else { setTimeout(poll, 2000); }
-        });
+(function () {
+  const sid = document.getElementById("progress-wrap").dataset.sid;
+  function poll() {
+    fetch("/import/" + sid + "/status")
+      .then(r => r.json())
+      .then(d => {
+        if (d.extraction_complete) { window.location.href = "/import/" + sid + "/review"; return; }
+        const pct = d.sampled > 0 ? Math.round((d.extracted_so_far / d.sampled) * 80) + 10 : 10;
+        document.getElementById("prog-bar").style.width = pct + "%";
+        document.getElementById("prog-text").textContent =
+          "Extracted " + d.extracted_so_far + " of " + d.sampled + " recipes…";
+        setTimeout(poll, 2000);
+      })
+      .catch(() => setTimeout(poll, 3000));
+  }
+  poll();
 })();
 </script>
 
+{# ══════════════════════════ REVIEW ══════════════════════════ #}
 {% elif view == "review" %}
-<h1>Review Recipes — {{ session.book_title }}</h1>
-<p>Reviewed {{ reviewed }} of {{ total_sampled }} sampled recipes.</p>
-<form method="post" action="/import/{{ sid }}/review">
-{% for idx, recipe in batch %}
-<div class="recipe-card">
-    <h2>{{ recipe.dish_name }}</h2>
-    <input type="hidden" name="action_{{ idx }}" value="save">
-    <input type="text" name="dish_name_{{ idx }}" value="{{ recipe.dish_name }}">
-    <input type="text" name="distinguisher_{{ idx }}" value="{{ recipe.distinguishing_feature or '' }}">
-    <input type="text" name="type_{{ idx }}" value="{{ recipe.type or 'savory' }}">
-    <input type="text" name="subtype_{{ idx }}" value="{{ recipe.subtype or '' }}">
-    <input type="number" name="calories_{{ idx }}" value="{{ recipe.calories_per_portion or '' }}">
-    <input type="number" name="protein_g_{{ idx }}" value="{{ recipe.protein_g or '' }}">
-    <input type="number" name="fat_g_{{ idx }}" value="{{ recipe.fat_g or '' }}">
-    <input type="number" name="carbs_g_{{ idx }}" value="{{ recipe.carbs_g or '' }}">
-    <input type="number" name="fiber_g_{{ idx }}" value="{{ recipe.fiber_g or '' }}">
-</div>
-{% endfor %}
-<button type="submit">Save & Continue</button>
-</form>
+<div style="max-width:800px; margin:2rem auto;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; gap:1rem;">
+    <h1 style="font-size:1.5rem; font-weight:700;">Review — {{ session.book_title }}</h1>
+    <span style="font-size:0.875rem; color:var(--text-muted); white-space:nowrap;">
+      {{ reviewed }} / {{ total_sampled }} reviewed
+    </span>
+  </div>
+  <form method="post" action="/import/{{ sid }}/review"
+        style="display:flex; flex-direction:column; gap:2rem;">
+    {% for idx, recipe in batch %}
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:1rem;">
 
-{% elif view == "summary" %}
-<h1>Import Complete — {{ session.book_title }}</h1>
-<p>Saved: {{ saved | length }} recipes</p>
-<p>Skipped: {{ skipped | length }} recipes</p>
-<p>Remaining in book: {{ remaining }}</p>
-<ul>
-{% for r in saved %}
-<li>{{ r.dish_name }}</li>
-{% endfor %}
-</ul>
-{% if remaining > 0 %}
-<form method="post" action="/import/{{ sid }}/more">
-    <button type="submit">Import More Recipes</button>
-</form>
+      {# Header: dish name + save/skip #}
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;">
+        <h2 style="font-size:1.1rem; font-weight:600;">{{ recipe.dish_name or "(unknown)" }}</h2>
+        <div style="display:flex; gap:1rem; flex-shrink:0;">
+          <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.875rem; cursor:pointer;">
+            <input type="radio" name="action_{{ idx }}" value="save" checked> Save
+          </label>
+          <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.875rem; cursor:pointer;">
+            <input type="radio" name="action_{{ idx }}" value="skip"> Skip
+          </label>
+        </div>
+      </div>
+
+      {# Core fields — 2-column grid #}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.875rem;">
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">Dish name</label>
+          <input type="text" name="dish_name_{{ idx }}" value="{{ recipe.dish_name or '' }}"
+                 style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+        </div>
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">Distinguisher</label>
+          <input type="text" name="distinguisher_{{ idx }}"
+                 value="{{ recipe.distinguishing_feature or '' }}"
+                 style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+        </div>
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">Type</label>
+          <select name="type_{{ idx }}"
+                  style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+            <option value="sweet"  {% if recipe.type == "sweet"  %}selected{% endif %}>Sweet</option>
+            <option value="savory" {% if recipe.type == "savory" %}selected{% endif %}>Savory</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">Subtype</label>
+          <input type="text" name="subtype_{{ idx }}" value="{{ recipe.subtype or '' }}"
+                 style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+        </div>
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">Calories / portion</label>
+          <input type="number" name="calories_{{ idx }}"
+                 value="{{ recipe.calories_per_portion or '' }}"
+                 style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+        </div>
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">Portions</label>
+          <input type="number" name="portions_{{ idx }}" value="{{ recipe.portions or '' }}"
+                 style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+        </div>
+      </div>
+
+      {# Macros — 4-column grid #}
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; font-size:0.875rem;">
+        {% for macro in [("protein_g", "Protein (g)"), ("fat_g", "Fat (g)"), ("carbs_g", "Carbs (g)"), ("fiber_g", "Fiber (g)")] %}
+        <div>
+          <label style="display:block; font-weight:500; margin-bottom:0.25rem;">{{ macro[1] }}</label>
+          <input type="number" name="{{ macro[0] }}_{{ idx }}"
+                 value="{{ recipe[macro[0]] if recipe[macro[0]] is not none else '' }}"
+                 style="width:100%; padding:0.375rem 0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit;">
+        </div>
+        {% endfor %}
+      </div>
+
+      {# Cooking types (read-only) #}
+      <div style="font-size:0.875rem;">
+        <span style="font-weight:500;">Cooking:</span>
+        {% if recipe.cooking_types %}
+          {% for ct in recipe.cooking_types %}
+          <span style="display:inline-block; background:#e9ecef; border-radius:99px; padding:0.1rem 0.5rem; font-size:0.75rem; margin-right:0.25rem;">{{ ct }}</span>
+          {% endfor %}
+        {% else %}
+          <span style="color:var(--text-muted);">—</span>
+        {% endif %}
+      </div>
+
+      {# Instructions preview #}
+      {% if recipe.instructions %}
+      <details style="font-size:0.875rem;">
+        <summary style="cursor:pointer; font-weight:500; color:var(--text-muted);">Instructions ▾</summary>
+        <pre style="margin-top:0.5rem; white-space:pre-wrap; color:var(--text-muted); font-size:0.75rem;">{{ recipe.instructions[:800] }}</pre>
+      </details>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary" style="width:100%;">Submit decisions</button>
+  </form>
+</div>
+
+{# ══════════════════════════ SUMMARY ══════════════════════════ #}
+{% else %}
+<div style="max-width:520px; margin:3rem auto;">
+  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:1rem;">
+    Import complete — {{ session.book_title }}
+  </h1>
+  <p style="margin-bottom:1.5rem; color:var(--text-muted);">
+    <strong>{{ saved | length }}</strong> saved,
+    <strong>{{ skipped | length }}</strong> skipped.
+  </p>
+
+  {% if saved %}
+  <ul style="margin-bottom:1.5rem; list-style:none; display:flex; flex-direction:column; gap:0.25rem; font-size:0.875rem;">
+    {% for r in saved %}
+    <li>
+      <a href="/recipe/{{ r.saved_recipe_id }}" style="color:var(--primary);">
+        {{ r.dish_name }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if remaining > 0 %}
+  <form method="post" action="/import/{{ sid }}/more" style="margin-bottom:0.75rem;">
+    <button type="submit" class="btn"
+            style="width:100%; background:var(--surface); border-color:var(--border); color:var(--text);">
+      Import 3 more from <em>{{ session.book_title }}</em>
+      ({{ remaining }} remaining in book)
+    </button>
+  </form>
+  {% endif %}
+
+  <a href="/import"
+     style="display:block; text-align:center; font-size:0.875rem; color:var(--text-muted); text-decoration:none; margin-top:1rem;">
+    Import another cookbook
+  </a>
+</div>
 {% endif %}
-<a href="/">Back to Browse</a>
-{% endif %}
+
 {% endblock %}
