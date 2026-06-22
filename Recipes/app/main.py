@@ -62,10 +62,12 @@ def url_for(path: str) -> str:
 from app.routes_browse import router as browse_router  # noqa: E402
 from app.routes_detail import router as detail_router  # noqa: E402
 from app.routes_add import router as add_router        # noqa: E402
+from app.routes_import import router as import_router  # noqa: E402
 
 app.include_router(browse_router)
 app.include_router(detail_router)
 app.include_router(add_router)
+app.include_router(import_router)
 
 
 @app.get("/health")

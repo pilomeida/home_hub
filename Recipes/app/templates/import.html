@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Import Cookbook{% endblock %}
+{% block content %}
+{% if view == "upload" %}
+<h1>Import PDF Cookbook</h1>
+<form method="post" enctype="multipart/form-data" action="/import">
+    <label>PDF File: <input type="file" name="pdf_file" accept=".pdf" required></label>
+    <label>Book Title: <input type="text" name="book_title" placeholder="Optional"></label>
+    <button type="submit">Import</button>
+</form>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+{% elif view == "progress" %}
+<h1>Importing: {{ session.book_title }}</h1>
+<p>Processing PDF, please wait...</p>
+<script>
+(function poll() {
+    fetch("/import/{{ sid }}/status")
+        .then(r => r.json())
+        .then(data => {
+            if (data.extraction_complete) { location.reload(); }
+            else { setTimeout(poll, 2000); }
+        });
+})();
+</script>
+
+{% elif view == "review" %}
+<h1>Review Recipes — {{ session.book_title }}</h1>
+<p>Reviewed {{ reviewed }} of {{ total_sampled }} sampled recipes.</p>
+<form method="post" action="/import/{{ sid }}/review">
+{% for idx, recipe in batch %}
+<div class="recipe-card">
+    <h2>{{ recipe.dish_name }}</h2>
+    <input type="hidden" name="action_{{ idx }}" value="save">
+    <input type="text" name="dish_name_{{ idx }}" value="{{ recipe.dish_name }}">
+    <input type="text" name="distinguisher_{{ idx }}" value="{{ recipe.distinguishing_feature or '' }}">
+    <input type="text" name="type_{{ idx }}" value="{{ recipe.type or 'savory' }}">
+    <input type="text" name="subtype_{{ idx }}" value="{{ recipe.subtype or '' }}">
+    <input type="number" name="calories_{{ idx }}" value="{{ recipe.calories_per_portion or '' }}">
+    <input type="number" name="protein_g_{{ idx }}" value="{{ recipe.protein_g or '' }}">
+    <input type="number" name="fat_g_{{ idx }}" value="{{ recipe.fat_g or '' }}">
+    <input type="number" name="carbs_g_{{ idx }}" value="{{ recipe.carbs_g or '' }}">
+    <input type="number" name="fiber_g_{{ idx }}" value="{{ recipe.fiber_g or '' }}">
+</div>
+{% endfor %}
+<button type="submit">Save & Continue</button>
+</form>
+
+{% elif view == "summary" %}
+<h1>Import Complete — {{ session.book_title }}</h1>
+<p>Saved: {{ saved | length }} recipes</p>
+<p>Skipped: {{ skipped | length }} recipes</p>
+<p>Remaining in book: {{ remaining }}</p>
+<ul>
+{% for r in saved %}
+<li>{{ r.dish_name }}</li>
+{% endfor %}
+</ul>
+{% if remaining > 0 %}
+<form method="post" action="/import/{{ sid }}/more">
+    <button type="submit">Import More Recipes</button>
+</form>
+{% endif %}
+<a href="/">Back to Browse</a>
+{% endif %}
+{% endblock %}

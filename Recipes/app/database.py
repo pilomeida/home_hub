@@ -17,6 +17,7 @@ def init_db():
     with engine.connect() as conn:
         conn.exec_driver_sql("PRAGMA journal_mode=WAL")
         conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+    migrate_db()
 
 
 def get_session():
