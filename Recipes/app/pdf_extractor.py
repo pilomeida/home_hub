@@ -17,6 +17,7 @@ from pdf2image import convert_from_path
 from app.config import settings
 
 _MIN_TEXT_CHARS = 50
+_MAX_VISION_PAGES = 30  # cap to avoid 200+ sequential API calls on image-heavy books
 _SESSIONS_DIR = Path("data/import_sessions")
 
 _anthropic_client = None
@@ -77,31 +78,32 @@ def _slugify(text: str) -> str:
 # ── Async: vision pass ────────────────────────────────────────────────────────
 
 async def vision_pass(pdf_path: str, page_nums: list[int]) -> dict[int, str]:
-    """Render sparse pages as images and extract text via Claude vision."""
+    """Render sparse pages as images and extract text via Claude vision.
+
+    Caps at _MAX_VISION_PAGES evenly-sampled pages — image-heavy books can have
+    200+ sparse pages, making per-page API calls prohibitively slow otherwise.
+    Pages are rendered one at a time to avoid loading the whole PDF into memory.
+    """
     if not page_nums:
         return {}
 
-    all_images = convert_from_path(
-        pdf_path,
-        first_page=min(page_nums),
-        last_page=max(page_nums),
-        dpi=150,
-    )
-    page_images: dict[int, object] = {}
-    for offset, img in enumerate(all_images):
-        page_num = min(page_nums) + offset
-        if page_num in page_nums:
-            page_images[page_num] = img
+    # Evenly sample if too many sparse pages
+    if len(page_nums) > _MAX_VISION_PAGES:
+        step = len(page_nums) / _MAX_VISION_PAGES
+        page_nums = [page_nums[int(i * step)] for i in range(_MAX_VISION_PAGES)]
 
     results: dict[int, str] = {}
     client = _get_client()
-    for page_num, img in page_images.items():
+    for page_num in page_nums:
+        images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num, dpi=100)
+        if not images:
+            continue
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        images[0].save(buf, format="PNG")
         b64 = base64.standard_b64encode(buf.getvalue()).decode()
         message = await client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=512,
+            max_tokens=256,
             messages=[{
                 "role": "user",
                 "content": [
