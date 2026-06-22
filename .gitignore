@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 *.pyo
+Recipes/data/import_sessions/
+Recipes/data/pdf_uploads/

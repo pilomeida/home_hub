@@ -59,6 +59,29 @@
         <label>Macro Tags (JSON array):
             <input name="macro_tags" value='{{ recipe.macro_tags if recipe else "[]" }}' placeholder='["protein-rich","low-carb"]'>
         </label>
+        <div style="display:grid; grid-template-columns: repeat(4,1fr); gap:0.5rem; margin-top:0.5rem;">
+            {% for fname, flabel in [("protein_g","Protein (g)"),("fat_g","Fat (g)"),("carbs_g","Carbs (g)"),("fiber_g","Fiber (g)")] %}
+            <label>{{ flabel }}:
+                <input type="number" name="{{ fname }}" min="0"
+                       value="{{ recipe[fname] if recipe and recipe[fname] is not none else '' }}">
+            </label>
+            {% endfor %}
+        </div>
+        <div style="margin-top:0.75rem;">
+            <span style="font-size:0.9rem; font-weight:600;">Cooking types:</span>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.25rem;">
+                {% set current = recipe.cooking_types_list if recipe else [] %}
+                {% for ct in ["oven","cooktop","microwave","blender","no-cook","air-fryer","other"] %}
+                <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.9rem; cursor:pointer;">
+                    <input type="checkbox" class="cooking-type-cb" value="{{ ct }}"
+                           {% if ct in current %}checked{% endif %}>
+                    {{ ct }}
+                </label>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="cooking_types" id="cooking_types_hidden"
+                   value="{{ recipe.cooking_types if recipe else '[]' }}">
+        </div>
     </fieldset>
 
     <fieldset>
@@ -85,6 +108,22 @@
 </form>
 
 <script>
+(function () {
+    function syncCookingTypes() {
+        var hidden = document.getElementById("cooking_types_hidden");
+        if (!hidden) return;
+        var boxes = document.querySelectorAll(".cooking-type-cb");
+        hidden.value = JSON.stringify(
+            Array.from(boxes).filter(function(b) { return b.checked; }).map(function(b) { return b.value; })
+        );
+    }
+    document.addEventListener("DOMContentLoaded", function() {
+        var boxes = document.querySelectorAll(".cooking-type-cb");
+        boxes.forEach(function(b) { b.addEventListener("change", syncCookingTypes); });
+        syncCookingTypes();
+    });
+})();
+
 async function fetchFromUrl(event) {
     event.preventDefault();
     const url = document.getElementById('url-fetch-form').url.value;

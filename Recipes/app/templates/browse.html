@@ -75,6 +75,20 @@
         </fieldset>
         {% endif %}
 
+        {% if filters.cooking_types %}
+        <fieldset class="filter-group">
+            <legend>Cooking type</legend>
+            {% for ct in filters.cooking_types %}
+            <label class="filter-checkbox {% if ct in active.cooking_type %}checked{% endif %}">
+                <input type="checkbox" name="cooking_type" value="{{ ct }}"
+                       {% if ct in active.cooking_type %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ ct }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
         <fieldset class="filter-group">
             <legend>Max Time (min)</legend>
             <input type="range" name="max_time" min="0" max="180" step="5"

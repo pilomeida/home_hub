@@ -23,6 +23,7 @@ async def browse_page(
     ingredient: Optional[list[str]] = Query(default=None, alias="ingredient"),
     max_time: Optional[int] = Query(default=None, alias="max_time"),
     min_rating: Optional[int] = Query(default=None, alias="min_rating", ge=1, le=5),
+    cooking_type: Optional[list[str]] = Query(default=None, alias="cooking_type"),
     session: Session = Depends(get_session),
 ):
     # Build base query
@@ -46,6 +47,8 @@ async def browse_page(
         recipes = [r for r in recipes if any(m in r.macro_tags_list for m in macro)]
     if ingredient:
         recipes = [r for r in recipes if all(ing in r.ingredients_list for ing in ingredient)]
+    if cooking_type:
+        recipes = [r for r in recipes if any(ct in r.cooking_types_list for ct in cooking_type)]
 
     # Build filter option lists from ALL recipes in DB (not just filtered)
     all_recipes = session.exec(select(Recipe)).all()
@@ -54,6 +57,7 @@ async def browse_page(
     all_macros: set[str] = set()
     all_ingredients: set[str] = set()
     all_tiers: set[str] = set()
+    all_cooking_types: set[str] = set()
 
     for r in all_recipes:
         all_types.add(r.type)
@@ -65,6 +69,8 @@ async def browse_page(
             all_ingredients.add(ing)
         if r.calorie_tier:
             all_tiers.add(r.calorie_tier)
+        for ct in r.cooking_types_list:
+            all_cooking_types.add(ct)
 
     return templates.TemplateResponse(request, "browse.html", {
         "recipes": recipes,
@@ -74,6 +80,7 @@ async def browse_page(
             "macros": sorted(all_macros),
             "ingredients": sorted(all_ingredients),
             "calorie_tiers": sorted(all_tiers),
+            "cooking_types": sorted(all_cooking_types),
         },
         "active": {
             "type": type or [],
@@ -83,5 +90,6 @@ async def browse_page(
             "ingredient": ingredient or [],
             "max_time": max_time,
             "min_rating": min_rating,
+            "cooking_type": cooking_type or [],
         },
     })

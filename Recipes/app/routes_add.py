@@ -83,6 +83,11 @@ async def save_recipe(
     source_url: str = Form(...),
     photo_path: str = Form(default=""),
     rating: str = Form(default=""),
+    protein_g: str = Form(default=""),
+    fat_g: str = Form(default=""),
+    carbs_g: str = Form(default=""),
+    fiber_g: str = Form(default=""),
+    cooking_types: str = Form(default="[]"),
     session: Session = Depends(get_session),
 ):
     # Check duplicate
@@ -109,6 +114,11 @@ async def save_recipe(
         source_url=source_url,
         photo_path=photo_path or None,
         rating=int(rating) if rating else None,
+        protein_g=int(protein_g) if protein_g else None,
+        fat_g=int(fat_g) if fat_g else None,
+        carbs_g=int(carbs_g) if carbs_g else None,
+        fiber_g=int(fiber_g) if fiber_g else None,
+        cooking_types=cooking_types,
     )
     recipe.compute_derived_fields()
 
@@ -153,6 +163,11 @@ async def update_recipe(
     source_url: str = Form(...),
     photo_path: str = Form(default=""),
     rating: str = Form(default=""),
+    protein_g: str = Form(default=""),
+    fat_g: str = Form(default=""),
+    carbs_g: str = Form(default=""),
+    fiber_g: str = Form(default=""),
+    cooking_types: str = Form(default="[]"),
     session: Session = Depends(get_session),
 ):
     recipe = session.get(Recipe, recipe_id)
@@ -188,6 +203,11 @@ async def update_recipe(
         recipe.photo_path = photo_path
     if rating:
         recipe.rating = int(rating)
+    recipe.protein_g = int(protein_g) if protein_g else None
+    recipe.fat_g = int(fat_g) if fat_g else None
+    recipe.carbs_g = int(carbs_g) if carbs_g else None
+    recipe.fiber_g = int(fiber_g) if fiber_g else None
+    recipe.cooking_types = cooking_types
     recipe.updated_at = datetime.utcnow()
 
     recipe.compute_derived_fields()
