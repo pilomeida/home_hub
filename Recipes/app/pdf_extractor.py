@@ -201,16 +201,24 @@ async def _build_window_texts(
     page_texts_raw: dict[int, PageText],
     pages: list[int],
 ) -> dict[int, str]:
-    """Run vision on sparse pages within a window and return merged texts."""
-    sparse_set = set(flag_sparse_pages(page_texts_raw))
-    vision_pages = [p for p in pages if p in sparse_set]
-    vision_texts = await vision_pass(pdf_path, vision_pages)
+    """Run vision on ALL window pages and merge with pdfplumber text.
+
+    We always vision the full window (not just sparse pages) because cookbook pages
+    may have just enough embedded text to clear the sparse threshold while still
+    having important content (ingredient lists, instructions) in image form.
+    With a 5-page window that's at most 15 vision calls per batch — still fast.
+    """
+    vision_texts = await vision_pass(pdf_path, pages)
 
     full_texts: dict[int, str] = {}
     for p in pages:
         base = page_texts_raw[p].text if p in page_texts_raw else ""
         vision = vision_texts.get(p, "")
-        full_texts[p] = (base + "\n" + vision).strip() if base else vision
+        # Merge: dedupe repeated text that pdfplumber and vision both got
+        if base and vision and base.strip() == vision.strip():
+            full_texts[p] = base
+        else:
+            full_texts[p] = (base + "\n" + vision).strip() if base else vision
     return full_texts
 
 
@@ -252,8 +260,8 @@ async def create_session(
     total_pages = len(page_texts_raw)
     print(f"[pdf] {total_pages} pages total", flush=True)
 
-    # Step 2: pick 3 windows of 3 consecutive pages
-    windows = sample_page_windows(total_pages, n=3, window_size=3)
+    # Step 2: pick 3 windows of 5 consecutive pages
+    windows = sample_page_windows(total_pages, n=3, window_size=5)
     print(f"[pdf] windows: {windows}", flush=True)
 
     all_recipes: list[dict] = []

@@ -43,27 +43,28 @@ _CHUNK_PROMPT = """You are extracting recipes from a cookbook page excerpt.
 
 Extract ONLY complete recipes — ones with at minimum a name, ingredient list, and instructions visible in the excerpt. If a recipe is clearly cut off at the start or end of the excerpt (ingredients or instructions missing), skip it.
 
-For each complete recipe return an object with the same fields as below.
-Return ONLY a valid JSON array. Return [] if no complete recipes are found.
+MACRO ATTRIBUTION RULE: In this cookbook, macro values (KCALS / P / F / C) appear on the SAME page as the recipe title, overlaid on the recipe photo. Always associate a set of macro values with the recipe title on that SAME page. Never assign macros from one page to a recipe whose title is on a different page.
 
-Fields per recipe:
+For each complete recipe return an object with these fields:
 - dish_name: string
 - distinguishing_feature: string or null — what makes this version unique (≤8 words)
 - type: "sweet" or "savory"
 - subtype: string or null — one of: "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink"
 - macro_tags: array of strings — any from: "protein-rich", "low-carb", "keto", "vegan", "gluten-free", "fiber-rich", "high-fat", "dairy-free"
-- calories_per_portion: integer or null
+- calories_per_portion: integer or null — parse from "KCALS 431" or "CALORIES 431", round to int
 - ingredients: array of strings — normalized, singular, lowercase, no quantities (e.g. "egg" not "2 eggs")
 - prep_time_minutes: integer or null
 - cook_time_minutes: integer or null
 - portions: integer or null
 - instructions: string or null — full steps as markdown
-- missing_critical_info: boolean
+- missing_critical_info: boolean — true only if name AND ingredients AND instructions are all missing
 - cooking_types: array from: "oven", "cooktop", "microwave", "blender", "no-cook", "air-fryer", "other"
-- protein_g: integer or null — parse from text like "P 37.3g", round to int
-- fat_g: integer or null — parse from "F 9g"
-- carbs_g: integer or null — parse from "C 16.8g"
+- protein_g: integer or null — parse from "P 46.5g", round to int
+- fat_g: integer or null — parse from "F 11.1g", round to int
+- carbs_g: integer or null — parse from "C 39.1g", round to int
 - fiber_g: integer or null
+
+Return ONLY a valid JSON array. Return [] if no complete recipes are found.
 
 Excerpt:
 ---

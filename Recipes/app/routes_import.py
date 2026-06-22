@@ -251,7 +251,7 @@ async def _extract_more(session_id: str):
     try:
         used_pages = {p for w in session.used_windows for p in w}
         new_windows = sample_page_windows(
-            session.total_pages, n=3, window_size=3, exclude_pages=used_pages
+            session.total_pages, n=3, window_size=5, exclude_pages=used_pages
         )
         if not new_windows:
             session.extraction_complete = True
