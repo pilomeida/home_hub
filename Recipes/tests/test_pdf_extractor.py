@@ -111,3 +111,22 @@ async def test_vision_pass_extracts_text_from_pages():
 async def test_vision_pass_returns_empty_for_no_pages():
     result = await vision_pass("/fake/book.pdf", [])
     assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_vision_pass_non_contiguous_pages():
+    """Verify correct page-number mapping for non-contiguous sparse pages."""
+    from PIL import Image
+    # Three sparse pages: 1, 3, 5 — rendering pages 1-5 (5 images)
+    fake_imgs = [Image.new("RGB", (100, 100)) for _ in range(5)]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text="extracted text")])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=fake_imgs), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await vision_pass("/fake/book.pdf", [1, 3, 5])
+    # Only pages 1, 3, 5 should be in result (pages 2 and 4 filtered out)
+    assert set(result.keys()) == {1, 3, 5}
+    assert 2 not in result
+    assert 4 not in result

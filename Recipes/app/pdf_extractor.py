@@ -61,12 +61,10 @@ def sample_recipe_indices(all_recipes: list[dict], n: int = 3) -> list[int]:
 
 def assemble_recipe_text(page_texts: dict[int, str], pages: list[int]) -> str:
     """Concatenate page texts in sorted order, deduped."""
-    seen: set[int] = set()
     parts = []
     for p in sorted(set(pages)):
-        if p not in seen and page_texts.get(p):
+        if page_texts.get(p):
             parts.append(f"[Page {p}]\n{page_texts[p]}")
-            seen.add(p)
     return "\n\n".join(parts)
 
 
