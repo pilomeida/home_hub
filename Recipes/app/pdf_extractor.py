@@ -219,9 +219,12 @@ def get_pending_batch(
 
 async def _build_full_texts(pdf_path: str) -> dict[int, str]:
     """Run text pass + vision pass and return merged page texts."""
+    print(f"[pdf] text pass: {pdf_path}", flush=True)
     page_texts_raw = extract_page_texts(pdf_path)
     sparse = flag_sparse_pages(page_texts_raw)
+    print(f"[pdf] {len(page_texts_raw)} pages, {len(sparse)} sparse → vision pass (capped at {_MAX_VISION_PAGES})", flush=True)
     vision_texts = await vision_pass(pdf_path, sparse)
+    print(f"[pdf] vision done: {len(vision_texts)} pages extracted", flush=True)
     full_texts: dict[int, str] = {num: pt.text for num, pt in page_texts_raw.items()}
     for num, vtext in vision_texts.items():
         existing = full_texts.get(num, "")
@@ -262,15 +265,19 @@ async def create_session(
     """Run the full PDF pipeline and return a session with extracted recipes."""
     sid = session_id or str(uuid.uuid4())[:8]
 
+    print(f"[pdf] session {sid} starting: {book_title!r}", flush=True)
     # Steps 1–2: text pass + vision pass
     full_texts = await _build_full_texts(pdf_path)
 
     # Step 3: boundary detection
+    print(f"[pdf] detecting boundaries...", flush=True)
     raw_boundaries = await detect_recipe_boundaries(full_texts)
     all_recipes = [{**r, "status": "pending"} for r in raw_boundaries]
+    print(f"[pdf] {len(all_recipes)} recipes detected", flush=True)
 
     # Step 4: random sample of 3
     sampled_indices = sample_recipe_indices(all_recipes, n=3)
+    print(f"[pdf] sampled indices: {sampled_indices}", flush=True)
 
     session = PdfIngestionSession(
         session_id=sid,
@@ -286,14 +293,18 @@ async def create_session(
 
     # Step 5: per-recipe extraction with progress persistence
     try:
-        for idx in sampled_indices:
+        for i, idx in enumerate(sampled_indices):
+            recipe_title = all_recipes[idx].get("recipe_title", f"recipe {idx}")
+            print(f"[pdf] extracting {i+1}/{len(sampled_indices)}: {recipe_title!r}", flush=True)
             data = await _extract_one(all_recipes[idx], full_texts, book_slug, book_title)
             session.extracted[str(idx)] = data
             save_session(session)  # persist progress so polling endpoint can see it
         session.extraction_complete = True
+        print(f"[pdf] session {sid} complete", flush=True)
     except Exception as exc:
         session.error = str(exc)
         session.extraction_complete = True  # stop polling
+        print(f"[pdf] session {sid} error: {exc}", flush=True)
     finally:
         save_session(session)
 
