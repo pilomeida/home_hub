@@ -25,6 +25,11 @@ Return a JSON object with these keys:
 - portions: integer or null — number of servings
 - instructions: string or null — full preparation steps as markdown. Include all steps mentioned.
 - missing_critical_info: boolean — true if the text is missing most fields (e.g., no ingredients, no instructions, no dish name identifiable)
+- cooking_types: array of strings — all that apply from: "oven", "cooktop", "microwave", "blender", "no-cook", "air-fryer", "other". Infer from the instructions text. Can be multiple values. Use [] if no cooking is needed (raw/assembled only).
+- protein_g: integer or null — grams of protein per portion. Parse from text like "Protein - 22.8g" or "P 37.3g". Round to nearest integer.
+- fat_g: integer or null — grams of fat per portion. Parse from "Fat - 80.9g" or "F 9g".
+- carbs_g: integer or null — grams of carbs per portion. Parse from "Carbs - 9.5g" or "C 16.8g".
+- fiber_g: integer or null — grams of fiber per portion. Null if not stated.
 
 Be conservative: if a field isn't clearly stated, use null. Don't guess calories unless mentioned.
 Normalize ingredient names: lowercase, singular, no quantities (e.g., "200g of eggs" → "egg").
@@ -102,6 +107,7 @@ def _validate_extraction(data: dict) -> None:
         "macro_tags", "calories_per_portion", "ingredients",
         "prep_time_minutes", "cook_time_minutes", "portions",
         "instructions", "missing_critical_info",
+        "cooking_types", "protein_g", "fat_g", "carbs_g", "fiber_g",
     }
     missing = required_keys - set(data.keys())
     if missing:

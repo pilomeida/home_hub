@@ -45,6 +45,11 @@ class TestExtractRecipe:
             "portions": 8,
             "instructions": "1. Mix all ingredients\n2. Bake at 180C for 30min\n3. Serve",
             "missing_critical_info": False,
+            "cooking_types": ["oven"],
+            "protein_g": None,
+            "fat_g": None,
+            "carbs_g": None,
+            "fiber_g": None,
         }
 
         mock_msg = self.make_mock_response(json.dumps(response_json))
@@ -78,6 +83,11 @@ class TestExtractRecipe:
             "portions": None,
             "instructions": None,
             "missing_critical_info": True,
+            "cooking_types": ["oven"],
+            "protein_g": None,
+            "fat_g": None,
+            "carbs_g": None,
+            "fiber_g": None,
         }
 
         mock_msg = self.make_mock_response(json.dumps(response_json))
@@ -100,6 +110,8 @@ class TestExtractRecipe:
             "subtype": None, "macro_tags": [], "calories_per_portion": None,
             "ingredients": [], "prep_time_minutes": None, "cook_time_minutes": None,
             "portions": None, "instructions": None, "missing_critical_info": True,
+            "cooking_types": ["oven"], "protein_g": None, "fat_g": None,
+            "carbs_g": None, "fiber_g": None,
         }))
         mock_client.messages.create = AsyncMock(side_effect=[bad_msg, good_msg])
 
@@ -121,3 +133,37 @@ class TestExtractRecipe:
                 await extract_recipe("caption", "https://ig.com/p/test4")
 
         assert mock_client.messages.create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_extracts_new_macro_and_cooking_fields(self):
+        response_json = {
+            "dish_name": "Protein Brownie",
+            "distinguishing_feature": None,
+            "type": "sweet",
+            "subtype": "dessert",
+            "macro_tags": ["protein-rich"],
+            "calories_per_portion": 267,
+            "ingredients": ["greek yogurt", "egg", "cocoa powder"],
+            "prep_time_minutes": 2,
+            "cook_time_minutes": 3,
+            "portions": 1,
+            "instructions": "Mix. Microwave 2:30.",
+            "missing_critical_info": False,
+            "cooking_types": ["microwave"],
+            "protein_g": 37,
+            "fat_g": 9,
+            "carbs_g": 17,
+            "fiber_g": None,
+        }
+        mock_msg = self.make_mock_response(json.dumps(response_json))
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_msg)
+
+        with patch("app.extractor.client", mock_client):
+            result = await extract_recipe("page text", "pdf:cooking-abs#protein-brownie")
+
+        assert result["cooking_types"] == ["microwave"]
+        assert result["protein_g"] == 37
+        assert result["fat_g"] == 9
+        assert result["carbs_g"] == 17
+        assert result["fiber_g"] is None
