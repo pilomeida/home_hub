@@ -169,65 +169,36 @@ def get_pending_batch(
 
 # ── Photo extraction ─────────────────────────────────────────────────────────
 
-def _render_cover_photo(pdf_path: str, photo_page: int, out_path: Path) -> bool:
-    """Render the recipe cover page and mask out text overlays.
+def _render_recipe_photo(pdf_path: str, card_page: int, out_path: Path) -> bool:
+    """Crop the top-left quadrant of the recipe card page (the food photo).
 
-    The cover page (card_page - 1) is a full-bleed food photo with the recipe
-    title and KCALS/macros overlaid as real PDF text objects.  We locate every
-    character's bounding box via pdfplumber, render the page via pdf2image, then
-    paste a heavily-blurred crop over each text region — producing a clean photo
-    without the overlay text.
+    The recipe card page layout has the food photo clean in the top-left quadrant
+    (x: 0–50%, y: 0–50%) with the ingredients/directions text on the right and bottom.
     """
     try:
         from pdf2image import convert_from_path
-        from PIL import ImageFilter
-
-        # Collect all character bounding boxes from the photo page
-        with pdfplumber.open(pdf_path) as pdf:
-            page = pdf.pages[photo_page - 1]
-            page_w = float(page.width)
-            page_h = float(page.height)
-            chars = page.chars  # each has x0, top, x1, bottom (top-down coords)
-
-        images = convert_from_path(pdf_path, first_page=photo_page, last_page=photo_page, dpi=150)
+        images = convert_from_path(pdf_path, first_page=card_page, last_page=card_page, dpi=150)
         if not images:
             return False
         img = images[0]
-        img_w, img_h = img.size
-
-        # Scale factors: PDF points → rendered pixels
-        sx = img_w / page_w
-        sy = img_h / page_h
-
-        # One heavily-blurred version used as paint source for all text regions
-        blurred = img.filter(ImageFilter.GaussianBlur(radius=40))
-
-        pad = 6  # pixel padding around each character bbox
-        for ch in chars:
-            px0 = max(0, int(ch["x0"] * sx) - pad)
-            py0 = max(0, int(ch["top"] * sy) - pad)
-            px1 = min(img_w, int(ch["x1"] * sx) + pad)
-            py1 = min(img_h, int(ch["bottom"] * sy) + pad)
-            if px1 > px0 and py1 > py0:
-                img.paste(blurred.crop((px0, py0, px1, py1)), (px0, py0))
-
+        w, h = img.size
+        photo = img.crop((0, 0, w // 2, h // 2))
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(str(out_path), "JPEG", quality=85)
+        photo.save(str(out_path), "JPEG", quality=85)
         return True
     except Exception as exc:
-        print(f"[pdf] cover photo render failed (page {photo_page}): {exc}", flush=True)
+        print(f"[pdf] photo render failed (page {card_page}): {exc}", flush=True)
         return False
 
 
 async def _extract_recipe_photo(
     pdf_path: str, card_page: int, book_slug: str, recipe_slug: str
 ) -> str | None:
-    """Async wrapper: renders cover photo (card_page - 1) with text masked out."""
-    photo_page = max(1, card_page - 1)
+    """Async wrapper: crops the food photo from the top-left quadrant of the card page."""
     filename = f"pdf-{book_slug}-{recipe_slug}.jpg"
     out_path = _PHOTOS_DIR / filename
     loop = asyncio.get_running_loop()
-    ok = await loop.run_in_executor(None, _render_cover_photo, pdf_path, photo_page, out_path)
+    ok = await loop.run_in_executor(None, _render_recipe_photo, pdf_path, card_page, out_path)
     return str(out_path) if ok else None
 
 
