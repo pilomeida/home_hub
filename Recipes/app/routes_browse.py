@@ -15,6 +15,7 @@ _OPTIONAL_RE = re.compile(r'^\(optional\)\s*', re.IGNORECASE)
 _PAREN_RE    = re.compile(r'\s*\([^)]*\)')
 _QTY_RE      = re.compile(
     r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s]+'
+    r'(?:heaping\s+|level\s+)?'
     r'(?:g|ml|mL|l|L|kg|lb|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
     r'|pieces?|slices?|cloves?|pinch|handful|drops?|sprigs?|scoops?|cans?|squares?)?'
     r'\s*',
@@ -23,7 +24,8 @@ _QTY_RE      = re.compile(
 _INDEF_RE    = re.compile(r'^(?:a few \w+|a handful|some|an?)\s+(?:of\s+)?', re.IGNORECASE)
 _OF_RE       = re.compile(r'^of\s+', re.IGNORECASE)
 _PREP_RE     = re.compile(
-    r'^(?:cooked\s+and\s+drained|chopped|diced|sliced|minced|crushed|grated|'
+    r'^(?:or\s+)?'
+    r'(?:cooked\s+and\s+drained|chopped|diced|sliced|minced|crushed|grated|'
     r'shredded|ground|roasted|toasted|dried|frozen|canned|ripe|powdered)\s+',
     re.IGNORECASE,
 )
