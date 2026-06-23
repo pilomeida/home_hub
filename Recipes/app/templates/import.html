@@ -29,9 +29,16 @@
       <input type="file" name="pdf_file" accept=".pdf" required
              style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.9rem; font-family:inherit;">
     </div>
-    <p style="font-size:0.875rem; color:var(--text-muted);">
-      We'll start with 3 sample recipes. You can import more once you're happy with the results.
-    </p>
+    <div>
+      <label style="display:block; font-size:0.875rem; font-weight:500; margin-bottom:0.25rem;">
+        Sample pages <span style="font-weight:400; color:var(--text-muted);">(optional — comma-separated page numbers to spot-check specific recipes)</span>
+      </label>
+      <input type="text" name="sample_pages" placeholder="e.g. 44, 70, 142, 152, 210, 244, 266"
+             style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.9rem; font-family:inherit;">
+      <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+        If provided, only those recipes are extracted and saved automatically. Leave empty to extract all.
+      </p>
+    </div>
     <button type="submit" class="btn btn-primary" style="width:100%;">Upload &amp; Extract</button>
   </form>
 </div>
@@ -64,7 +71,10 @@
           document.getElementById("prog-bar").style.background = "var(--danger)";
           return;  // stop polling
         }
-        if (d.extraction_complete) { window.location.href = "/import/" + sid + "/review"; return; }
+        if (d.extraction_complete) {
+          window.location.href = d.auto_approved ? "/" : "/import/" + sid + "/review";
+          return;
+        }
         const total = d.total_detected;
         const done = d.extracted_so_far;
         const pct = total > 0 ? Math.round((done / total) * 80) + 10 : 10;
@@ -89,14 +99,7 @@
       {{ reviewed }} / {{ total_sampled }} reviewed
     </span>
   </div>
-  <div style="display:flex; gap:0.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-    <form method="post" action="/import/{{ sid }}/save-all" style="margin:0;">
-      <input type="hidden" name="sample_pct" value="15">
-      <button type="submit" class="btn"
-              style="background:#e8f4e8; border-color:#88c888; color:#2a6a2a; font-size:0.875rem;">
-        Auto-import 15% sample (~{{ (session.extracted|length * 0.15)|int or 1 }} recipes)
-      </button>
-    </form>
+  <div style="margin-bottom:1.5rem;">
     <form method="post" action="/import/{{ sid }}/save-all" style="margin:0;">
       <input type="hidden" name="sample_pct" value="100">
       <button type="submit" class="btn"

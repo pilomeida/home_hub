@@ -55,6 +55,7 @@ async def start_import(
     background_tasks: BackgroundTasks,
     pdf_file: UploadFile = File(...),
     book_title: str = Form(default=""),
+    sample_pages_raw: str = Form(default="", alias="sample_pages"),
 ):
     if pdf_file.content_type != "application/pdf":
         return templates.TemplateResponse(request, "import.html", {
@@ -69,21 +70,71 @@ async def start_import(
     slug = _slugify(book_title or Path(pdf_file.filename).stem)
     title = book_title or Path(pdf_file.filename).stem
 
+    sample_pages = [int(x) for x in sample_pages_raw.replace(",", " ").split() if x.strip().isdigit()]
+
     # Create placeholder session so the progress page can load immediately
     placeholder = PdfIngestionSession(
         session_id=sid, pdf_path=str(dest), book_title=title,
         book_slug=slug, all_recipes=[], sampled_indices=[],
         extracted={}, extraction_complete=False,
-        total_pages=0, used_windows=[],
+        total_pages=0, used_windows=[], sample_pages=sample_pages,
     )
     save_session(placeholder)
 
-    background_tasks.add_task(_run_pipeline, sid, str(dest), title, slug)
+    background_tasks.add_task(_run_pipeline, sid, str(dest), title, slug, sample_pages)
     return RedirectResponse(url=f"/import/{sid}", status_code=303)
 
 
-async def _run_pipeline(session_id: str, pdf_path: str, book_title: str, book_slug: str):
-    await create_session(pdf_path, book_title, book_slug, session_id=session_id)
+async def _run_pipeline(session_id: str, pdf_path: str, book_title: str, book_slug: str, sample_pages: list[int]):
+    session = await create_session(pdf_path, book_title, book_slug, session_id=session_id, sample_pages=sample_pages)
+
+    if sample_pages:
+        # Auto-save all extracted recipes directly to DB — no review step needed
+        from app.database import engine
+        from sqlmodel import Session as DBSession
+        with DBSession(engine) as db:
+            for idx_str, recipe_data in session.extracted.items():
+                if not recipe_data.get("dish_name"):
+                    session.extracted[idx_str]["status"] = "skipped"
+                    continue
+                dish_name = recipe_data["dish_name"]
+                distinguisher = recipe_data.get("distinguishing_feature") or None
+                source_url = recipe_data.get("source_url", f"pdf:{session.book_slug}#{idx_str}")
+                existing = db.exec(select(Recipe).where(Recipe.source_url == source_url)).first()
+                if existing:
+                    session.extracted[idx_str]["status"] = "approved"
+                    session.extracted[idx_str]["saved_recipe_id"] = existing.id
+                    continue
+                recipe = Recipe(
+                    title=_build_title(dish_name, distinguisher),
+                    dish_name=dish_name,
+                    distinguisher=distinguisher,
+                    type=recipe_data.get("type") or "savory",
+                    subtype=recipe_data.get("subtype") or None,
+                    calories_per_portion=_int_or_none(recipe_data.get("calories_per_portion")),
+                    protein_g=_int_or_none(recipe_data.get("protein_g")),
+                    fat_g=_int_or_none(recipe_data.get("fat_g")),
+                    carbs_g=_int_or_none(recipe_data.get("carbs_g")),
+                    fiber_g=_int_or_none(recipe_data.get("fiber_g")),
+                    cooking_types=json.dumps(recipe_data.get("cooking_types") or []),
+                    macro_tags=json.dumps(recipe_data.get("macro_tags") or []),
+                    ingredients=json.dumps(recipe_data.get("ingredients") or []),
+                    prep_time=_int_or_none(recipe_data.get("prep_time_minutes")),
+                    cook_time=_int_or_none(recipe_data.get("cook_time_minutes")),
+                    portions=_int_or_none(recipe_data.get("portions")),
+                    instructions=recipe_data.get("instructions") or None,
+                    photo_path=recipe_data.get("photo_path") or None,
+                    source_url=source_url,
+                )
+                recipe.compute_derived_fields()
+                db.add(recipe)
+                db.commit()
+                db.refresh(recipe)
+                detect_and_link(recipe, db)
+                session.extracted[idx_str]["status"] = "approved"
+                session.extracted[idx_str]["saved_recipe_id"] = recipe.id
+        session.auto_approved = True
+        save_session(session)
 
 
 # ── Progress ──────────────────────────────────────────────────────────────────
@@ -109,6 +160,7 @@ async def import_status(sid: str):
         return JSONResponse({"error": "session not found"}, status_code=404)
     return {
         "extraction_complete": session.extraction_complete,
+        "auto_approved": session.auto_approved,
         "book_title": session.book_title,
         "total_detected": len(session.all_recipes),
         "extracted_so_far": len(session.extracted),
@@ -124,6 +176,8 @@ async def import_review(sid: str, request: Request):
         session = load_session(sid)
     except FileNotFoundError:
         return templates.TemplateResponse(request, "404.html", {}, status_code=404)
+    if session.auto_approved:
+        return RedirectResponse(url="/", status_code=303)
     batch = get_pending_batch(session, n=3)
     if not batch:
         return RedirectResponse(url=f"/import/{sid}/summary", status_code=303)

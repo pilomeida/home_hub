@@ -133,6 +133,8 @@ class PdfIngestionSession:
     error: Optional[str] = None
     total_pages: int = 0
     used_windows: list = field(default_factory=list)  # kept for session compat
+    sample_pages: list = field(default_factory=list)  # user-specified page numbers
+    auto_approved: bool = False  # True when recipes have been saved without review
 
 
 def _session_path(session_id: str) -> Path:
@@ -208,6 +210,7 @@ async def create_session(
     book_title: str,
     book_slug: str,
     session_id: str | None = None,
+    sample_pages: list[int] | None = None,
 ) -> PdfIngestionSession:
     """Extract all recipes from a PDF using pdfplumber + programmatic boundary detection.
 
@@ -224,8 +227,15 @@ async def create_session(
     total_pages = len(full_texts)
     print(f"[pdf] {total_pages} pages", flush=True)
 
-    # Step 2: find recipe boundaries from KCALS pattern
+    # Step 2: find recipe boundaries, then optionally filter to sample pages
     recipe_metas = find_recipe_boundaries(full_texts)
+    if sample_pages:
+        sample_set = set(sample_pages)
+        recipe_metas = [
+            m for m in recipe_metas
+            if m["card_page"] in sample_set or m["card_page"] - 1 in sample_set
+        ]
+        print(f"[pdf] filtered to {len(recipe_metas)} sample recipes (pages {sample_pages})", flush=True)
     all_recipes = [{**m, "status": "pending"} for m in recipe_metas]
     print(f"[pdf] {len(all_recipes)} recipes detected", flush=True)
 
@@ -240,6 +250,7 @@ async def create_session(
         extracted={},
         extraction_complete=False,
         total_pages=total_pages,
+        sample_pages=sample_pages or [],
     )
     save_session(session)
 
