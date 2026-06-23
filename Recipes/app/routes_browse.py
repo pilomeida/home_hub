@@ -30,6 +30,10 @@ _PREP_RE     = re.compile(
     re.IGNORECASE,
 )
 _TO_TASTE_RE = re.compile(r'\s+to\s+taste\s*$', re.IGNORECASE)
+# Splits "salt and pepper" → ["salt", "pepper"] and "salt, pepper, and paprika" → [...]
+_COMPOUND_SPLIT_RE = re.compile(r',\s*(?:and\s+)?|\s+and\s+', re.IGNORECASE)
+# Only split on "and" when both sides are single words (e.g. not "low-fat Greek yogurt and oat flour")
+_SIMPLE_AND_RE = re.compile(r'^([\w][\w-]*)\s+and\s+([\w][\w-]*)$', re.IGNORECASE)
 
 
 def _norm_ingredient(raw: str) -> str:
@@ -43,6 +47,17 @@ def _norm_ingredient(raw: str) -> str:
     s = _TO_TASTE_RE.sub('', s)
     s = s.strip(' ,.-')
     return s.capitalize() if s else raw.capitalize()
+
+
+def _expand_ingredient(raw: str) -> list[str]:
+    """Normalize and split compound ingredients (e.g. 'salt and pepper' → ['Salt', 'Pepper'])."""
+    normed = _norm_ingredient(raw)
+    # Split if there's a comma (explicit list) or two single words joined by "and"
+    if ',' in normed or _SIMPLE_AND_RE.match(normed):
+        parts = [p.strip().capitalize() for p in _COMPOUND_SPLIT_RE.split(normed) if p.strip()]
+        if len(parts) > 1:
+            return parts
+    return [normed]
 
 router = APIRouter(tags=["browse"])
 
@@ -83,7 +98,11 @@ async def browse_page(
         recipes = [
             r for r in recipes
             if all(
-                any(_norm_ingredient(raw) == ing for raw in r.ingredients_list)
+                any(
+                    expanded == ing
+                    for raw in r.ingredients_list
+                    for expanded in _expand_ingredient(raw)
+                )
                 for ing in ingredient
             )
         ]
@@ -106,7 +125,8 @@ async def browse_page(
         for m in r.macro_tags_list:
             all_macros.add(m)
         for ing in r.ingredients_list:
-            all_ingredients.add(_norm_ingredient(ing))
+            for expanded in _expand_ingredient(ing):
+                all_ingredients.add(expanded)
         if r.calorie_tier:
             all_tiers.add(r.calorie_tier)
         for ct in r.cooking_types_list:
