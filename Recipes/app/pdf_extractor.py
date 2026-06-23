@@ -10,12 +10,13 @@ from typing import Optional
 
 import pdfplumber
 
-_MIN_TEXT_CHARS = 50
 _SESSIONS_DIR = Path("data/import_sessions")
 _MAX_PAGES_PER_RECIPE = 6
 
-# Pages containing this pattern are recipe title/photo pages with macro overlays
-_RECIPE_MACRO_RE = re.compile(r'\bKCALS?\s+\d', re.IGNORECASE)
+# Recipe card pages reliably contain "INGREDIENTS" as a section header
+_INGREDIENTS_RE = re.compile(r'\bINGREDIENTS\b')
+# Skip these when looking for the recipe title
+_SKIP_LINE_RE = re.compile(r'portion|prep:|@|KCALS?|\bCALS?\b', re.IGNORECASE)
 
 
 # ── Sync helpers ──────────────────────────────────────────────────────────────
@@ -37,36 +38,46 @@ def extract_page_texts(pdf_path: str) -> dict[int, PageText]:
 
 
 def find_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
-    """Detect recipe pages by finding macro lines (KCALS X P Y F Z C W).
+    """Find recipe card pages by locating INGREDIENTS headers.
 
-    Each recipe spans from its title/macro page to just before the next one,
-    capped at _MAX_PAGES_PER_RECIPE.
+    INGREDIENTS reliably appears as PDF text on every recipe card page.
+    The preceding page is typically the photo page with the title + macros.
     """
     sorted_pages = sorted(page_texts.keys())
-    starts = [
+    ingredient_pages = [
         p for p in sorted_pages
-        if _RECIPE_MACRO_RE.search(page_texts.get(p, ""))
+        if _INGREDIENTS_RE.search(page_texts.get(p, ""))
     ]
 
     recipes = []
-    for i, start in enumerate(starts):
-        next_start = starts[i + 1] if i + 1 < len(starts) else start + _MAX_PAGES_PER_RECIPE
-        pages = list(range(start, min(next_start, start + _MAX_PAGES_PER_RECIPE)))
-        title = _title_from_page(page_texts.get(start, ""))
+    allocated_up_to = 0  # avoid giving the same page to two consecutive recipes
+
+    for i, p in enumerate(ingredient_pages):
+        next_p = ingredient_pages[i + 1] if i + 1 < len(ingredient_pages) else p + _MAX_PAGES_PER_RECIPE
+        # Include the preceding page (photo page with title + macros)
+        start = max(p - 1, allocated_up_to)
+        end = min(next_p, p + _MAX_PAGES_PER_RECIPE)
+        pages = list(range(start, end))
+        title = _title_from_card_page(page_texts.get(p, ""))
         recipes.append({"recipe_title": title, "pages": pages})
+        allocated_up_to = end
 
     return recipes
 
 
-def _title_from_page(text: str) -> str:
-    """Extract recipe title: the lines on the macro page that precede the KCALS line."""
-    lines = [l.strip() for l in text.split("\n") if l.strip()]
-    title_lines = []
-    for line in lines:
-        if _RECIPE_MACRO_RE.search(line):
+def _title_from_card_page(text: str) -> str:
+    """Extract recipe title: last non-skip line before INGREDIENTS on the card page."""
+    candidate = None
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if _INGREDIENTS_RE.search(line):
             break
-        title_lines.append(line)
-    return " ".join(title_lines) if title_lines else "Unknown Recipe"
+        if _SKIP_LINE_RE.search(line) or re.match(r"^\d+$", line):
+            continue
+        candidate = line
+    return candidate or "Unknown Recipe"
 
 
 def assemble_recipe_text(page_texts: dict[int, str], pages: list[int]) -> str:

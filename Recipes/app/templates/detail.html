@@ -14,7 +14,7 @@
 
         <div class="detail-info">
             <h1>{{ recipe.title }}</h1>
-            {% if recipe.distinguisher %}
+            {% if recipe.distinguisher and recipe.distinguisher not in recipe.title %}
             <p class="distinguisher">{{ recipe.distinguisher }}</p>
             {% endif %}
 

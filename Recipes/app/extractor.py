@@ -19,7 +19,7 @@ Return a JSON object with these keys:
 - subtype: string or null — one of: "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink"
 - macro_tags: array of strings — any that apply from: "protein-rich", "low-carb", "keto", "vegan", "gluten-free", "fiber-rich", "high-fat", "dairy-free". Include others that fit.
 - calories_per_portion: integer or null — best estimate of calories per serving
-- ingredients: array of strings — normalized ingredient names, singular form, lowercase (e.g., "egg" not "eggs", "chicken breast" not "chicken breasts")
+- ingredients: array of strings — full ingredient lines with quantities and units exactly as written (e.g., "1 tablespoon rolled oats (40g)", "90g low-fat Greek yogurt"). Preserve amounts.
 - prep_time_minutes: integer or null — preparation time in minutes
 - cook_time_minutes: integer or null — cooking time in minutes (null for no-cook dishes)
 - portions: integer or null — number of servings
@@ -32,7 +32,6 @@ Return a JSON object with these keys:
 - fiber_g: integer or null — grams of fiber per portion. Null if not stated.
 
 Be conservative: if a field isn't clearly stated, use null. Don't guess calories unless mentioned.
-Normalize ingredient names: lowercase, singular, no quantities (e.g., "200g of eggs" → "egg").
 
 Text to extract from:
 ---
@@ -52,7 +51,7 @@ For each complete recipe return an object with these fields:
 - subtype: string or null — one of: "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink"
 - macro_tags: array of strings — any from: "protein-rich", "low-carb", "keto", "vegan", "gluten-free", "fiber-rich", "high-fat", "dairy-free"
 - calories_per_portion: integer or null — parse from "KCALS 431" or "CALORIES 431", round to int
-- ingredients: array of strings — normalized, singular, lowercase, no quantities (e.g. "egg" not "2 eggs")
+- ingredients: array of strings — full lines with quantities and units as written (e.g. "1 tablespoon rolled oats (40g)", "90g low-fat Greek yogurt")
 - prep_time_minutes: integer or null
 - cook_time_minutes: integer or null
 - portions: integer or null
