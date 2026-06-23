@@ -11,19 +11,35 @@ from app.database import get_session
 from app.models import Recipe
 from app.main import templates, url_for
 
-_QTY_PREFIX_RE = re.compile(
-    r'^[\d./\s]+'                         # leading numbers / fractions
-    r'(?:g|ml|mL|l|L|kg|lb|oz|tbsp|tsp'  # unit abbreviations
-    r'|tablespoons?|teaspoons?|cups?'
-    r'|pieces?|slices?|cloves?|pinch|handful|sprigs?|scoops?|cans?)'
-    r'?\s*',
+_OPTIONAL_RE = re.compile(r'^\(optional\)\s*', re.IGNORECASE)
+_PAREN_RE    = re.compile(r'\s*\([^)]*\)')
+_QTY_RE      = re.compile(
+    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s]+'
+    r'(?:g|ml|mL|l|L|kg|lb|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
+    r'|pieces?|slices?|cloves?|pinch|handful|drops?|sprigs?|scoops?|cans?|squares?)?'
+    r'\s*',
     re.IGNORECASE,
 )
+_INDEF_RE    = re.compile(r'^(?:a few \w+|a handful|some|an?)\s+(?:of\s+)?', re.IGNORECASE)
+_OF_RE       = re.compile(r'^of\s+', re.IGNORECASE)
+_PREP_RE     = re.compile(
+    r'^(?:cooked\s+and\s+drained|chopped|diced|sliced|minced|crushed|grated|'
+    r'shredded|ground|roasted|toasted|dried|frozen|canned|ripe|powdered)\s+',
+    re.IGNORECASE,
+)
+_TO_TASTE_RE = re.compile(r'\s+to\s+taste\s*$', re.IGNORECASE)
+
 
 def _norm_ingredient(raw: str) -> str:
-    """Strip leading quantity/unit so '100g Greek yogurt' → 'Greek yogurt'."""
-    s = _QTY_PREFIX_RE.sub('', raw).strip()
-    s = re.sub(r'\s*\([^)]*\)\s*$', '', s).strip()  # drop trailing "(optional)", "(40g)"
+    s = raw.strip()
+    s = _OPTIONAL_RE.sub('', s)
+    s = _PAREN_RE.sub('', s).strip()
+    s = _INDEF_RE.sub('', s)
+    s = _QTY_RE.sub('', s)
+    s = _OF_RE.sub('', s)
+    s = _PREP_RE.sub('', s)
+    s = _TO_TASTE_RE.sub('', s)
+    s = s.strip(' ,.-')
     return s.capitalize() if s else raw.capitalize()
 
 router = APIRouter(tags=["browse"])
@@ -62,7 +78,13 @@ async def browse_page(
     if macro:
         recipes = [r for r in recipes if any(m in r.macro_tags_list for m in macro)]
     if ingredient:
-        recipes = [r for r in recipes if all(ing in r.ingredients_list for ing in ingredient)]
+        recipes = [
+            r for r in recipes
+            if all(
+                any(_norm_ingredient(raw) == ing for raw in r.ingredients_list)
+                for ing in ingredient
+            )
+        ]
     if cooking_type:
         recipes = [r for r in recipes if any(ct in r.cooking_types_list for ct in cooking_type)]
 
