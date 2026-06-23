@@ -83,11 +83,27 @@
 {# ══════════════════════════ REVIEW ══════════════════════════ #}
 {% elif view == "review" %}
 <div style="max-width:800px; margin:2rem auto;">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; gap:1rem;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; gap:1rem; flex-wrap:wrap;">
     <h1 style="font-size:1.5rem; font-weight:700;">Review — {{ session.book_title }}</h1>
     <span style="font-size:0.875rem; color:var(--text-muted); white-space:nowrap;">
       {{ reviewed }} / {{ total_sampled }} reviewed
     </span>
+  </div>
+  <div style="display:flex; gap:0.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+    <form method="post" action="/import/{{ sid }}/save-all" style="margin:0;">
+      <input type="hidden" name="sample_pct" value="15">
+      <button type="submit" class="btn"
+              style="background:#e8f4e8; border-color:#88c888; color:#2a6a2a; font-size:0.875rem;">
+        Auto-import 15% sample (~{{ (session.extracted|length * 0.15)|int or 1 }} recipes)
+      </button>
+    </form>
+    <form method="post" action="/import/{{ sid }}/save-all" style="margin:0;">
+      <input type="hidden" name="sample_pct" value="100">
+      <button type="submit" class="btn"
+              style="background:#e8f4e8; border-color:#88c888; color:#2a6a2a; font-size:0.875rem;">
+        Auto-import all ({{ session.extracted|length }} recipes)
+      </button>
+    </form>
   </div>
   <form method="post" action="/import/{{ sid }}/review"
         style="display:flex; flex-direction:column; gap:2rem;">

@@ -1,6 +1,7 @@
 """PDF cookbook import routes."""
 
 import json
+import random
 import shutil
 import uuid
 from pathlib import Path
@@ -219,6 +220,71 @@ async def import_summary(sid: str, request: Request):
         "view": "summary", "session": session, "sid": sid,
         "saved": saved, "skipped": skipped, "remaining": 1 if can_import_more else 0,
     })
+
+
+# ── Bulk save ────────────────────────────────────────────────────────────────
+
+@router.post("/{sid}/save-all")
+async def save_all(sid: str, request: Request, db: Session = Depends(get_session)):
+    """Auto-import all (or a random sample) of extracted recipes without per-recipe review."""
+    try:
+        session = load_session(sid)
+    except FileNotFoundError:
+        return templates.TemplateResponse(request, "404.html", {}, status_code=404)
+
+    form = await request.form()
+    sample_pct = int(form.get("sample_pct") or 100)
+
+    candidates = [
+        (int(k), v) for k, v in session.extracted.items()
+        if v.get("status") == "pending" and v.get("dish_name")
+    ]
+    if sample_pct < 100:
+        k = max(1, round(len(candidates) * sample_pct / 100))
+        candidates = random.sample(candidates, min(k, len(candidates)))
+
+    for idx, recipe_data in candidates:
+        dish_name = recipe_data.get("dish_name") or "Unknown"
+        distinguisher = recipe_data.get("distinguishing_feature") or None
+        source_url = recipe_data.get("source_url", f"pdf:{session.book_slug}#{idx}")
+
+        existing = db.exec(select(Recipe).where(Recipe.source_url == source_url)).first()
+        if existing:
+            session.extracted[str(idx)]["status"] = "approved"
+            session.extracted[str(idx)]["saved_recipe_id"] = existing.id
+            continue
+
+        recipe = Recipe(
+            title=_build_title(dish_name, distinguisher),
+            dish_name=dish_name,
+            distinguisher=distinguisher,
+            type=recipe_data.get("type") or "savory",
+            subtype=recipe_data.get("subtype") or None,
+            calories_per_portion=_int_or_none(recipe_data.get("calories_per_portion")),
+            protein_g=_int_or_none(recipe_data.get("protein_g")),
+            fat_g=_int_or_none(recipe_data.get("fat_g")),
+            carbs_g=_int_or_none(recipe_data.get("carbs_g")),
+            fiber_g=_int_or_none(recipe_data.get("fiber_g")),
+            cooking_types=json.dumps(recipe_data.get("cooking_types") or []),
+            macro_tags=json.dumps(recipe_data.get("macro_tags") or []),
+            ingredients=json.dumps(recipe_data.get("ingredients") or []),
+            prep_time=_int_or_none(recipe_data.get("prep_time_minutes")),
+            cook_time=_int_or_none(recipe_data.get("cook_time_minutes")),
+            portions=_int_or_none(recipe_data.get("portions")),
+            instructions=recipe_data.get("instructions") or None,
+            photo_path=recipe_data.get("photo_path") or None,
+            source_url=source_url,
+        )
+        recipe.compute_derived_fields()
+        db.add(recipe)
+        db.commit()
+        db.refresh(recipe)
+        detect_and_link(recipe, db)
+        session.extracted[str(idx)]["status"] = "approved"
+        session.extracted[str(idx)]["saved_recipe_id"] = recipe.id
+
+    save_session(session)
+    return RedirectResponse(url=f"/import/{sid}/summary", status_code=303)
 
 
 # ── Import more ───────────────────────────────────────────────────────────────

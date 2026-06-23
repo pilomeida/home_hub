@@ -43,8 +43,10 @@ def extract_page_texts(pdf_path: str) -> dict[int, PageText]:
 def find_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
     """Find recipe card pages by locating INGREDIENTS headers.
 
-    INGREDIENTS reliably appears as PDF text on every recipe card page.
-    The preceding page is typically the photo page with the title + macros.
+    Each recipe owns its photo page (p-1, which carries KCALS/macros) plus its
+    card page (p) and any trailing directions pages — up to but NOT including
+    the next recipe's photo page.  The old allocated_up_to approach was stealing
+    photo pages from recipes 2+ and giving them to the preceding recipe.
     """
     sorted_pages = sorted(page_texts.keys())
     ingredient_pages = [
@@ -53,17 +55,17 @@ def find_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
     ]
 
     recipes = []
-    allocated_up_to = 0  # avoid giving the same page to two consecutive recipes
-
     for i, p in enumerate(ingredient_pages):
-        next_p = ingredient_pages[i + 1] if i + 1 < len(ingredient_pages) else p + _MAX_PAGES_PER_RECIPE
-        # Include the preceding page (photo page with title + macros)
-        start = max(p - 1, allocated_up_to)
-        end = min(next_p, p + _MAX_PAGES_PER_RECIPE)
+        start = max(p - 1, 1)  # always include own photo page
+        if i + 1 < len(ingredient_pages):
+            next_card = ingredient_pages[i + 1]
+            # Stop before the next recipe's photo page (next_card - 1 is exclusive)
+            end = min(next_card - 1, p + _MAX_PAGES_PER_RECIPE)
+        else:
+            end = p + _MAX_PAGES_PER_RECIPE
         pages = list(range(start, end))
         title = _title_from_card_page(page_texts.get(p, ""))
         recipes.append({"recipe_title": title, "pages": pages, "card_page": p})
-        allocated_up_to = end
 
     return recipes
 
@@ -179,7 +181,7 @@ def _render_recipe_photo(pdf_path: str, page_num: int, out_path: Path) -> bool:
             return False
         img = images[0]
         w, h = img.size
-        photo = img.crop((0, 0, int(w * 0.5), h))
+        photo = img.crop((0, 0, int(w * 0.45), h))
         out_path.parent.mkdir(parents=True, exist_ok=True)
         photo.save(str(out_path), "JPEG", quality=85)
         return True

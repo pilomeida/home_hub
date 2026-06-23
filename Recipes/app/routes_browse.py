@@ -1,6 +1,7 @@
 """Browse route — faceted filter sidebar + recipe grid."""
 
 import json
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -9,6 +10,21 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Recipe
 from app.main import templates, url_for
+
+_QTY_PREFIX_RE = re.compile(
+    r'^[\d./\s]+'                         # leading numbers / fractions
+    r'(?:g|ml|mL|l|L|kg|lb|oz|tbsp|tsp'  # unit abbreviations
+    r'|tablespoons?|teaspoons?|cups?'
+    r'|pieces?|slices?|cloves?|pinch|handful|sprigs?|scoops?|cans?)'
+    r'?\s*',
+    re.IGNORECASE,
+)
+
+def _norm_ingredient(raw: str) -> str:
+    """Strip leading quantity/unit so '100g Greek yogurt' → 'Greek yogurt'."""
+    s = _QTY_PREFIX_RE.sub('', raw).strip()
+    s = re.sub(r'\s*\([^)]*\)\s*$', '', s).strip()  # drop trailing "(optional)", "(40g)"
+    return s.capitalize() if s else raw.capitalize()
 
 router = APIRouter(tags=["browse"])
 
@@ -66,7 +82,7 @@ async def browse_page(
         for m in r.macro_tags_list:
             all_macros.add(m)
         for ing in r.ingredients_list:
-            all_ingredients.add(ing)
+            all_ingredients.add(_norm_ingredient(ing))
         if r.calorie_tier:
             all_tiers.add(r.calorie_tier)
         for ct in r.cooking_types_list:
