@@ -97,7 +97,7 @@ async def extract_recipe(text: str, source_url: str) -> dict[str, Any]:
     for attempt in range(2):
         try:
             message = await client.messages.create(
-                model="claude-sonnet-4-6",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=2048,
                 temperature=0.1,
                 system="You are a precise recipe data extractor. Return only valid JSON.",
@@ -141,7 +141,7 @@ async def extract_recipes_from_chunk(chunk_text: str) -> list[dict]:
     for attempt in range(3):
         try:
             message = await client.messages.create(
-                model="claude-sonnet-4-6",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=4096,
                 temperature=0,
                 system="You are a precise recipe data extractor. Return only valid JSON arrays.",
