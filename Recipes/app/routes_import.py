@@ -188,6 +188,7 @@ async def submit_review(sid: str, request: Request, db: Session = Depends(get_se
             cook_time=_int_or_none(recipe_data.get("cook_time_minutes")),
             portions=_int_or_none(recipe_data.get("portions")),
             instructions=recipe_data.get("instructions") or None,
+            photo_path=recipe_data.get("photo_path") or None,
             source_url=source_url,
         )
         recipe.compute_derived_fields()

@@ -1,5 +1,6 @@
 """PDF extraction: pdfplumber text pass + programmatic recipe boundary detection."""
 
+import asyncio
 import json
 import re
 import uuid
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Optional
 
 import pdfplumber
+
+_PHOTOS_DIR = Path("app/static/photos")
 
 _SESSIONS_DIR = Path("data/import_sessions")
 _MAX_PAGES_PER_RECIPE = 6
@@ -59,7 +62,7 @@ def find_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
         end = min(next_p, p + _MAX_PAGES_PER_RECIPE)
         pages = list(range(start, end))
         title = _title_from_card_page(page_texts.get(p, ""))
-        recipes.append({"recipe_title": title, "pages": pages})
+        recipes.append({"recipe_title": title, "pages": pages, "card_page": p})
         allocated_up_to = end
 
     return recipes
@@ -152,6 +155,42 @@ def get_pending_batch(
     return result
 
 
+# ── Photo extraction ─────────────────────────────────────────────────────────
+
+def _render_recipe_photo(pdf_path: str, page_num: int, out_path: Path) -> bool:
+    """Render the recipe card page and crop the left portion (the recipe photo).
+
+    Recipe cards in this book have a photo on the left ~50% of the page width
+    and the ingredient/direction text on the right. We crop and save as JPEG.
+    Runs synchronously — call via run_in_executor to avoid blocking the event loop.
+    """
+    try:
+        from pdf2image import convert_from_path
+        images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num, dpi=150)
+        if not images:
+            return False
+        img = images[0]
+        w, h = img.size
+        photo = img.crop((0, 0, int(w * 0.5), h))
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        photo.save(str(out_path), "JPEG", quality=85)
+        return True
+    except Exception as exc:
+        print(f"[pdf] photo render failed (page {page_num}): {exc}", flush=True)
+        return False
+
+
+async def _extract_recipe_photo(
+    pdf_path: str, page_num: int, book_slug: str, recipe_slug: str
+) -> str | None:
+    """Async wrapper: renders and crops the recipe card photo in a thread pool."""
+    filename = f"pdf-{book_slug}-{recipe_slug}.jpg"
+    out_path = _PHOTOS_DIR / filename
+    loop = asyncio.get_running_loop()
+    ok = await loop.run_in_executor(None, _render_recipe_photo, pdf_path, page_num, out_path)
+    return str(out_path) if ok else None
+
+
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 
 async def create_session(
@@ -194,24 +233,41 @@ async def create_session(
     )
     save_session(session)
 
-    # Step 3: extract each recipe individually with progress persistence
+    # Step 3: extract each recipe + photo concurrently, saving progress after each
     from app.extractor import extract_recipe
     error: Optional[str] = None
     try:
         for idx, meta in enumerate(recipe_metas):
             title = meta["recipe_title"]
+            recipe_slug = _slugify(title)
             print(f"[pdf] extracting {idx + 1}/{len(recipe_metas)}: {title!r}", flush=True)
             text = assemble_recipe_text(full_texts, meta["pages"])
-            source_url = f"pdf:{book_slug}#{_slugify(title)}"
-            try:
-                data = await extract_recipe(text, source_url)
-            except Exception as exc:
-                data = _empty_recipe_data()
-                print(f"[pdf] extraction failed for {title!r}: {exc}", flush=True)
+            source_url = f"pdf:{book_slug}#{recipe_slug}"
+
+            # Run Claude extraction and photo render concurrently
+            card_page = meta.get("card_page")
+            extract_coro = extract_recipe(text, source_url)
+            photo_coro = _extract_recipe_photo(pdf_path, card_page, book_slug, recipe_slug) if card_page else None
+
+            if photo_coro:
+                results = await asyncio.gather(extract_coro, photo_coro, return_exceptions=True)
+                data = results[0] if not isinstance(results[0], Exception) else _empty_recipe_data()
+                photo_path = results[1] if not isinstance(results[1], Exception) else None
+                if isinstance(results[0], Exception):
+                    print(f"[pdf] extraction failed for {title!r}: {results[0]}", flush=True)
+            else:
+                try:
+                    data = await extract_coro
+                except Exception as exc:
+                    data = _empty_recipe_data()
+                    print(f"[pdf] extraction failed for {title!r}: {exc}", flush=True)
+                photo_path = None
+
             data.update({
                 "status": "pending",
                 "source_url": source_url,
                 "book_title": book_title,
+                "photo_path": photo_path,
             })
             session.extracted[str(idx)] = data
             save_session(session)
