@@ -69,8 +69,13 @@ def find_recipe_boundaries(page_texts: dict[int, str]) -> list[dict]:
 
 
 def _title_from_card_page(text: str) -> str:
-    """Extract recipe title: last non-skip line before INGREDIENTS on the card page."""
-    candidate = None
+    """Extract recipe title: all non-skip lines before INGREDIENTS on the card page.
+
+    Recipe titles sometimes span two lines (e.g. "Chocolate Mug Cake" / "with Tofu").
+    Joining all valid lines produces the full title. Short ALL_CAPS fragments
+    (book header/footer like "COOKING ABS") are filtered out.
+    """
+    parts = []
     for line in text.split("\n"):
         line = line.strip()
         if not line:
@@ -79,8 +84,11 @@ def _title_from_card_page(text: str) -> str:
             break
         if _SKIP_LINE_RE.search(line) or re.match(r"^\d+$", line):
             continue
-        candidate = line
-    return candidate or "Unknown Recipe"
+        # Drop short all-caps fragments (book header/footer artefacts)
+        if line.isupper() and len(line.split()) <= 3:
+            continue
+        parts.append(line)
+    return " ".join(parts) if parts else "Unknown Recipe"
 
 
 def assemble_recipe_text(page_texts: dict[int, str], pages: list[int]) -> str:
