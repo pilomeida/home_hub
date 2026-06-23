@@ -123,7 +123,7 @@
                 <div class="card-image">
                     {% if recipe.photo_path %}
                     {% set filename = recipe.photo_path.split('/')[-1] %}
-                    <img src="/static/photos/{{ filename }}?v={{ recipe.created_at[:19] | replace(':', '') }}" alt="{{ recipe.title }}" loading="lazy">
+                    <img src="/static/photos/{{ filename }}?v={{ recipe.created_at.timestamp() | int }}" alt="{{ recipe.title }}" loading="lazy">
                     {% else %}
                     <div class="no-photo">📷</div>
                     {% endif %}

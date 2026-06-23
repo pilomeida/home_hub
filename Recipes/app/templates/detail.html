@@ -6,7 +6,7 @@
         <div class="detail-photo">
             {% if recipe.photo_path %}
             {% set filename = recipe.photo_path.split('/')[-1] %}
-            <img src="/static/photos/{{ filename }}?v={{ recipe.created_at[:19] | replace(':', '') }}" alt="{{ recipe.title }}">
+            <img src="/static/photos/{{ filename }}?v={{ recipe.created_at.timestamp() | int }}" alt="{{ recipe.title }}">
             {% else %}
             <div class="no-photo large">📷 No photo</div>
             {% endif %}
