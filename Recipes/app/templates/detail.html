@@ -53,16 +53,25 @@
                 {% endif %}
             </div>
 
-            {% if recipe.protein_g is not none or recipe.fat_g is not none or recipe.carbs_g is not none or recipe.fiber_g is not none %}
-            <div style="display:grid; grid-template-columns: repeat(4,1fr); gap:0.5rem; margin:0.75rem 0; text-align:center; font-size:0.9rem;">
-                {% for attr, alabel in [("protein_g","Protein"),("fat_g","Fat"),("carbs_g","Carbs"),("fiber_g","Fiber")] %}
-                {% if recipe[attr] is not none %}
-                <div style="background:#f0e6ff; border-radius:6px; padding:0.35rem 0.25rem;">
-                    <div style="font-weight:600; font-size:0.75rem; color:#6f42c1;">{{ alabel }}</div>
-                    <div>{{ recipe[attr] }}g</div>
+            {% if recipe.calories_per_portion is not none or recipe.protein_g is not none or recipe.fat_g is not none or recipe.carbs_g is not none %}
+            <div style="margin:0.75rem 0;">
+                <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.4px;">per serving</div>
+                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                    {% if recipe.calories_per_portion is not none %}
+                    <div style="background:#fff3e0; border-radius:6px; padding:0.35rem 0.6rem; text-align:center; font-size:0.9rem; min-width:56px;">
+                        <div style="font-weight:600; font-size:0.7rem; color:#e65100;">Calories</div>
+                        <div>{{ recipe.calories_per_portion }}</div>
+                    </div>
+                    {% endif %}
+                    {% for attr, alabel in [("protein_g","Protein"),("fat_g","Fat"),("carbs_g","Carbs"),("fiber_g","Fiber")] %}
+                    {% if recipe[attr] is not none %}
+                    <div style="background:#f0e6ff; border-radius:6px; padding:0.35rem 0.6rem; text-align:center; font-size:0.9rem; min-width:56px;">
+                        <div style="font-weight:600; font-size:0.7rem; color:#6f42c1;">{{ alabel }}</div>
+                        <div>{{ recipe[attr] }}g</div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
                 </div>
-                {% endif %}
-                {% endfor %}
             </div>
             {% endif %}
 
@@ -75,7 +84,7 @@
             </div>
             {% endif %}
 
-            {% if recipe.source_url %}
+            {% if recipe.source_url and not recipe.source_url.startswith('pdf:') %}
             <a href="{{ recipe.source_url }}" target="_blank" rel="noopener" class="source-link">
                 🔗 View original post
             </a>
@@ -83,22 +92,28 @@
         </div>
     </div>
 
-    {% if recipe.ingredients_list %}
-    <section class="detail-section">
-        <h2>Ingredients</h2>
-        <ul class="ingredients-list">
-            {% for ing in recipe.ingredients_list %}
-            <li>{{ ing }}</li>
-            {% endfor %}
-        </ul>
-    </section>
-    {% endif %}
+    {% if recipe.ingredients_list or recipe.instructions %}
+    <div style="display:grid; grid-template-columns:1fr 3fr; gap:2rem; align-items:start; margin-bottom:1.5rem;">
+        {% if recipe.ingredients_list %}
+        <section class="detail-section" style="margin-bottom:0;">
+            <h2>Ingredients</h2>
+            <ul style="list-style:none; display:flex; flex-direction:column; gap:0.3rem;">
+                {% for ing in recipe.ingredients_list %}
+                <li style="font-size:0.9rem; line-height:1.4;"><span style="color:var(--primary);">•</span> {{ ing }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% else %}
+        <div></div>
+        {% endif %}
 
-    {% if recipe.instructions %}
-    <section class="detail-section">
-        <h2>Instructions</h2>
-        <div class="instructions-text">{{ recipe.instructions }}</div>
-    </section>
+        {% if recipe.instructions %}
+        <section class="detail-section" style="margin-bottom:0;">
+            <h2>Instructions</h2>
+            <div class="instructions-text">{{ recipe.instructions }}</div>
+        </section>
+        {% endif %}
+    </div>
     {% endif %}
 
     {% if linked_recipes %}

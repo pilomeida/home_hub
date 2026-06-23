@@ -217,7 +217,7 @@ main {
 
 /* ── Detail Page ──────────────────────────────────────────────────────── */
 
-.recipe-detail { max-width: 800px; margin: 0 auto; }
+.recipe-detail { max-width: 1200px; margin: 0 auto; }
 .detail-header {
     display: grid;
     grid-template-columns: 1fr 1fr;
