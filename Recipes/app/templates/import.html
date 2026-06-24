@@ -204,6 +204,36 @@
   </form>
 </div>
 
+{# ══════════════════════════ BULK APPROVE ══════════════════════════ #}
+{% elif view == "bulk" %}
+<div style="max-width:800px; margin:2rem auto;">
+  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:1rem;">
+    Bulk Approve — {{ session.book_title }}
+  </h1>
+  <p style="color:var(--text-muted); margin-bottom:1.5rem;">
+    Review all {{ recipes | length }} extracted recipes. Uncheck any you want to skip.
+  </p>
+  <form method="post" action="/import/{{ sid }}/bulk"
+        style="display:flex; flex-direction:column; gap:0.75rem;">
+    {% for idx, recipe in recipes %}
+    <div style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);">
+      <label style="display:flex; align-items:center; gap:0.5rem; flex:1; cursor:pointer; font-size:0.9rem;">
+        <input type="checkbox" name="skip_{{ idx }}" value="1">
+        Skip
+      </label>
+      <span style="flex:4; font-weight:500;">{{ recipe.dish_name or "(unknown)" }}</span>
+      <span style="flex:1; font-size:0.8rem; color:var(--text-muted);">{{ recipe.type }}</span>
+      {% if recipe.calories_per_portion %}
+      <span style="flex:1; font-size:0.8rem; color:var(--text-muted);">{{ recipe.calories_per_portion }} kcal</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">
+      Save all ({{ recipes | length }} recipes)
+    </button>
+  </form>
+</div>
+
 {# ══════════════════════════ SUMMARY ══════════════════════════ #}
 {% else %}
 <div style="max-width:520px; margin:3rem auto;">

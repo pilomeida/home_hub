@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import select
 
 import app.pdf_extractor as _pe
 from app.main import app
@@ -39,6 +40,15 @@ def _seed_session(tmp_path: Path, overrides: dict | None = None) -> dict:
         },
         "extraction_complete": True,
         "created_at": "2026-06-22T00:00:00",
+        "toc_recipes": [],
+        "pipeline": "text",
+        "test_mode": True,
+        "current_recipe": "",
+        "error": None,
+        "total_pages": 0,
+        "used_windows": [],
+        "sample_pages": [],
+        "auto_approved": False,
     }
     if overrides:
         data.update(overrides)
@@ -60,7 +70,8 @@ def test_status_returns_json(tmp_path, monkeypatch):
     data = response.json()
     assert data["extraction_complete"] is True
     assert data["book_title"] == "Test Book"
-    assert data["sampled"] == 1
+    assert data["extracted_so_far"] == 1
+    assert "current_recipe" in data
 
 
 def test_review_page_renders_pending_recipes(tmp_path, monkeypatch):
@@ -124,3 +135,64 @@ def test_submit_review_saves_recipe_to_db(tmp_path, monkeypatch):
     session_data = _json.loads((tmp_path / "test-sid.json").read_text())
     assert session_data["extracted"]["0"]["status"] == "approved"
     assert "saved_recipe_id" in session_data["extracted"]["0"]
+
+
+def test_clear_recipes_deletes_by_title(tmp_path, monkeypatch):
+    from app.database import engine
+    from sqlmodel import Session as DBSession
+    from app.models import Recipe
+
+    # Use a unique slug to avoid UNIQUE constraint conflicts with other tests
+    test_url = "pdf:clear-test-book#chocolate-cake"
+
+    # Clean up any leftovers from previous runs
+    with DBSession(engine) as db:
+        existing = db.exec(select(Recipe).where(Recipe.source_url == test_url)).first()
+        if existing:
+            db.delete(existing)
+            db.commit()
+
+    # Seed a recipe that looks like it came from "Clear Test Book"
+    with DBSession(engine) as db:
+        r = Recipe(
+            title="Chocolate Cake", dish_name="Chocolate Cake", type="sweet",
+            source_url=test_url,
+            source_title="Clear Test Book",
+        )
+        db.add(r)
+        db.commit()
+
+    response = client.post("/import/clear", data={
+        "book_title": "Clear Test Book",
+        "book_slug": "clear-test-book",
+    })
+    assert response.status_code == 200
+    assert response.json()["deleted"] == 1
+
+    # Verify deleted from DB
+    with DBSession(engine) as db:
+        result = db.exec(
+            select(Recipe).where(Recipe.source_url == test_url)
+        ).first()
+    assert result is None
+
+
+def test_clear_recipes_requires_book_slug():
+    response = client.post("/import/clear", data={"book_title": "X"})
+    assert response.status_code == 400
+
+
+def test_bulk_page_renders_pending_recipes(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
+    _seed_session(tmp_path, {"test_mode": False, "pipeline": "vision"})
+    response = client.get("/import/test-sid/bulk")
+    assert response.status_code == 200
+    assert b"Brownie" in response.content
+
+
+def test_submit_bulk_saves_recipes(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
+    _seed_session(tmp_path, {"test_mode": False, "pipeline": "vision"})
+    response = client.post("/import/test-sid/bulk", data={}, follow_redirects=False)
+    assert response.status_code == 303
+    assert "/summary" in response.headers["location"]
