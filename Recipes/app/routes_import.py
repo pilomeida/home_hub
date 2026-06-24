@@ -82,7 +82,7 @@ async def start_import(
     background_tasks: BackgroundTasks,
     pdf_file: UploadFile = File(...),
     book_title: str = Form(default=""),
-    test_mode: str = Form(default="on"),
+    test_mode: str = Form(default="off"),
     sample_pages_raw: str = Form(default="", alias="sample_pages"),
 ):
     if pdf_file.content_type != "application/pdf":
