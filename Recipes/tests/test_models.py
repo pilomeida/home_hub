@@ -167,3 +167,54 @@ def test_migrate_db_adds_new_columns(tmp_path):
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(recipes)"))}
 
     assert {"protein_g", "fat_g", "carbs_g", "fiber_g", "cooking_types"} <= cols
+
+
+def test_recipe_notes_field():
+    from app.models import Recipe
+    r = Recipe(
+        title="Brownie", dish_name="Brownie", type="sweet",
+        source_url="pdf:test#brownie",
+        notes="If you love brownie batter, this is for you.",
+    )
+    assert r.notes == "If you love brownie batter, this is for you."
+
+
+def test_recipe_notes_defaults_to_none():
+    from app.models import Recipe
+    r = Recipe(title="X", dish_name="X", type="savory", source_url="pdf:b#x")
+    assert r.notes is None
+
+
+def test_recipe_create_accepts_notes():
+    from app.models import RecipeCreate
+    rc = RecipeCreate(
+        title="X", dish_name="X", type="savory",
+        source_url="pdf:b#x",
+        notes="Some intro text.",
+    )
+    assert rc.notes == "Some intro text."
+
+
+def test_migrate_db_adds_source_title_and_notes(tmp_path):
+    from sqlalchemy import create_engine, text
+    from app.database import migrate_db
+
+    old_engine = create_engine(f"sqlite:///{tmp_path}/old.db")
+    with old_engine.connect() as conn:
+        conn.execute(text(
+            "CREATE TABLE recipes ("
+            "id INTEGER PRIMARY KEY, title TEXT, dish_name TEXT, "
+            "type TEXT, source_url TEXT UNIQUE, "
+            "macro_tags TEXT DEFAULT '[]', ingredients TEXT DEFAULT '[]', "
+            "created_at TEXT, updated_at TEXT"
+            ")"
+        ))
+        conn.commit()
+
+    migrate_db(old_engine)
+
+    with old_engine.connect() as conn:
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(recipes)"))}
+
+    assert "source_title" in cols
+    assert "notes" in cols

@@ -27,11 +27,13 @@ def get_session():
 
 
 _NEW_COLUMNS = [
-    ("protein_g",    "INTEGER"),
-    ("fat_g",        "INTEGER"),
-    ("carbs_g",      "INTEGER"),
-    ("fiber_g",      "INTEGER"),
-    ("cooking_types","TEXT DEFAULT '[]'"),
+    ("protein_g",     "INTEGER"),
+    ("fat_g",         "INTEGER"),
+    ("carbs_g",       "INTEGER"),
+    ("fiber_g",       "INTEGER"),
+    ("cooking_types", "TEXT DEFAULT '[]'"),
+    ("source_title",  "VARCHAR"),
+    ("notes",         "TEXT"),
 ]
 
 

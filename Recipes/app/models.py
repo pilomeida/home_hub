@@ -63,6 +63,8 @@ class Recipe(SQLModel, table=True):
     carbs_g: Optional[int] = None
     fiber_g: Optional[int] = None
     cooking_types: str = Field(default="[]")  # JSON array
+    source_title: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -128,6 +130,7 @@ class RecipeCreate(SQLModel):
     carbs_g: Optional[int] = None
     fiber_g: Optional[int] = None
     cooking_types: str = "[]"
+    notes: Optional[str] = None
 
 
 class RecipeUpdate(SQLModel):
@@ -151,6 +154,7 @@ class RecipeUpdate(SQLModel):
     carbs_g: Optional[int] = None
     fiber_g: Optional[int] = None
     cooking_types: Optional[str] = None
+    notes: Optional[str] = None
 
 
 # Automatically compute derived fields before insert and update
