@@ -107,10 +107,16 @@
             <h2>Ingredients</h2>
             <ul style="list-style:none; display:flex; flex-direction:column; gap:0.3rem;">
                 {% for ing in recipe.ingredients_list %}
+                {% if ing.startswith('---') %}
+                <li style="font-size:0.8rem; font-weight:600; letter-spacing:0.04em; color:var(--text); margin-top:0.5rem; list-style:none; padding-left:0;">
+                    {{ ing.strip('- ') }}
+                </li>
+                {% else %}
                 <li style="font-size:0.9rem; line-height:1.4; display:flex; gap:0.4rem;">
                     <span style="color:var(--primary); flex-shrink:0; margin-top:0.05em;">•</span>
                     <span>{{ ing }}</span>
                 </li>
+                {% endif %}
                 {% endfor %}
             </ul>
         </section>

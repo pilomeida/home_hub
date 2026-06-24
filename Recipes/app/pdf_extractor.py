@@ -371,11 +371,11 @@ Pages provided: {page_labels}
 
 Extract EXACTLY these fields as a JSON object:
 
-- dish_name: The recipe title as printed in the dark green title box (top-left of card)
+- dish_name: The recipe title as printed on the card — convert to Title Case (e.g. "Beetroot Risotto", NOT "BEETROOT RISOTTO")
 - distinguishing_feature: What makes this version unique in ≤8 words, or null
-- notes: The intro/observation paragraph in the RIGHT column of the recipe card, above the METHOD section. Copy it in full. This is personal author text about the recipe. Return null if absent.
+- notes: Any personal author commentary, intro, or observation text on the recipe card — it may appear anywhere on the card (right column, left column, above or below the ingredient list, as a callout box). Copy it verbatim in full. This is the author's personal voice, not the method steps. Return null only if genuinely absent.
 - type: "sweet" or "savory"
-- subtype: one of "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink", or null
+- subtype: one of "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink", or null. Use "main" for any dish substantial enough to be a complete meal (pasta, rice dishes, proteins, hearty gratins, bakes). Use "side" only for dishes clearly intended as accompaniments (small salads, sauces, dips, condiments, garnishes).
 - macro_tags: array from ["protein-rich","low-carb","keto","vegan","gluten-free","fiber-rich","high-fat","dairy-free"]. Infer ONLY from ingredients and nutrition — NEVER from badge icons.
 - cooking_types: array from badge icons AND inferred from instructions, using these rules:
     Blender icon OR Food Processor icon → "blender"
@@ -391,7 +391,9 @@ Extract EXACTLY these fields as a JSON object:
 - carbs_g: integer from footer "Carbs - Ng" — round to nearest integer. Null if absent.
 - fiber_g: integer if stated, else null
 - portions: count the filled dots (●) after the word "Serves" on the card — each dot = 1 serving
-- ingredients: array of strings — all items under INGREDIENTS with quantities exactly as written. If a TOPPINGS section exists, append one final item: "TOPPINGS: item1, item2, ..."
+- ingredients: array of strings — all items under INGREDIENTS with quantities exactly as written.
+    If the ingredients are divided into named sub-sections (e.g. "Crust and Crumble", "Filling", "Sauce"), insert a section header as a separator item in ALL CAPS with dashes: "--- CRUST AND CRUMBLE ---", then list that section's ingredients, then "--- FILLING ---", etc.
+    If a TOPPINGS section exists, append "--- TOPPINGS ---" followed by each topping as a separate item (NOT as a comma-joined single string).
 - prep_time_minutes: integer or null
 - cook_time_minutes: integer or null
 - instructions: full METHOD steps as a markdown numbered list. Null if absent.

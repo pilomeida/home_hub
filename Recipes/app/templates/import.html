@@ -248,9 +248,13 @@
       {% if recipe.ingredients %}
       <details style="font-size:0.875rem;">
         <summary style="cursor:pointer; font-weight:500; color:var(--text-muted);">Ingredients ({{ recipe.ingredients | length }}) ▾</summary>
-        <ul style="margin:0.5rem 0 0 1.25rem; padding:0; color:var(--text-muted); font-size:0.8rem; display:flex; flex-direction:column; gap:0.15rem;">
+        <ul style="margin:0.5rem 0 0 0; padding:0; list-style:none; color:var(--text-muted); font-size:0.8rem; display:flex; flex-direction:column; gap:0.15rem;">
           {% for ing in recipe.ingredients %}
-          <li>{{ ing }}</li>
+          {% if ing.startswith('---') %}
+          <li style="font-weight:600; font-size:0.75rem; color:var(--text); margin-top:0.35rem; letter-spacing:0.03em;">{{ ing.strip('- ') }}</li>
+          {% else %}
+          <li style="padding-left:1rem;">{{ ing }}</li>
+          {% endif %}
           {% endfor %}
         </ul>
       </details>
