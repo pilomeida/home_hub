@@ -218,6 +218,7 @@ async def import_status(sid: str):
         "extracted_so_far": len(session.extracted),
         "current_recipe": session.current_recipe,
         "test_mode": session.test_mode,
+        "pipeline": session.pipeline,
         "error": session.error,
     }
 

@@ -544,90 +544,106 @@ async def create_vision_session(
     """Run the full vision pipeline and return a session with extracted recipes."""
     sid = session_id or str(uuid.uuid4())[:8]
     print(f"[vision] session {sid}: {book_title!r}", flush=True)
-
-    # Step 1: OCR the TOC
-    print(f"[vision] extracting TOC...", flush=True)
-    toc_recipes = await extract_toc_vision(pdf_path)
-    print(f"[vision] {len(toc_recipes)} recipes in TOC", flush=True)
-
-    # Step 2: Build dynamic windows for every recipe
-    windows = build_recipe_windows(toc_recipes)
-
-    # Step 3: Sample indices
-    if test_mode:
-        indices = random.sample(range(len(windows)), min(n_sample, len(windows)))
-    else:
-        indices = list(range(len(windows)))
-
-    # Save initial session so the progress page shows total count
-    session = PdfIngestionSession(
-        session_id=sid,
-        pdf_path=pdf_path,
-        book_title=book_title,
-        book_slug=book_slug,
-        all_recipes=[
-            {"recipe_title": r["recipe_title"], "page": r["page"], "status": "pending"}
-            for r in toc_recipes
-        ],
-        sampled_indices=indices,
-        extracted={},
-        extraction_complete=False,
-        toc_recipes=toc_recipes,
-        pipeline="vision",
-        test_mode=test_mode,
-    )
-    save_session(session)
-
-    # Step 4: Extract each sampled recipe
-    error: Optional[str] = None
     try:
-        for idx in indices:
-            w = windows[idx]
-            title = w["recipe_title"]
-            recipe_slug = _slugify(title)
-            print(f"[vision] extracting {title!r}...", flush=True)
+        # Step 1: OCR the TOC
+        print(f"[vision] extracting TOC...", flush=True)
+        toc_recipes = await extract_toc_vision(pdf_path)
+        print(f"[vision] {len(toc_recipes)} recipes in TOC", flush=True)
 
-            session.current_recipe = title
-            save_session(session)
+        # Step 2: Build dynamic windows for every recipe
+        windows = build_recipe_windows(toc_recipes)
 
-            source_url = f"pdf:{book_slug}#{recipe_slug}"
-            try:
-                raw = dict(await extract_recipe_vision(
-                    pdf_path, w["window_pages"], w["card_page"], title, book_slug
-                ))
-                photo_path = await _save_recipe_photo_vision(
-                    pdf_path,
-                    raw.get("photo_page"),
-                    raw.get("photo_is_inset", False),
-                    w["card_page"],
-                    book_slug,
-                    recipe_slug,
-                )
-                raw.update({
-                    "status": "pending",
-                    "source_url": source_url,
-                    "book_title": book_title,
-                    "photo_path": photo_path,
-                })
-            except Exception as exc:
-                print(f"[vision] failed {title!r}: {exc}", flush=True)
-                raw = _empty_recipe_data()
-                raw.update({
-                    "status": "pending",
-                    "source_url": source_url,
-                    "book_title": book_title,
-                    "photo_path": None,
-                })
+        # Step 3: Sample indices
+        if test_mode:
+            indices = random.sample(range(len(windows)), min(n_sample, len(windows)))
+        else:
+            indices = list(range(len(windows)))
 
-            session.extracted[str(idx)] = raw
-            save_session(session)
+        # Save initial session so the progress page shows total count
+        session = PdfIngestionSession(
+            session_id=sid,
+            pdf_path=pdf_path,
+            book_title=book_title,
+            book_slug=book_slug,
+            all_recipes=[
+                {"recipe_title": r["recipe_title"], "page": r["page"], "status": "pending"}
+                for r in toc_recipes
+            ],
+            sampled_indices=indices,
+            extracted={},
+            extraction_complete=False,
+            toc_recipes=toc_recipes,
+            pipeline="vision",
+            test_mode=test_mode,
+        )
+        save_session(session)
+
+        # Step 4: Extract each sampled recipe
+        error: Optional[str] = None
+        try:
+            for idx in indices:
+                w = windows[idx]
+                title = w["recipe_title"]
+                recipe_slug = _slugify(title)
+                print(f"[vision] extracting {title!r}...", flush=True)
+
+                session.current_recipe = title
+                save_session(session)
+
+                source_url = f"pdf:{book_slug}#{recipe_slug}"
+                try:
+                    raw = dict(await extract_recipe_vision(
+                        pdf_path, w["window_pages"], w["card_page"], title, book_slug
+                    ))
+                    photo_path = await _save_recipe_photo_vision(
+                        pdf_path,
+                        raw.get("photo_page"),
+                        raw.get("photo_is_inset", False),
+                        w["card_page"],
+                        book_slug,
+                        recipe_slug,
+                    )
+                    raw.update({
+                        "status": "pending",
+                        "source_url": source_url,
+                        "book_title": book_title,
+                        "photo_path": photo_path,
+                    })
+                except Exception as exc:
+                    print(f"[vision] failed {title!r}: {exc}", flush=True)
+                    raw = _empty_recipe_data()
+                    raw.update({
+                        "status": "pending",
+                        "source_url": source_url,
+                        "book_title": book_title,
+                        "photo_path": None,
+                    })
+
+                session.extracted[str(idx)] = raw
+                save_session(session)
+        except Exception as exc:
+            error = str(exc)
+            print(f"[vision] session {sid} error: {exc}", flush=True)
+
+        session.extraction_complete = True
+        session.error = error
+        session.current_recipe = ""
+        save_session(session)
+        print(f"[vision] session {sid} complete: {len(session.extracted)} extracted", flush=True)
+        return session
     except Exception as exc:
-        error = str(exc)
-        print(f"[vision] session {sid} error: {exc}", flush=True)
-
-    session.extraction_complete = True
-    session.error = error
-    session.current_recipe = ""
-    save_session(session)
-    print(f"[vision] session {sid} complete: {len(session.extracted)} extracted", flush=True)
-    return session
+        print(f"[vision] session {sid} fatal error: {exc}", flush=True)
+        # Try to load the placeholder session (saved by start_import) and mark it failed
+        try:
+            session = load_session(sid)
+        except Exception:
+            session = PdfIngestionSession(
+                session_id=sid, pdf_path=pdf_path, book_title=book_title,
+                book_slug=book_slug, all_recipes=[], sampled_indices=[],
+                extracted={}, extraction_complete=False,
+                pipeline="vision", test_mode=test_mode,
+            )
+        session.error = str(exc)
+        session.extraction_complete = True
+        save_session(session)
+        return session

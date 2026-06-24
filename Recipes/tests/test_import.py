@@ -72,6 +72,7 @@ def test_status_returns_json(tmp_path, monkeypatch):
     assert data["book_title"] == "Test Book"
     assert data["extracted_so_far"] == 1
     assert "current_recipe" in data
+    assert "pipeline" in data
 
 
 def test_review_page_renders_pending_recipes(tmp_path, monkeypatch):
