@@ -31,6 +31,14 @@
                 </span>
             </div>
 
+            {% if recipe.notes %}
+            <div style="font-style:italic; font-size:0.9rem; color:var(--text-secondary);
+                        background:#f8f9f0; border-left:3px solid #5a8a3a;
+                        padding:0.6rem 0.8rem; border-radius:0 4px 4px 0; margin:0.75rem 0;">
+              {{ recipe.notes }}
+            </div>
+            {% endif %}
+
             <div class="badges">
                 <span class="badge type-{{ recipe.type }}">{{ recipe.type }}</span>
                 {% if recipe.subtype %}
