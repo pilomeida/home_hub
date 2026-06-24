@@ -3,15 +3,16 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from PIL import Image
 
 from app.pdf_extractor import (
     PageText,
     PdfIngestionSession,
     _slugify,
     assemble_recipe_text,
+    build_recipe_windows,
     create_session,
     get_pending_batch,
+    is_image_pdf,
     load_session,
     save_session,
 )
@@ -97,9 +98,6 @@ def test_get_pending_batch_respects_n():
     assert len(batch) == 2
 
 
-from app.pdf_extractor import is_image_pdf, build_recipe_windows
-
-
 def test_is_image_pdf_returns_true_for_empty_pages(tmp_path):
     import pdfplumber
     # Create a minimal PDF via a fake pdfplumber response
@@ -167,11 +165,12 @@ def test_build_recipe_windows_adjacent_cards():
         {"recipe_title": "B", "page": 11},
     ]
     windows = build_recipe_windows(toc)
-    # A: end = min(10, 13) = 10 → window is just [10]
-    assert windows[0]["window_pages"] == [10]
-    # B: start = max(11, 8) = 11 → 10 not in window
-    assert 10 not in windows[1]["window_pages"]
-    assert 11 in windows[1]["window_pages"]
+    # A: next=11, so end = min(10, 13) = 10; start = max(7, 7) = 7
+    assert 10 in windows[0]["window_pages"]          # card page always included
+    assert 11 not in windows[0]["window_pages"]      # B's card page excluded
+    # B: prev=10, so start = max(11, 8) = 11
+    assert 10 not in windows[1]["window_pages"]      # A's card page excluded
+    assert 11 in windows[1]["window_pages"]          # B's card page always included
 
 
 def test_build_recipe_windows_double_photo_before():
@@ -194,6 +193,7 @@ def test_build_recipe_windows_single_recipe():
     windows = build_recipe_windows(toc)
     assert windows[0]["card_page"] == 50
     assert 50 in windows[0]["window_pages"]
-    # Window clamped to ±3 from card page when no neighbors
-    assert min(windows[0]["window_pages"]) >= 47
-    assert max(windows[0]["window_pages"]) <= 53
+    # No neighbors: sentinels are max(1, 46) and 54 → window = [47..53]
+    assert min(windows[0]["window_pages"]) == 47
+    assert max(windows[0]["window_pages"]) == 53
+    assert len(windows[0]["window_pages"]) == 7

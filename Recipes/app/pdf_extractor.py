@@ -152,8 +152,8 @@ def build_recipe_windows(toc_recipes: list[dict]) -> list[dict]:
     result = []
     for i, recipe in enumerate(toc_recipes):
         p = recipe["page"]
-        prev_end = card_pages[i - 1] if i > 0 else p - 1
-        next_start = card_pages[i + 1] if i < len(card_pages) - 1 else p + 1
+        prev_end = card_pages[i - 1] if i > 0 else max(1, p - 4)
+        next_start = card_pages[i + 1] if i < len(card_pages) - 1 else p + 4
         start = max(prev_end + 1, p - 3)
         end = min(next_start - 1, p + 3)
         result.append({
