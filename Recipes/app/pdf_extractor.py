@@ -377,13 +377,14 @@ Extract EXACTLY these fields as a JSON object:
 - type: "sweet" or "savory"
 - subtype: one of "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink", or null
 - macro_tags: array from ["protein-rich","low-carb","keto","vegan","gluten-free","fiber-rich","high-fat","dairy-free"]. Infer ONLY from ingredients and nutrition — NEVER from badge icons.
-- cooking_types: array built from badge icons using ONLY these mappings:
+- cooking_types: array from badge icons AND inferred from instructions, using these rules:
     Blender icon OR Food Processor icon → "blender"
     Microwave icon → "microwave"
     Oven/Air fryer icon → both "oven" AND "air-fryer"
     Waffle maker icon → "other"
     Freezer icon → "no-cook"
     Ignore entirely: Batch Work, Meal Prep, Max Weight Loss, Quick & Easy, Worth the Effort
+    INFER "stovetop" if instructions mention a pan, pot, hob, boiling, simmering, sautéing, frying, or any stove-based step — even when no badge is present
 - calories_per_portion: integer from footer line "Calories - N" (per serving). Null if absent.
 - protein_g: integer from footer "Protein - Ng" — round to nearest integer. Null if absent.
 - fat_g: integer from footer "Fat - Ng" — round to nearest integer. Null if absent.

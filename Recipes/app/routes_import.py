@@ -284,7 +284,7 @@ async def submit_review(sid: str, request: Request, db: Session = Depends(get_se
             distinguisher=distinguisher,
             type=form.get(f"type_{idx}") or recipe_data.get("type") or "savory",
             subtype=form.get(f"subtype_{idx}") or recipe_data.get("subtype") or None,
-            notes=recipe_data.get("notes") or None,
+            notes=form.get(f"notes_{idx}") or recipe_data.get("notes") or None,
             calories_per_portion=_int_or_none(
                 form.get(f"calories_{idx}") or recipe_data.get("calories_per_portion")
             ),
