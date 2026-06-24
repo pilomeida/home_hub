@@ -595,6 +595,13 @@ async def create_vision_session(
                     raw = dict(await extract_recipe_vision(
                         pdf_path, w["window_pages"], w["card_page"], title, book_slug
                     ))
+                except Exception as exc:
+                    print(f"[vision] extraction failed {title!r}: {exc}", flush=True)
+                    raw = _empty_recipe_data()
+
+                # Photo save is best-effort — a failure preserves extracted recipe data
+                photo_path = None
+                try:
                     photo_path = await _save_recipe_photo_vision(
                         pdf_path,
                         raw.get("photo_page"),
@@ -603,21 +610,15 @@ async def create_vision_session(
                         book_slug,
                         recipe_slug,
                     )
-                    raw.update({
-                        "status": "pending",
-                        "source_url": source_url,
-                        "book_title": book_title,
-                        "photo_path": photo_path,
-                    })
                 except Exception as exc:
-                    print(f"[vision] failed {title!r}: {exc}", flush=True)
-                    raw = _empty_recipe_data()
-                    raw.update({
-                        "status": "pending",
-                        "source_url": source_url,
-                        "book_title": book_title,
-                        "photo_path": None,
-                    })
+                    print(f"[vision] photo save failed {title!r}: {exc}", flush=True)
+
+                raw.update({
+                    "status": "pending",
+                    "source_url": source_url,
+                    "book_title": book_title,
+                    "photo_path": photo_path,
+                })
 
                 session.extracted[str(idx)] = raw
                 save_session(session)
