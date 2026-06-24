@@ -377,7 +377,7 @@ Extract EXACTLY these fields as a JSON object:
 - distinguishing_feature: What makes this version unique in ≤8 words, or null
 - notes: Any personal author commentary, intro, or observation text on the recipe card — it may appear anywhere on the card (right column, left column, above or below the ingredient list, as a callout box). Copy it verbatim in full. This is the author's personal voice, not the method steps. Return null only if genuinely absent.
 - type: "sweet" or "savory"
-- subtype: derive directly from the recipe's book section ("{chapter}"): MAINS→"main", DESSERTS→"dessert", BREAKFASTS→"breakfast", SNACKS→"snack", SOUPS→"soup", SALADS→"salad", DRINKS→"drink", SIDES→"side". Use null only if the chapter is unknown.
+- subtype: derive directly from the recipe's book section ("{chapter}"): MAINS→"main", DESSERTS→"dessert", BREAKFASTS→"breakfast", SNACKS→"snack", SOUPS→"soup", SALADS→"salad", DRINKS→"drink", SIDES→"side", "SIDES & SNACKS"→"snack", "SAUCES & DIPS"→"condiment", BREADS→"bread". Use null only if the chapter is unknown.
 - macro_tags: array from ["protein-rich","low-carb","keto","vegan","gluten-free","fiber-rich","high-fat","dairy-free"]. Infer ONLY from ingredients and nutrition — NEVER from badge icons.
 - cooking_types: array from badge icons AND inferred from instructions, using these rules:
     Blender icon OR Food Processor icon → "blender"

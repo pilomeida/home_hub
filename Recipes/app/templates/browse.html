@@ -5,9 +5,23 @@
     <aside class="filter-sidebar">
         <h2>Filters</h2>
 
+        {% if filters.source_titles %}
+        <fieldset class="filter-group">
+            <legend>Source <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
+            {% for st in filters.source_titles %}
+            <label class="filter-checkbox {% if st in active.source_title %}checked{% endif %}">
+                <input type="checkbox" name="source_title" value="{{ st }}"
+                       {% if st in active.source_title %}checked{% endif %}
+                       onchange="applyFilters()">
+                {{ st }}
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endif %}
+
         {% if filters.types %}
         <fieldset class="filter-group">
-            <legend>Type</legend>
+            <legend>Type <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             {% for t in filters.types %}
             <label class="filter-checkbox {% if t in active.type %}checked{% endif %}">
                 <input type="checkbox" name="type" value="{{ t }}"
@@ -21,7 +35,7 @@
 
         {% if filters.subtypes %}
         <fieldset class="filter-group">
-            <legend>Subtype</legend>
+            <legend>Subtype <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             {% for s in filters.subtypes %}
             <label class="filter-checkbox {% if s in active.subtype %}checked{% endif %}">
                 <input type="checkbox" name="subtype" value="{{ s }}"
@@ -34,22 +48,26 @@
         {% endif %}
 
         {% if filters.ingredients %}
-        <fieldset class="filter-group scrollable">
-            <legend>Ingredients</legend>
-            {% for ing in filters.ingredients %}
-            <label class="filter-checkbox {% if ing in active.ingredient %}checked{% endif %}">
-                <input type="checkbox" name="ingredient" value="{{ ing }}"
-                       {% if ing in active.ingredient %}checked{% endif %}
-                       onchange="applyFilters()">
-                {{ ing }}
-            </label>
-            {% endfor %}
+        <fieldset class="filter-group">
+            <legend>Ingredients <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
+            <input type="search" class="ing-search" placeholder="Search ingredients…"
+                   oninput="filterIngredients(this)" autocomplete="off">
+            <div class="ing-list">
+                {% for ing in filters.ingredients %}
+                <label class="filter-checkbox {% if ing in active.ingredient %}checked{% endif %}">
+                    <input type="checkbox" name="ingredient" value="{{ ing }}"
+                           {% if ing in active.ingredient %}checked{% endif %}
+                           onchange="applyFilters()">
+                    {{ ing }}
+                </label>
+                {% endfor %}
+            </div>
         </fieldset>
         {% endif %}
 
         {% if filters.macros %}
         <fieldset class="filter-group">
-            <legend>Macros</legend>
+            <legend>Macros <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             {% for m in filters.macros %}
             <label class="filter-checkbox {% if m in active.macro %}checked{% endif %}">
                 <input type="checkbox" name="macro" value="{{ m }}"
@@ -63,7 +81,7 @@
 
         {% if filters.calorie_tiers %}
         <fieldset class="filter-group">
-            <legend>Calories</legend>
+            <legend>Calories <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             {% for ct in filters.calorie_tiers %}
             <label class="filter-checkbox {% if ct in active.calorie_tier %}checked{% endif %}">
                 <input type="checkbox" name="calorie_tier" value="{{ ct }}"
@@ -77,7 +95,7 @@
 
         {% if filters.cooking_types %}
         <fieldset class="filter-group">
-            <legend>Cooking type</legend>
+            <legend>Cooking type <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             {% for ct in filters.cooking_types %}
             <label class="filter-checkbox {% if ct in active.cooking_type %}checked{% endif %}">
                 <input type="checkbox" name="cooking_type" value="{{ ct }}"
@@ -90,7 +108,7 @@
         {% endif %}
 
         <fieldset class="filter-group">
-            <legend>Max Time (min)</legend>
+            <legend>Max Time (min) <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             <input type="range" name="max_time" min="0" max="180" step="5"
                    value="{{ active.max_time if active.max_time else 180 }}"
                    oninput="this.nextElementSibling.value = this.value; applyFilters()">
@@ -98,7 +116,7 @@
         </fieldset>
 
         <fieldset class="filter-group">
-            <legend>Min Rating</legend>
+            <legend>Min Rating <button class="clear-group-btn" onclick="clearGroup(this)" title="Clear">×</button></legend>
             <div class="star-filter">
                 {% for star in [1, 2, 3, 4, 5] %}
                 <button type="button" class="star-btn {% if active.min_rating and star <= active.min_rating %}active{% endif %}"
@@ -117,9 +135,18 @@
     </aside>
 
     <section class="recipe-grid">
+        <div style="grid-column:1/-1; display:flex; align-items:center; gap:1rem; margin-bottom:0.25rem;">
+            <input type="search" id="name-search" placeholder="Search by name…"
+                   value="{{ active.q }}"
+                   oninput="filterByName(this.value)"
+                   style="flex:1; padding:0.45rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.9rem; font-family:inherit;">
+            <span id="recipe-count" style="font-size:0.85rem; color:var(--text-muted); white-space:nowrap;">
+                {{ recipes | length }} recipe{{ 's' if recipes | length != 1 else '' }}
+            </span>
+        </div>
         {% if recipes %}
             {% for recipe in recipes %}
-            <a href="/recipe/{{ recipe.id }}" class="recipe-card">
+            <a href="/recipe/{{ recipe.id }}" class="recipe-card" data-name="{{ recipe.dish_name | lower }}">
                 <div class="card-image">
                     {% if recipe.photo_path %}
                     {% set filename = recipe.photo_path.split('/')[-1] %}
@@ -157,6 +184,9 @@ function applyFilters() {
     const form = document.querySelector('.filter-sidebar');
     const params = new URLSearchParams();
 
+    const q = document.getElementById('name-search').value.trim();
+    if (q) params.set('q', q);
+
     form.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
         params.append(cb.name, cb.value);
     });
@@ -171,6 +201,41 @@ function applyFilters() {
     {% endif %}
 
     window.location.search = params.toString();
+}
+
+function filterByName(q) {
+    const lower = q.trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('.recipe-card[data-name]').forEach(card => {
+        const match = !lower || card.dataset.name.includes(lower);
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    const countEl = document.getElementById('recipe-count');
+    if (countEl) countEl.textContent = visible + (visible === 1 ? ' recipe' : ' recipes');
+}
+
+function filterIngredients(input) {
+    const q = input.value.toLowerCase();
+    input.closest('fieldset').querySelectorAll('.filter-checkbox').forEach(label => {
+        label.style.display = label.textContent.trim().toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+function clearGroup(btn) {
+    const fieldset = btn.closest('fieldset');
+    const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+    const range = fieldset.querySelector('input[type=range]');
+    if (checkboxes.length) {
+        checkboxes.forEach(cb => cb.checked = false);
+        applyFilters();
+    } else if (range) {
+        range.value = 180;
+        range.nextElementSibling.value = 180;
+        applyFilters();
+    } else {
+        setMinRating(null);
+    }
 }
 
 function setMinRating(star) {

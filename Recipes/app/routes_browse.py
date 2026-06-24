@@ -1,7 +1,5 @@
 """Browse route — faceted filter sidebar + recipe grid."""
 
-import json
-import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -10,54 +8,11 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Recipe
 from app.main import templates, url_for
+from app.ingredients import expand_ingredient, load_harmonization
 
-_OPTIONAL_RE = re.compile(r'^\(optional\)\s*', re.IGNORECASE)
-_PAREN_RE    = re.compile(r'\s*\([^)]*\)')
-_QTY_RE      = re.compile(
-    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s]+'
-    r'(?:heaping\s+|level\s+)?'
-    r'(?:g|ml|mL|l|L|kg|lb|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
-    r'|pieces?|slices?|cloves?|pinch|handful|drops?|sprigs?|scoops?|cans?|squares?)?'
-    r'\s*',
-    re.IGNORECASE,
-)
-_INDEF_RE    = re.compile(r'^(?:a few \w+|a handful|some|an?)\s+(?:of\s+)?', re.IGNORECASE)
-_OF_RE       = re.compile(r'^of\s+', re.IGNORECASE)
-_PREP_RE     = re.compile(
-    r'^(?:or\s+)?'
-    r'(?:cooked\s+and\s+drained|chopped|diced|sliced|minced|crushed|grated|'
-    r'shredded|ground|roasted|toasted|dried|frozen|canned|ripe|powdered)\s+',
-    re.IGNORECASE,
-)
-_TO_TASTE_RE = re.compile(r'\s+to\s+taste\s*$', re.IGNORECASE)
-# Splits "salt and pepper" → ["salt", "pepper"] and "salt, pepper, and paprika" → [...]
-_COMPOUND_SPLIT_RE = re.compile(r',\s*(?:and\s+)?|\s+and\s+', re.IGNORECASE)
-# Only split on "and" when both sides are single words (e.g. not "low-fat Greek yogurt and oat flour")
-_SIMPLE_AND_RE = re.compile(r'^([\w][\w-]*)\s+and\s+([\w][\w-]*)$', re.IGNORECASE)
-
-
-def _norm_ingredient(raw: str) -> str:
-    s = raw.strip()
-    s = _OPTIONAL_RE.sub('', s)
-    s = _PAREN_RE.sub('', s).strip()
-    s = _INDEF_RE.sub('', s)
-    s = _QTY_RE.sub('', s)
-    s = _OF_RE.sub('', s)
-    s = _PREP_RE.sub('', s)
-    s = _TO_TASTE_RE.sub('', s)
-    s = s.strip(' ,.-')
-    return s.capitalize() if s else raw.capitalize()
-
-
-def _expand_ingredient(raw: str) -> list[str]:
-    """Normalize and split compound ingredients (e.g. 'salt and pepper' → ['Salt', 'Pepper'])."""
-    normed = _norm_ingredient(raw)
-    # Split if there's a comma (explicit list) or two single words joined by "and"
-    if ',' in normed or _SIMPLE_AND_RE.match(normed):
-        parts = [p.strip().capitalize() for p in _COMPOUND_SPLIT_RE.split(normed) if p.strip()]
-        if len(parts) > 1:
-            return parts
-    return [normed]
+# Keep private aliases so existing callers (routes_harmonize) can still import them
+_expand_ingredient = expand_ingredient
+_norm_ingredient = lambda raw: expand_ingredient(raw)[0] if expand_ingredient(raw) else raw
 
 router = APIRouter(tags=["browse"])
 
@@ -65,16 +20,24 @@ router = APIRouter(tags=["browse"])
 @router.get("/")
 async def browse_page(
     request: Request,
+    q: Optional[str] = Query(default=None),
     type: Optional[list[str]] = Query(default=None, alias="type"),
     subtype: Optional[list[str]] = Query(default=None, alias="subtype"),
     macro: Optional[list[str]] = Query(default=None, alias="macro"),
     calorie_tier: Optional[list[str]] = Query(default=None, alias="calorie_tier"),
     ingredient: Optional[list[str]] = Query(default=None, alias="ingredient"),
+    source_title: Optional[list[str]] = Query(default=None, alias="source_title"),
     max_time: Optional[int] = Query(default=None, alias="max_time"),
     min_rating: Optional[int] = Query(default=None, alias="min_rating", ge=1, le=5),
     cooking_type: Optional[list[str]] = Query(default=None, alias="cooking_type"),
     session: Session = Depends(get_session),
 ):
+    harm_map = load_harmonization()
+
+    def canonical(raw: str) -> list[str]:
+        expanded = expand_ingredient(raw)
+        return [harm_map.get(e, e) for e in expanded if harm_map.get(e, e)]
+
     # Build base query
     query = select(Recipe)
 
@@ -98,16 +61,17 @@ async def browse_page(
         recipes = [
             r for r in recipes
             if all(
-                any(
-                    expanded == ing
-                    for raw in r.ingredients_list
-                    for expanded in _expand_ingredient(raw)
-                )
+                any(c == ing for raw in r.ingredients_list for c in canonical(raw))
                 for ing in ingredient
             )
         ]
     if cooking_type:
         recipes = [r for r in recipes if any(ct in r.cooking_types_list for ct in cooking_type)]
+    if source_title:
+        recipes = [r for r in recipes if r.source_title in source_title]
+    if q:
+        q_lower = q.strip().lower()
+        recipes = [r for r in recipes if q_lower in r.dish_name.lower()]
 
     # Build filter option lists from ALL recipes in DB (not just filtered)
     all_recipes = session.exec(select(Recipe)).all()
@@ -117,6 +81,7 @@ async def browse_page(
     all_ingredients: set[str] = set()
     all_tiers: set[str] = set()
     all_cooking_types: set[str] = set()
+    all_source_titles: set[str] = set()
 
     for r in all_recipes:
         all_types.add(r.type)
@@ -124,13 +89,15 @@ async def browse_page(
             all_subtypes.add(r.subtype)
         for m in r.macro_tags_list:
             all_macros.add(m)
-        for ing in r.ingredients_list:
-            for expanded in _expand_ingredient(ing):
-                all_ingredients.add(expanded)
+        for raw in r.ingredients_list:
+            for c in canonical(raw):
+                all_ingredients.add(c)
         if r.calorie_tier:
             all_tiers.add(r.calorie_tier)
         for ct in r.cooking_types_list:
             all_cooking_types.add(ct)
+        if r.source_title:
+            all_source_titles.add(r.source_title)
 
     return templates.TemplateResponse(request, "browse.html", {
         "recipes": recipes,
@@ -141,13 +108,16 @@ async def browse_page(
             "ingredients": sorted(all_ingredients),
             "calorie_tiers": sorted(all_tiers),
             "cooking_types": sorted(all_cooking_types),
+            "source_titles": sorted(all_source_titles),
         },
         "active": {
+            "q": q or "",
             "type": type or [],
             "subtype": subtype or [],
             "macro": macro or [],
             "calorie_tier": calorie_tier or [],
             "ingredient": ingredient or [],
+            "source_title": source_title or [],
             "max_time": max_time,
             "min_rating": min_rating,
             "cooking_type": cooking_type or [],
