@@ -3,6 +3,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from app.pdf_extractor import (
     PageText,
@@ -15,6 +16,10 @@ from app.pdf_extractor import (
     is_image_pdf,
     load_session,
     save_session,
+    extract_toc_vision,
+    extract_recipe_vision,
+    _save_recipe_photo_vision,
+    VISION_EXTRACTION_PROMPT,
 )
 import app.pdf_extractor as _pe
 
@@ -197,3 +202,137 @@ def test_build_recipe_windows_single_recipe():
     assert min(windows[0]["window_pages"]) == 47
     assert max(windows[0]["window_pages"]) == 53
     assert len(windows[0]["window_pages"]) == 7
+
+
+# ── Vision extraction tests ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_extract_toc_vision_returns_recipe_list():
+    mock_result = [
+        {"recipe_title": "Brownie Batter Blended Oats", "page": 61},
+        {"recipe_title": "Creamy Mushroom Pasta", "page": 101},
+    ]
+    fake_imgs = [Image.new("RGB", (100, 100)) for _ in range(6)]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text=json.dumps(mock_result))])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=fake_imgs), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await extract_toc_vision("/fake/book.pdf")
+    assert len(result) == 2
+    assert result[0]["recipe_title"] == "Brownie Batter Blended Oats"
+    assert result[0]["page"] == 61
+
+
+@pytest.mark.asyncio
+async def test_extract_toc_vision_strips_fences():
+    wrapped = '```json\n[{"recipe_title": "Test Recipe", "page": 42}]\n```'
+    fake_imgs = [Image.new("RGB", (100, 100))]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text=wrapped)])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=fake_imgs), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await extract_toc_vision("/fake/book.pdf", toc_page_range=(3, 3))
+    assert result[0]["recipe_title"] == "Test Recipe"
+    assert result[0]["page"] == 42
+
+
+@pytest.mark.asyncio
+async def test_extract_recipe_vision_returns_structured_data():
+    mock_result = {
+        "photo_page": 60, "photo_is_inset": False,
+        "dish_name": "Brownie Batter Blended Oats",
+        "distinguishing_feature": None,
+        "notes": "If you love brownie batter, this is for you.",
+        "type": "sweet", "subtype": "breakfast",
+        "macro_tags": ["vegan", "fiber-rich"],
+        "cooking_types": ["blender"],
+        "calories_per_portion": 558,
+        "protein_g": 23, "fat_g": 81, "carbs_g": 10, "fiber_g": None,
+        "portions": 1,
+        "ingredients": ["1/2 cup chickpeas*", "1 ripe banana"],
+        "prep_time_minutes": None, "cook_time_minutes": None,
+        "instructions": "1. Blend everything.\n2. Serve.",
+        "missing_critical_info": False,
+    }
+    fake_imgs = [Image.new("RGB", (680, 880)) for _ in range(3)]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text=json.dumps(mock_result))])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=fake_imgs), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await extract_recipe_vision(
+            "/fake/book.pdf", [60, 61, 62], 61,
+            "Brownie Batter Blended Oats", "broccoli-mum",
+        )
+    assert result["dish_name"] == "Brownie Batter Blended Oats"
+    assert result["notes"] == "If you love brownie batter, this is for you."
+    assert result["photo_page"] == 60
+    assert result["portions"] == 1
+    assert result["cooking_types"] == ["blender"]
+
+
+@pytest.mark.asyncio
+async def test_extract_recipe_vision_strips_fences():
+    mock_result = {"dish_name": "Test", "photo_page": None, "photo_is_inset": False,
+                   "distinguishing_feature": None, "notes": None, "type": "savory",
+                   "subtype": None, "macro_tags": [], "cooking_types": [],
+                   "calories_per_portion": None, "protein_g": None, "fat_g": None,
+                   "carbs_g": None, "fiber_g": None, "portions": 1,
+                   "ingredients": [], "prep_time_minutes": None,
+                   "cook_time_minutes": None, "instructions": None,
+                   "missing_critical_info": True}
+    wrapped = f"```json\n{json.dumps(mock_result)}\n```"
+    fake_imgs = [Image.new("RGB", (100, 100))]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text=wrapped)])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=fake_imgs), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await extract_recipe_vision(
+            "/fake/book.pdf", [61], 61, "Test Recipe", "test-book"
+        )
+    assert result["dish_name"] == "Test"
+
+
+@pytest.mark.asyncio
+async def test_save_recipe_photo_vision_full_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_PHOTOS_DIR", tmp_path)
+    fake_img = Image.new("RGB", (680, 880), color=(100, 150, 50))
+    with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]):
+        result = await _save_recipe_photo_vision(
+            "/fake/book.pdf",
+            photo_page=60, photo_is_inset=False,
+            card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
+        )
+    assert result is not None
+    assert (tmp_path / "pdf-broccoli-mum-brownie-batter.jpg").exists()
+
+
+@pytest.mark.asyncio
+async def test_save_recipe_photo_vision_inset(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_PHOTOS_DIR", tmp_path)
+    fake_img = Image.new("RGB", (680, 880))
+    with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]):
+        result = await _save_recipe_photo_vision(
+            "/fake/book.pdf",
+            photo_page=None, photo_is_inset=True,
+            card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
+        )
+    assert result is not None
+    assert (tmp_path / "pdf-broccoli-mum-brownie-batter.jpg").exists()
+
+
+@pytest.mark.asyncio
+async def test_save_recipe_photo_vision_no_photo():
+    result = await _save_recipe_photo_vision(
+        "/fake/book.pdf",
+        photo_page=None, photo_is_inset=False,
+        card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
+    )
+    assert result is None

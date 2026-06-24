@@ -1,6 +1,8 @@
 """PDF extraction: pdfplumber text pass + programmatic recipe boundary detection."""
 
 import asyncio
+import base64
+import io
 import json
 import re
 import uuid
@@ -10,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import pdfplumber
+from pdf2image import convert_from_path
 
 _PHOTOS_DIR = Path("app/static/photos")
 
@@ -351,3 +354,179 @@ async def create_session(
     save_session(session)
     print(f"[pdf] session {sid} complete: {len(session.extracted)} extracted", flush=True)
     return session
+
+
+# ── Vision extraction ─────────────────────────────────────────────────────────
+
+VISION_EXTRACTION_PROMPT = """\
+You are analyzing pages from the cookbook "Broccoli Mum — The Maximum Weight Loss Recipe Book".
+
+You are given {n_pages} page image(s). Page {card_page} is the recipe card for "{recipe_title}".
+The other pages (if any) are adjacent pages that may contain a food photo for this recipe.
+
+Pages provided: {page_labels}
+
+=== RECIPE CARD EXTRACTION (from page {card_page}) ===
+
+Extract EXACTLY these fields as a JSON object:
+
+- dish_name: The recipe title as printed in the dark green title box (top-left of card)
+- distinguishing_feature: What makes this version unique in ≤8 words, or null
+- notes: The intro/observation paragraph in the RIGHT column of the recipe card, above the METHOD section. Copy it in full. This is personal author text about the recipe. Return null if absent.
+- type: "sweet" or "savory"
+- subtype: one of "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink", or null
+- macro_tags: array from ["protein-rich","low-carb","keto","vegan","gluten-free","fiber-rich","high-fat","dairy-free"]. Infer ONLY from ingredients and nutrition — NEVER from badge icons.
+- cooking_types: array built from badge icons using ONLY these mappings:
+    Blender icon OR Food Processor icon → "blender"
+    Microwave icon → "microwave"
+    Oven/Air fryer icon → both "oven" AND "air-fryer"
+    Waffle maker icon → "other"
+    Freezer icon → "no-cook"
+    Ignore entirely: Batch Work, Meal Prep, Max Weight Loss, Quick & Easy, Worth the Effort
+- calories_per_portion: integer from footer line "Calories - N" (per serving). Null if absent.
+- protein_g: integer from footer "Protein - Ng" — round to nearest integer. Null if absent.
+- fat_g: integer from footer "Fat - Ng" — round to nearest integer. Null if absent.
+- carbs_g: integer from footer "Carbs - Ng" — round to nearest integer. Null if absent.
+- fiber_g: integer if stated, else null
+- portions: count the filled dots (●) after the word "Serves" on the card — each dot = 1 serving
+- ingredients: array of strings — all items under INGREDIENTS with quantities exactly as written. If a TOPPINGS section exists, append one final item: "TOPPINGS: item1, item2, ..."
+- prep_time_minutes: integer or null
+- cook_time_minutes: integer or null
+- instructions: full METHOD steps as a markdown numbered list. Null if absent.
+- missing_critical_info: true ONLY if dish_name AND ingredients AND instructions are all absent
+
+=== PHOTO IDENTIFICATION ===
+
+- photo_page: the page NUMBER (an integer from the list above) that shows a full-page food photograph of this recipe's finished dish. Return null if no other page in the set is a food photo for this recipe.
+- photo_is_inset: true if the recipe card page ({card_page}) itself contains a small food photograph inset (not a decorative illustration or clipart graphic), false otherwise.
+
+Return ONLY a valid JSON object. No commentary, no markdown fences.\
+"""
+
+
+async def extract_toc_vision(
+    pdf_path: str,
+    toc_page_range: tuple[int, int] = (3, 8),
+) -> list[dict]:
+    """OCR the TOC pages via Claude Vision. Returns [{recipe_title, page}]."""
+    start, end = toc_page_range
+    loop = asyncio.get_running_loop()
+    images = await loop.run_in_executor(
+        None,
+        lambda: convert_from_path(pdf_path, first_page=start, last_page=end, dpi=120),
+    )
+
+    content = []
+    for img in images:
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.standard_b64encode(buf.getvalue()).decode()
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": b64},
+        })
+    content.append({
+        "type": "text",
+        "text": (
+            "These pages are from a cookbook's table of contents. "
+            "Extract every recipe entry as a JSON array: "
+            '[{"recipe_title": "...", "page": N}, ...]. '
+            "Include only actual recipe entries — not chapter headings, "
+            "section titles, or page numbers without a recipe name. "
+            "Return ONLY valid JSON, no commentary, no markdown fences."
+        ),
+    })
+
+    client = _get_client()
+    message = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        temperature=0,
+        messages=[{"role": "user", "content": content}],
+    )
+    text = message.content[0].text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    return json.loads(text)
+
+
+async def extract_recipe_vision(
+    pdf_path: str,
+    window_pages: list[int],
+    card_page: int,
+    recipe_title: str,
+    book_slug: str,
+) -> dict:
+    """Render the window pages and call Claude Vision for extraction + photo ID."""
+    min_p, max_p = min(window_pages), max(window_pages)
+    loop = asyncio.get_running_loop()
+    all_images = await loop.run_in_executor(
+        None,
+        lambda: convert_from_path(pdf_path, first_page=min_p, last_page=max_p, dpi=150),
+    )
+
+    # Map rendered images to their page numbers
+    page_images: dict[int, object] = {}
+    for offset, img in enumerate(all_images):
+        page_num = min_p + offset
+        if page_num in window_pages:
+            page_images[page_num] = img
+
+    content = []
+    page_labels = []
+    for page_num in sorted(page_images):
+        buf = io.BytesIO()
+        page_images[page_num].save(buf, format="PNG")
+        b64 = base64.standard_b64encode(buf.getvalue()).decode()
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": b64},
+        })
+        label = f"Page {page_num}" + (" [RECIPE CARD]" if page_num == card_page else "")
+        page_labels.append(label)
+
+    prompt = VISION_EXTRACTION_PROMPT.format(
+        n_pages=len(page_images),
+        card_page=card_page,
+        recipe_title=recipe_title,
+        page_labels=" | ".join(page_labels),
+    )
+    content.append({"type": "text", "text": prompt})
+
+    client = _get_client()
+    message = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        temperature=0,
+        messages=[{"role": "user", "content": content}],
+    )
+    text = message.content[0].text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    return json.loads(text)
+
+
+async def _save_recipe_photo_vision(
+    pdf_path: str,
+    photo_page: Optional[int],
+    photo_is_inset: bool,
+    card_page: int,
+    book_slug: str,
+    recipe_slug: str,
+) -> Optional[str]:
+    """Render and save the recipe photo. Returns saved path or None."""
+    target_page = photo_page if photo_page is not None else (card_page if photo_is_inset else None)
+    if target_page is None:
+        return None
+    loop = asyncio.get_running_loop()
+    images = await loop.run_in_executor(
+        None,
+        lambda: convert_from_path(pdf_path, first_page=target_page, last_page=target_page, dpi=150),
+    )
+    if not images:
+        return None
+    filename = f"pdf-{book_slug}-{recipe_slug}.jpg"
+    out_path = _PHOTOS_DIR / filename
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    images[0].save(str(out_path), "JPEG", quality=85)
+    return str(out_path)
