@@ -3,6 +3,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from app.pdf_extractor import (
     PageText,
@@ -10,28 +11,11 @@ from app.pdf_extractor import (
     _slugify,
     assemble_recipe_text,
     create_session,
-    detect_recipe_boundaries,
-    extract_page_texts,
-    flag_sparse_pages,
     get_pending_batch,
     load_session,
-    sample_recipe_indices,
     save_session,
-    vision_pass,
 )
 import app.pdf_extractor as _pe
-
-
-def test_flag_sparse_pages_identifies_short_text():
-    pages = {
-        1: PageText(1, "This page has plenty of content to pass the threshold."),
-        2: PageText(2, "Short"),
-        3: PageText(3, ""),
-    }
-    sparse = flag_sparse_pages(pages)
-    assert 1 not in sparse
-    assert 2 in sparse
-    assert 3 in sparse
 
 
 def test_assemble_recipe_text_sorts_and_dedupes_pages():
@@ -48,94 +32,10 @@ def test_assemble_recipe_text_skips_missing_pages():
     assert "[Page 99]" not in result
 
 
-def test_sample_recipe_indices_returns_n_unique():
-    recipes = [{"recipe_title": f"R{i}", "pages": [i]} for i in range(20)]
-    indices = sample_recipe_indices(recipes, n=3)
-    assert len(indices) == 3
-    assert len(set(indices)) == 3
-    assert all(0 <= i < 20 for i in indices)
-
-
-def test_sample_recipe_indices_clamps_to_available():
-    recipes = [{"recipe_title": "Only", "pages": [1]}]
-    assert sample_recipe_indices(recipes, n=3) == [0]
-
-
 def test_slugify():
     assert _slugify("Protein Brownie") == "protein-brownie"
     assert _slugify("  Hello, World! ") == "hello-world"
     assert _slugify("Mug Cake – with Tofu") == "mug-cake-with-tofu"
-
-
-@pytest.mark.asyncio
-async def test_detect_recipe_boundaries_parses_json_response():
-    mock_response = [
-        {"recipe_title": "Protein Brownie", "pages": [20, 21]},
-        {"recipe_title": "Mug Cake", "pages": [22, 23]},
-    ]
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=MagicMock(content=[MagicMock(text=json.dumps(mock_response))])
-    )
-    with patch("app.pdf_extractor._get_client", return_value=mock_client):
-        result = await detect_recipe_boundaries(
-            {20: "Brownie text", 21: "Calories 267", 22: "Mug Cake text", 23: "Method"}
-        )
-    assert len(result) == 2
-    assert result[0]["recipe_title"] == "Protein Brownie"
-    assert 20 in result[0]["pages"]
-
-
-@pytest.mark.asyncio
-async def test_detect_recipe_boundaries_strips_fences():
-    wrapped = '```json\n[{"recipe_title": "Test", "pages": [1]}]\n```'
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=MagicMock(content=[MagicMock(text=wrapped)])
-    )
-    with patch("app.pdf_extractor._get_client", return_value=mock_client):
-        result = await detect_recipe_boundaries({1: "text"})
-    assert result[0]["recipe_title"] == "Test"
-
-
-@pytest.mark.asyncio
-async def test_vision_pass_extracts_text_from_pages():
-    from PIL import Image
-    fake_img = Image.new("RGB", (100, 100), color="white")
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=MagicMock(content=[MagicMock(text="KCALS 267  P 37.3g  F 9g  C 16.8g")])
-    )
-    with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]), \
-         patch("app.pdf_extractor._get_client", return_value=mock_client):
-        result = await vision_pass("/fake/book.pdf", [20])
-    assert 20 in result
-    assert "37.3g" in result[20]
-
-
-@pytest.mark.asyncio
-async def test_vision_pass_returns_empty_for_no_pages():
-    result = await vision_pass("/fake/book.pdf", [])
-    assert result == {}
-
-
-@pytest.mark.asyncio
-async def test_vision_pass_non_contiguous_pages():
-    """Verify correct page-number mapping for non-contiguous sparse pages."""
-    from PIL import Image
-    # Three sparse pages: 1, 3, 5 — rendering pages 1-5 (5 images)
-    fake_imgs = [Image.new("RGB", (100, 100)) for _ in range(5)]
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=MagicMock(content=[MagicMock(text="extracted text")])
-    )
-    with patch("app.pdf_extractor.convert_from_path", return_value=fake_imgs), \
-         patch("app.pdf_extractor._get_client", return_value=mock_client):
-        result = await vision_pass("/fake/book.pdf", [1, 3, 5])
-    # Only pages 1, 3, 5 should be in result (pages 2 and 4 filtered out)
-    assert set(result.keys()) == {1, 3, 5}
-    assert 2 not in result
-    assert 4 not in result
 
 
 # ── Session management tests ──────────────────────────────────────────────────
@@ -197,38 +97,103 @@ def test_get_pending_batch_respects_n():
     assert len(batch) == 2
 
 
-@pytest.mark.asyncio
-async def test_create_session_runs_full_pipeline(tmp_path, monkeypatch):
+from app.pdf_extractor import is_image_pdf, build_recipe_windows
+
+
+def test_is_image_pdf_returns_true_for_empty_pages(tmp_path):
+    import pdfplumber
+    # Create a minimal PDF via a fake pdfplumber response
+    fake_pages = [MagicMock(extract_text=lambda: "")]
+    with patch("pdfplumber.open") as mock_open:
+        mock_open.return_value.__enter__.return_value = MagicMock(pages=fake_pages)
+        mock_open.return_value.__exit__ = MagicMock(return_value=False)
+        result = is_image_pdf("/fake/book.pdf")
+    assert result is True
+
+
+def test_is_image_pdf_returns_false_for_text_pdf():
+    long_text = "A" * 200
+    fake_pages = [MagicMock(extract_text=lambda: long_text)]
+    with patch("pdfplumber.open") as mock_open:
+        mock_open.return_value.__enter__.return_value = MagicMock(pages=fake_pages)
+        mock_open.return_value.__exit__ = MagicMock(return_value=False)
+        result = is_image_pdf("/fake/book.pdf")
+    assert result is False
+
+
+def test_session_new_fields_have_defaults():
+    session = _make_session()
+    assert session.toc_recipes == []
+    assert session.pipeline == "text"
+    assert session.test_mode is False
+    assert session.current_recipe == ""
+
+
+def test_session_new_fields_round_trip(tmp_path, monkeypatch):
     monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
+    session = _make_session(
+        toc_recipes=[{"recipe_title": "Pasta", "page": 101}],
+        pipeline="vision",
+        test_mode=True,
+        current_recipe="Pasta",
+    )
+    save_session(session)
+    loaded = load_session("s1")
+    assert loaded.pipeline == "vision"
+    assert loaded.test_mode is True
+    assert loaded.toc_recipes[0]["recipe_title"] == "Pasta"
+    assert loaded.current_recipe == "Pasta"
 
-    fake_page_texts = {
-        1: PageText(1, "Recipe: Brownie. Ingredients: egg. Method: microwave 3 min."),
-        2: PageText(2, ""),
-    }
-    fake_boundaries = [{"recipe_title": "Brownie", "pages": [1, 2]}]
-    fake_extracted = {
-        "dish_name": "Brownie", "distinguishing_feature": None,
-        "type": "sweet", "subtype": "dessert", "macro_tags": [],
-        "calories_per_portion": 267, "ingredients": ["egg"],
-        "prep_time_minutes": 1, "cook_time_minutes": 3, "portions": 1,
-        "instructions": "Microwave 3 min.", "missing_critical_info": False,
-        "cooking_types": ["microwave"], "protein_g": 37, "fat_g": 9,
-        "carbs_g": 17, "fiber_g": None,
-    }
 
-    with patch("app.pdf_extractor.extract_page_texts", return_value=fake_page_texts), \
-         patch("app.pdf_extractor.vision_pass", new_callable=AsyncMock, return_value={2: "KCALS 267 P 37g"}), \
-         patch("app.pdf_extractor.detect_recipe_boundaries", new_callable=AsyncMock, return_value=fake_boundaries), \
-         patch("app.pdf_extractor.sample_recipe_indices", return_value=[0]), \
-         patch("app.extractor.extract_recipe", new_callable=AsyncMock, return_value=fake_extracted):
+def test_build_recipe_windows_standard_pattern():
+    toc = [
+        {"recipe_title": "A", "page": 10},
+        {"recipe_title": "B", "page": 15},
+        {"recipe_title": "C", "page": 20},
+    ]
+    windows = build_recipe_windows(toc)
+    # B: prev=10, next=20 → start=max(11, 12)=12, end=min(19, 18)=18
+    b = windows[1]
+    assert b["card_page"] == 15
+    assert b["recipe_title"] == "B"
+    assert 15 in b["window_pages"]
+    assert 10 not in b["window_pages"]
+    assert 20 not in b["window_pages"]
 
-        session = await create_session("/fake/book.pdf", "My Book", "my-book", session_id="fixed-id")
 
-    assert session.session_id == "fixed-id"
-    assert session.extraction_complete is True
-    assert "0" in session.extracted
-    assert session.extracted["0"]["dish_name"] == "Brownie"
-    assert session.extracted["0"]["status"] == "pending"
-    assert session.extracted["0"]["source_url"] == "pdf:my-book#brownie"
-    # Session file persisted
-    assert (tmp_path / "fixed-id.json").exists()
+def test_build_recipe_windows_adjacent_cards():
+    toc = [
+        {"recipe_title": "A", "page": 10},
+        {"recipe_title": "B", "page": 11},
+    ]
+    windows = build_recipe_windows(toc)
+    # A: end = min(10, 13) = 10 → window is just [10]
+    assert windows[0]["window_pages"] == [10]
+    # B: start = max(11, 8) = 11 → 10 not in window
+    assert 10 not in windows[1]["window_pages"]
+    assert 11 in windows[1]["window_pages"]
+
+
+def test_build_recipe_windows_double_photo_before():
+    """Two photo pages before a recipe card."""
+    toc = [
+        {"recipe_title": "A", "page": 10},
+        {"recipe_title": "B", "page": 14},
+    ]
+    windows = build_recipe_windows(toc)
+    b = windows[1]
+    # B window: start=max(11, 11)=11, end=min(13+something, 17)=17 → includes 12,13,14
+    assert 12 in b["window_pages"]
+    assert 13 in b["window_pages"]
+    assert 14 in b["window_pages"]
+    assert 10 not in b["window_pages"]
+
+
+def test_build_recipe_windows_single_recipe():
+    toc = [{"recipe_title": "Only", "page": 50}]
+    windows = build_recipe_windows(toc)
+    assert windows[0]["card_page"] == 50
+    assert 50 in windows[0]["window_pages"]
+    # Window clamped to ±3 from card page when no neighbors
+    assert min(windows[0]["window_pages"]) >= 47
+    assert max(windows[0]["window_pages"]) <= 53

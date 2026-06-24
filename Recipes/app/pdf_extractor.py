@@ -117,6 +117,53 @@ def _empty_recipe_data() -> dict:
     }
 
 
+# ── Anthropic client ──────────────────────────────────────────────────────────
+
+_anthropic_client = None
+
+
+def _get_client():
+    global _anthropic_client
+    if _anthropic_client is None:
+        from anthropic import AsyncAnthropic
+        from app.config import settings
+        _anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return _anthropic_client
+
+
+def is_image_pdf(pdf_path: str, check_pages: int = 10) -> bool:
+    """True if pdfplumber extracts < 100 chars across the first check_pages pages."""
+    total = 0
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages[:check_pages]:
+            total += len((page.extract_text() or "").strip())
+            if total >= 100:
+                return False
+    return True
+
+
+def build_recipe_windows(toc_recipes: list[dict]) -> list[dict]:
+    """Compute the dynamic page window for each recipe.
+
+    Window spans from (prev_card + 1) to (next_card - 1), clamped to ±3
+    pages from the card page. The card page is always included.
+    """
+    card_pages = [r["page"] for r in toc_recipes]
+    result = []
+    for i, recipe in enumerate(toc_recipes):
+        p = recipe["page"]
+        prev_end = card_pages[i - 1] if i > 0 else p - 1
+        next_start = card_pages[i + 1] if i < len(card_pages) - 1 else p + 1
+        start = max(prev_end + 1, p - 3)
+        end = min(next_start - 1, p + 3)
+        result.append({
+            "recipe_title": recipe["recipe_title"],
+            "card_page": p,
+            "window_pages": list(range(start, end + 1)),
+        })
+    return result
+
+
 # ── Session state ─────────────────────────────────────────────────────────────
 
 @dataclass
@@ -135,6 +182,10 @@ class PdfIngestionSession:
     used_windows: list = field(default_factory=list)  # kept for session compat
     sample_pages: list = field(default_factory=list)  # user-specified page numbers
     auto_approved: bool = False  # True when recipes have been saved without review
+    toc_recipes: list = field(default_factory=list)
+    pipeline: str = "text"
+    test_mode: bool = False
+    current_recipe: str = ""
 
 
 def _session_path(session_id: str) -> Path:
