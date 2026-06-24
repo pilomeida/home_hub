@@ -164,6 +164,7 @@ def build_recipe_windows(toc_recipes: list[dict]) -> list[dict]:
             "recipe_title": recipe["recipe_title"],
             "card_page": p,
             "window_pages": list(range(start, end + 1)),
+            "chapter": recipe.get("chapter"),
         })
     return result
 
@@ -363,6 +364,7 @@ VISION_EXTRACTION_PROMPT = """\
 You are analyzing pages from the cookbook "Broccoli Mum — The Maximum Weight Loss Recipe Book".
 
 You are given {n_pages} page image(s). Page {card_page} is the recipe card for "{recipe_title}".
+This recipe appears in the book's "{chapter}" section.
 The other pages (if any) are adjacent pages that may contain a food photo for this recipe.
 
 Pages provided: {page_labels}
@@ -375,7 +377,7 @@ Extract EXACTLY these fields as a JSON object:
 - distinguishing_feature: What makes this version unique in ≤8 words, or null
 - notes: Any personal author commentary, intro, or observation text on the recipe card — it may appear anywhere on the card (right column, left column, above or below the ingredient list, as a callout box). Copy it verbatim in full. This is the author's personal voice, not the method steps. Return null only if genuinely absent.
 - type: "sweet" or "savory"
-- subtype: one of "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink", or null. Use "main" for any dish substantial enough to be a complete meal (pasta, rice dishes, proteins, hearty gratins, bakes). Use "side" only for dishes clearly intended as accompaniments (small salads, sauces, dips, condiments, garnishes).
+- subtype: derive directly from the recipe's book section ("{chapter}"): MAINS→"main", DESSERTS→"dessert", BREAKFASTS→"breakfast", SNACKS→"snack", SOUPS→"soup", SALADS→"salad", DRINKS→"drink", SIDES→"side". Use null only if the chapter is unknown.
 - macro_tags: array from ["protein-rich","low-carb","keto","vegan","gluten-free","fiber-rich","high-fat","dairy-free"]. Infer ONLY from ingredients and nutrition — NEVER from badge icons.
 - cooking_types: array from badge icons AND inferred from instructions, using these rules:
     Blender icon OR Food Processor icon → "blender"
@@ -434,9 +436,11 @@ async def extract_toc_vision(
         "text": (
             "These pages are from a cookbook's table of contents. "
             "Extract every recipe entry as a JSON array: "
-            '[{"recipe_title": "...", "page": N}, ...]. '
-            "Include only actual recipe entries — not chapter headings, "
-            "section titles, or page numbers without a recipe name. "
+            '[{"recipe_title": "...", "page": N, "chapter": "..."}, ...]. '
+            "For 'chapter', use the section heading that the recipe appears under "
+            "(e.g. 'MAINS', 'DESSERTS', 'BREAKFASTS', 'SALADS', 'SNACKS', 'SOUPS', 'DRINKS'). "
+            "Every entry must include the chapter it belongs to. "
+            "Include only actual recipe entries — not chapter headings or page numbers without a recipe name. "
             "Return ONLY valid JSON, no commentary, no markdown fences."
         ),
     })
@@ -460,6 +464,7 @@ async def extract_recipe_vision(
     card_page: int,
     recipe_title: str,
     book_slug: str,
+    chapter: str = "UNKNOWN",
 ) -> dict:
     """Render the window pages and call Claude Vision for extraction + photo ID."""
     min_p, max_p = min(window_pages), max(window_pages)
@@ -493,6 +498,7 @@ async def extract_recipe_vision(
         n_pages=len(page_images),
         card_page=card_page,
         recipe_title=recipe_title,
+        chapter=chapter,
         page_labels=" | ".join(page_labels),
     )
     content.append({"type": "text", "text": prompt})
@@ -596,7 +602,8 @@ async def create_vision_session(
                 source_url = f"pdf:{book_slug}#{recipe_slug}"
                 try:
                     raw = dict(await extract_recipe_vision(
-                        pdf_path, w["window_pages"], w["card_page"], title, book_slug
+                        pdf_path, w["window_pages"], w["card_page"], title, book_slug,
+                        chapter=w.get("chapter") or "UNKNOWN",
                     ))
                 except Exception as exc:
                     print(f"[vision] extraction failed {title!r}: {exc}", flush=True)
