@@ -513,7 +513,30 @@ async def extract_recipe_vision(
     text = message.content[0].text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
-    return json.loads(text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Ask Claude to repair its own output — handles unescaped quotes/newlines in strings
+        repair_message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            temperature=0,
+            messages=[
+                {"role": "user", "content": content},
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": (
+                    "Your previous response was not valid JSON. "
+                    "Return ONLY the corrected JSON object — no commentary, no fences. "
+                    "Pay special attention to escaping any double quotes, backslashes, "
+                    "or literal newlines inside string values."
+                )},
+            ],
+        )
+        repaired = repair_message.content[0].text.strip()
+        repaired = re.sub(r"^```(?:json)?\s*", "", repaired)
+        repaired = re.sub(r"\s*```$", "", repaired)
+        return json.loads(repaired)
 
 
 async def _save_recipe_photo_vision(
