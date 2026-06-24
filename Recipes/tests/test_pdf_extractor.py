@@ -12,6 +12,7 @@ from app.pdf_extractor import (
     assemble_recipe_text,
     build_recipe_windows,
     create_session,
+    create_vision_session,
     get_pending_batch,
     is_image_pdf,
     load_session,
@@ -22,6 +23,7 @@ from app.pdf_extractor import (
     VISION_EXTRACTION_PROMPT,
 )
 import app.pdf_extractor as _pe
+import random as _random
 
 
 def test_assemble_recipe_text_sorts_and_dedupes_pages():
@@ -336,3 +338,75 @@ async def test_save_recipe_photo_vision_no_photo():
         card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
     )
     assert result is None
+
+
+# ── create_vision_session tests ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_vision_session_test_mode(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
+    monkeypatch.setattr(_pe, "_PHOTOS_DIR", tmp_path / "photos")
+
+    fake_toc = [{"recipe_title": f"Recipe {i}", "page": 60 + i * 2} for i in range(10)]
+    fake_extraction = {
+        "photo_page": None, "photo_is_inset": False,
+        "dish_name": "Recipe 0", "distinguishing_feature": None,
+        "notes": "A lovely intro.", "type": "savory", "subtype": "main",
+        "macro_tags": [], "cooking_types": ["oven"],
+        "calories_per_portion": 400, "protein_g": 20, "fat_g": 10,
+        "carbs_g": 30, "fiber_g": None, "portions": 2,
+        "ingredients": ["1 cup lentils"], "prep_time_minutes": 10,
+        "cook_time_minutes": 20, "instructions": "Cook.", "missing_critical_info": False,
+    }
+
+    with patch("app.pdf_extractor.extract_toc_vision", new_callable=AsyncMock, return_value=fake_toc), \
+         patch("app.pdf_extractor.extract_recipe_vision", new_callable=AsyncMock, return_value=fake_extraction), \
+         patch("app.pdf_extractor._save_recipe_photo_vision", new_callable=AsyncMock, return_value=None), \
+         patch("app.pdf_extractor.random") as mock_random:
+        mock_random.sample.return_value = [0, 2, 4, 6, 8]
+        session = await create_vision_session(
+            "/fake/book.pdf", "My Book", "my-book",
+            n_sample=5, test_mode=True, session_id="vis-test",
+        )
+
+    assert session.session_id == "vis-test"
+    assert session.pipeline == "vision"
+    assert session.test_mode is True
+    assert len(session.toc_recipes) == 10
+    assert session.extraction_complete is True
+    assert len(session.sampled_indices) == 5
+    assert "0" in session.extracted
+    assert session.extracted["0"]["notes"] == "A lovely intro."
+    assert session.extracted["0"]["status"] == "pending"
+    assert session.extracted["0"]["source_url"] == "pdf:my-book#recipe-0"
+    assert (tmp_path / "vis-test.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_create_vision_session_full_book_mode(tmp_path, monkeypatch):
+    monkeypatch.setattr(_pe, "_SESSIONS_DIR", tmp_path)
+    monkeypatch.setattr(_pe, "_PHOTOS_DIR", tmp_path / "photos")
+
+    fake_toc = [{"recipe_title": f"R{i}", "page": 10 + i * 2} for i in range(3)]
+    fake_extraction = {
+        "photo_page": None, "photo_is_inset": False,
+        "dish_name": "R0", "distinguishing_feature": None, "notes": None,
+        "type": "savory", "subtype": None, "macro_tags": [], "cooking_types": [],
+        "calories_per_portion": None, "protein_g": None, "fat_g": None,
+        "carbs_g": None, "fiber_g": None, "portions": 1,
+        "ingredients": [], "prep_time_minutes": None,
+        "cook_time_minutes": None, "instructions": None, "missing_critical_info": True,
+    }
+
+    with patch("app.pdf_extractor.extract_toc_vision", new_callable=AsyncMock, return_value=fake_toc), \
+         patch("app.pdf_extractor.extract_recipe_vision", new_callable=AsyncMock, return_value=fake_extraction), \
+         patch("app.pdf_extractor._save_recipe_photo_vision", new_callable=AsyncMock, return_value=None):
+        session = await create_vision_session(
+            "/fake/book.pdf", "Full Book", "full-book",
+            n_sample=5, test_mode=False, session_id="vis-full",
+        )
+
+    # Full book: all 3 recipes extracted
+    assert len(session.sampled_indices) == 3
+    assert len(session.extracted) == 3
+    assert session.extraction_complete is True
