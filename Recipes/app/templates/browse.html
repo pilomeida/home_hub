@@ -3,7 +3,16 @@
 {% block content %}
 <div class="browse-layout">
     <aside class="filter-sidebar">
-        <h2>Filters</h2>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; gap:0.5rem;">
+            <h2 style="margin:0;">Filters</h2>
+            <span id="recipe-count" style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap;">
+                {{ recipes | length }} recipe{{ 's' if recipes | length != 1 else '' }}
+            </span>
+        </div>
+        <input type="search" id="name-search" placeholder="Search by name…"
+               value="{{ active.q }}"
+               oninput="filterByName(this.value)"
+               style="width:100%; padding:0.45rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.875rem; font-family:inherit; margin-bottom:0.75rem; box-sizing:border-box;">
 
         {% if filters.source_titles %}
         <fieldset class="filter-group">
@@ -135,15 +144,6 @@
     </aside>
 
     <section class="recipe-grid">
-        <div style="grid-column:1/-1; display:flex; align-items:center; gap:1rem; margin-bottom:0.25rem;">
-            <input type="search" id="name-search" placeholder="Search by name…"
-                   value="{{ active.q }}"
-                   oninput="filterByName(this.value)"
-                   style="flex:1; padding:0.45rem 0.75rem; border:1px solid var(--border); border-radius:4px; font-size:0.9rem; font-family:inherit;">
-            <span id="recipe-count" style="font-size:0.85rem; color:var(--text-muted); white-space:nowrap;">
-                {{ recipes | length }} recipe{{ 's' if recipes | length != 1 else '' }}
-            </span>
-        </div>
         {% if recipes %}
             {% for recipe in recipes %}
             <a href="/recipe/{{ recipe.id }}" class="recipe-card" data-name="{{ recipe.dish_name | lower }}">
