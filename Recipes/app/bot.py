@@ -23,11 +23,13 @@ from app.units import convert_ingredients
 _extraction_lock = asyncio.Lock()
 
 
-# -- Media-group buffer (collect album photos before processing) --------------
+# -- Per-user photo buffer (collect all photos within a rolling time window) --
 
-_media_group_buffers: dict[str, list[PhotoSize]] = {}
-_media_group_updates: dict[str, Update] = {}   # first update per group for replies
-_media_group_tasks: dict[str, asyncio.Task] = {}
+_COLLECT_WINDOW = 8.0   # seconds after the last photo before processing fires
+
+_user_photo_buffers: dict[int, list[PhotoSize]] = {}
+_user_photo_updates: dict[int, Update] = {}    # first update, used for replies
+_user_photo_tasks: dict[int, asyncio.Task] = {}
 
 
 # -- Bot application ----------------------------------------------------------
@@ -56,7 +58,7 @@ async def start_bot():
 # -- Photo handler ------------------------------------------------------------
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Buffer incoming photo messages; process once the album is complete."""
+    """Buffer incoming photos; fire processing 8 s after the last one arrives."""
     msg = update.message
     if not msg or not msg.photo:
         return
@@ -66,29 +68,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if allowed != 0 and user_id != allowed:
         return
 
-    group_id = msg.media_group_id or str(msg.message_id)
+    if user_id not in _user_photo_buffers:
+        _user_photo_buffers[user_id] = []
+        _user_photo_updates[user_id] = update
 
-    if group_id not in _media_group_buffers:
-        _media_group_buffers[group_id] = []
-        _media_group_updates[group_id] = update
+    _user_photo_buffers[user_id].append(msg.photo[-1])  # largest resolution
 
-    _media_group_buffers[group_id].append(msg.photo[-1])  # largest resolution
-
-    # Reset 2-second timer on each new photo in the group
-    if group_id in _media_group_tasks:
-        _media_group_tasks[group_id].cancel()
-    _media_group_tasks[group_id] = asyncio.create_task(
-        _process_group_after_delay(context, group_id, delay=2.0)
+    # Reset rolling window on each new photo
+    if user_id in _user_photo_tasks:
+        _user_photo_tasks[user_id].cancel()
+    _user_photo_tasks[user_id] = asyncio.create_task(
+        _process_user_photos(context, user_id)
     )
 
 
-async def _process_group_after_delay(
-    context: ContextTypes.DEFAULT_TYPE, group_id: str, delay: float
-):
-    await asyncio.sleep(delay)
-    photos = _media_group_buffers.pop(group_id, [])
-    update = _media_group_updates.pop(group_id, None)
-    _media_group_tasks.pop(group_id, None)
+async def _process_user_photos(context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    await asyncio.sleep(_COLLECT_WINDOW)
+    photos = _user_photo_buffers.pop(user_id, [])
+    update = _user_photo_updates.pop(user_id, None)
+    _user_photo_tasks.pop(user_id, None)
 
     if not update or not photos:
         return
@@ -106,7 +104,7 @@ async def _process_group_after_delay(
     await update.message.reply_text("Got it, extracting from your photos…")
 
     async with _extraction_lock:
-        source_url = f"tg://img/{group_id}"
+        source_url = f"tg://img/{hashlib.md5(str(update.message.message_id).encode()).hexdigest()[:16]}"
 
         # Duplicate check
         session_gen = get_session()

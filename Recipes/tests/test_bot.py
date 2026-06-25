@@ -147,23 +147,22 @@ class TestPhotoGroupHandler:
     @pytest.mark.asyncio
     async def test_single_photo_rejected(self):
         """A single photo triggers a help message."""
-        from app.bot import _process_group_after_delay
+        from app.bot import _process_user_photos
         import app.bot as bot_module
 
-        group_id = "single_test"
+        user_id = 9999001
         fake_photo = MagicMock()
         fake_photo.file_id = "file_abc"
-        bot_module._media_group_buffers[group_id] = [fake_photo]
+        bot_module._user_photo_buffers[user_id] = [fake_photo]
 
         fake_update = MagicMock()
         fake_update.message.reply_text = AsyncMock()
-        bot_module._media_group_updates[group_id] = fake_update
+        bot_module._user_photo_updates[user_id] = fake_update
 
         context = MagicMock()
 
-        # Patch sleep so the delay doesn't actually wait
         with patch("asyncio.sleep", AsyncMock()):
-            await _process_group_after_delay(context, group_id, delay=0)
+            await _process_user_photos(context, user_id)
 
         fake_update.message.reply_text.assert_called_once()
         call_text = fake_update.message.reply_text.call_args[0][0]
@@ -172,19 +171,20 @@ class TestPhotoGroupHandler:
     @pytest.mark.asyncio
     async def test_two_photos_triggers_extraction(self, db_session):
         """Two photos: first = recipe screenshot, last = food photo → recipe saved."""
-        from app.bot import _process_group_after_delay
+        from app.bot import _process_user_photos
         import app.bot as bot_module
 
-        group_id = "album_test"
+        user_id = 9999002
         fake_screenshot = MagicMock()
         fake_screenshot.file_id = "file_screenshot"
         fake_food = MagicMock()
         fake_food.file_id = "file_food"
-        bot_module._media_group_buffers[group_id] = [fake_screenshot, fake_food]
+        bot_module._user_photo_buffers[user_id] = [fake_screenshot, fake_food]
 
         fake_update = MagicMock()
         fake_update.message.reply_text = AsyncMock()
-        bot_module._media_group_updates[group_id] = fake_update
+        fake_update.message.message_id = 42
+        bot_module._user_photo_updates[user_id] = fake_update
 
         screenshot_bytes = b"screenshot_data"
         food_bytes = b"food_photo_data"
@@ -230,7 +230,7 @@ class TestPhotoGroupHandler:
              patch("app.bot.detect_and_link"), \
              patch("app.main.url_for", return_value="http://1.2.3.4/recipe/1"), \
              patch("pathlib.Path.write_bytes"):
-            await _process_group_after_delay(context, group_id, delay=0)
+            await _process_user_photos(context, user_id)
 
         # Should have replied twice: acknowledgement + success
         assert fake_update.message.reply_text.call_count == 2
