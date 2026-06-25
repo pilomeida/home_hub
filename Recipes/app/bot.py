@@ -62,7 +62,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id if update.effective_user else 0
-    if user_id != settings.ALLOWED_TELEGRAM_USER_ID:
+    allowed = settings.ALLOWED_TELEGRAM_USER_ID
+    if allowed != 0 and user_id != allowed:
         return
 
     group_id = msg.media_group_id or str(msg.message_id)
@@ -169,7 +170,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id if update.effective_user else 0
-    if user_id != settings.ALLOWED_TELEGRAM_USER_ID:
+    allowed = settings.ALLOWED_TELEGRAM_USER_ID
+    if allowed != 0 and user_id != allowed:
         return
 
     text = update.message.text.strip()

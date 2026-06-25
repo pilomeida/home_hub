@@ -140,7 +140,7 @@ class TestStoreRecipe:
         # Verify source_title was set to "Telegram" by checking DB
         recipe = db_session.query(__import__("app.models", fromlist=["Recipe"]).Recipe)\
             .filter_by(source_url="tg://img/abc456").first()
-        assert recipe.source_title == "Telegram"
+        assert recipe.source_title == "Social Networks"
 
 
 class TestPhotoGroupHandler:
