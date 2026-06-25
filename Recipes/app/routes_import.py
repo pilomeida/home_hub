@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.linker import detect_and_link
+from app.units import convert_ingredients
 from app.main import templates
 from app.models import Recipe
 from app.pdf_extractor import (
@@ -167,7 +168,7 @@ async def _run_pipeline(session_id: str, pdf_path: str, book_title: str, book_sl
                     fiber_g=_int_or_none(recipe_data.get("fiber_g")),
                     cooking_types=json.dumps(recipe_data.get("cooking_types") or []),
                     macro_tags=json.dumps(recipe_data.get("macro_tags") or []),
-                    ingredients=json.dumps(recipe_data.get("ingredients") or []),
+                    ingredients=json.dumps(convert_ingredients(recipe_data.get("ingredients") or [])),
                     prep_time=_int_or_none(recipe_data.get("prep_time_minutes")),
                     cook_time=_int_or_none(recipe_data.get("cook_time_minutes")),
                     portions=_int_or_none(recipe_data.get("portions")),

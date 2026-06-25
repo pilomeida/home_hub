@@ -15,6 +15,7 @@ from app.models import Recipe
 from app.scraper import fetch_content
 from app.extractor import extract_recipe, extract_recipe_from_images, ExtractionError
 from app.linker import detect_and_link
+from app.units import convert_ingredients
 
 
 # -- Extraction lock ----------------------------------------------------------
@@ -250,7 +251,7 @@ async def _store_recipe(data: dict, photo_path: str | None, source_url: str) -> 
         subtype=data.get("subtype"),
         calories_per_portion=data.get("calories_per_portion"),
         macro_tags=json.dumps(data.get("macro_tags") or []),
-        ingredients=json.dumps(data.get("ingredients") or []),
+        ingredients=json.dumps(convert_ingredients(data.get("ingredients") or [])),
         prep_time=data.get("prep_time_minutes"),
         cook_time=data.get("cook_time_minutes"),
         portions=data.get("portions"),

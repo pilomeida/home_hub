@@ -12,6 +12,7 @@ from app.models import Recipe
 from app.scraper import fetch_content
 from app.extractor import extract_recipe
 from app.linker import detect_and_link
+from app.units import convert_ingredients
 from app.main import templates
 
 router = APIRouter(tags=["add"])
@@ -55,7 +56,7 @@ async def fetch_from_url(request: Request):
         "subtype": data.get("subtype"),
         "calories_per_portion": data.get("calories_per_portion"),
         "macro_tags": json.dumps(data.get("macro_tags") or []),
-        "ingredients": json.dumps(data.get("ingredients") or []),
+        "ingredients": json.dumps(convert_ingredients(data.get("ingredients") or [])),
         "prep_time": data.get("prep_time_minutes"),
         "cook_time": data.get("cook_time_minutes"),
         "portions": data.get("portions"),
@@ -98,6 +99,7 @@ async def save_recipe(
             "error": f"A recipe from this URL already exists: /recipe/{existing.id}",
         })
 
+    _ingr = json.dumps(convert_ingredients(json.loads(ingredients or "[]")))
     recipe = Recipe(
         title=title,
         dish_name=dish_name,
@@ -106,7 +108,7 @@ async def save_recipe(
         subtype=subtype or None,
         calories_per_portion=int(calories_per_portion) if calories_per_portion else None,
         macro_tags=macro_tags,
-        ingredients=ingredients,
+        ingredients=_ingr,
         prep_time=int(prep_time) if prep_time else None,
         cook_time=int(cook_time) if cook_time else None,
         portions=int(portions) if portions else None,
