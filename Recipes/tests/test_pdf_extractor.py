@@ -245,7 +245,7 @@ async def test_extract_toc_vision_strips_fences():
 @pytest.mark.asyncio
 async def test_extract_recipe_vision_returns_structured_data():
     mock_result = {
-        "photo_page": 60, "photo_is_inset": False,
+        "photo_page": 60, "inset_bbox": None,
         "dish_name": "Brownie Batter Blended Oats",
         "distinguishing_feature": None,
         "notes": "If you love brownie batter, this is for you.",
@@ -280,7 +280,7 @@ async def test_extract_recipe_vision_returns_structured_data():
 
 @pytest.mark.asyncio
 async def test_extract_recipe_vision_strips_fences():
-    mock_result = {"dish_name": "Test", "photo_page": None, "photo_is_inset": False,
+    mock_result = {"dish_name": "Test", "photo_page": None, "inset_bbox": None,
                    "distinguishing_feature": None, "notes": None, "type": "savory",
                    "subtype": None, "macro_tags": [], "cooking_types": [],
                    "calories_per_portion": None, "protein_g": None, "fat_g": None,
@@ -309,7 +309,7 @@ async def test_save_recipe_photo_vision_full_page(tmp_path, monkeypatch):
     with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]):
         result = await _save_recipe_photo_vision(
             "/fake/book.pdf",
-            photo_page=60, photo_is_inset=False,
+            photo_page=60, inset_bbox=None,
             card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
         )
     assert result is not None
@@ -317,24 +317,27 @@ async def test_save_recipe_photo_vision_full_page(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_save_recipe_photo_vision_inset(tmp_path, monkeypatch):
+async def test_save_recipe_photo_vision_inset_crops_to_bbox(tmp_path, monkeypatch):
     monkeypatch.setattr(_pe, "_PHOTOS_DIR", tmp_path)
-    fake_img = Image.new("RGB", (680, 880))
+    fake_img = Image.new("RGB", (680, 880), color=(100, 150, 50))
+    bbox = {"x": 0.1, "y": 0.05, "w": 0.45, "h": 0.4}
     with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]):
         result = await _save_recipe_photo_vision(
             "/fake/book.pdf",
-            photo_page=None, photo_is_inset=True,
+            photo_page=None, inset_bbox=bbox,
             card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
         )
     assert result is not None
-    assert (tmp_path / "pdf-broccoli-mum-brownie-batter.jpg").exists()
+    saved = Image.open(tmp_path / "pdf-broccoli-mum-brownie-batter.jpg")
+    # Crop box: x1=68,y1=44,x2=374,y2=396 → size (306, 352)
+    assert saved.size == (306, 352)
 
 
 @pytest.mark.asyncio
 async def test_save_recipe_photo_vision_no_photo():
     result = await _save_recipe_photo_vision(
         "/fake/book.pdf",
-        photo_page=None, photo_is_inset=False,
+        photo_page=None, inset_bbox=None,
         card_page=61, book_slug="broccoli-mum", recipe_slug="brownie-batter",
     )
     assert result is None
@@ -349,7 +352,7 @@ async def test_create_vision_session_test_mode(tmp_path, monkeypatch):
 
     fake_toc = [{"recipe_title": f"Recipe {i}", "page": 60 + i * 2} for i in range(10)]
     fake_extraction = {
-        "photo_page": None, "photo_is_inset": False,
+        "photo_page": None, "inset_bbox": None,
         "dish_name": "Recipe 0", "distinguishing_feature": None,
         "notes": "A lovely intro.", "type": "savory", "subtype": "main",
         "macro_tags": [], "cooking_types": ["oven"],
@@ -389,7 +392,7 @@ async def test_create_vision_session_full_book_mode(tmp_path, monkeypatch):
 
     fake_toc = [{"recipe_title": f"R{i}", "page": 10 + i * 2} for i in range(3)]
     fake_extraction = {
-        "photo_page": None, "photo_is_inset": False,
+        "photo_page": None, "inset_bbox": None,
         "dish_name": "R0", "distinguishing_feature": None, "notes": None,
         "type": "savory", "subtype": None, "macro_tags": [], "cooking_types": [],
         "calories_per_portion": None, "protein_g": None, "fat_g": None,

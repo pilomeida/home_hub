@@ -403,8 +403,8 @@ Extract EXACTLY these fields as a JSON object:
 
 === PHOTO IDENTIFICATION ===
 
-- photo_page: the page NUMBER (an integer from the list above) that shows a full-page food photograph of this recipe's finished dish. Return null if no other page in the set is a food photo for this recipe.
-- photo_is_inset: true if the recipe card page ({card_page}) itself contains a small food photograph inset (not a decorative illustration or clipart graphic), false otherwise.
+- photo_page: the page NUMBER (an integer from the list above) that shows a full-page food photograph of this recipe's finished dish. Return null if no other page in the set is a food photo for this recipe. Important: if a full-page photo falls between two recipe card pages, assign it to the card that immediately follows it — never assign the same photo_page to two different recipes.
+- inset_bbox: if the recipe card page ({card_page}) contains a food photograph (a real photograph of the prepared dish — NOT a sketch, illustration, clipart, or decorative graphic), return {{"x": float, "y": float, "w": float, "h": float}} where x,y is the top-left corner and w,h the width/height of the photo region, all as fractions of the page (0.0–1.0 range). Return null if there is no food photograph on the card page.
 
 Return ONLY a valid JSON object. No commentary, no markdown fences.\
 """
@@ -542,15 +542,21 @@ async def extract_recipe_vision(
 async def _save_recipe_photo_vision(
     pdf_path: str,
     photo_page: Optional[int],
-    photo_is_inset: bool,
+    inset_bbox: Optional[dict],
     card_page: int,
     book_slug: str,
     recipe_slug: str,
 ) -> Optional[str]:
     """Render and save the recipe photo. Returns saved path or None."""
-    target_page = photo_page if photo_page is not None else (card_page if photo_is_inset else None)
-    if target_page is None:
+    if photo_page is not None:
+        target_page = photo_page
+        crop = None
+    elif inset_bbox is not None:
+        target_page = card_page
+        crop = inset_bbox
+    else:
         return None
+
     loop = asyncio.get_running_loop()
     images = await loop.run_in_executor(
         None,
@@ -558,10 +564,20 @@ async def _save_recipe_photo_vision(
     )
     if not images:
         return None
+
+    img = images[0]
+    if crop is not None:
+        w_px, h_px = img.size
+        x1 = int(crop["x"] * w_px)
+        y1 = int(crop["y"] * h_px)
+        x2 = int((crop["x"] + crop["w"]) * w_px)
+        y2 = int((crop["y"] + crop["h"]) * h_px)
+        img = img.crop((x1, y1, x2, y2))
+
     filename = f"pdf-{book_slug}-{recipe_slug}.jpg"
     out_path = _PHOTOS_DIR / filename
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    images[0].save(str(out_path), "JPEG", quality=85)
+    img.save(str(out_path), "JPEG", quality=85)
     return str(out_path)
 
 
@@ -638,7 +654,7 @@ async def create_vision_session(
                     photo_path = await _save_recipe_photo_vision(
                         pdf_path,
                         raw.get("photo_page"),
-                        raw.get("photo_is_inset", False),
+                        raw.get("inset_bbox"),
                         w["card_page"],
                         book_slug,
                         recipe_slug,
