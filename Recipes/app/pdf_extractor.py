@@ -552,6 +552,8 @@ async def _save_recipe_photo_vision(
         target_page = photo_page
         crop = None
     elif inset_bbox is not None:
+        if not isinstance(inset_bbox, dict):
+            return None
         target_page = card_page
         crop = inset_bbox
     else:
@@ -630,8 +632,15 @@ async def identify_inset_bbox(pdf_path: str, card_page: int) -> Optional[dict]:
     text = message.content[0].text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
-    result = json.loads(text)
-    return result.get("bbox") if result.get("has_food_photo") else None
+    try:
+        result = json.loads(text)
+    except json.JSONDecodeError:
+        print(f"[identify_inset_bbox] JSON parse failed for card_page={card_page}; raw: {text[:200]!r}", flush=True)
+        return None
+    bbox = result.get("bbox") if result.get("has_food_photo") else None
+    if bbox is not None and not isinstance(bbox, dict):
+        return None
+    return bbox
 
 
 async def create_vision_session(
