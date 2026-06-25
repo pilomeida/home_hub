@@ -10,6 +10,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, "/srv/recipe-app")
 os.chdir("/srv/recipe-app")
@@ -22,6 +23,18 @@ from app.pdf_extractor import (
 from app.database import engine
 from app.models import Recipe
 from sqlmodel import Session
+
+BBOX_TIMEOUT = 90  # seconds per Vision call
+
+
+async def _safe_inset_bbox(pdf_path: str, card_page: int) -> Optional[dict]:
+    try:
+        return await asyncio.wait_for(
+            identify_inset_bbox(pdf_path, card_page), timeout=BBOX_TIMEOUT
+        )
+    except asyncio.TimeoutError:
+        print(f"[timeout after {BBOX_TIMEOUT}s] → skipping", flush=True)
+        return "TIMEOUT"
 
 PDF = "data/pdf_uploads/8b0bca78.pdf"
 BOOK_SLUG = "broccoli-mum"
@@ -68,14 +81,23 @@ def _delete_photo(photo_path: str) -> None:
         print(f"    deleted {p.name}")
 
 
+TIMED_OUT: list[int] = []
+
+
 async def main() -> None:
     # ── Phase 1: Save correct full-page photos ───────────────────────────────
+    # (already completed in the previous run — re-running is harmless, skips
+    # recipes whose photo_path already points at the right file)
     print("\n=== Phase 1: Full-page photo saves ===")
     with Session(engine) as db:
         for recipe_id, slug, photo_page in FULL_PAGE_FIXES:
             r = db.get(Recipe, recipe_id)
             if r is None:
                 print(f"  id={recipe_id}: not found, skipping")
+                continue
+            expected = f"app/static/photos/pdf-{BOOK_SLUG}-{slug}.jpg"
+            if r.photo_path and r.photo_path == expected and Path(expected).exists():
+                print(f"  id={recipe_id} {r.dish_name!r}: already saved, skipping")
                 continue
             print(f"  id={recipe_id} {r.dish_name!r}: saving page {photo_page}")
             if r.photo_path:
@@ -114,9 +136,13 @@ async def main() -> None:
             print(f"  id={recipe_id} {r.dish_name!r} card_page={card_page}:", end=" ", flush=True)
 
             try:
-                bbox = await identify_inset_bbox(PDF, card_page)
+                bbox = await _safe_inset_bbox(PDF, card_page)
             except Exception as exc:
                 print(f"bbox detection failed: {exc}")
+                continue
+
+            if bbox == "TIMEOUT":
+                TIMED_OUT.append(recipe_id)
                 continue
 
             if bbox is None:
@@ -129,7 +155,6 @@ async def main() -> None:
                 continue
 
             print(f"bbox={bbox} → cropping")
-            old_photo = r.photo_path
             try:
                 new_path = await _save_recipe_photo_vision(
                     PDF,
@@ -145,7 +170,11 @@ async def main() -> None:
             except Exception as exc:
                 print(f"    photo save failed: {exc}")
 
-    print("\n=== Done ===")
+    if TIMED_OUT:
+        print(f"\n⚠ Timed out (skipped): ids {TIMED_OUT}")
+        print("Re-run the script to retry these.")
+    else:
+        print("\n=== Done ===")
 
 
 asyncio.run(main())
