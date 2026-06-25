@@ -12,7 +12,6 @@ Run on VPS:
     /srv/recipe-app/venv/bin/python3 app/fix_photos.py
 """
 import asyncio
-import json
 import os
 import sys
 from pathlib import Path
