@@ -263,7 +263,7 @@ async def _store_recipe(data: dict, photo_path: str | None, source_url: str) -> 
         cooking_types=json.dumps(data.get("cooking_types") or []),
         photo_path=photo_path,
         source_url=source_url,
-        source_title="Telegram" if source_url.startswith("tg://") else None,
+        source_title="Social Networks" if source_url.startswith("tg://") else None,
     )
     session_gen = get_session()
     session = next(session_gen)
