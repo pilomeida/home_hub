@@ -586,17 +586,27 @@ async def _save_recipe_photo_vision(
 INSET_BBOX_PROMPT = """\
 This is a recipe card page from a cookbook.
 
-Does it contain a FOOD PHOTOGRAPH — a real photograph (not a sketch, illustration,
-or clipart) of the prepared dish?
+Look carefully for a FOOD PHOTOGRAPH — a real photograph of the prepared dish
+(not a sketch, illustration, or clipart).
+
+If you find one, return the TIGHTEST possible bounding box that encloses ONLY
+the photograph pixels. The box must:
+- Include every part of the food photograph
+- Exclude ALL recipe text, ingredient lists, method steps, nutritional info,
+  white space, and borders outside the photo
+- Be as small as possible while still containing the entire photo
+
+Food photographs on these cards are typically a small to medium region — usually
+less than 40% of the card's total area.
 
 Return JSON only, no fences:
-{"has_food_photo": true, "bbox": {"x": 0.12, "y": 0.05, "w": 0.45, "h": 0.38}}
+{"has_food_photo": true, "bbox": {"x": 0.05, "y": 0.08, "w": 0.35, "h": 0.30}}
 
-If no food photograph, return:
+If NO food photograph exists on this card:
 {"has_food_photo": false, "bbox": null}
 
-x and y are the top-left corner; w and h are width and height — all as fractions
-of the page (0.0 to 1.0).\
+x, y = top-left corner of the photograph; w, h = its width and height.
+All values are fractions of the full page (0.0 to 1.0).\
 """
 
 
