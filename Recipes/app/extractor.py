@@ -71,9 +71,98 @@ Excerpt:
 ---"""
 
 
+IMAGE_EXTRACTION_PROMPT = """You are a recipe data extractor. These images are from a recipe post — some are screenshots showing the recipe title, ingredients, and instructions; one shows the finished dish. Extract all recipe information from the text in the screenshots.
+
+Return ONLY valid JSON — no commentary, no markdown fences.
+
+Return a JSON object with these keys:
+- dish_name: string — the canonical dish name (e.g., "Bolo de Chocolate", "Frango Assado")
+- distinguishing_feature: string or null — what makes this version unique (e.g., "whey protein", "low-cal", "air fryer", "vegan")
+- type: string — "sweet" or "savory"
+- subtype: string or null — one of: "main", "dessert", "snack", "soup", "salad", "breakfast", "side", "drink"
+- macro_tags: array of strings — any that apply from: "protein-rich", "low-carb", "keto", "vegan", "gluten-free", "fiber-rich", "high-fat", "dairy-free". Include others that fit.
+- calories_per_portion: integer or null — best estimate of calories per serving
+- ingredients: array of strings — full ingredient lines with quantities and units exactly as written (e.g., "1 tablespoon rolled oats (40g)", "90g low-fat Greek yogurt"). Preserve amounts.
+- prep_time_minutes: integer or null — preparation time in minutes
+- cook_time_minutes: integer or null — cooking time in minutes (null for no-cook dishes)
+- portions: integer or null — number of servings
+- instructions: string or null — full preparation steps as markdown. Include all steps mentioned.
+- missing_critical_info: boolean — true if the images are missing most fields (e.g., no ingredients, no instructions, no dish name identifiable)
+- cooking_types: array of strings — all that apply from: "oven", "cooktop", "microwave", "blender", "no-cook", "air-fryer", "other". Infer from the instructions text. Can be multiple values. Use [] if no cooking is needed.
+- protein_g: integer or null — grams of protein per portion. Parse from text like "Protein - 22.8g" or "P 37.3g". Round to nearest integer.
+- fat_g: integer or null — grams of fat per portion. Parse from "Fat - 80.9g" or "F 9g".
+- carbs_g: integer or null — grams of carbs per portion. Parse from "Carbs - 9.5g" or "C 16.8g".
+- fiber_g: integer or null — grams of fiber per portion. Null if not stated.
+
+Be conservative: if a field isn't clearly stated, use null. Don't guess calories unless mentioned."""
+
+
 class ExtractionError(Exception):
     """Raised when LLM extraction fails after retries."""
     pass
+
+
+async def extract_recipe_from_images(image_bytes_list: list[bytes]) -> dict[str, Any]:
+    """Extract structured recipe data from a list of images using Claude Vision.
+
+    The images should be recipe screenshots (ingredients/instructions). Pass the
+    food photo separately — it is not needed here.
+
+    Args:
+        image_bytes_list: Raw bytes for each screenshot image (JPEG or PNG).
+
+    Returns:
+        Dict with keys matching the recipe schema.
+
+    Raises:
+        ExtractionError: If the list is empty or extraction fails after retries.
+    """
+    import base64
+
+    if not image_bytes_list:
+        raise ExtractionError("No images provided for extraction")
+
+    content: list[dict] = []
+    for img_bytes in image_bytes_list:
+        b64 = base64.standard_b64encode(img_bytes).decode()
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/jpeg", "data": b64},
+        })
+    content.append({"type": "text", "text": IMAGE_EXTRACTION_PROMPT})
+
+    retry_prefix = ""
+    for attempt in range(2):
+        try:
+            message = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=2048,
+                temperature=0,
+                messages=[{"role": "user", "content": content}],
+            )
+            response_text = message.content[0].text.strip()
+            if response_text.startswith("```"):
+                response_text = re.sub(r"^```(?:json)?\s*", "", response_text)
+                response_text = re.sub(r"\s*```$", "", response_text)
+            data = json.loads(response_text)
+            _validate_extraction(data)
+            return data
+        except (json.JSONDecodeError, KeyError, IndexError, ValueError):
+            if attempt == 1:
+                raise ExtractionError(
+                    "Failed to extract valid JSON from vision response after 2 attempts"
+                )
+            # On retry, replace the text block with a stricter instruction
+            content[-1] = {
+                "type": "text",
+                "text": (
+                    "The previous response was not valid JSON. "
+                    "You MUST return ONLY valid JSON, no other text.\n\n"
+                    + IMAGE_EXTRACTION_PROMPT
+                ),
+            }
+
+    raise ExtractionError("Unreachable")  # pragma: no cover
 
 
 async def extract_recipe(text: str, source_url: str) -> dict[str, Any]:

@@ -11,8 +11,6 @@ load_dotenv()
 class Settings:
     TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
     ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
-    IG_USERNAME: str = os.environ["IG_USERNAME"]
-    IG_PASSWORD: str = os.environ["IG_PASSWORD"]
     ALLOWED_TELEGRAM_USER_ID: int = int(os.environ["ALLOWED_TELEGRAM_USER_ID"])
     VPS_IP: str = os.environ.get("VPS_IP", "127.0.0.1")
     DATABASE_PATH: Path = Path(os.environ.get("DATABASE_PATH", "data/recipes.db"))
