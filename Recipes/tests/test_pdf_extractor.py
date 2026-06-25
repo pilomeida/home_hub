@@ -20,7 +20,9 @@ from app.pdf_extractor import (
     extract_toc_vision,
     extract_recipe_vision,
     _save_recipe_photo_vision,
+    identify_inset_bbox,
     VISION_EXTRACTION_PROMPT,
+    INSET_BBOX_PROMPT,
 )
 import app.pdf_extractor as _pe
 import random as _random
@@ -413,3 +415,31 @@ async def test_create_vision_session_full_book_mode(tmp_path, monkeypatch):
     assert len(session.sampled_indices) == 3
     assert len(session.extracted) == 3
     assert session.extraction_complete is True
+
+
+@pytest.mark.asyncio
+async def test_identify_inset_bbox_returns_bbox_when_photo_found():
+    result_json = '{"has_food_photo": true, "bbox": {"x": 0.1, "y": 0.05, "w": 0.45, "h": 0.4}}'
+    fake_img = Image.new("RGB", (680, 880))
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text=result_json)])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await identify_inset_bbox("/fake/book.pdf", card_page=73)
+    assert result == {"x": 0.1, "y": 0.05, "w": 0.45, "h": 0.4}
+
+
+@pytest.mark.asyncio
+async def test_identify_inset_bbox_returns_none_when_no_photo():
+    result_json = '{"has_food_photo": false, "bbox": null}'
+    fake_img = Image.new("RGB", (680, 880))
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        return_value=MagicMock(content=[MagicMock(text=result_json)])
+    )
+    with patch("app.pdf_extractor.convert_from_path", return_value=[fake_img]), \
+         patch("app.pdf_extractor._get_client", return_value=mock_client):
+        result = await identify_inset_bbox("/fake/book.pdf", card_page=73)
+    assert result is None

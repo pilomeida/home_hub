@@ -581,6 +581,59 @@ async def _save_recipe_photo_vision(
     return str(out_path)
 
 
+INSET_BBOX_PROMPT = """\
+This is a recipe card page from a cookbook.
+
+Does it contain a FOOD PHOTOGRAPH — a real photograph (not a sketch, illustration,
+or clipart) of the prepared dish?
+
+Return JSON only, no fences:
+{"has_food_photo": true, "bbox": {"x": 0.12, "y": 0.05, "w": 0.45, "h": 0.38}}
+
+If no food photograph, return:
+{"has_food_photo": false, "bbox": null}
+
+x and y are the top-left corner; w and h are width and height — all as fractions
+of the page (0.0 to 1.0).\
+"""
+
+
+async def identify_inset_bbox(pdf_path: str, card_page: int) -> Optional[dict]:
+    """Detect food photo inset on a recipe card page via Vision.
+
+    Returns {"x", "y", "w", "h"} as page fractions, or None if no real food photo.
+    """
+    loop = asyncio.get_running_loop()
+    images = await loop.run_in_executor(
+        None,
+        lambda: convert_from_path(pdf_path, first_page=card_page, last_page=card_page, dpi=150),
+    )
+    if not images:
+        return None
+    buf = io.BytesIO()
+    images[0].save(buf, format="PNG")
+    b64 = base64.standard_b64encode(buf.getvalue()).decode()
+    content = [
+        {
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": b64},
+        },
+        {"type": "text", "text": INSET_BBOX_PROMPT},
+    ]
+    client = _get_client()
+    message = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=256,
+        temperature=0,
+        messages=[{"role": "user", "content": content}],
+    )
+    text = message.content[0].text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    result = json.loads(text)
+    return result.get("bbox") if result.get("has_food_photo") else None
+
+
 async def create_vision_session(
     pdf_path: str,
     book_title: str,
