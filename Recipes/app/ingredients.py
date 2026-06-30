@@ -8,11 +8,22 @@ _HARM_FILE = Path("data/ingredient_harmonization.json")
 
 # ── Normalization regexes ─────────────────────────────────────────────────────
 
-_PLUS_RE        = re.compile(r'^[+&]\s*')   # strip leading + or &
+_PLUS_RE        = re.compile(r'^[+&/]\s*')  # strip leading +, & or / (/ appears after prep-word strip)
 _MARKDOWN_RE    = re.compile(r'^[*_~`]+|[*_~`]+$')  # strip * _ ~ ` formatting marks
 _INLINE_VEGAN_RE = re.compile(r'\bvegan\b\s*', re.IGNORECASE)  # strip "vegan" anywhere
+_INLINE_DIET_RE  = re.compile(   # strip diet labels from anywhere in the name
+    r'\b(?:sugar-?free|dairy-?free|fat-?free|oil-?free|gluten-?free)\b\s*',
+    re.IGNORECASE,
+)
 _PLUS_QTY_RE   = re.compile(r'\s+\+\s+\d.*$')  # strip "+ 1 egg white" addons
-_OPTIONAL_RE    = re.compile(r'^\(optional\)\s*|^optional\s*[-–:]\s*', re.IGNORECASE)
+_OPTIONAL_RE    = re.compile(
+    r'^\(optional\)\s*|^optional\s*[-–:]\s*|\s*,\s*optional\s*$',
+    re.IGNORECASE,
+)
+# Spelling normalizations applied early (abbreviations + regional variants)
+_CHOC_RE    = re.compile(r'\bchoc\b', re.IGNORECASE)      # "choc chip" → "chocolate chip"
+_YOGHURT_RE = re.compile(r'\byoghurt\b', re.IGNORECASE)   # "yoghurt" → "yogurt"
+_SOYA_RE    = re.compile(r'\bsoya\b', re.IGNORECASE)       # "soya sauce" → "soy sauce"
 _PAREN_RE       = re.compile(r'\s*\([^)]*\)')
 _UNCLOSED_PAREN_RE = re.compile(r'\s*\([^)]*$')  # strip unclosed parens: "Oats (or 30g oat"
 _JUICE_ZEST_RE  = re.compile(                 # "juice of a lemon" → "lemon"
@@ -47,6 +58,7 @@ _OF_CHOICE_RE   = re.compile(r'\s+of\s+(?:\w+\s+)?choice\s*$', re.IGNORECASE)  #
 _INDEF_RE       = re.compile(
     r'^(?:'
     r'a\s+few\s+\w+\s+|a\s+handful\s+|some\s+|an?\s+'  # indefinite articles/quantifiers
+    r'|few\s+'                              # "few jalapeños" (without leading "a")
     r'|your\s+favou?rite\s+|my\s+'          # possessives
     r'|half\s+an?\s+'                       # "half a lime", "half an avocado"
     r'|whole\s+lot\s+of\s+'                 # "whole lot of potato"
@@ -69,14 +81,15 @@ _PREP_RE = re.compile(
     r'shredded|ground|roasted|toasted|dried|frozen|canned|ripe|powdered|'
     r'boiled|fried|deep-fried|baked|steamed|saut[eé]ed|grilled|blanched|'
     r'braised|poached|smoked|cured|dehydrated|pickled|marinated|caramelized|'
-    r'blended|pur[eé]ed|mashed|crumbled|strained|sifted|whisked|beaten|'
+    r'blended|pur[eé]ed|mashed|crumbled|strained|sifted|whisked|beaten|melted|'
     r'brewed|soaked|tinned|reduced|whipped|spreadable|'
     # treatment
     r'peeled|pitted|seeded|deseeded|destemmed|halved|quartered|'
     r'skinless|boneless|lean|skinned|trimmed|deboned|'
     r'washed|drained|rinsed|squeezed|zested|salted|unsalted|seasoned|'
-    # size / shape
-    r'large|medium|small|big|fat|tiny|giant|mini|thick|thin|bite-?sized?|huge|'
+    # size / shape / quality descriptor
+    r'large|medium|small|big|fat|tiny|giant|mini|thick|thin|bite-?sized?|huge|fine|yellow|'
+    r'julienned|'
     # state / condition
     r'fresh|raw|overripe|spotted|spotty|ripe|soft|firm|wilted|runny|solid|'
     # pre-prepared (with or without hyphen/space)
@@ -95,11 +108,16 @@ _PREP_RE = re.compile(
     r'baby|young|aged|mature|old|'
     # misc leading qualifiers
     r'extra|plain|natural|pure|simple|easy|standard|'
-    r')(?:\s+|$)',
+    r')(?:\s+|/|$)',   # "/" covers "shredded/minced" → strips "shredded/" → next pass strips "minced "
     re.IGNORECASE,
 )
 
 _OR_ALT_RE            = re.compile(r'\s*,?\s+(?:or\s+|/\s*).+$', re.IGNORECASE)
+_TRAILING_COMMA_SHAPE_RE = re.compile(  # ", thin round slices", ", small cubes" — shape instructions
+    r'\s*,\s*(?:(?:thin|thick|large|small|flat|round|long|diagonal)\s+)*'
+    r'(?:slice|strip|cube|chunk|dice|ring|half|quarter|piece)s?\s*$',
+    re.IGNORECASE,
+)
 _TRAILING_COMMA_PREP_RE = re.compile(  # ", chopped", ", drained & rinsed", ", no added sugar", etc.
     r'\s*,\s*(?:[+&]\s*)?'
     r'(?:halved|sliced|thinly\s+sliced|finely\s+sliced|'
@@ -165,6 +183,7 @@ _SINGULAR_MAP: dict[str, str] = {
     'molasses':  'molasses',
     'oats':      'oat',
     'dates':     'date',
+    'veggies':   'veggie',   # "veggies" → "veggie" (generic rule gives wrong "veggy")
 }
 
 
@@ -199,12 +218,17 @@ def norm_ingredient(raw: str) -> str:
     s = _MARKDOWN_RE.sub('', s).strip()     # strip * _ ~ ` formatting marks
     if not s:
         return ''
+    # Spelling/abbreviation normalizations (must happen before all other rules)
+    s = _CHOC_RE.sub('chocolate', s)        # "choc" → "chocolate"
+    s = _YOGHURT_RE.sub('yogurt', s)        # "yoghurt" → "yogurt"
+    s = _SOYA_RE.sub('soy', s)              # "soya" → "soy"
     # Drop section headers / instructional / alternative lines entirely
     if _SECTION_RE.match(s):
         return ''
     s = _OPTIONAL_RE.sub('', s)
     s = _JUICE_ZEST_RE.sub('', s)           # "juice of a lemon" → "lemon"
     s = _INLINE_VEGAN_RE.sub('', s).strip() # strip "vegan" wherever it appears
+    s = _INLINE_DIET_RE.sub('', s).strip()  # strip "sugar-free", "dairy-free" etc. from middle of names
     s = _PLUS_RE.sub('', s)
     s = _PAREN_RE.sub('', s).strip()
     s = _UNCLOSED_PAREN_RE.sub('', s).strip()
@@ -220,6 +244,7 @@ def norm_ingredient(raw: str) -> str:
     s = _PLUS_QTY_RE.sub('', s)        # strip "+ 1 egg white" (after qty already consumed fractions)
     s = _LEADING_OR_QTY_RE.sub('', s) # strip "or 226g" qty alternative exposed after QTY strip
     s = _QTY_RE.sub('', s)            # third pass: catch qty exposed by leading-or-qty strip
+    s = _JUICE_ZEST_RE.sub('', s)     # second pass: "1 zest of lemon" — "1" stripped above, now catches "zest of"
     s = _ARTICLE_RE.sub('', s)
     s = _INDEF_RE.sub('', s)          # second pass: catches "my/your favourite" exposed by qty stripping
     # Strip stacked prep/size adjectives (loop until stable)
@@ -234,6 +259,7 @@ def norm_ingredient(raw: str) -> str:
     s = _OR_ALT_RE.sub('', s)
     s = _WITH_LIQUID_RE.sub('', s)
     s = _TRAILING_INTO_RE.sub('', s)        # "chicken breast cut into strips" → "chicken breast"
+    s = _TRAILING_COMMA_SHAPE_RE.sub('', s)  # ", thin round slices" — shape instructions
     s = _TRAILING_COMMA_PREP_RE.sub('', s)
     s = _TRAILING_BARE_PREP_RE.sub('', s)   # "coriander chopped" → "coriander"
     s = _TRAILING_FOR_RE.sub('', s)
