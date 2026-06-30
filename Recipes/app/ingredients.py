@@ -8,31 +8,44 @@ _HARM_FILE = Path("data/ingredient_harmonization.json")
 
 # ── Normalization regexes ─────────────────────────────────────────────────────
 
-_PLUS_RE     = re.compile(r'^[+&]\s*')   # strip leading + or &
-_OPTIONAL_RE = re.compile(r'^\(optional\)\s*', re.IGNORECASE)
-_PAREN_RE    = re.compile(r'\s*\([^)]*\)')
-_QTY_RE      = re.compile(
-    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s%]+'              # digits/fractions/spaces/% (e.g. "0%")
+_PLUS_RE        = re.compile(r'^[+&]\s*')   # strip leading + or &
+_OPTIONAL_RE    = re.compile(r'^\(optional\)\s*|^optional\s*[-–:]\s*', re.IGNORECASE)
+_PAREN_RE       = re.compile(r'\s*\([^)]*\)')
+_JUICE_ZEST_RE  = re.compile(                 # "juice of a lemon" → "lemon"
+    r'^(?:the\s+)?(?:juice|zest)\s+of\s+'
+    r'(?:[½¼\d/]+\s+)?(?:a\s+|an\s+|one\s+|half\s+(?:a\s+)?)?',
+    re.IGNORECASE,
+)
+_QTY_RE = re.compile(
+    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s%+]+'              # +: covers "1 + 1/2 cups"
     r'(?:heaping\s+|level\s+)?'
     r'(?:(?:g|ml|mL|dl|dL|l|L|kg|lb|lbs|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
     r'|dessert\s+spoons?|pieces?|slices?|cloves?|pinch(?:es)?|handful|drops?'
     r'|sprigs?|scoops?|cans?|squares?|cubes?|fillets?|sheets?|stalks?|heads?'
-    r'|bunches?|bags?|jars?|bottles?|packets?|sachets?|servings?)\b)?'  # \b: don't eat "L" from "Large"
+    r'|bunches?|bags?|jars?|bottles?|packets?|sachets?|servings?'
+    r'|tins?|packs?|balls?|blocks?|thumbs?|sticks?|layers?|cloves?)\b)?'
     r'\s*',
     re.IGNORECASE,
 )
-# Colloquial quantity words not preceded by a number
+# Colloquial container/quantity words not preceded by a number
 _COLLOQUIAL_QTY_RE = re.compile(
-    r'^(?:hips?|heaps?|bits?|loads?|bunch(?:es)?|splash(?:es)?|squeeze|knob|'
+    r'^(?:hips?|heaps?|bits?|loads?|splash(?:es)?|squeeze|knob|'
     r'dollop|dash|drizzle|sprinkle|dusting|smidge|trace|touch|handful|'
-    r'box(?:es)?|container(?:s)?|package(?:s)?|pouch(?:es)?|carton(?:s)?)'
-    r'\s+(?:of\s+)?',
+    r'box(?:es)?|container(?:s)?|package(?:s)?|pouch(?:es)?|carton(?:s)?|'
+    r'tin(?:s)?|ball(?:s)?|bulb(?:s)?|block(?:s)?|pack(?:s)?|thumb(?:s)?|'
+    r'head(?:s)?|layer(?:s)?|strip(?:s)?|spray|drop(?:s)?|'
+    r'piece(?:s)?|cube(?:s)?|stick(?:s)?|sheet(?:s)?|pinch(?:es)?|'
+    r'slice(?:s)?|scoop(?:s)?|bunch(?:es)?|jar(?:s)?|can(?:s)?|bottle(?:s)?|'
+    r'bag(?:s)?|clove(?:s)?)\s+(?:of\s+)?',
     re.IGNORECASE,
 )
-_OF_CHOICE_RE = re.compile(r'\s+of\s+choice\s*$', re.IGNORECASE)
-_INDEF_RE    = re.compile(r'^(?:a\s+few\s+\w+|a\s+handful|some|an?)\s+(?:of\s+)?', re.IGNORECASE)
-_OF_RE       = re.compile(r'^of\s+', re.IGNORECASE)
-_ARTICLE_RE  = re.compile(r'^(?:a|an)\s+', re.IGNORECASE)
+_OF_CHOICE_RE   = re.compile(r'\s+of\s+choice\s*$', re.IGNORECASE)
+_INDEF_RE       = re.compile(
+    r'^(?:a\s+few\s+\w+|a\s+handful|some|an?|your\s+favou?rite|my)\s+(?:of\s+)?',
+    re.IGNORECASE,
+)
+_OF_RE          = re.compile(r'^of\s+', re.IGNORECASE)
+_ARTICLE_RE     = re.compile(r'^(?:a|an|the)\s+', re.IGNORECASE)
 
 # Applied repeatedly until stable — handles stacked adjectives like "large frozen ripe"
 _PREP_RE = re.compile(
@@ -47,38 +60,69 @@ _PREP_RE = re.compile(
     r'boiled|fried|deep-fried|baked|steamed|saut[eé]ed|grilled|blanched|'
     r'braised|poached|smoked|cured|dehydrated|pickled|marinated|caramelized|'
     r'blended|pur[eé]ed|mashed|crumbled|strained|sifted|whisked|beaten|'
-    r'brewed|soaked|'
+    r'brewed|soaked|tinned|reduced|whipped|spreadable|'
     # treatment
     r'peeled|pitted|seeded|deseeded|destemmed|halved|quartered|'
     r'skinless|boneless|lean|skinned|trimmed|deboned|'
     r'washed|drained|rinsed|squeezed|zested|'
-    # size / shape descriptors
-    r'large|medium|small|big|fat|tiny|giant|mini|thick|thin|bite-?sized?|'
+    # size / shape
+    r'large|medium|small|big|fat|tiny|giant|mini|thick|thin|bite-?sized?|huge|'
     # state / condition
-    r'fresh|raw|overripe|spotted|ripe|soft|firm|wilted|runny|solid|'
-    # pre-prepared
-    r'pre-baked|pre-steamed|pre-cooked|pre-soaked|pre-washed|pre-cut|'
-    # diet / quality labels
-    r'low-fat|fat-free|full-fat|sugar-free|dairy-free|gluten-free|'
+    r'fresh|raw|overripe|spotted|spotty|ripe|soft|firm|wilted|runny|solid|'
+    # pre-prepared (with or without hyphen/space)
+    r'pre-?\s*(?:baked|steamed|cooked|soaked|washed|cut)|'
+    # diet / quality labels (hyphen-optional variants)
+    r'low-?\s*fat|fat-?free|full-?fat|sugar-?free|dairy-?free|gluten-?free|'
     r'organic|unsweetened|sweetened|unsweet|no-?added-?sugar|'
-    r'low-sodium|reduced-fat|skimmed|semi-skimmed|'
-    # filler quality words
-    r'nice|good|great|beautiful|perfect|additional|'
+    r'low-?sodium|reduced-?fat|skimmed|semi-?skimmed|oil-?free|'
+    r'plant-?\s*based|vegan|light|'
+    # filler quality / source words
+    r'nice|good|great|beautiful|perfect|additional|homemade|'
     # age / maturity
     r'baby|young|aged|mature|old|'
     # misc leading qualifiers
     r'extra|plain|natural|pure|'
-    r')(?:\s+|$)',  # allow bare single-word prep strings (e.g. "rinsed" with no following text)
+    r')(?:\s+|$)',
     re.IGNORECASE,
 )
 
-_OR_ALT_RE       = re.compile(r'\s*,?\s+or\s+.+$', re.IGNORECASE)
-_TRAILING_TO_RE  = re.compile(r'\s+to\s+\w+.*$', re.IGNORECASE)  # "to taste", "to reach X", "to coat"
-_SECTION_RE   = re.compile(r'^(?:for\s+the|to\s+serve|to\s+garnish|for\s+garnish'
-                            r'|for\s+topping|note[:\s]|tip[:\s])', re.IGNORECASE)
+_OR_ALT_RE            = re.compile(r'\s*,?\s+or\s+.+$', re.IGNORECASE)
+_TRAILING_COMMA_PREP_RE = re.compile(  # ", chopped", ", drained & rinsed", etc.
+    r'\s*,\s*(?:[+&]\s*)?'
+    r'(?:halved|sliced|thinly\s+sliced|finely\s+sliced|'
+    r'chopped|finely\s+chopped|roughly\s+chopped|coarsely\s+chopped|'
+    r'diced|minced|grated|finely\s+grated|julienned|'
+    r'frozen|drained|rinsed|soaked|squeezed|'
+    r'peeled|pitted|trimmed|zested|shredded|crumbled|'
+    r'roasted|toasted|blended|mashed|beaten)'
+    r'.*$',
+    re.IGNORECASE,
+)
+_TRAILING_FOR_RE      = re.compile(r'\s+for\s+\w+.*$', re.IGNORECASE)
+_TRAILING_TO_RE       = re.compile(r'\s+to\s+\w+.*$', re.IGNORECASE)
+_PART_RE              = re.compile(r'\s+(?:floret|stalk|stem)s?\s*$', re.IGNORECASE)
+_SECTION_RE           = re.compile(
+    r'^(?:for\s+the|to\s+serve|to\s+garnish|for\s+garnish'
+    r'|for\s+topping|note[:\s]|tip[:\s]|---)',
+    re.IGNORECASE,
+)
 
+_WITH_LIQUID_RE    = re.compile(                               # "chickpeas with liquid/aquafaba/brine"
+    r'\s+with\s+(?:the\s+)?(?:liquid|aquafaba|brine|juice|salt|oil|water)\b.*$',
+    re.IGNORECASE,
+)
+_DASH_CLAUSE_RE    = re.compile(r'\s+[-–]\s+\w+.*$')           # "nut butter – improves texture"
+_PAGE_REF_RE       = re.compile(r'\s+[-–]?\s*(?:see\s+)?(?:page|pg|p)\.*\s*\d+.*$', re.IGNORECASE)
 _COMPOUND_SPLIT_RE = re.compile(r',\s*(?:and\s+)?|\s+and\s+', re.IGNORECASE)
 _SIMPLE_AND_RE     = re.compile(r'^([\w][\w-]*)\s+and\s+([\w][\w-]*)$', re.IGNORECASE)
+
+# Explicit singularization overrides for words where the generic rules produce wrong results
+_SINGULAR_MAP: dict[str, str] = {
+    'peaches':   'peach',
+    'molasses':  'molasses',
+    'oats':      'oat',
+    'dates':     'date',
+}
 
 
 def _singularize(s: str) -> str:
@@ -88,16 +132,21 @@ def _singularize(s: str) -> str:
         return s
     last = words[-1]
     lo = last.lower()
-    if lo.endswith('ies') and len(last) > 4:
-        last = last[:-3] + 'y'                   # cherries → cherry
+    if lo in _SINGULAR_MAP:
+        last = _SINGULAR_MAP[lo]
+    elif lo.endswith('ies') and len(last) > 4:
+        last = last[:-3] + 'y'                           # cherries → cherry
     elif lo.endswith('ves') and len(last) > 4:
-        last = last[:-3] + 'f'                   # leaves → leaf
+        if lo.endswith(('ives', 'oves')):
+            last = last[:-1]                              # chives→chive, olives→olive, cloves→clove
+        else:
+            last = last[:-3] + 'f'                       # leaves→leaf, halves→half
     elif lo.endswith('oes') and len(last) > 5:
-        last = last[:-2]                          # tomatoes → tomato
+        last = last[:-2]                                  # tomatoes → tomato
     elif (lo.endswith('s')
           and not lo.endswith(('ss', 'us', 'is', 'ous', 'news', 'ics'))
           and len(last) > 3):
-        last = last[:-1]                          # eggs → egg, carrots → carrot
+        last = last[:-1]                                  # eggs → egg, carrots → carrot
     words[-1] = last
     return ' '.join(words)
 
@@ -107,25 +156,37 @@ def norm_ingredient(raw: str) -> str:
     # Drop section headers / instructional lines entirely
     if _SECTION_RE.match(s):
         return ''
-    s = _PLUS_RE.sub('', s)
     s = _OPTIONAL_RE.sub('', s)
+    s = _JUICE_ZEST_RE.sub('', s)      # "juice of a lemon" → "lemon"
+    s = _PLUS_RE.sub('', s)
     s = _PAREN_RE.sub('', s).strip()
+    s = _DASH_CLAUSE_RE.sub('', s)     # strip "– adds flavour", "– see page 286"
+    s = _PAGE_REF_RE.sub('', s)        # strip "See page 286"
     s = _INDEF_RE.sub('', s)
     s = _COLLOQUIAL_QTY_RE.sub('', s)
     s = _QTY_RE.sub('', s)
     s = _OF_RE.sub('', s)
+    s = _QTY_RE.sub('', s)             # second pass: catches "0% sugar", "85% dark choc"
+    s = _COLLOQUIAL_QTY_RE.sub('', s)  # second pass: catches "tin/bulb/ball" exposed by QTY strip
+    s = _OF_RE.sub('', s)
     s = _ARTICLE_RE.sub('', s)
     # Strip stacked prep/size adjectives (loop until stable)
-    for _ in range(6):
+    for _ in range(8):
+        s = _PLUS_RE.sub('', s)        # re-strip & exposed by prior prep removal
+        s = _COLLOQUIAL_QTY_RE.sub('', s)  # catch container words exposed by prep strip
+        s = _OF_RE.sub('', s)
         stripped = _PREP_RE.sub('', s)
         if stripped == s:
             break
         s = stripped
     s = _OR_ALT_RE.sub('', s)
+    s = _WITH_LIQUID_RE.sub('', s)
+    s = _TRAILING_COMMA_PREP_RE.sub('', s)
+    s = _TRAILING_FOR_RE.sub('', s)
     s = _OF_CHOICE_RE.sub('', s)
     s = _TRAILING_TO_RE.sub('', s)
+    s = _PART_RE.sub('', s)
     s = s.strip(' ,.-–')
-    # Drop if still too long to be a real ingredient (likely a sentence or instruction)
     if len(s.split()) >= 6:
         return ''
     s = _singularize(s)
