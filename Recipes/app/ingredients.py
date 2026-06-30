@@ -9,15 +9,19 @@ _HARM_FILE = Path("data/ingredient_harmonization.json")
 # ── Normalization regexes ─────────────────────────────────────────────────────
 
 _PLUS_RE        = re.compile(r'^[+&]\s*')   # strip leading + or &
+_MARKDOWN_RE    = re.compile(r'^[*_~`]+|[*_~`]+$')  # strip * _ ~ ` formatting marks
+_INLINE_VEGAN_RE = re.compile(r'\bvegan\b\s*', re.IGNORECASE)  # strip "vegan" anywhere
+_PLUS_QTY_RE   = re.compile(r'\s+\+\s+\d.*$')  # strip "+ 1 egg white" addons
 _OPTIONAL_RE    = re.compile(r'^\(optional\)\s*|^optional\s*[-–:]\s*', re.IGNORECASE)
 _PAREN_RE       = re.compile(r'\s*\([^)]*\)')
+_UNCLOSED_PAREN_RE = re.compile(r'\s*\([^)]*$')  # strip unclosed parens: "Oats (or 30g oat"
 _JUICE_ZEST_RE  = re.compile(                 # "juice of a lemon" → "lemon"
     r'^(?:the\s+)?(?:juice|zest)\s+of\s+'
     r'(?:[½¼\d/]+\s+)?(?:a\s+|an\s+|one\s+|half\s+(?:a\s+)?)?',
     re.IGNORECASE,
 )
 _QTY_RE = re.compile(
-    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s%+]+'              # +: covers "1 + 1/2 cups"
+    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s%+\-–]+'           # -–: covers "1-2 cups" range quantities
     r'(?:heaping\s+|level\s+)?'
     r'(?:(?:g|ml|mL|dl|dL|l|L|kg|lb|lbs|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
     r'|dessert\s+spoons?|pieces?|slices?|cloves?|pinch(?:es)?|handful|drops?'
@@ -36,12 +40,18 @@ _COLLOQUIAL_QTY_RE = re.compile(
     r'head(?:s)?|layer(?:s)?|strip(?:s)?|spray|drop(?:s)?|'
     r'piece(?:s)?|cube(?:s)?|stick(?:s)?|sheet(?:s)?|pinch(?:es)?|'
     r'slice(?:s)?|scoop(?:s)?|bunch(?:es)?|jar(?:s)?|can(?:s)?|bottle(?:s)?|'
-    r'bag(?:s)?|clove(?:s)?)\s+(?:of\s+)?',
+    r'bag(?:s)?|clove(?:s)?|spoonful(?:s)?|inch(?:es)?)\s+(?:of\s+)?',
     re.IGNORECASE,
 )
-_OF_CHOICE_RE   = re.compile(r'\s+of\s+choice\s*$', re.IGNORECASE)
+_OF_CHOICE_RE   = re.compile(r'\s+of\s+(?:\w+\s+)?choice\s*$', re.IGNORECASE)  # "of choice", "of your choice"
 _INDEF_RE       = re.compile(
-    r'^(?:a\s+few\s+\w+|a\s+handful|some|an?|your\s+favou?rite|my)\s+(?:of\s+)?',
+    r'^(?:'
+    r'a\s+few\s+\w+\s+|a\s+handful\s+|some\s+|an?\s+'  # indefinite articles/quantifiers
+    r'|your\s+favou?rite\s+|my\s+'          # possessives
+    r'|half\s+an?\s+'                       # "half a lime", "half an avocado"
+    r'|whole\s+lot\s+of\s+'                 # "whole lot of potato"
+    r'|(?:two|three|four|five|six|seven|eight|nine|ten)\s+'  # written numbers
+    r')(?:of\s+)?',
     re.IGNORECASE,
 )
 _OF_RE          = re.compile(r'^of\s+', re.IGNORECASE)
@@ -64,7 +74,7 @@ _PREP_RE = re.compile(
     # treatment
     r'peeled|pitted|seeded|deseeded|destemmed|halved|quartered|'
     r'skinless|boneless|lean|skinned|trimmed|deboned|'
-    r'washed|drained|rinsed|squeezed|zested|'
+    r'washed|drained|rinsed|squeezed|zested|salted|unsalted|seasoned|'
     # size / shape
     r'large|medium|small|big|fat|tiny|giant|mini|thick|thin|bite-?sized?|huge|'
     # state / condition
@@ -77,44 +87,77 @@ _PREP_RE = re.compile(
     r'low-?sodium|reduced-?fat|skimmed|semi-?skimmed|oil-?free|'
     r'plant-?\s*based|vegan|light|'
     # filler quality / source words
-    r'nice|good|great|beautiful|perfect|additional|homemade|'
+    r'nice|good|great|beautiful|perfect|additional|homemade|favou?rite|'
+    # temperature / texture / state (SAFE: no known compound names start with these)
+    r'chilled|warm|lukewarm|very|juicy|squishy|'
+    r'crunchy|chunky|smooth|creamy|crispy|crisp|'
     # age / maturity
     r'baby|young|aged|mature|old|'
     # misc leading qualifiers
-    r'extra|plain|natural|pure|'
+    r'extra|plain|natural|pure|simple|easy|standard|'
     r')(?:\s+|$)',
     re.IGNORECASE,
 )
 
-_OR_ALT_RE            = re.compile(r'\s*,?\s+or\s+.+$', re.IGNORECASE)
-_TRAILING_COMMA_PREP_RE = re.compile(  # ", chopped", ", drained & rinsed", etc.
+_OR_ALT_RE            = re.compile(r'\s*,?\s+(?:or\s+|/\s*).+$', re.IGNORECASE)
+_TRAILING_COMMA_PREP_RE = re.compile(  # ", chopped", ", drained & rinsed", ", no added sugar", etc.
     r'\s*,\s*(?:[+&]\s*)?'
     r'(?:halved|sliced|thinly\s+sliced|finely\s+sliced|'
     r'chopped|finely\s+chopped|roughly\s+chopped|coarsely\s+chopped|'
     r'diced|minced|grated|finely\s+grated|julienned|'
     r'frozen|drained|rinsed|soaked|squeezed|'
-    r'peeled|pitted|trimmed|zested|shredded|crumbled|'
-    r'roasted|toasted|blended|mashed|beaten)'
+    r'peeled|pitted|trimmed|zested|shredded|crumbled|shred(?:ded)?|'
+    r'roasted|toasted|blended|mashed|beaten|melted|ground|cooked|spiralized|'
+    r'no\s+added\s+\w+|sugar-?free|fat-?free|dairy-?free|oil-?free|gluten-?free)'
     r'.*$',
     re.IGNORECASE,
 )
 _TRAILING_FOR_RE      = re.compile(r'\s+for\s+\w+.*$', re.IGNORECASE)
-_TRAILING_TO_RE       = re.compile(r'\s+to\s+\w+.*$', re.IGNORECASE)
-_PART_RE              = re.compile(r'\s+(?:floret|stalk|stem)s?\s*$', re.IGNORECASE)
+_TRAILING_TO_RE       = re.compile(r'\s+(?:to|as)\s+\w+.*$', re.IGNORECASE)  # "to taste", "as needed"
+_TRAILING_ON_RE       = re.compile(r'\s+on\s+(?:the\s+)?top\b.*$', re.IGNORECASE)
+_TRAILING_INTO_RE     = re.compile(r'\s+(?:cut|torn|broken|divided|sliced)\s+into\s+.*$', re.IGNORECASE)
+_TRAILING_BARE_PREP_RE = re.compile(
+    r'\s+(?:chopped|sliced|diced|minced|grated|peeled|frozen|drained|rinsed|'
+    r'soaked|washed|blended|mashed|trimmed|shredded|crumbled|roasted|toasted|'
+    r'beaten|squeezed|crushed|ground|sifted|whipped|brewed|tinned|pickled|'
+    r'smoked|cured|caramelized|baked|steamed|boiled|fried|poached|grilled|'
+    r'halved|quartered|julienned|zested|deseeded|seeded|pitted|destemmed|'
+    r'melted|spiralized|cooked|pureed|pur[eé]ed|strained|juiced)$',
+    re.IGNORECASE,
+)
+_PART_RE              = re.compile(
+    r'\s+(?:floret|stalk|stem|piece|fillet|loin|drizzle|sprinkle)s?\s*$',
+    re.IGNORECASE,
+)
+_LEADING_OR_QTY_RE    = re.compile(  # "1 cup or 226g cottage cheese" → after "1 cup" stripped, catches "or 226g "
+    r'^or\s+[½¼¾⅓⅔⅛⅜⅝⅞\d./]+\s*'
+    r'(?:g|ml|mL|dl|dL|l|L|kg|lb|lbs|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?)?\b\s*',
+    re.IGNORECASE,
+)
 _SECTION_RE           = re.compile(
     r'^(?:for\s+the|to\s+serve|to\s+garnish|for\s+garnish'
-    r'|for\s+topping|note[:\s]|tip[:\s]|---)',
+    r'|for\s+topping|note[:\s]|tip[:\s]|---|or\s+|filling\s+ideas)',
     re.IGNORECASE,
 )
 
 _WITH_LIQUID_RE    = re.compile(                               # "chickpeas with liquid/aquafaba/brine"
-    r'\s+with\s+(?:the\s+)?(?:liquid|aquafaba|brine|juice|salt|oil|water)\b.*$',
+    r'\s+with\s+(?:the\s+)?(?:\w+\s+)?(?:liquid|aquafaba|brine|juice|salt|oil|water)\b.*$',
     re.IGNORECASE,
 )
 _DASH_CLAUSE_RE    = re.compile(r'\s+[-–]\s+\w+.*$')           # "nut butter – improves texture"
 _PAGE_REF_RE       = re.compile(r'\s+[-–]?\s*(?:see\s+)?(?:page|pg|p)\.*\s*\d+.*$', re.IGNORECASE)
 _COMPOUND_SPLIT_RE = re.compile(r',\s*(?:and\s+)?|\s+and\s+', re.IGNORECASE)
 _SIMPLE_AND_RE     = re.compile(r'^([\w][\w-]*)\s+and\s+([\w][\w-]*)$', re.IGNORECASE)
+
+# Herb names where trailing "leaf/leave/leaves" is redundant (basil leaf → basil)
+_HERB_NAMES = frozenset([
+    'basil', 'mint', 'cilantro', 'parsley', 'sage', 'thyme', 'oregano',
+    'rosemary', 'coriander', 'dill', 'chervil', 'tarragon', 'lovage',
+])
+# Nut base words where trailing "nut" is redundant (cashew nut → cashew)
+_NUT_BASE_WORDS = frozenset([
+    'cashew', 'almond', 'pistachio', 'macadamia', 'pecan', 'brazil', 'pine', 'hazel',
+])
 
 # Explicit singularization overrides for words where the generic rules produce wrong results
 _SINGULAR_MAP: dict[str, str] = {
@@ -153,15 +196,20 @@ def _singularize(s: str) -> str:
 
 def norm_ingredient(raw: str) -> str:
     s = raw.strip()
-    # Drop section headers / instructional lines entirely
+    s = _MARKDOWN_RE.sub('', s).strip()     # strip * _ ~ ` formatting marks
+    if not s:
+        return ''
+    # Drop section headers / instructional / alternative lines entirely
     if _SECTION_RE.match(s):
         return ''
     s = _OPTIONAL_RE.sub('', s)
-    s = _JUICE_ZEST_RE.sub('', s)      # "juice of a lemon" → "lemon"
+    s = _JUICE_ZEST_RE.sub('', s)           # "juice of a lemon" → "lemon"
+    s = _INLINE_VEGAN_RE.sub('', s).strip() # strip "vegan" wherever it appears
     s = _PLUS_RE.sub('', s)
     s = _PAREN_RE.sub('', s).strip()
-    s = _DASH_CLAUSE_RE.sub('', s)     # strip "– adds flavour", "– see page 286"
-    s = _PAGE_REF_RE.sub('', s)        # strip "See page 286"
+    s = _UNCLOSED_PAREN_RE.sub('', s).strip()
+    s = _DASH_CLAUSE_RE.sub('', s)
+    s = _PAGE_REF_RE.sub('', s)
     s = _INDEF_RE.sub('', s)
     s = _COLLOQUIAL_QTY_RE.sub('', s)
     s = _QTY_RE.sub('', s)
@@ -169,7 +217,11 @@ def norm_ingredient(raw: str) -> str:
     s = _QTY_RE.sub('', s)             # second pass: catches "0% sugar", "85% dark choc"
     s = _COLLOQUIAL_QTY_RE.sub('', s)  # second pass: catches "tin/bulb/ball" exposed by QTY strip
     s = _OF_RE.sub('', s)
+    s = _PLUS_QTY_RE.sub('', s)        # strip "+ 1 egg white" (after qty already consumed fractions)
+    s = _LEADING_OR_QTY_RE.sub('', s) # strip "or 226g" qty alternative exposed after QTY strip
+    s = _QTY_RE.sub('', s)            # third pass: catch qty exposed by leading-or-qty strip
     s = _ARTICLE_RE.sub('', s)
+    s = _INDEF_RE.sub('', s)          # second pass: catches "my/your favourite" exposed by qty stripping
     # Strip stacked prep/size adjectives (loop until stable)
     for _ in range(8):
         s = _PLUS_RE.sub('', s)        # re-strip & exposed by prior prep removal
@@ -181,12 +233,23 @@ def norm_ingredient(raw: str) -> str:
         s = stripped
     s = _OR_ALT_RE.sub('', s)
     s = _WITH_LIQUID_RE.sub('', s)
+    s = _TRAILING_INTO_RE.sub('', s)        # "chicken breast cut into strips" → "chicken breast"
     s = _TRAILING_COMMA_PREP_RE.sub('', s)
+    s = _TRAILING_BARE_PREP_RE.sub('', s)   # "coriander chopped" → "coriander"
     s = _TRAILING_FOR_RE.sub('', s)
+    s = _TRAILING_ON_RE.sub('', s)          # "peanuts on top" → "peanuts"
     s = _OF_CHOICE_RE.sub('', s)
     s = _TRAILING_TO_RE.sub('', s)
     s = _PART_RE.sub('', s)
-    s = s.strip(' ,.-–')
+    s = s.strip(' ,.-–*')
+    # Word-level: strip trailing "leaf/leave/leaves" from herb names
+    words_lo = s.lower().split()
+    if len(words_lo) >= 2 and words_lo[-1] in ('leaf', 'leave', 'leaves') and words_lo[-2] in _HERB_NAMES:
+        s = ' '.join(s.split()[:-1]).strip()
+        words_lo = s.lower().split()
+    # Word-level: strip redundant "nut" suffix from specific nut types
+    if len(words_lo) >= 2 and words_lo[-1] in ('nut', 'nuts') and words_lo[-2] in _NUT_BASE_WORDS:
+        s = ' '.join(s.split()[:-1]).strip()
     if len(s.split()) >= 6:
         return ''
     s = _singularize(s)
