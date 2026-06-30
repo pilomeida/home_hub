@@ -68,10 +68,22 @@ class TestQuantities:
     def test_fraction(self):
         assert norm_ingredient("1/2 cup Greek yogurt") == "Greek yogurt"
 
+    def test_large_not_eaten_as_L_unit(self):
+        assert norm_ingredient("1 large cucumber") == "Cucumber"
+
+    def test_percent_stripped(self):
+        assert norm_ingredient("0% sugar corn flakes") == "Sugar corn flake"
+
 
 class TestPlusPrefix:
     def test_plus_stripped(self):
         assert norm_ingredient("+ 1/2 cups water") == "Water"
+
+    def test_amp_stripped(self):
+        assert norm_ingredient("& rinsed") == ""
+
+    def test_amp_soaked(self):
+        assert norm_ingredient("& soaked") == ""
 
     def test_plus_no_number(self):
         assert norm_ingredient("+ whole wheat wrap") == "Whole wheat wrap"  # "whole" kept (part of compound name)
@@ -104,6 +116,41 @@ class TestSingularize:
 
     def test_us_not_singularized(self):
         assert norm_ingredient("asparagus") == "Asparagus"
+
+
+class TestBrewed:
+    def test_brewed_coffee(self):
+        assert norm_ingredient("brewed coffee") == "Coffee"
+
+    def test_soaked_oats(self):
+        assert norm_ingredient("soaked oats") == "Oat"
+
+
+class TestBoxOf:
+    def test_box_of_pasta(self):
+        assert norm_ingredient("box of pasta") == "Pasta"
+
+    def test_box_of_silken_tofu(self):
+        assert norm_ingredient("box of silken tofu") == "Silken tofu"
+
+
+class TestOfChoice:
+    def test_berries_of_choice(self):
+        assert norm_ingredient("berries of choice") == "Berry"
+
+    def test_breadcrumbs_of_choice(self):
+        assert norm_ingredient("breadcrumbs of choice") == "Breadcrumb"
+
+
+class TestTrailingTo:
+    def test_to_taste(self):
+        assert norm_ingredient("salt to taste") == "Salt"
+
+    def test_to_reach(self):
+        assert norm_ingredient("water to reach desired consistency") == "Water"
+
+    def test_additional_qualifier_and_clause_stripped(self):
+        assert norm_ingredient("Additional water to reach your desired consistency") == "Water"
 
 
 class TestSectionHeaders:

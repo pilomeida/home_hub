@@ -8,25 +8,28 @@ _HARM_FILE = Path("data/ingredient_harmonization.json")
 
 # ── Normalization regexes ─────────────────────────────────────────────────────
 
-_PLUS_RE     = re.compile(r'^\+\s*')
+_PLUS_RE     = re.compile(r'^[+&]\s*')   # strip leading + or &
 _OPTIONAL_RE = re.compile(r'^\(optional\)\s*', re.IGNORECASE)
 _PAREN_RE    = re.compile(r'\s*\([^)]*\)')
 _QTY_RE      = re.compile(
-    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s]+'
+    r'^[½¼¾⅓⅔⅛⅜⅝⅞\d./\s%]+'              # digits/fractions/spaces/% (e.g. "0%")
     r'(?:heaping\s+|level\s+)?'
-    r'(?:g|ml|mL|dl|dL|l|L|kg|lb|lbs|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
+    r'(?:(?:g|ml|mL|dl|dL|l|L|kg|lb|lbs|oz|tbsp|tsp|tablespoons?|teaspoons?|cups?'
     r'|dessert\s+spoons?|pieces?|slices?|cloves?|pinch(?:es)?|handful|drops?'
     r'|sprigs?|scoops?|cans?|squares?|cubes?|fillets?|sheets?|stalks?|heads?'
-    r'|bunches?|bags?|jars?|bottles?|packets?|sachets?|servings?)?'
+    r'|bunches?|bags?|jars?|bottles?|packets?|sachets?|servings?)\b)?'  # \b: don't eat "L" from "Large"
     r'\s*',
     re.IGNORECASE,
 )
 # Colloquial quantity words not preceded by a number
 _COLLOQUIAL_QTY_RE = re.compile(
     r'^(?:hips?|heaps?|bits?|loads?|bunch(?:es)?|splash(?:es)?|squeeze|knob|'
-    r'dollop|dash|drizzle|sprinkle|dusting|smidge|trace|touch|handful)\s+(?:of\s+)?',
+    r'dollop|dash|drizzle|sprinkle|dusting|smidge|trace|touch|handful|'
+    r'box(?:es)?|container(?:s)?|package(?:s)?|pouch(?:es)?|carton(?:s)?)'
+    r'\s+(?:of\s+)?',
     re.IGNORECASE,
 )
+_OF_CHOICE_RE = re.compile(r'\s+of\s+choice\s*$', re.IGNORECASE)
 _INDEF_RE    = re.compile(r'^(?:a\s+few\s+\w+|a\s+handful|some|an?)\s+(?:of\s+)?', re.IGNORECASE)
 _OF_RE       = re.compile(r'^of\s+', re.IGNORECASE)
 _ARTICLE_RE  = re.compile(r'^(?:a|an)\s+', re.IGNORECASE)
@@ -44,6 +47,7 @@ _PREP_RE = re.compile(
     r'boiled|fried|deep-fried|baked|steamed|saut[eé]ed|grilled|blanched|'
     r'braised|poached|smoked|cured|dehydrated|pickled|marinated|caramelized|'
     r'blended|pur[eé]ed|mashed|crumbled|strained|sifted|whisked|beaten|'
+    r'brewed|soaked|'
     # treatment
     r'peeled|pitted|seeded|deseeded|destemmed|halved|quartered|'
     r'skinless|boneless|lean|skinned|trimmed|deboned|'
@@ -59,17 +63,17 @@ _PREP_RE = re.compile(
     r'organic|unsweetened|sweetened|unsweet|no-?added-?sugar|'
     r'low-sodium|reduced-fat|skimmed|semi-skimmed|'
     # filler quality words
-    r'nice|good|great|beautiful|perfect|'
+    r'nice|good|great|beautiful|perfect|additional|'
     # age / maturity
     r'baby|young|aged|mature|old|'
     # misc leading qualifiers
     r'extra|plain|natural|pure|'
-    r')\s+',
+    r')(?:\s+|$)',  # allow bare single-word prep strings (e.g. "rinsed" with no following text)
     re.IGNORECASE,
 )
 
-_OR_ALT_RE    = re.compile(r'\s*,?\s+or\s+.+$', re.IGNORECASE)
-_TO_TASTE_RE  = re.compile(r'\s+to\s+taste\s*$', re.IGNORECASE)
+_OR_ALT_RE       = re.compile(r'\s*,?\s+or\s+.+$', re.IGNORECASE)
+_TRAILING_TO_RE  = re.compile(r'\s+to\s+\w+.*$', re.IGNORECASE)  # "to taste", "to reach X", "to coat"
 _SECTION_RE   = re.compile(r'^(?:for\s+the|to\s+serve|to\s+garnish|for\s+garnish'
                             r'|for\s+topping|note[:\s]|tip[:\s])', re.IGNORECASE)
 
@@ -118,8 +122,12 @@ def norm_ingredient(raw: str) -> str:
             break
         s = stripped
     s = _OR_ALT_RE.sub('', s)
-    s = _TO_TASTE_RE.sub('', s)
+    s = _OF_CHOICE_RE.sub('', s)
+    s = _TRAILING_TO_RE.sub('', s)
     s = s.strip(' ,.-–')
+    # Drop if still too long to be a real ingredient (likely a sentence or instruction)
+    if len(s.split()) >= 6:
+        return ''
     s = _singularize(s)
     return s.capitalize() if s else ''
 

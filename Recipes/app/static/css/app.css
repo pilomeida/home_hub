@@ -71,6 +71,8 @@ main {
     padding: 1rem;
     position: sticky;
     top: 4rem;
+    max-height: calc(100vh - 5.5rem);
+    overflow-y: auto;
 }
 .filter-sidebar h2 {
     font-size: 1.1rem;
@@ -87,13 +89,46 @@ main {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
 }
+.clear-group-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.5;
+    margin-left: auto;
+}
+.clear-group-btn:hover { opacity: 1; color: var(--danger); }
 .filter-group.scrollable {
     max-height: 200px;
     overflow-y: auto;
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 0.5rem;
+}
+.ing-search {
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.82rem;
+    margin-bottom: 0.35rem;
+    box-sizing: border-box;
+    background: var(--bg);
+    color: var(--text);
+}
+.ing-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
 }
 .filter-checkbox {
     display: flex;
