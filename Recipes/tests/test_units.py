@@ -97,6 +97,37 @@ class TestNoConversion:
         assert convert_ingredient("pinch of salt") == "pinch of salt"
 
 
+class TestTemperature:
+    def test_degree_f(self):
+        from app.units import convert_temperatures
+        assert convert_temperatures("Bake at 350°F for 30 minutes") == "Bake at 177°C for 30 minutes"
+
+    def test_degree_f_with_space(self):
+        from app.units import convert_temperatures
+        assert convert_temperatures("Heat to 400 °F") == "Heat to 204°C"
+
+    def test_degrees_f_word(self):
+        from app.units import convert_temperatures
+        assert convert_temperatures("350 degrees F") == "177°C"
+
+    def test_degrees_fahrenheit(self):
+        from app.units import convert_temperatures
+        assert convert_temperatures("350 degrees Fahrenheit") == "177°C"
+
+    def test_already_celsius_unchanged(self):
+        from app.units import convert_temperatures
+        assert convert_temperatures("Heat to 180°C") == "Heat to 180°C"
+
+    def test_empty_string(self):
+        from app.units import convert_temperatures
+        assert convert_temperatures("") == ""
+
+    def test_multiple_temps(self):
+        from app.units import convert_temperatures
+        result = convert_temperatures("Preheat to 350°F, then raise to 400°F.")
+        assert result == "Preheat to 177°C, then raise to 204°C."
+
+
 class TestListConversion:
     def test_converts_all(self):
         result = convert_ingredients([

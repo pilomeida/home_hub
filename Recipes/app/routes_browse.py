@@ -8,11 +8,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Recipe
 from app.main import templates, url_for
-from app.ingredients import expand_ingredient, load_harmonization
-
-# Keep private aliases so existing callers (routes_harmonize) can still import them
-_expand_ingredient = expand_ingredient
-_norm_ingredient = lambda raw: expand_ingredient(raw)[0] if expand_ingredient(raw) else raw
+from app.ingredients import expand_ingredient, load_harmonization, norm_ingredient
 
 router = APIRouter(tags=["browse"])
 
@@ -38,6 +34,10 @@ async def browse_page(
         expanded = expand_ingredient(raw)
         return [harm_map.get(e, e) for e in expanded if harm_map.get(e, e)]
 
+    def _ing_key(s: str) -> str:
+        """Normalize an ingredient name to a lowercase key for fuzzy matching."""
+        return norm_ingredient(s).lower()
+
     # Build base query
     query = select(Recipe)
 
@@ -61,7 +61,8 @@ async def browse_page(
         recipes = [
             r for r in recipes
             if all(
-                any(c == ing for raw in r.ingredients_list for c in canonical(raw))
+                any(_ing_key(c) == _ing_key(ing)
+                    for raw in r.ingredients_list for c in canonical(raw))
                 for ing in ingredient
             )
         ]
@@ -89,9 +90,16 @@ async def browse_page(
             all_subtypes.add(r.subtype)
         for m in r.macro_tags_list:
             all_macros.add(m)
+        seen_keys: set[str] = set()
         for raw in r.ingredients_list:
             for c in canonical(raw):
-                all_ingredients.add(c)
+                key = _ing_key(c)
+                if key and key not in seen_keys:
+                    seen_keys.add(key)
+                    # Store the normalized (clean) form, not the raw canonical
+                    clean = norm_ingredient(c)
+                    if clean:
+                        all_ingredients.add(clean)
         if r.calorie_tier:
             all_tiers.add(r.calorie_tier)
         for ct in r.cooking_types_list:

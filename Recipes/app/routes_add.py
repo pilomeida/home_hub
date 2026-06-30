@@ -12,7 +12,7 @@ from app.models import Recipe
 from app.scraper import fetch_content
 from app.extractor import extract_recipe
 from app.linker import detect_and_link
-from app.units import convert_ingredients
+from app.units import convert_ingredients, convert_temperatures
 from app.main import templates
 
 router = APIRouter(tags=["add"])
@@ -112,7 +112,7 @@ async def save_recipe(
         prep_time=int(prep_time) if prep_time else None,
         cook_time=int(cook_time) if cook_time else None,
         portions=int(portions) if portions else None,
-        instructions=instructions or None,
+        instructions=convert_temperatures(instructions) or None,
         source_url=source_url,
         photo_path=photo_path or None,
         rating=int(rating) if rating else None,

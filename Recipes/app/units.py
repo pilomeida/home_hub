@@ -84,3 +84,24 @@ def convert_ingredient(s: str) -> str:
 def convert_ingredients(ingredients: list[str]) -> list[str]:
     """Convert a list of ingredient strings from imperial to metric."""
     return [convert_ingredient(i) for i in ingredients]
+
+
+# ── Temperature conversion ────────────────────────────────────────────────────
+
+_TEMP_RE = re.compile(
+    r'(\d+(?:\.\d+)?)\s*°\s*F\b'
+    r'|(\d+(?:\.\d+)?)\s+degrees?\s+F(?:ahrenheit)?\b',
+    re.IGNORECASE,
+)
+
+
+def _temp_replace(m: re.Match) -> str:
+    val = float(m.group(1) or m.group(2))
+    return f"{round((val - 32) * 5 / 9)}°C"
+
+
+def convert_temperatures(text: str) -> str:
+    """Convert all °F values in a free-text string to °C."""
+    if not text:
+        return text
+    return _TEMP_RE.sub(_temp_replace, text)
