@@ -21,9 +21,10 @@ _OPTIONAL_RE    = re.compile(
     re.IGNORECASE,
 )
 # Spelling normalizations applied early (abbreviations + regional variants)
-_CHOC_RE    = re.compile(r'\bchoc\b', re.IGNORECASE)      # "choc chip" → "chocolate chip"
-_YOGHURT_RE = re.compile(r'\byoghurt\b', re.IGNORECASE)   # "yoghurt" → "yogurt"
-_SOYA_RE    = re.compile(r'\bsoya\b', re.IGNORECASE)       # "soya sauce" → "soy sauce"
+_CHOC_RE      = re.compile(r'\bchoc\b', re.IGNORECASE)        # "choc chip" → "chocolate chip"
+_YOGHURT_RE   = re.compile(r'\byoghurt\b', re.IGNORECASE)     # "yoghurt" → "yogurt"
+_SOYA_RE      = re.compile(r'\bsoya\b', re.IGNORECASE)         # "soya sauce" → "soy sauce"
+_FLAVORED_RE  = re.compile(r'[-–]?flavou?red\b\s*', re.IGNORECASE)  # "chocolate-flavored" → "chocolate"
 _PAREN_RE       = re.compile(r'\s*\([^)]*\)')
 _UNCLOSED_PAREN_RE = re.compile(r'\s*\([^)]*$')  # strip unclosed parens: "Oats (or 30g oat"
 _JUICE_ZEST_RE  = re.compile(                 # "juice of a lemon" → "lemon"
@@ -222,6 +223,7 @@ def norm_ingredient(raw: str) -> str:
     s = _CHOC_RE.sub('chocolate', s)        # "choc" → "chocolate"
     s = _YOGHURT_RE.sub('yogurt', s)        # "yoghurt" → "yogurt"
     s = _SOYA_RE.sub('soy', s)              # "soya" → "soy"
+    s = _FLAVORED_RE.sub(' ', s).strip()    # "-flavored"/"-flavoured" → stripped
     # Drop section headers / instructional / alternative lines entirely
     if _SECTION_RE.match(s):
         return ''
