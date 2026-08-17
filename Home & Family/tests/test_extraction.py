@@ -1,0 +1,69 @@
+import json
+
+import pytest
+
+from app.services.extraction import ExtractedBill, ExtractionError, extract_bill
+
+
+class _FakeContent:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeMessage:
+    def __init__(self, text):
+        self.content = [_FakeContent(text)]
+
+
+class _FakeMessages:
+    def __init__(self, response_text):
+        self._response_text = response_text
+
+    async def create(self, **kwargs):
+        return _FakeMessage(self._response_text)
+
+
+class _FakeAnthropicClient:
+    def __init__(self, response_text):
+        self.messages = _FakeMessages(response_text)
+
+
+@pytest.mark.asyncio
+async def test_extract_bill_parses_valid_response(tmp_path):
+    image_path = tmp_path / "page1.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    response = json.dumps({
+        "provider": "EDP", "category_hint": "electricity", "amount": 87.32,
+        "currency": "EUR", "due_date": "2026-09-05", "paid_date": None,
+        "statement_period": "2026-08",
+    })
+    client = _FakeAnthropicClient(response)
+
+    result = await extract_bill(str(image_path), client=client)
+
+    assert isinstance(result, ExtractedBill)
+    assert result.provider == "EDP"
+    assert result.amount == 87.32
+    assert result.due_date.isoformat() == "2026-09-05"
+    assert result.paid_date is None
+
+
+@pytest.mark.asyncio
+async def test_extract_bill_raises_on_malformed_json(tmp_path):
+    image_path = tmp_path / "page1.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    client = _FakeAnthropicClient("not json")
+
+    with pytest.raises(ExtractionError):
+        await extract_bill(str(image_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_bill_raises_when_provider_missing(tmp_path):
+    image_path = tmp_path / "page1.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    response = json.dumps({"category_hint": "electricity", "amount": 10.0})
+    client = _FakeAnthropicClient(response)
+
+    with pytest.raises(ExtractionError):
+        await extract_bill(str(image_path), client=client)
