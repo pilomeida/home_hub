@@ -14,6 +14,16 @@
     </ul>
   </section>
   <section>
+    <h2>Spend last month</h2>
+    <ul>
+      {% for category, amount in data.spend_last_month.items() %}
+        <li>{{ category }}: {{ "%.2f"|format(amount) }}</li>
+      {% else %}
+        <li>No spend recorded yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section>
     <h2>Open to-dos</h2>
     <ul>
       {% for todo in data.open_todos %}

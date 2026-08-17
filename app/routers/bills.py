@@ -39,6 +39,7 @@ async def upload_bill(request: Request, file: UploadFile, session: Session = Dep
     document = Document(
         filename=file.filename, file_path=file_path, content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
+        uploaded_by=getattr(request.state, "user_email", None),
     )
     session.add(document)
     session.commit()

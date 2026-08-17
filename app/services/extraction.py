@@ -76,7 +76,8 @@ async def extract_bill(image_path: str, client: Optional[AsyncAnthropic] = None)
 
     message = await anthropic_client.messages.create(
         model=_MODEL,
-        max_tokens=1024,
+        max_tokens=4096,
+        thinking={"type": "disabled"},
         system=_SYSTEM_PROMPT,
         messages=[
             {

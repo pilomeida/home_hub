@@ -41,7 +41,11 @@ def get_dashboard_data(session: Session, today: Optional[date] = None) -> Dashbo
         session.exec(select(Todo).where(Todo.done == False).order_by(Todo.due_date))  # noqa: E712
     )
     needs_attention = list(
-        session.exec(select(Document).where(Document.status == DocumentStatus.NEEDS_ATTENTION))
+        session.exec(
+            select(Document).where(
+                Document.status.in_([DocumentStatus.NEEDS_ATTENTION, DocumentStatus.PENDING])
+            )
+        )
     )
     cutoff = datetime.utcnow() - timedelta(days=_RECENTLY_CHANGED_DAYS)
     recently_changed = list(session.exec(select(WikiPage).where(WikiPage.updated_at >= cutoff)))
