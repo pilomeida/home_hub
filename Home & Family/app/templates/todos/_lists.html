@@ -1,0 +1,23 @@
+<section>
+  <h2>Open</h2>
+  <ul>
+    {% for todo in open_todos %}
+    <li>
+      {{ todo.title }} — due {{ todo.due_date }}
+      <button hx-post="/todos/{{ todo.id }}/done" hx-target="#todo-lists" hx-swap="innerHTML">Done</button>
+    </li>
+    {% else %}
+    <li>Nothing open.</li>
+    {% endfor %}
+  </ul>
+</section>
+<section>
+  <h2>Done</h2>
+  <ul>
+    {% for todo in done_todos %}
+    <li>{{ todo.title }} — done</li>
+    {% else %}
+    <li>Nothing done yet.</li>
+    {% endfor %}
+  </ul>
+</section>
