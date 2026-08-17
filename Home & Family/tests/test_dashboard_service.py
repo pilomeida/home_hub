@@ -56,3 +56,20 @@ def test_open_todos_and_needs_attention_and_recent_wiki(session):
     assert len(data.needs_attention_documents) == 1
     assert len(data.recently_changed_wiki_pages) == 1
     assert data.recently_changed_wiki_pages[0].topic == "Electricity"
+
+
+def test_needs_attention_includes_stranded_pending_documents(session):
+    session.add(Document(
+        filename="stuck.pdf", file_path="/tmp/stuck.pdf", content_hash="h3",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
+    ))
+    session.add(Document(
+        filename="ok.pdf", file_path="/tmp/ok.pdf", content_hash="h4",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
+    ))
+    session.commit()
+
+    data = get_dashboard_data(session, today=date(2026, 8, 17))
+
+    assert len(data.needs_attention_documents) == 1
+    assert data.needs_attention_documents[0].filename == "stuck.pdf"

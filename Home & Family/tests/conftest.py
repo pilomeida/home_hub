@@ -25,11 +25,13 @@ def session(engine):
 
 
 @pytest.fixture()
-def client(engine):
+def client(engine, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.db import get_session
     from app.main import app
+
+    monkeypatch.setattr("app.services.storage.settings.DOCUMENTS_DIR", tmp_path / "documents")
 
     def override_get_session():
         with Session(engine) as s:
