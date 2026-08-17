@@ -67,3 +67,32 @@ async def test_extract_bill_raises_when_provider_missing(tmp_path):
 
     with pytest.raises(ExtractionError):
         await extract_bill(str(image_path), client=client)
+
+
+class _FakeMessageEmptyContent:
+    """Fake message with empty content list to simulate malformed API response."""
+    def __init__(self):
+        self.content = []
+
+
+class _FakeMessagesEmptyContent:
+    """Fake messages that returns empty content."""
+    async def create(self, **kwargs):
+        return _FakeMessageEmptyContent()
+
+
+class _FakeAnthropicClientEmptyContent:
+    """Fake client that returns message with empty content list."""
+    def __init__(self):
+        self.messages = _FakeMessagesEmptyContent()
+
+
+@pytest.mark.asyncio
+async def test_extract_bill_raises_on_empty_content_list(tmp_path):
+    """Verify that empty content list raises ExtractionError, not IndexError."""
+    image_path = tmp_path / "page1.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    client = _FakeAnthropicClientEmptyContent()
+
+    with pytest.raises(ExtractionError):
+        await extract_bill(str(image_path), client=client)
