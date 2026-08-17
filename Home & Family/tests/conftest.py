@@ -22,3 +22,20 @@ def engine(tmp_path):
 def session(engine):
     with Session(engine) as s:
         yield s
+
+
+@pytest.fixture()
+def client(engine):
+    from fastapi.testclient import TestClient
+
+    from app.db import get_session
+    from app.main import app
+
+    def override_get_session():
+        with Session(engine) as s:
+            yield s
+
+    app.dependency_overrides[get_session] = override_get_session
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
