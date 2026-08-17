@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ document.filename }} — Bills & Bank{% endblock %}
+{% block content %}
+<h1>{{ document.filename }}</h1>
+<p>Status: {{ document.status.value }}</p>
+{% if document.failure_reason %}
+<p class="needs-attention">{{ document.failure_reason }}</p>
+{% endif %}
+{% if transaction %}
+<dl>
+  <dt>Provider</dt><dd>{{ transaction.provider }}</dd>
+  <dt>Category</dt><dd>{{ transaction.category.value }}</dd>
+  <dt>Amount</dt><dd>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</dd>
+  <dt>Due date</dt><dd>{{ transaction.due_date or "—" }}</dd>
+  <dt>Statement period</dt><dd>{{ transaction.statement_period or "—" }}</dd>
+</dl>
+{% endif %}
+{% endblock %}

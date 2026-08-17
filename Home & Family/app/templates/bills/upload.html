@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Upload — Bills & Bank{% endblock %}
+{% block content %}
+<h1>Upload a bill or statement</h1>
+<form action="/bills/upload" method="post" enctype="multipart/form-data">
+  <input type="file" name="file" required>
+  <button type="submit">Upload</button>
+</form>
+{% endblock %}

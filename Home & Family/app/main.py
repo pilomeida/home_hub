@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import CloudflareAccessMiddleware
 from app.config import settings
+from app.routers import bills
 
 app = FastAPI(title="Home & Family Hub", version="0.1.0")
 
@@ -29,3 +30,6 @@ async def health():
 @app.get("/")
 async def dashboard_placeholder(request: Request):
     return templates.TemplateResponse(request, "dashboard.html", {"data": None})
+
+
+app.include_router(bills.router)
