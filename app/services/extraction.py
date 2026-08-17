@@ -96,8 +96,8 @@ async def extract_bill(image_path: str, client: Optional[AsyncAnthropic] = None)
         ],
     )
 
-    raw_text = message.content[0].text
     try:
+        raw_text = message.content[0].text
         data = json.loads(raw_text)
         return ExtractedBill(
             provider=data["provider"],
@@ -108,5 +108,5 @@ async def extract_bill(image_path: str, client: Optional[AsyncAnthropic] = None)
             paid_date=_parse_date(data.get("paid_date")),
             statement_period=data.get("statement_period"),
         )
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+    except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise ExtractionError(f"Could not parse extraction response: {exc}") from exc
