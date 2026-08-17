@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Home & Family{% endblock %}</title>
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; display: flex; }
+    nav { width: 180px; padding: 1rem; border-right: 1px solid #ddd; }
+    nav a { display: block; margin-bottom: 0.5rem; color: #333; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    main { flex: 1; padding: 1.5rem; }
+    .needs-attention { color: #b00020; }
+    .recently-changed { background: #fff8dc; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/bills">Bills & Bank</a>
+    <a href="/wiki">Wiki</a>
+    <a href="/todos">To-Dos</a>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
