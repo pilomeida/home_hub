@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ page.topic }} — Wiki{% endblock %}
+{% block content %}
+<h1>{{ page.topic }}</h1>
+<dl>
+  {% for key, value in facts.items() %}
+  <dt>{{ key }}</dt><dd>{{ value }}</dd>
+  {% endfor %}
+</dl>
+<h2>Change history</h2>
+<ul>
+  {% for change in changes %}
+  <li>{{ change.changed_at }} — {{ change.fact_key }}: {{ change.old_value }} → {{ change.new_value }}</li>
+  {% else %}
+  <li>No changes recorded.</li>
+  {% endfor %}
+</ul>
+{% endblock %}
