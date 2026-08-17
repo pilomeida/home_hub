@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Wiki{% endblock %}
+{% block content %}
+<h1>Wiki</h1>
+<ul>
+  {% for page in pages %}
+  <li class="{{ 'recently-changed' if page.id in recently_changed_ids else '' }}">
+    <a href="/wiki/{{ page.id }}">{{ page.topic }}</a>
+  </li>
+  {% else %}
+  <li>No wiki pages yet.</li>
+  {% endfor %}
+</ul>
+{% endblock %}
