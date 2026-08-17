@@ -4,7 +4,7 @@ def test_health_returns_ok(client):
     assert response.json() == {"status": "ok"}
 
 
-def test_dashboard_placeholder_renders(client):
+def test_dashboard_renders(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "Dashboard" in response.text
