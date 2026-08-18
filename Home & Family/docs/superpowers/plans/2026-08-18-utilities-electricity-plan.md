@@ -725,9 +725,10 @@ def test_electricity_tab_renders_readings(client, session):
     response = client.get("/utilities/electricity")
 
     assert response.status_code == 200
-    assert "2026-07" in response.text
-    assert "401" in response.text
+    assert "1 reading" in response.text
 ```
+
+Note: this test intentionally checks only the placeholder's reading-count text (`"1 reading(s) for electricity."`), not `period_label`/`consumption_value` content — the placeholder template from Step 5 below doesn't render those fields yet. Task 5 replaces the template with the real table/chart rendering and adds its own test asserting the actual data content (`"2026-07"`, `"401"`) against that real output — don't pull those assertions forward into this task's test, they'd fail against the placeholder.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -871,6 +872,8 @@ def test_electricity_tab_renders_charts(client, session):
     response = client.get("/utilities/electricity")
 
     assert response.status_code == 200
+    assert "2026-07" in response.text
+    assert "401" in response.text
     assert "Consumption per month" in response.text
     assert "chart-bar-fill" in response.text
 ```
