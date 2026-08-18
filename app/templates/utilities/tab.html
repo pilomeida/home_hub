@@ -36,7 +36,7 @@
 
 {{ charts_macro.bar_chart("Consumption per month", charts.consumption, " " ~ (readings[0].consumption_unit or "")) }}
 {{ charts_macro.bar_chart("Cost per month (€)", charts.cost_total, " €") }}
-{{ charts_macro.bar_chart("Effective cost per unit (€)", charts.cost_per_unit, " €") }}
+{{ charts_macro.bar_chart("Effective cost per unit (€)", charts.cost_per_unit, " €", precision=4) }}
 {{ charts_macro.bar_chart("Energy cost per month (€)", charts.energy_cost, " €") }}
 {{ charts_macro.bar_chart("Power cost per month (€)", charts.power_cost, " €") }}
 {{ charts_macro.bar_chart("Fees & taxes per month (€)", charts.fees_taxes_cost, " €") }}

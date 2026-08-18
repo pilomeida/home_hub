@@ -1,4 +1,4 @@
-{% macro bar_chart(title, chart, unit='') %}
+{% macro bar_chart(title, chart, unit='', precision=2) %}
 <div class="chart">
   <h3>{{ title }}</h3>
   {% for label, value in chart.rows %}
@@ -6,10 +6,12 @@
     <span class="chart-label">{{ label }}</span>
     <div class="chart-bar-track">
       {% if value is not none and chart.max %}
-      <div class="chart-bar-fill" style="width: {{ (value / chart.max * 100) | round(1) }}%;"></div>
+      {% set raw_pct = value / chart.max * 100 %}
+      {% set width_pct = [[raw_pct, 100] | min, 0] | max %}
+      <div class="chart-bar-fill" style="width: {{ width_pct | round(1) }}%;"></div>
       {% endif %}
     </div>
-    <span class="chart-value">{{ "%.2f"|format(value) if value is not none else "—" }}{{ unit }}</span>
+    <span class="chart-value">{{ ("%." ~ precision ~ "f")|format(value) if value is not none else "—" }}{{ unit }}</span>
   </div>
   {% endfor %}
 </div>
