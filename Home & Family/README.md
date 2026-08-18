@@ -7,7 +7,6 @@ Access.
 ## Prerequisites
 
 - Python 3.12+
-- `poppler-utils` (system package, required by `pdf2image`)
 
 ## Setup
 
