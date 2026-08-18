@@ -207,7 +207,7 @@ async def extract_statement_transactions(
 
     message = await anthropic_client.messages.create(
         model=_STATEMENT_MODEL,
-        max_tokens=8192,
+        max_tokens=16384,
         thinking={"type": "disabled"},
         system=_STATEMENT_SYSTEM_PROMPT,
         messages=[
@@ -220,6 +220,12 @@ async def extract_statement_transactions(
             }
         ],
     )
+
+    if getattr(message, "stop_reason", None) == "max_tokens":
+        raise StatementExtractionError(
+            "Statement response was truncated (max_tokens reached) — statement "
+            "may have too many transactions for one call"
+        )
 
     try:
         raw_text = strip_json_fences(message.content[0].text)

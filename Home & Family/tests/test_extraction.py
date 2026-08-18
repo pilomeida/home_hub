@@ -20,21 +20,23 @@ class _FakeContent:
 
 
 class _FakeMessage:
-    def __init__(self, text):
+    def __init__(self, text, stop_reason="end_turn"):
         self.content = [_FakeContent(text)]
+        self.stop_reason = stop_reason
 
 
 class _FakeMessages:
-    def __init__(self, response_text):
+    def __init__(self, response_text, stop_reason="end_turn"):
         self._response_text = response_text
+        self._stop_reason = stop_reason
 
     async def create(self, **kwargs):
-        return _FakeMessage(self._response_text)
+        return _FakeMessage(self._response_text, stop_reason=self._stop_reason)
 
 
 class _FakeAnthropicClient:
-    def __init__(self, response_text):
-        self.messages = _FakeMessages(response_text)
+    def __init__(self, response_text, stop_reason="end_turn"):
+        self.messages = _FakeMessages(response_text, stop_reason=stop_reason)
 
 
 @pytest.mark.asyncio
@@ -234,3 +236,19 @@ async def test_extract_statement_transactions_handles_empty_list(tmp_path):
     result = await extract_statement_transactions(str(pdf_path), client=client)
 
     assert result.transactions == []
+
+
+@pytest.mark.asyncio
+async def test_extract_statement_transactions_raises_distinct_error_on_truncation(tmp_path):
+    """A response cut off at max_tokens must raise a distinct, actionable
+    StatementExtractionError mentioning truncation — not fall through to
+    the generic malformed-JSON path (the incomplete JSON here would also
+    fail to parse, so this proves the stop_reason check runs first)."""
+    pdf_path = tmp_path / "statement.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    # Deliberately truncated/incomplete JSON, as a real max_tokens cutoff would produce.
+    truncated_response = '{"statement_period": "2026-07", "transactions": [{"date": "2026-07-05"'
+    client = _FakeAnthropicClient(truncated_response, stop_reason="max_tokens")
+
+    with pytest.raises(StatementExtractionError, match="truncat"):
+        await extract_statement_transactions(str(pdf_path), client=client)
