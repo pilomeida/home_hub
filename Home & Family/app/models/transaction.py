@@ -40,7 +40,9 @@ class Transaction(SQLModel, table=True):
     document_id: int = Field(foreign_key="documents.id", index=True)
     provider: str
     category: Category = Field(default=Category.OTHER)
-    transaction_type: TransactionType = Field(default=TransactionType.DEBIT)
+    transaction_type: TransactionType = Field(
+        default=TransactionType.DEBIT, sa_column_kwargs={"server_default": "DEBIT"}
+    )
     amount: float
     currency: str = Field(default="EUR")
     due_date: Optional[date] = None
