@@ -153,7 +153,10 @@ object, no prose, matching this shape exactly:
     {
       "date": "YYYY-MM-DD",
       "description": "string, the merchant or counterparty",
-      "amount": 0.00,
+      "amount": 0.00, always the positive magnitude of the transaction — \
+never negative, regardless of how the source statement renders debits \
+(e.g. as negative numbers or a separate debito column); direction is \
+conveyed only via the "type" field below, never by the sign of amount,
       "currency": "3-letter ISO code, default EUR",
       "type": "debit, credit, or transfer — use transfer for a move \
 between the account holder's own accounts. This includes indirect \
