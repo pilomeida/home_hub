@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import base64
 import json
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Optional
 
 from anthropic import AsyncAnthropic
 
 from app.config import settings
+from app.services.document_input import build_content_block
 from app.services.json_utils import strip_json_fences
 
 _MODEL = "claude-sonnet-5"
 
 _SYSTEM_PROMPT = """You extract structured billing data from a bill or bank \
-statement image. Respond with ONLY a JSON object, no prose, matching this \
+statement document. Respond with ONLY a JSON object, no prose, matching this \
 shape exactly:
 
 {
@@ -55,25 +54,11 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
     return date.fromisoformat(value)
 
 
-def ensure_image(file_path: str) -> str:
-    """Return a path to a PNG image representing the first page of the given
-    file, converting from PDF if necessary."""
-    path = Path(file_path)
-    if path.suffix.lower() == ".pdf":
-        from pdf2image import convert_from_path
-
-        pages = convert_from_path(str(path), first_page=1, last_page=1)
-        image_path = path.with_suffix(".page1.png")
-        pages[0].save(image_path, "PNG")
-        return str(image_path)
-    return str(path)
-
-
-async def extract_bill(image_path: str, client: Optional[AsyncAnthropic] = None) -> ExtractedBill:
-    """Extract structured billing data from an image of a bill/statement page."""
+async def extract_bill(file_path: str, client: Optional[AsyncAnthropic] = None) -> ExtractedBill:
+    """Extract structured billing data from a bill/statement document (the
+    whole PDF, all pages, or a single image)."""
     anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    image_bytes = Path(image_path).read_bytes()
-    media_type = "image/png" if image_path.lower().endswith(".png") else "image/jpeg"
+    content_block = build_content_block(file_path)
 
     message = await anthropic_client.messages.create(
         model=_MODEL,
@@ -84,14 +69,7 @@ async def extract_bill(image_path: str, client: Optional[AsyncAnthropic] = None)
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64.b64encode(image_bytes).decode(),
-                        },
-                    },
+                    content_block,
                     {"type": "text", "text": "Extract the billing data as JSON."},
                 ],
             }
