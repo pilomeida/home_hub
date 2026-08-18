@@ -6,11 +6,14 @@ from app.services.extraction import (
     ClassificationError,
     ExtractedBill,
     ExtractedStatement,
+    ExtractedUtilityDetail,
     ExtractionError,
     StatementExtractionError,
+    UtilityDetailExtractionError,
     classify_document,
     extract_bill,
     extract_statement_transactions,
+    extract_utility_detail,
 )
 
 
@@ -252,3 +255,66 @@ async def test_extract_statement_transactions_raises_distinct_error_on_truncatio
 
     with pytest.raises(StatementExtractionError, match="truncat"):
         await extract_statement_transactions(str(pdf_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_utility_detail_parses_valid_response(tmp_path):
+    pdf_path = tmp_path / "electricity.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    response = json.dumps({
+        "period_label": "2026-07",
+        "billing_period_start": "2026-06-26",
+        "billing_period_end": "2026-07-25",
+        "invoice_number": "FA CO26/42 105",
+        "consumption_value": 401,
+        "consumption_unit": "kWh",
+        "energy_cost": 56.5,
+        "power_cost": 4.54,
+        "fees_taxes_cost": 12.99,
+        "vat_cost": 10.97,
+    })
+    client = _FakeAnthropicClient(response)
+
+    result = await extract_utility_detail(str(pdf_path), "electricity", client=client)
+
+    assert isinstance(result, ExtractedUtilityDetail)
+    assert result.period_label == "2026-07"
+    assert result.billing_period_start.isoformat() == "2026-06-26"
+    assert result.consumption_value == 401.0
+    assert result.consumption_unit == "kWh"
+    assert result.energy_cost == 56.5
+    assert result.vat_cost == 10.97
+
+
+@pytest.mark.asyncio
+async def test_extract_utility_detail_raises_on_malformed_json(tmp_path):
+    pdf_path = tmp_path / "electricity.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient("not json")
+
+    with pytest.raises(UtilityDetailExtractionError):
+        await extract_utility_detail(str(pdf_path), "electricity", client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_utility_detail_raises_when_period_label_missing(tmp_path):
+    pdf_path = tmp_path / "electricity.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"consumption_value": 401}))
+
+    with pytest.raises(UtilityDetailExtractionError):
+        await extract_utility_detail(str(pdf_path), "electricity", client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_utility_detail_handles_all_null_optional_fields(tmp_path):
+    pdf_path = tmp_path / "electricity.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"period_label": "2026-07"}))
+
+    result = await extract_utility_detail(str(pdf_path), "electricity", client=client)
+
+    assert result.period_label == "2026-07"
+    assert result.billing_period_start is None
+    assert result.consumption_value is None
+    assert result.energy_cost is None
