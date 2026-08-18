@@ -22,7 +22,7 @@ from app.services.extraction import (
 from app.services.todo_engine import generate_todo_for_transaction
 from app.services.wiki_engine import assess_and_update_wiki
 
-_UTILITY_CATEGORY_VALUES = {"electricity", "water", "telecom"}
+_UTILITY_CATEGORY_VALUES = {t.value for t in UtilityType}
 
 
 async def ingest_document(session: Session, document: Document) -> Document:
@@ -88,6 +88,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     session.commit()
     session.refresh(transaction)
 
+    utility_detail_failure_reason = None
     if transaction.category.value in _UTILITY_CATEGORY_VALUES:
         try:
             detail = await extract_utility_detail(document.file_path, transaction.category.value)
@@ -121,6 +122,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
             # nice-to-have layered on top of an already-successful bill.
             session.rollback()
             print(f"utility detail extraction failed for document {document.id}: {exc}")
+            utility_detail_failure_reason = f"utility detail extraction failed: {exc}"
 
     try:
         generate_todo_for_transaction(session, transaction)
@@ -133,7 +135,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         return _mark_needs_attention(session, document, f"processed but enrichment failed: {exc}")
 
     document.status = DocumentStatus.PROCESSED
-    document.failure_reason = None
+    document.failure_reason = utility_detail_failure_reason
     session.add(document)
     session.commit()
     session.refresh(document)
