@@ -26,6 +26,18 @@ _SYNONYMS: dict[str, Category] = {
     "pharmacy": Category.HEALTH,
     "home": Category.HOME,
     "maintenance": Category.HOME,
+    "income": Category.INCOME,
+    "salary": Category.INCOME,
+    "transfer": Category.TRANSFER,
+    "atm_withdrawal": Category.ATM_WITHDRAWAL,
+    "atm": Category.ATM_WITHDRAWAL,
+    "withdrawal": Category.ATM_WITHDRAWAL,
+    "restaurants": Category.RESTAURANTS,
+    "restaurant": Category.RESTAURANTS,
+    "dining": Category.RESTAURANTS,
+    "shopping": Category.SHOPPING,
+    "retail": Category.SHOPPING,
+    "other_expense": Category.OTHER_EXPENSE,
 }
 
 
