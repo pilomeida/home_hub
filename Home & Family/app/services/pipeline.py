@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from app.models.document import Document, DocumentStatus
 from app.models.transaction import Transaction, TransactionType
+from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.categorization import normalize_category
 from app.services.dedup import find_duplicate_transaction
 from app.services.extraction import (
@@ -16,9 +17,12 @@ from app.services.extraction import (
     classify_document,
     extract_bill,
     extract_statement_transactions,
+    extract_utility_detail,
 )
 from app.services.todo_engine import generate_todo_for_transaction
 from app.services.wiki_engine import assess_and_update_wiki
+
+_UTILITY_CATEGORY_VALUES = {"electricity", "water", "telecom"}
 
 
 async def ingest_document(session: Session, document: Document) -> Document:
@@ -83,6 +87,40 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     session.add(transaction)
     session.commit()
     session.refresh(transaction)
+
+    if transaction.category.value in _UTILITY_CATEGORY_VALUES:
+        try:
+            detail = await extract_utility_detail(document.file_path, transaction.category.value)
+            reading = UtilityReading(
+                document_id=document.id,
+                utility_type=UtilityType(transaction.category.value),
+                period_label=detail.period_label,
+                billing_period_start=detail.billing_period_start,
+                billing_period_end=detail.billing_period_end,
+                invoice_number=detail.invoice_number,
+                consumption_value=detail.consumption_value,
+                consumption_unit=detail.consumption_unit,
+                cost_total=transaction.amount,
+                cost_per_unit=(
+                    transaction.amount / detail.consumption_value
+                    if detail.consumption_value
+                    else None
+                ),
+                energy_cost=detail.energy_cost,
+                power_cost=detail.power_cost,
+                fees_taxes_cost=detail.fees_taxes_cost,
+                vat_cost=detail.vat_cost,
+            )
+            session.add(reading)
+            session.commit()
+        except Exception as exc:
+            # Utility detail is enrichment, not a requirement: a failure here
+            # must not affect the bill's own Transaction/Document outcome —
+            # deliberately looser than the todo/wiki block below (which DOES
+            # mark needs_attention on failure), since utility tracking is a
+            # nice-to-have layered on top of an already-successful bill.
+            session.rollback()
+            print(f"utility detail extraction failed for document {document.id}: {exc}")
 
     try:
         generate_todo_for_transaction(session, transaction)
