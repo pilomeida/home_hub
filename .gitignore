@@ -6,3 +6,5 @@ data/*.db
 app/static/documents/*
 !app/static/documents/.gitkeep
 .pytest_cache/
+Bills & Bank Statements/
+Utilities/
