@@ -5,9 +5,12 @@ import pytest
 from app.services.extraction import (
     ClassificationError,
     ExtractedBill,
+    ExtractedStatement,
     ExtractionError,
+    StatementExtractionError,
     classify_document,
     extract_bill,
+    extract_statement_transactions,
 )
 
 
@@ -171,3 +174,63 @@ async def test_classify_document_raises_on_unexpected_type(tmp_path):
 
     with pytest.raises(ClassificationError):
         await classify_document(str(pdf_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_statement_transactions_parses_valid_response(tmp_path):
+    pdf_path = tmp_path / "statement.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    response = json.dumps({
+        "statement_period": "2026-07",
+        "transactions": [
+            {"date": "2026-07-05", "description": "CONTINENTE MAFRA", "amount": 42.15,
+             "currency": "EUR", "type": "debit", "category_hint": "groceries"},
+            {"date": "2026-07-10", "description": "SALARIO EMPRESA X", "amount": 2200.00,
+             "currency": "EUR", "type": "credit", "category_hint": "income"},
+            {"date": "2026-07-12", "description": "TRANSFERENCIA PARA REVOLUT", "amount": 100.00,
+             "currency": "EUR", "type": "transfer", "category_hint": "transfer"},
+        ],
+    })
+    client = _FakeAnthropicClient(response)
+
+    result = await extract_statement_transactions(str(pdf_path), client=client)
+
+    assert isinstance(result, ExtractedStatement)
+    assert result.statement_period == "2026-07"
+    assert len(result.transactions) == 3
+    assert result.transactions[0].description == "CONTINENTE MAFRA"
+    assert result.transactions[0].transaction_date.isoformat() == "2026-07-05"
+    assert result.transactions[0].transaction_type == "debit"
+    assert result.transactions[1].transaction_type == "credit"
+    assert result.transactions[2].transaction_type == "transfer"
+
+
+@pytest.mark.asyncio
+async def test_extract_statement_transactions_raises_on_malformed_json(tmp_path):
+    pdf_path = tmp_path / "statement.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient("not json")
+
+    with pytest.raises(StatementExtractionError):
+        await extract_statement_transactions(str(pdf_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_statement_transactions_raises_when_transactions_key_missing(tmp_path):
+    pdf_path = tmp_path / "statement.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"statement_period": "2026-07"}))
+
+    with pytest.raises(StatementExtractionError):
+        await extract_statement_transactions(str(pdf_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_statement_transactions_handles_empty_list(tmp_path):
+    pdf_path = tmp_path / "statement.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"statement_period": "2026-07", "transactions": []}))
+
+    result = await extract_statement_transactions(str(pdf_path), client=client)
+
+    assert result.transactions == []

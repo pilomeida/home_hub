@@ -139,3 +139,99 @@ async def classify_document(file_path: str, client: Optional[AsyncAnthropic] = N
         return document_type
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise ClassificationError(f"Could not classify document: {exc}") from exc
+
+
+_STATEMENT_MODEL = "claude-sonnet-5"
+
+_STATEMENT_SYSTEM_PROMPT = """You extract every transaction line item from a \
+bank account statement document (all pages). Respond with ONLY a JSON \
+object, no prose, matching this shape exactly:
+
+{
+  "statement_period": "YYYY-MM",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "description": "string, the merchant or counterparty",
+      "amount": 0.00,
+      "currency": "3-letter ISO code, default EUR",
+      "type": "debit, credit, or transfer — use transfer for a move \
+between the account holder's own accounts. This includes indirect \
+transfers: a Santander statement may show this as a payment to a \
+temporary/virtual MB WAY-issued card (used to top up a Revolut account) \
+rather than a literal 'transfer to Revolut' line — treat an MB WAY \
+temporary card top-up as a transfer, not an ordinary purchase. On a \
+Revolut statement, the matching incoming top-up (from Santander, \
+directly or via such a card) is also a transfer, not income. A direct \
+transfer in the other direction (Revolut back to Santander) is a \
+transfer too.",
+      "category_hint": "one lowercase word: electricity, water, gas, \
+telecom, insurance, subscriptions, groceries, health, home, income, \
+transfer, atm_withdrawal, restaurants, shopping, or other_expense"
+    }
+  ]
+}
+
+Include every transaction line item found across all pages of the statement."""
+
+
+class StatementExtractionError(Exception):
+    pass
+
+
+@dataclass
+class ExtractedTransaction:
+    transaction_date: date
+    description: str
+    amount: float
+    currency: str
+    transaction_type: str
+    category_hint: str
+
+
+@dataclass
+class ExtractedStatement:
+    statement_period: Optional[str]
+    transactions: list[ExtractedTransaction]
+
+
+async def extract_statement_transactions(
+    file_path: str, client: Optional[AsyncAnthropic] = None
+) -> ExtractedStatement:
+    """Extract every transaction line item from a bank statement document."""
+    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    content_block = build_content_block(file_path)
+
+    message = await anthropic_client.messages.create(
+        model=_STATEMENT_MODEL,
+        max_tokens=8192,
+        thinking={"type": "disabled"},
+        system=_STATEMENT_SYSTEM_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    content_block,
+                    {"type": "text", "text": "Extract every transaction as JSON."},
+                ],
+            }
+        ],
+    )
+
+    try:
+        raw_text = strip_json_fences(message.content[0].text)
+        data = json.loads(raw_text)
+        transactions = [
+            ExtractedTransaction(
+                transaction_date=date.fromisoformat(item["date"]),
+                description=item["description"],
+                amount=float(item["amount"]),
+                currency=item.get("currency") or "EUR",
+                transaction_type=item["type"],
+                category_hint=item.get("category_hint", "other_expense"),
+            )
+            for item in data["transactions"]
+        ]
+        return ExtractedStatement(statement_period=data.get("statement_period"), transactions=transactions)
+    except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise StatementExtractionError(f"Could not parse statement extraction response: {exc}") from exc
