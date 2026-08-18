@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from app.models.document import Document, DocumentStatus
 from app.models.todo import Todo
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.wiki import WikiPage
 
 _RECENTLY_CHANGED_DAYS = 7
@@ -24,7 +24,10 @@ class DashboardData:
 
 
 def _spend_by_category(session: Session, period: str) -> dict[str, float]:
-    statement = select(Transaction).where(Transaction.statement_period == period)
+    statement = select(Transaction).where(
+        Transaction.statement_period == period,
+        Transaction.transaction_type == TransactionType.DEBIT,
+    )
     totals: dict[str, float] = {}
     for txn in session.exec(statement):
         totals[txn.category.value] = totals.get(txn.category.value, 0.0) + txn.amount
