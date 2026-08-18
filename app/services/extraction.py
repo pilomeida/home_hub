@@ -12,6 +12,7 @@ from typing import Optional
 from anthropic import AsyncAnthropic
 
 from app.config import settings
+from app.services.json_utils import strip_json_fences
 
 _MODEL = "claude-sonnet-5"
 
@@ -98,7 +99,7 @@ async def extract_bill(image_path: str, client: Optional[AsyncAnthropic] = None)
     )
 
     try:
-        raw_text = message.content[0].text
+        raw_text = strip_json_fences(message.content[0].text)
         data = json.loads(raw_text)
         return ExtractedBill(
             provider=data["provider"],
