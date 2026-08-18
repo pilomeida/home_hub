@@ -32,6 +32,8 @@ async def ingest_document(session: Session, document: Document) -> Document:
         # with a reason, never propagate uncaught.
         return _mark_needs_attention(session, document, str(exc))
 
+    document.doc_type = doc_type
+
     if doc_type == "statement":
         return await _ingest_statement(session, document)
     return await _ingest_bill(session, document)
