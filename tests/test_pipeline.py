@@ -460,11 +460,19 @@ async def test_ingest_document_bill_not_falsely_deduped_by_statement_line_item(s
     async def fake_extract_bill(file_path, client=None):
         return extracted_bill
 
+    async def fake_extract_utility_detail(file_path, utility_type, client=None):
+        return ExtractedUtilityDetail(
+            period_label="2026-07", billing_period_start=None, billing_period_end=None,
+            invoice_number=None, consumption_value=None, consumption_unit=None,
+            energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None,
+        )
+
     async def fake_assess_and_update_wiki(session, document, transaction, client=None):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
     bill_result = await pipeline.ingest_document(session, bill_document)
@@ -494,11 +502,19 @@ async def test_ingest_document_true_bill_duplicate_still_detected(session, monke
     async def fake_extract_bill(file_path, client=None):
         return extracted_bill
 
+    async def fake_extract_utility_detail(file_path, utility_type, client=None):
+        return ExtractedUtilityDetail(
+            period_label="2026-07", billing_period_start=None, billing_period_end=None,
+            invoice_number=None, consumption_value=None, consumption_unit=None,
+            energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None,
+        )
+
     async def fake_assess_and_update_wiki(session, document, transaction, client=None):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
     first_result = await pipeline.ingest_document(session, first_document)
@@ -608,6 +624,44 @@ async def test_ingest_bill_creates_utility_reading_for_electricity_category(sess
 
 
 @pytest.mark.asyncio
+async def test_ingest_bill_creates_utility_reading_for_water_category(session, monkeypatch, tmp_path):
+    document = _make_document(session, tmp_path, filename="water-bill.pdf", content_hash="hash-util-water")
+
+    extracted = ExtractedBill(
+        provider="EPAL", category_hint="water", amount=20.0, currency="EUR",
+        due_date=None, paid_date=None, statement_period="2026-07",
+    )
+
+    async def fake_extract_bill(file_path, client=None):
+        return extracted
+
+    async def fake_extract_utility_detail(file_path, utility_type, client=None):
+        return ExtractedUtilityDetail(
+            period_label="2026-07", billing_period_start=None, billing_period_end=None,
+            invoice_number="INV-001", consumption_value=12.0, consumption_unit="m3",
+            energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None,
+        )
+
+    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+        return None
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
+    monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
+    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+
+    result = await pipeline.ingest_document(session, document)
+
+    assert result.status == DocumentStatus.PROCESSED
+    reading = session.exec(
+        select(UtilityReading).where(UtilityReading.document_id == document.id)
+    ).first()
+    assert reading is not None
+    assert reading.utility_type == UtilityType.WATER
+    assert reading.consumption_unit == "m3"
+
+
+@pytest.mark.asyncio
 async def test_ingest_bill_utility_detail_failure_does_not_mark_needs_attention(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="edp2.pdf", content_hash="hash-util-2")
 
@@ -633,6 +687,8 @@ async def test_ingest_bill_utility_detail_failure_does_not_mark_needs_attention(
     result = await pipeline.ingest_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
+    assert result.failure_reason is not None
+    assert "utility model call failed" in result.failure_reason
     assert session.exec(
         select(UtilityReading).where(UtilityReading.document_id == document.id)
     ).first() is None
