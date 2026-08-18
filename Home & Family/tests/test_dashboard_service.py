@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Category, Transaction, TransactionType
 from app.models.wiki import WikiPage
 from app.services.dashboard_service import get_dashboard_data
 
@@ -73,3 +73,34 @@ def test_needs_attention_includes_stranded_pending_documents(session):
 
     assert len(data.needs_attention_documents) == 1
     assert data.needs_attention_documents[0].filename == "stuck.pdf"
+
+
+def test_spend_by_category_excludes_credits_and_transfers(session):
+    document = Document(
+        filename="statement.pdf", file_path="/tmp/statement.pdf", content_hash="h5",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    session.add(Transaction(
+        document_id=document.id, provider="CONTINENTE", category=Category.GROCERIES,
+        transaction_type=TransactionType.DEBIT, amount=40.0, currency="EUR",
+        statement_period="2026-08",
+    ))
+    session.add(Transaction(
+        document_id=document.id, provider="SALARIO", category=Category.INCOME,
+        transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
+        statement_period="2026-08",
+    ))
+    session.add(Transaction(
+        document_id=document.id, provider="REVOLUT TRANSFER", category=Category.TRANSFER,
+        transaction_type=TransactionType.TRANSFER, amount=100.0, currency="EUR",
+        statement_period="2026-08",
+    ))
+    session.commit()
+
+    data = get_dashboard_data(session, today=date(2026, 8, 17))
+
+    assert data.spend_this_month == {"groceries": 40.0}
