@@ -12,12 +12,23 @@
     main { flex: 1; padding: 1.5rem; }
     .needs-attention { color: #b00020; }
     .recently-changed { background: #fff8dc; }
+    nav.subnav { width: auto; padding: 0; margin-bottom: 1rem; border-right: none; display: flex; gap: 1rem; }
+    nav.subnav a { display: inline; margin-bottom: 0; }
+    nav.subnav a.active { font-weight: bold; text-decoration: underline; }
+    .chart { margin-bottom: 1.5rem; }
+    .chart h3 { margin-bottom: 0.5rem; font-size: 1rem; }
+    .chart-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; margin-bottom: 0.15rem; }
+    .chart-label { width: 4.5rem; flex-shrink: 0; }
+    .chart-bar-track { flex: 1; background: #f0f0f0; height: 1rem; }
+    .chart-bar-fill { background: #3a6ea5; height: 100%; }
+    .chart-value { width: 5rem; text-align: right; flex-shrink: 0; }
   </style>
 </head>
 <body>
   <nav>
     <a href="/">Dashboard</a>
     <a href="/bills">Bills & Bank</a>
+    <a href="/utilities/electricity">Utilities</a>
     <a href="/wiki">Wiki</a>
     <a href="/todos">To-Dos</a>
   </nav>

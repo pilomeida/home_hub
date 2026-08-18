@@ -1,9 +1,47 @@
 {% extends "base.html" %}
+{% import "utilities/_bar_chart.html" as charts_macro %}
 {% block title %}Utilities — Home & Family{% endblock %}
 {% block content %}
 <h1>Utilities</h1>
+<nav class="subnav">
+  <a href="/utilities/electricity" class="{{ 'active' if active_tab == 'electricity' else '' }}">Electricity</a>
+  <a href="/utilities/water" class="{{ 'active' if active_tab == 'water' else '' }}">Water</a>
+  <a href="/utilities/telecom" class="{{ 'active' if active_tab == 'telecom' else '' }}">Telecom</a>
+</nav>
+
 {% if readings %}
-<p>{{ readings | length }} reading(s) for {{ active_tab }}.</p>
+<table>
+  <thead>
+    <tr>
+      <th>Month</th><th>Invoice</th><th>Consumption</th><th>Cost</th><th>Cost/unit</th>
+      <th>Energy</th><th>Power</th><th>Fees & taxes</th><th>VAT</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for reading in readings %}
+    <tr>
+      <td>{{ reading.period_label }}</td>
+      <td>{{ reading.invoice_number or "—" }}</td>
+      <td>{{ reading.consumption_value if reading.consumption_value is not none else "—" }} {{ reading.consumption_unit or "" }}</td>
+      <td>{{ "%.2f"|format(reading.cost_total) }}</td>
+      <td>{{ "%.4f"|format(reading.cost_per_unit) if reading.cost_per_unit is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(reading.energy_cost) if reading.energy_cost is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(reading.power_cost) if reading.power_cost is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(reading.fees_taxes_cost) if reading.fees_taxes_cost is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(reading.vat_cost) if reading.vat_cost is not none else "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ charts_macro.bar_chart("Consumption per month", charts.consumption, " " ~ (readings[0].consumption_unit or "")) }}
+{{ charts_macro.bar_chart("Cost per month (€)", charts.cost_total, " €") }}
+{{ charts_macro.bar_chart("Effective cost per unit (€)", charts.cost_per_unit, " €") }}
+{{ charts_macro.bar_chart("Energy cost per month (€)", charts.energy_cost, " €") }}
+{{ charts_macro.bar_chart("Power cost per month (€)", charts.power_cost, " €") }}
+{{ charts_macro.bar_chart("Fees & taxes per month (€)", charts.fees_taxes_cost, " €") }}
+{{ charts_macro.bar_chart("VAT per month (€)", charts.vat_cost, " €") }}
+
 {% else %}
 <p>No data yet.</p>
 {% endif %}
