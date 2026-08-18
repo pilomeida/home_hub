@@ -6,13 +6,23 @@
 {% if document.failure_reason %}
 <p class="needs-attention">{{ document.failure_reason }}</p>
 {% endif %}
-{% if transaction %}
-<dl>
-  <dt>Provider</dt><dd>{{ transaction.provider }}</dd>
-  <dt>Category</dt><dd>{{ transaction.category.value }}</dd>
-  <dt>Amount</dt><dd>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</dd>
-  <dt>Due date</dt><dd>{{ transaction.due_date or "—" }}</dd>
-  <dt>Statement period</dt><dd>{{ transaction.statement_period or "—" }}</dd>
-</dl>
+{% if transactions %}
+<table>
+  <thead>
+    <tr><th>Provider</th><th>Category</th><th>Type</th><th>Amount</th><th>Date</th><th>Statement period</th></tr>
+  </thead>
+  <tbody>
+    {% for transaction in transactions %}
+    <tr>
+      <td>{{ transaction.provider }}</td>
+      <td>{{ transaction.category.value }}</td>
+      <td>{{ transaction.transaction_type.value }}</td>
+      <td>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</td>
+      <td>{{ transaction.due_date or transaction.paid_date or "—" }}</td>
+      <td>{{ transaction.statement_period or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endif %}
 {% endblock %}
