@@ -48,6 +48,23 @@ def _last_month_period_and_date(today: date = None) -> tuple[str, date]:
     return last_period, last_month_date
 
 
+def _this_month_period(today: date = None) -> str:
+    """Mirror app.services.dashboard_service.get_dashboard_data's "this month"
+    computation, so this test's notion of "this month" can never drift from
+    the production code's notion of "this month"."""
+    today = today or date.today()
+    return f"{today.year:04d}-{today.month:02d}"
+
+
+def _next_month_date(today: date = None, day: int = 5) -> date:
+    """A date in the month following `today` — used as a plausible bill due
+    date that stays meaningful regardless of when the suite runs."""
+    today = today or date.today()
+    if today.month == 12:
+        return date(today.year + 1, 1, day)
+    return date(today.year, today.month + 1, day)
+
+
 def test_full_bill_ingestion_flow(client, monkeypatch):
     wiki_response = json.dumps({
         "wiki_worthy": True,
@@ -55,10 +72,16 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
         "facts": {"provider": "EDP"},
     })
 
+    # Target "this month" (relative to whenever the suite runs), matching the
+    # dashboard assertion below, which needs "electricity" to land in
+    # spend_this_month — so this test never breaks on a calendar rollover.
+    this_period = _this_month_period()
+    due_date = _next_month_date()
+
     async def fake_extract_bill(file_path, client=None):
         return ExtractedBill(
             provider="EDP", category_hint="electricity", amount=87.32, currency="EUR",
-            due_date=date(2026, 9, 5), paid_date=None, statement_period="2026-08",
+            due_date=due_date, paid_date=None, statement_period=this_period,
         )
 
     async def fake_assess_and_update_wiki(session, document, transaction, client=None):
