@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Utilities — Home & Family{% endblock %}
+{% block content %}
+<h1>Utilities</h1>
+{% if readings %}
+<p>{{ readings | length }} reading(s) for {{ active_tab }}.</p>
+{% else %}
+<p>No data yet.</p>
+{% endif %}
+{% endblock %}
