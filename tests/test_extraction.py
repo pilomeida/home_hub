@@ -96,3 +96,30 @@ async def test_extract_bill_raises_on_empty_content_list(tmp_path):
 
     with pytest.raises(ExtractionError):
         await extract_bill(str(image_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_extract_bill_sends_whole_pdf_as_document_block(tmp_path):
+    pdf_path = tmp_path / "bill.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake pdf bytes")
+    response = json.dumps({
+        "provider": "EDP", "category_hint": "electricity", "amount": 42.0,
+        "currency": "EUR", "due_date": None, "paid_date": None,
+        "statement_period": "2026-08",
+    })
+    client = _FakeAnthropicClient(response)
+    captured = {}
+    original_create = client.messages.create
+
+    async def capturing_create(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return await original_create(**kwargs)
+
+    client.messages.create = capturing_create
+
+    result = await extract_bill(str(pdf_path), client=client)
+
+    assert result.provider == "EDP"
+    content_block = captured["messages"][0]["content"][0]
+    assert content_block["type"] == "document"
+    assert content_block["source"]["media_type"] == "application/pdf"
