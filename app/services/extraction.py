@@ -90,3 +90,52 @@ async def extract_bill(file_path: str, client: Optional[AsyncAnthropic] = None) 
         )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise ExtractionError(f"Could not parse extraction response: {exc}") from exc
+
+
+_CLASSIFICATION_MODEL = "claude-haiku-4-5-20251001"
+
+_CLASSIFICATION_SYSTEM_PROMPT = """You classify an uploaded financial \
+document as either a single bill/invoice or a bank account statement. \
+Respond with ONLY a JSON object:
+
+{"document_type": "bill" or "statement"}
+
+A "bill" has one provider and one amount due (an invoice, receipt, or \
+premium notice). A "statement" lists multiple transactions across one or \
+more accounts (a monthly bank/account statement)."""
+
+
+class ClassificationError(Exception):
+    pass
+
+
+async def classify_document(file_path: str, client: Optional[AsyncAnthropic] = None) -> str:
+    """Classify an uploaded document as "bill" or "statement"."""
+    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    content_block = build_content_block(file_path)
+
+    message = await anthropic_client.messages.create(
+        model=_CLASSIFICATION_MODEL,
+        max_tokens=128,
+        thinking={"type": "disabled"},
+        system=_CLASSIFICATION_SYSTEM_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    content_block,
+                    {"type": "text", "text": "Classify this document as JSON."},
+                ],
+            }
+        ],
+    )
+
+    try:
+        raw_text = strip_json_fences(message.content[0].text)
+        data = json.loads(raw_text)
+        document_type = data["document_type"]
+        if document_type not in ("bill", "statement"):
+            raise ValueError(f"Unexpected document_type: {document_type!r}")
+        return document_type
+    except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise ClassificationError(f"Could not classify document: {exc}") from exc
