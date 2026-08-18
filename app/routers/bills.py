@@ -54,9 +54,11 @@ async def bill_detail(request: Request, document_id: int, session: Session = Dep
     document = session.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    transaction = session.exec(
-        select(Transaction).where(Transaction.document_id == document_id)
-    ).first()
+    transactions = session.exec(
+        select(Transaction)
+        .where(Transaction.document_id == document_id)
+        .order_by(Transaction.paid_date, Transaction.id)
+    ).all()
     return templates.TemplateResponse(
-        request, "bills/detail.html", {"document": document, "transaction": transaction}
+        request, "bills/detail.html", {"document": document, "transactions": transactions}
     )
