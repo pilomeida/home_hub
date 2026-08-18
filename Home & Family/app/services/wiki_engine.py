@@ -14,6 +14,7 @@ from app.config import settings
 from app.models.document import Document
 from app.models.transaction import Transaction
 from app.models.wiki import WikiChange, WikiPage
+from app.services.json_utils import strip_json_fences
 
 _MODEL = "claude-haiku-4-5-20251001"
 
@@ -43,6 +44,7 @@ async def assess_and_update_wiki(
     message = await anthropic_client.messages.create(
         model=_MODEL,
         max_tokens=512,
+        thinking={"type": "disabled"},
         system=_SYSTEM_PROMPT,
         messages=[
             {
@@ -55,7 +57,7 @@ async def assess_and_update_wiki(
             }
         ],
     )
-    data = json.loads(message.content[0].text)
+    data = json.loads(strip_json_fences(message.content[0].text))
     if not data.get("wiki_worthy"):
         return None
 
