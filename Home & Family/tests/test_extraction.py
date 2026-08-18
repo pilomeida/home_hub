@@ -2,7 +2,13 @@ import json
 
 import pytest
 
-from app.services.extraction import ExtractedBill, ExtractionError, extract_bill
+from app.services.extraction import (
+    ClassificationError,
+    ExtractedBill,
+    ExtractionError,
+    classify_document,
+    extract_bill,
+)
 
 
 class _FakeContent:
@@ -123,3 +129,45 @@ async def test_extract_bill_sends_whole_pdf_as_document_block(tmp_path):
     content_block = captured["messages"][0]["content"][0]
     assert content_block["type"] == "document"
     assert content_block["source"]["media_type"] == "application/pdf"
+
+
+@pytest.mark.asyncio
+async def test_classify_document_returns_bill(tmp_path):
+    pdf_path = tmp_path / "doc.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"document_type": "bill"}))
+
+    result = await classify_document(str(pdf_path), client=client)
+
+    assert result == "bill"
+
+
+@pytest.mark.asyncio
+async def test_classify_document_returns_statement(tmp_path):
+    pdf_path = tmp_path / "doc.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"document_type": "statement"}))
+
+    result = await classify_document(str(pdf_path), client=client)
+
+    assert result == "statement"
+
+
+@pytest.mark.asyncio
+async def test_classify_document_raises_on_malformed_response(tmp_path):
+    pdf_path = tmp_path / "doc.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient("not json")
+
+    with pytest.raises(ClassificationError):
+        await classify_document(str(pdf_path), client=client)
+
+
+@pytest.mark.asyncio
+async def test_classify_document_raises_on_unexpected_type(tmp_path):
+    pdf_path = tmp_path / "doc.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    client = _FakeAnthropicClient(json.dumps({"document_type": "receipt"}))
+
+    with pytest.raises(ClassificationError):
+        await classify_document(str(pdf_path), client=client)
