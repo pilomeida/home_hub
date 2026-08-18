@@ -655,19 +655,23 @@ async def test_ingest_bill_skips_utility_reading_for_non_utility_category(sessio
     async def fake_extract_bill(file_path, client=None):
         return extracted
 
-    async def failing_extract_utility_detail(file_path, utility_type, client=None):
-        raise AssertionError("extract_utility_detail must not be called for non-utility categories")
+    calls = []
+
+    async def spy_extract_utility_detail(file_path, utility_type, client=None):
+        calls.append((file_path, utility_type))
+        raise RuntimeError("should never be called for non-utility categories")
 
     async def fake_assess_and_update_wiki(session, document, transaction, client=None):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
-    monkeypatch.setattr(pipeline, "extract_utility_detail", failing_extract_utility_detail)
+    monkeypatch.setattr(pipeline, "extract_utility_detail", spy_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
     result = await pipeline.ingest_document(session, document)
 
+    assert calls == []
     assert result.status == DocumentStatus.PROCESSED
     assert session.exec(
         select(UtilityReading).where(UtilityReading.document_id == document.id)
