@@ -1,6 +1,6 @@
 import io
 import json
-from datetime import date
+from datetime import date, timedelta
 
 import app.services.pipeline as pipeline_module
 import app.services.wiki_engine as wiki_engine_module
@@ -36,6 +36,16 @@ async def _fake_classify_bill(file_path, client=None):
 
 async def _fake_classify_statement(file_path, client=None):
     return "statement"
+
+
+def _last_month_period_and_date(today: date = None) -> tuple[str, date]:
+    """Mirror app.services.dashboard_service.get_dashboard_data's "last month"
+    computation, so this test's notion of "last month" can never drift from
+    the production code's notion of "last month"."""
+    today = today or date.today()
+    last_month_date = date(today.year, today.month, 1) - timedelta(days=1)
+    last_period = f"{last_month_date.year:04d}-{last_month_date.month:02d}"
+    return last_period, last_month_date
 
 
 def test_full_bill_ingestion_flow(client, monkeypatch):
@@ -80,16 +90,21 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
 
 
 def test_full_statement_ingestion_flow(client, monkeypatch):
+    # Target "last month" (relative to whenever the suite runs), matching
+    # get_dashboard_data's own this-month/last-month computation, so this
+    # test never breaks on a calendar rollover.
+    last_period, last_month_date = _last_month_period_and_date()
+
     async def fake_extract_statement_transactions(file_path, client=None):
         return ExtractedStatement(
-            statement_period="2026-07",
+            statement_period=last_period,
             transactions=[
                 ExtractedTransaction(
-                    transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
+                    transaction_date=last_month_date, description="CONTINENTE MAFRA",
                     amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
                 ),
                 ExtractedTransaction(
-                    transaction_date=date(2026, 7, 10), description="SALARIO EMPRESA X",
+                    transaction_date=last_month_date, description="SALARIO EMPRESA X",
                     amount=2200.0, currency="EUR", transaction_type="credit", category_hint="income",
                 ),
             ],
