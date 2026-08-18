@@ -244,3 +244,100 @@ async def extract_statement_transactions(
         return ExtractedStatement(statement_period=data.get("statement_period"), transactions=transactions)
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise StatementExtractionError(f"Could not parse statement extraction response: {exc}") from exc
+
+
+_UTILITY_DETAIL_SYSTEM_PROMPT = """You extract consumption and cost-breakdown \
+detail from a utility bill document (electricity, water, or telecom). \
+Respond with ONLY a JSON object, no prose, matching this shape exactly:
+
+{
+  "period_label": "YYYY-MM — the calendar month holding the majority of \
+days in this bill's billing period",
+  "billing_period_start": "YYYY-MM-DD or null",
+  "billing_period_end": "YYYY-MM-DD or null",
+  "invoice_number": "string or null",
+  "consumption_value": "number or null — the metered consumption amount \
+(e.g. kWh for electricity, m3 for water, GB for telecom)",
+  "consumption_unit": "string or null — the unit for consumption_value, \
+e.g. kWh, m3, GB",
+  "energy_cost": "number or null — the energy/consumption cost component, \
+before power/fees/VAT, if the bill itemizes it separately",
+  "power_cost": "number or null — a fixed power/capacity charge component, \
+if the bill itemizes it separately",
+  "fees_taxes_cost": "number or null — other fees and taxes, if itemized \
+separately from VAT",
+  "vat_cost": "number or null — VAT/tax component, if itemized separately"
+}
+
+period_label is required — always determine it even if other fields are \
+uncertain. Use null liberally for any other field the bill doesn't clearly \
+itemize; do not guess or approximate a value that isn't actually shown."""
+
+
+class UtilityDetailExtractionError(Exception):
+    pass
+
+
+@dataclass
+class ExtractedUtilityDetail:
+    period_label: str
+    billing_period_start: Optional[date]
+    billing_period_end: Optional[date]
+    invoice_number: Optional[str]
+    consumption_value: Optional[float]
+    consumption_unit: Optional[str]
+    energy_cost: Optional[float]
+    power_cost: Optional[float]
+    fees_taxes_cost: Optional[float]
+    vat_cost: Optional[float]
+
+
+async def extract_utility_detail(
+    file_path: str, utility_type: str, client: Optional[AsyncAnthropic] = None
+) -> ExtractedUtilityDetail:
+    """Extract consumption + cost-breakdown detail from a utility bill
+    document. Enrichment only — callers must treat failure as non-fatal to
+    the underlying bill's own processing."""
+    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    content_block = build_content_block(file_path)
+
+    message = await anthropic_client.messages.create(
+        model=_MODEL,
+        max_tokens=1024,
+        thinking={"type": "disabled"},
+        system=_UTILITY_DETAIL_SYSTEM_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    content_block,
+                    {
+                        "type": "text",
+                        "text": f"Extract the {utility_type} consumption/cost detail as JSON.",
+                    },
+                ],
+            }
+        ],
+    )
+
+    try:
+        raw_text = strip_json_fences(message.content[0].text)
+        data = json.loads(raw_text)
+        return ExtractedUtilityDetail(
+            period_label=data["period_label"],
+            billing_period_start=_parse_date(data.get("billing_period_start")),
+            billing_period_end=_parse_date(data.get("billing_period_end")),
+            invoice_number=data.get("invoice_number"),
+            consumption_value=(
+                float(data["consumption_value"]) if data.get("consumption_value") is not None else None
+            ),
+            consumption_unit=data.get("consumption_unit"),
+            energy_cost=(float(data["energy_cost"]) if data.get("energy_cost") is not None else None),
+            power_cost=(float(data["power_cost"]) if data.get("power_cost") is not None else None),
+            fees_taxes_cost=(
+                float(data["fees_taxes_cost"]) if data.get("fees_taxes_cost") is not None else None
+            ),
+            vat_cost=(float(data["vat_cost"]) if data.get("vat_cost") is not None else None),
+        )
+    except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise UtilityDetailExtractionError(f"Could not parse utility detail response: {exc}") from exc
