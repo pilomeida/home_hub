@@ -28,6 +28,7 @@ class Document(SQLModel, table=True):
     content_hash: str = Field(index=True)
     source: DocumentSource
     status: DocumentStatus = Field(default=DocumentStatus.PENDING)
+    doc_type: Optional[str] = None
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None
