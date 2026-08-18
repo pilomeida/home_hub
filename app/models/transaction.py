@@ -18,7 +18,19 @@ class Category(str, Enum):
     GROCERIES = "groceries"
     HEALTH = "health"
     HOME = "home"
+    INCOME = "income"
+    TRANSFER = "transfer"
+    ATM_WITHDRAWAL = "atm_withdrawal"
+    RESTAURANTS = "restaurants"
+    SHOPPING = "shopping"
+    OTHER_EXPENSE = "other_expense"
     OTHER = "other"
+
+
+class TransactionType(str, Enum):
+    DEBIT = "debit"
+    CREDIT = "credit"
+    TRANSFER = "transfer"
 
 
 class Transaction(SQLModel, table=True):
@@ -28,6 +40,7 @@ class Transaction(SQLModel, table=True):
     document_id: int = Field(foreign_key="documents.id", index=True)
     provider: str
     category: Category = Field(default=Category.OTHER)
+    transaction_type: TransactionType = Field(default=TransactionType.DEBIT)
     amount: float
     currency: str = Field(default="EUR")
     due_date: Optional[date] = None
