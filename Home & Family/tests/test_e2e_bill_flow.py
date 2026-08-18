@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import app.services.pipeline as pipeline_module
 import app.services.wiki_engine as wiki_engine_module
-from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction
+from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractedUtilityDetail
 
 
 class _FakeContent:
@@ -162,3 +162,45 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
 
     wiki_list_response = client.get("/wiki")
     assert "No wiki pages yet." in wiki_list_response.text
+
+
+def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
+    async def fake_classify_bill(file_path, client=None):
+        return "bill"
+
+    async def fake_extract_bill(file_path, client=None):
+        return ExtractedBill(
+            provider="EDP", category_hint="electricity", amount=85.0, currency="EUR",
+            due_date=None, paid_date=None, statement_period="2026-07",
+        )
+
+    async def fake_extract_utility_detail(file_path, utility_type, client=None):
+        return ExtractedUtilityDetail(
+            period_label="2026-07", billing_period_start=None, billing_period_end=None,
+            invoice_number="FA CO26/42 105", consumption_value=401.0, consumption_unit="kWh",
+            energy_cost=56.5, power_cost=4.54, fees_taxes_cost=12.99, vat_cost=10.97,
+        )
+
+    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+        return None
+
+    monkeypatch.setattr(pipeline_module, "classify_document", fake_classify_bill)
+    monkeypatch.setattr(pipeline_module, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline_module, "extract_utility_detail", fake_extract_utility_detail)
+    monkeypatch.setattr(pipeline_module, "assess_and_update_wiki", fake_assess_and_update_wiki)
+
+    upload_response = client.post(
+        "/bills/upload",
+        files={"file": ("edp-july.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
+        follow_redirects=False,
+    )
+    assert upload_response.status_code == 303
+
+    electricity_response = client.get("/utilities/electricity")
+    assert electricity_response.status_code == 200
+    assert "2026-07" in electricity_response.text
+    assert "401" in electricity_response.text
+
+    dashboard_response = client.get("/")
+    assert dashboard_response.status_code == 200
+    assert "electricity" in dashboard_response.text.lower()
