@@ -13,7 +13,7 @@ jobs:
         with:
           host: 167.233.51.113
           username: home-hub
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_SSH_KEY_HOMEHUB }}
           script: |
             set -e
             cd /srv/home-hub/app
