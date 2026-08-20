@@ -23,4 +23,4 @@ jobs:
             alembic upgrade head
             sudo /bin/systemctl restart home-hub
             sleep 2
-            sudo /bin/systemctl status home-hub --no-pager
+            sudo /bin/systemctl is-active home-hub
