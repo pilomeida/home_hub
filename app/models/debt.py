@@ -10,9 +10,11 @@ to informal debt -- used for ad-hoc draws/repayments with no schedule
 to attach a Commitment to."""
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Column, Numeric
 from sqlmodel import Field, SQLModel
 
 
@@ -34,7 +36,7 @@ class Debt(SQLModel, table=True):
     person_id: Optional[int] = Field(default=None, foreign_key="people.id")
     direction: Optional[DebtDirection] = None
     original_amount: float
-    current_balance: float
+    current_balance: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
     interest_rate: Optional[float] = None
     commitment_id: Optional[int] = Field(default=None, foreign_key="commitments.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
