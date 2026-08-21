@@ -182,3 +182,25 @@ def detect_recurring_candidates(session: Session) -> list[Merchant]:
         if _has_recurring_run(transactions):
             candidates.append(merchant)
     return candidates
+
+
+_DEBT_TRANSFER_MARKER_RE = re.compile(r"P/\s*[A-ZÀ-Ú][A-ZÀ-Ú\s]+", re.IGNORECASE)
+_DEBT_CANDIDATE_CATEGORIES = (Category.TRANSFER, Category.OTHER_EXPENSE)
+_DEBT_CANDIDATE_MIN_AMOUNT = 500.0
+
+
+def detect_debt_candidates(session: Session) -> list[Transaction]:
+    """Transactions that look like a person-to-person transfer (a debt
+    draw/repayment candidate): category TRANSFER or OTHER_EXPENSE, amount
+    above the threshold, and provider text matching a Portuguese
+    bank-transfer-to-a-named-individual pattern. Never auto-linked to a
+    Debt — surfaced for a human decision only."""
+    statement = (
+        select(Transaction)
+        .where(Transaction.category.in_(_DEBT_CANDIDATE_CATEGORIES))
+        .where(Transaction.amount > _DEBT_CANDIDATE_MIN_AMOUNT)
+        .where(Transaction.debt_id.is_(None))
+        .where(Transaction.debt_candidate_reviewed.isnot(True))
+    )
+    transactions = session.exec(statement).all()
+    return [t for t in transactions if _DEBT_TRANSFER_MARKER_RE.search(t.provider)]
