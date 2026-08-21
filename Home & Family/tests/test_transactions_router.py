@@ -1,4 +1,7 @@
 from datetime import date
+from decimal import Decimal
+
+from sqlmodel import select
 
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource
@@ -202,4 +205,72 @@ def test_dismiss_debt_candidate_marks_transaction_reviewed(client, session):
 
     assert response.status_code == 200
     session.refresh(transaction)
+    assert transaction.debt_candidate_reviewed is True
+
+
+def test_create_commitment_from_recurring_merchant(client, session):
+    from app.models.commitment import Commitment
+    from app.models.merchant import Merchant
+
+    merchant = Merchant(
+        canonical_name="Netflix Router Test", default_category=Category.SUBSCRIPTIONS,
+        normalized_key="netflix-router-test", confirmed=True,
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+    linked_transaction = _make_transaction(session, "NETFLIX ROUTER TEST", Category.SUBSCRIPTIONS, 12.99)
+    linked_transaction.merchant_id = merchant.id
+    session.add(linked_transaction)
+    session.commit()
+
+    response = client.post(f"/transactions/merchants/{merchant.id}/create-commitment", data={
+        "cadence": "monthly", "planned_amount": "12.99",
+    })
+
+    assert response.status_code == 200
+    session.refresh(merchant)
+    assert merchant.recurring_reviewed is True
+    commitments = session.exec(select(Commitment).where(Commitment.name == "Netflix Router Test")).all()
+    assert len(commitments) == 1
+    assert commitments[0].cadence.value == "monthly"
+    session.refresh(linked_transaction)
+    assert linked_transaction.commitment_id == commitments[0].id
+
+
+def test_link_debt_creates_informal_debt_with_new_person(client, session):
+    from app.models.debt import Debt
+
+    transaction = _make_transaction(session, "TRF CRED SEPA+ P/ NEW PERSON", Category.OTHER_EXPENSE, 3000.0)
+
+    response = client.post(f"/transactions/{transaction.id}/link-debt", data={
+        "direction": "owed_to_us", "person_name": "New Person",
+    })
+
+    assert response.status_code == 200
+    session.refresh(transaction)
+    assert transaction.debt_candidate_reviewed is True
+    assert transaction.debt_id is not None
+    debt = session.get(Debt, transaction.debt_id)
+    assert debt.kind.value == "informal"
+    assert debt.original_amount == 3000.0
+
+
+def test_link_debt_to_existing_debt(client, session):
+    from app.models.debt import Debt, DebtKind
+
+    existing_debt = Debt(kind=DebtKind.INFORMAL, original_amount=1000.0, current_balance=Decimal("1000.00"))
+    session.add(existing_debt)
+    session.commit()
+    session.refresh(existing_debt)
+
+    transaction = _make_transaction(session, "TRF CRED SEPA+ P/ EXISTING PERSON", Category.OTHER_EXPENSE, 500.01)
+
+    response = client.post(f"/transactions/{transaction.id}/link-debt", data={
+        "existing_debt_id": str(existing_debt.id),
+    })
+
+    assert response.status_code == 200
+    session.refresh(transaction)
+    assert transaction.debt_id == existing_debt.id
     assert transaction.debt_candidate_reviewed is True
