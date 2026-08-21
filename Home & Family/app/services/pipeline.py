@@ -8,6 +8,7 @@ from __future__ import annotations
 from sqlmodel import Session
 
 from app.models.document import Document, DocumentStatus
+from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.categorization import normalize_category
@@ -155,14 +156,15 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
 
 
 async def _ingest_statement(session: Session, document: Document) -> Document:
-    # Transactions committed so far in this attempt — tracked so that if a
-    # later line item fails (e.g. a bad transaction_type value), we can
-    # explicitly delete them below. A plain session.rollback() only discards
-    # *uncommitted* state; it can no longer undo an earlier line item's
-    # Transaction row once classify_transaction has forced a per-item
-    # commit (needed so each transaction.id exists before classification
-    # can set merchant_id on it).
+    # Transactions (and any brand-new Merchants) committed so far in this
+    # attempt — tracked so that if a later line item fails (e.g. a bad
+    # transaction_type value), we can explicitly delete them below. A plain
+    # session.rollback() only discards *uncommitted* state; it can no longer
+    # undo an earlier line item's Transaction (or Merchant) row once
+    # classify_transaction has forced a per-item commit (needed so each
+    # transaction.id exists before classification can set merchant_id on it).
     created_transactions: list[Transaction] = []
+    created_merchant_ids: list[int] = []
     try:
         extracted = await extract_statement_transactions(document.file_path)
         for item in extracted.transactions:
@@ -181,7 +183,9 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
             session.refresh(transaction)
             created_transactions.append(transaction)
             try:
-                await classify_transaction(session, transaction)
+                result = await classify_transaction(session, transaction)
+                if result.created_new_merchant:
+                    created_merchant_ids.append(result.merchant.id)
                 session.commit()
             except Exception as exc:
                 # Same reasoning as _ingest_bill: classification failure
@@ -190,16 +194,25 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
                 print(f"classification failed for transaction {transaction.id}: {exc}")
     except Exception as exc:
         # Roll back any staged-but-uncommitted state, then explicitly
-        # delete any line items from this attempt that were already
-        # committed above, before marking needs_attention — so nothing
-        # partially-ingested leaks into the next commit (matching the
-        # pre-per-item-commit behavior, where a single trailing commit made
-        # a plain rollback sufficient).
+        # delete any line items (and any brand-new Merchants they created)
+        # from this attempt that were already committed above, before
+        # marking needs_attention — so nothing partially-ingested leaks
+        # into the next commit (matching the pre-per-item-commit behavior,
+        # where a single trailing commit made a plain rollback sufficient).
+        # A Merchant is only ever deleted here if created_new_merchant was
+        # True for it, which means it did not exist before this exact
+        # attempt — so nothing outside this failed attempt could already be
+        # referencing it, and every Transaction created during this same
+        # attempt is being deleted right alongside it.
         session.rollback()
         for transaction in created_transactions:
             db_transaction = session.get(Transaction, transaction.id)
             if db_transaction is not None:
                 session.delete(db_transaction)
+        for merchant_id in created_merchant_ids:
+            db_merchant = session.get(Merchant, merchant_id)
+            if db_merchant is not None:
+                session.delete(db_merchant)
         session.commit()
         return _mark_needs_attention(session, document, str(exc))
 

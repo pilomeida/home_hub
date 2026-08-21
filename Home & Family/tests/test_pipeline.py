@@ -1,14 +1,41 @@
+import json
 from datetime import date
 
 import pytest
 from sqlmodel import select
 
 from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
 from app.services import pipeline
+from app.services.classification_engine import classify_transaction as _real_classify_transaction
+from app.services.classification_engine import normalize_provider
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractionError
+
+
+class _FakeContent:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeMessage:
+    def __init__(self, text):
+        self.content = [_FakeContent(text)]
+
+
+class _FakeMessages:
+    def __init__(self, response_text):
+        self._response_text = response_text
+
+    async def create(self, **kwargs):
+        return _FakeMessage(self._response_text)
+
+
+class _FakeAnthropicClient:
+    def __init__(self, response_text):
+        self.messages = _FakeMessages(response_text)
 
 
 @pytest.fixture(autouse=True)
@@ -809,3 +836,63 @@ async def test_ingest_statement_calls_classify_transaction_per_line_item(session
     await pipeline.ingest_document(session, document)
 
     assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session, monkeypatch, tmp_path):
+    """Regression test for a reviewer-found gap: if an early line item
+    resolves to a brand-new Merchant via classify_transaction's LLM
+    fallback, and a later line item then fails (bad transaction_type), the
+    whole statement's needs_attention cleanup must also remove that
+    brand-new Merchant — otherwise it survives with zero transactions
+    referencing it and shows up as a phantom, unactionable entry in the
+    merchant review queue. Overrides the file's autouse no-op stub with the
+    real classify_transaction (fed a fake Anthropic client) so a real
+    Merchant actually gets created for item 1 before item 2 fails."""
+    document = _make_document(
+        session, tmp_path, filename="merchant-cleanup-statement.pdf",
+        content_hash="hash-stmt-merchant-cleanup",
+    )
+
+    extracted = ExtractedStatement(
+        statement_period="2026-07",
+        transactions=[
+            ExtractedTransaction(
+                transaction_date=date(2026, 7, 5), description="LOJA NOVA DESCONHECIDA",
+                amount=15.0, currency="EUR", transaction_type="debit", category_hint="other_expense",
+            ),
+            ExtractedTransaction(
+                transaction_date=date(2026, 7, 6), description="MYSTERY LINE",
+                amount=10.0, currency="EUR", transaction_type="not-a-real-type", category_hint="other_expense",
+            ),
+        ],
+    )
+
+    async def fake_extract_statement_transactions(file_path, client=None):
+        return extracted
+
+    merchant_response = json.dumps({
+        "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
+    })
+
+    async def real_classify_transaction_with_fake_client(session, transaction, client=None):
+        return await _real_classify_transaction(
+            session, transaction, client=_FakeAnthropicClient(merchant_response)
+        )
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
+    monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
+    monkeypatch.setattr(pipeline, "classify_transaction", real_classify_transaction_with_fake_client)
+
+    result = await pipeline.ingest_document(session, document)
+
+    assert result.status == DocumentStatus.NEEDS_ATTENTION
+    transactions = session.exec(
+        select(Transaction).where(Transaction.document_id == document.id)
+    ).all()
+    assert transactions == []
+
+    merchant = session.exec(
+        select(Merchant).where(Merchant.normalized_key == normalize_provider("LOJA NOVA DESCONHECIDA"))
+    ).first()
+    assert merchant is None
