@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.person import Person
@@ -55,3 +57,27 @@ def test_formal_debt_links_to_commitment(session):
     assert fetched.person_id is None
     assert fetched.direction is None
     assert fetched.commitment_id == commitment.id
+
+
+def test_current_balance_preserves_decimal_precision(session):
+    debt = Debt(
+        kind=DebtKind.FORMAL,
+        original_amount=1000.0,
+        current_balance=Decimal("1000.00"),
+    )
+    session.add(debt)
+    session.commit()
+    session.refresh(debt)
+
+    fetched = session.get(Debt, debt.id)
+    assert isinstance(fetched.current_balance, Decimal)
+    assert fetched.current_balance == Decimal("1000.00")
+
+    # Three payments that don't divide evenly demonstrate exactly why this
+    # column can't be a float: repeated float subtraction of a
+    # non-terminating binary fraction like 333.33 leaves a residual instead
+    # of landing on exactly zero.
+    remaining = (
+        fetched.current_balance - Decimal("333.33") - Decimal("333.33") - Decimal("333.34")
+    )
+    assert remaining == Decimal("0.00")
