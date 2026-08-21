@@ -4,8 +4,10 @@ import pytest
 
 from app.models.transaction import Category, Nature
 from app.services.classification_engine import (
+    ClassificationResult,
     MerchantResolutionError,
     ResolvedMerchant,
+    classify_transaction,
     normalize_provider,
     resolve_merchant_via_llm,
 )
@@ -99,3 +101,117 @@ async def test_resolve_merchant_via_llm_raises_on_invalid_category():
 
     with pytest.raises(MerchantResolutionError):
         await resolve_merchant_via_llm("SOME SHOP", client=client)
+
+
+@pytest.mark.asyncio
+async def test_classify_transaction_reuses_existing_merchant(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+
+    merchant = Merchant(
+        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
+        default_nature=Nature.ESSENTIAL, normalized_key="modelo hiper",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    document = Document(
+        filename="s.pdf", file_path="/tmp/s.pdf", content_hash="hash-classify-1",
+        source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="MODELO HIPER MAFRA",
+        category=Category.GROCERIES, amount=42.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    result = await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    session.commit()
+
+    assert isinstance(result, ClassificationResult)
+    assert result.created_new_merchant is False
+    assert result.merchant.id == merchant.id
+    assert transaction.merchant_id == merchant.id
+    assert transaction.nature == Nature.ESSENTIAL
+
+
+@pytest.mark.asyncio
+async def test_classify_transaction_creates_new_merchant_via_llm_fallback(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+
+    document = Document(
+        filename="s2.pdf", file_path="/tmp/s2.pdf", content_hash="hash-classify-2",
+        source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="LOJA NOVA DESCONHECIDA",
+        category=Category.OTHER_EXPENSE, amount=15.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    response = json.dumps({
+        "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
+    })
+    result = await classify_transaction(session, transaction, client=_FakeAnthropicClient(response))
+    session.commit()
+
+    assert result.created_new_merchant is True
+    assert result.merchant.canonical_name == "Loja Nova"
+    assert transaction.merchant_id == result.merchant.id
+    assert transaction.nature == Nature.DISCRETIONARY
+
+
+@pytest.mark.asyncio
+async def test_classify_transaction_inherits_account_id_from_document(session):
+    from app.models.account import Account, AccountType
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+
+    account = Account(name="Current Account", institution="Millennium BCP", currency="EUR", account_type=AccountType.CHECKING)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+
+    document = Document(
+        filename="s3.pdf", file_path="/tmp/s3.pdf", content_hash="hash-classify-3",
+        source=DocumentSource.MANUAL, account_id=account.id,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    merchant = Merchant(
+        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
+        normalized_key="modelo hiper",
+    )
+    session.add(merchant)
+    session.commit()
+
+    transaction = Transaction(
+        document_id=document.id, provider="MODELO HIPER", category=Category.GROCERIES,
+        amount=20.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    session.commit()
+
+    assert transaction.account_id == account.id

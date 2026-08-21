@@ -8,9 +8,12 @@ from dataclasses import dataclass
 from typing import Optional
 
 from anthropic import AsyncAnthropic
+from sqlmodel import Session, select
 
 from app.config import settings
-from app.models.transaction import Category, Nature
+from app.models.document import Document
+from app.models.merchant import Merchant
+from app.models.transaction import Category, Nature, Transaction
 from app.services.json_utils import strip_json_fences
 
 _LOCATION_WORDS = ("mafra", "ericeira")
@@ -87,3 +90,50 @@ async def resolve_merchant_via_llm(
         )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise MerchantResolutionError(f"Could not resolve merchant: {exc}") from exc
+
+
+@dataclass
+class ClassificationResult:
+    merchant: Merchant
+    created_new_merchant: bool
+
+
+def _find_merchant_by_key(session: Session, normalized_key: str) -> Optional[Merchant]:
+    statement = select(Merchant).where(Merchant.normalized_key == normalized_key)
+    return session.exec(statement).first()
+
+
+async def classify_transaction(
+    session: Session, transaction: Transaction, client: Optional[AsyncAnthropic] = None
+) -> ClassificationResult:
+    """Resolve transaction.provider to a Merchant (rules tier, then LLM
+    fallback on a miss), and set transaction.merchant_id/account_id/nature
+    from the result. Does not commit — the caller controls the
+    transaction boundary. This is the single entry point both the live
+    ingestion pipeline and the historical backfill script use."""
+    normalized_key = normalize_provider(transaction.provider)
+    merchant = _find_merchant_by_key(session, normalized_key)
+    created_new_merchant = False
+
+    if merchant is None:
+        resolved = await resolve_merchant_via_llm(transaction.provider, client=client)
+        merchant = Merchant(
+            canonical_name=resolved.canonical_name,
+            default_category=resolved.category,
+            default_nature=resolved.nature,
+            normalized_key=normalized_key,
+        )
+        session.add(merchant)
+        session.flush()
+        created_new_merchant = True
+
+    transaction.merchant_id = merchant.id
+    transaction.nature = merchant.default_nature
+
+    if transaction.account_id is None:
+        document = session.get(Document, transaction.document_id)
+        if document is not None and document.account_id is not None:
+            transaction.account_id = document.account_id
+
+    session.add(transaction)
+    return ClassificationResult(merchant=merchant, created_new_merchant=created_new_merchant)
