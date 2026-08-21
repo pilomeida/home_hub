@@ -463,3 +463,110 @@ def test_detect_recurring_candidates_flags_four_month_alternating_amounts(sessio
     candidates = detect_recurring_candidates(session)
 
     assert merchant.id in [m.id for m in candidates]
+
+
+def test_detect_debt_candidates_flags_person_transfer_above_threshold(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_debt_candidates
+
+    document = Document(
+        filename="transfer.pdf", file_path="/tmp/transfer.pdf",
+        content_hash="hash-transfer-1", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id,
+        provider="TRF CRED SEPA+ P/ EDUARDO MANUEL DA SILVA-17471463",
+        category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    candidates = detect_debt_candidates(session)
+
+    assert transaction.id in [t.id for t in candidates]
+
+
+def test_detect_debt_candidates_ignores_small_amount(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_debt_candidates
+
+    document = Document(
+        filename="mbway.pdf", file_path="/tmp/mbway.pdf",
+        content_hash="hash-mbway-1", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="TRF MBWAY P/ JOAO SANTOS",
+        category=Category.OTHER_EXPENSE, amount=20.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    candidates = detect_debt_candidates(session)
+
+    assert transaction.id not in [t.id for t in candidates]
+
+
+def test_detect_debt_candidates_ignores_grocery_category(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_debt_candidates
+
+    document = Document(
+        filename="groceries-big.pdf", file_path="/tmp/groceries-big.pdf",
+        content_hash="hash-groceries-big-1", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="MODELO HIPER MAFRA",
+        category=Category.GROCERIES, amount=600.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    candidates = detect_debt_candidates(session)
+
+    assert transaction.id not in [t.id for t in candidates]
+
+
+def test_detect_debt_candidates_skips_already_reviewed(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_debt_candidates
+
+    document = Document(
+        filename="transfer2.pdf", file_path="/tmp/transfer2.pdf",
+        content_hash="hash-transfer-2", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id,
+        provider="TRF CRED SEPA+ P/ MARIA COSTA",
+        category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
+        debt_candidate_reviewed=True,
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    candidates = detect_debt_candidates(session)
+
+    assert transaction.id not in [t.id for t in candidates]
