@@ -62,3 +62,29 @@ async def list_transactions(
             },
         },
     )
+
+
+@router.post("/bulk-edit")
+async def bulk_edit(request: Request, session: Session = Depends(get_session)):
+    form = await request.form()
+    transaction_ids = [int(v) for v in form.getlist("transaction_ids")]
+    new_category = form.get("new_category") or None
+    new_nature = form.get("new_nature") or None
+    new_account_id = form.get("new_account_id") or None
+
+    if transaction_ids:
+        transactions = session.exec(
+            select(Transaction).where(Transaction.id.in_(transaction_ids))
+        ).all()
+        for t in transactions:
+            if new_category:
+                t.category = Category(new_category)
+            if new_nature:
+                t.nature = Nature(new_nature)
+            if new_account_id:
+                t.account_id = int(new_account_id)
+            session.add(t)
+        session.commit()
+
+    transactions = _filtered_transactions(session)
+    return templates.TemplateResponse(request, "transactions/_rows.html", {"transactions": transactions})
