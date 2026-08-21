@@ -204,3 +204,23 @@ def detect_debt_candidates(session: Session) -> list[Transaction]:
     )
     transactions = session.exec(statement).all()
     return [t for t in transactions if _DEBT_TRANSFER_MARKER_RE.search(t.provider)]
+
+
+@dataclass
+class NeedsReviewQueue:
+    unconfirmed_merchants: list[Merchant]
+    recurring_candidates: list[Merchant]
+    debt_candidates: list[Transaction]
+
+
+def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
+    """Everything currently needing a human decision: brand-new merchants
+    not yet confirmed, recurring-payment candidates, and debt candidates."""
+    unconfirmed = session.exec(
+        select(Merchant).where(Merchant.confirmed == False)  # noqa: E712
+    ).all()
+    return NeedsReviewQueue(
+        unconfirmed_merchants=unconfirmed,
+        recurring_candidates=detect_recurring_candidates(session),
+        debt_candidates=detect_debt_candidates(session),
+    )
