@@ -1,8 +1,13 @@
 """Debt: formal (mortgage-style) or informal (person-to-person) debt,
 one shape for both, distinguished by whether a payment schedule exists.
-Formal debt links to a Commitment for its recurring payment; informal
-debt links directly from Transaction.debt_id instead, since ad-hoc
-loans have no fixed schedule to attach a Commitment to."""
+Formal debt with a recurring schedule links via commitment_id to an
+evergreen (MONTHLY/QUARTERLY) Commitment for its expected payment --
+a yearly-cadence formal debt's schedule isn't representable this way
+today, since each year of a yearly Commitment is its own row. Any debt
+(formal or informal) may also be linked directly from a transaction via
+Transaction.debt_id, a general, unrestricted mechanism -- not limited
+to informal debt -- used for ad-hoc draws/repayments with no schedule
+to attach a Commitment to."""
 
 from datetime import datetime
 from enum import Enum
