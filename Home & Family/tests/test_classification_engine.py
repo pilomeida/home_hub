@@ -570,3 +570,61 @@ def test_detect_debt_candidates_skips_already_reviewed(session):
     candidates = detect_debt_candidates(session)
 
     assert transaction.id not in [t.id for t in candidates]
+
+
+def test_get_needs_review_queue_aggregates_all_three_categories(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import get_needs_review_queue
+
+    unconfirmed = Merchant(
+        canonical_name="New Shop", default_category=Category.SHOPPING,
+        normalized_key="new shop",
+    )
+    session.add(unconfirmed)
+    session.commit()
+    session.refresh(unconfirmed)
+
+    recurring_merchant = Merchant(
+        canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS,
+        normalized_key="netflix-queue", confirmed=True,
+    )
+    session.add(recurring_merchant)
+    session.commit()
+    session.refresh(recurring_merchant)
+    for i, period in enumerate(["2026-05", "2026-06", "2026-07"]):
+        document = Document(
+            filename=f"q-netflix-{i}.pdf", file_path=f"/tmp/q-netflix-{i}.pdf",
+            content_hash=f"hash-q-netflix-{i}", source=DocumentSource.MANUAL,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        session.add(Transaction(
+            document_id=document.id, provider="NETFLIX", category=Category.SUBSCRIPTIONS,
+            amount=12.99, currency="EUR", statement_period=period,
+            merchant_id=recurring_merchant.id,
+        ))
+    session.commit()
+
+    debt_document = Document(
+        filename="q-transfer.pdf", file_path="/tmp/q-transfer.pdf",
+        content_hash="hash-q-transfer-1", source=DocumentSource.MANUAL,
+    )
+    session.add(debt_document)
+    session.commit()
+    session.refresh(debt_document)
+    debt_transaction = Transaction(
+        document_id=debt_document.id, provider="TRF CRED SEPA+ P/ ANA PEREIRA",
+        category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
+    )
+    session.add(debt_transaction)
+    session.commit()
+    session.refresh(debt_transaction)
+
+    queue = get_needs_review_queue(session)
+
+    assert unconfirmed.id in [m.id for m in queue.unconfirmed_merchants]
+    assert recurring_merchant.id in [m.id for m in queue.recurring_candidates]
+    assert debt_transaction.id in [t.id for t in queue.debt_candidates]
