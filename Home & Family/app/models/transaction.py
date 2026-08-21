@@ -33,6 +33,11 @@ class TransactionType(str, Enum):
     TRANSFER = "transfer"
 
 
+class Nature(str, Enum):
+    ESSENTIAL = "essential"
+    DISCRETIONARY = "discretionary"
+
+
 class Transaction(SQLModel, table=True):
     __tablename__ = "transactions"
 
@@ -43,9 +48,13 @@ class Transaction(SQLModel, table=True):
     transaction_type: TransactionType = Field(
         default=TransactionType.DEBIT, sa_column_kwargs={"server_default": "DEBIT"}
     )
+    account_id: Optional[int] = Field(default=None, foreign_key="accounts.id")
     amount: float
     currency: str = Field(default="EUR")
     due_date: Optional[date] = None
     paid_date: Optional[date] = None
     statement_period: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    commitment_id: Optional[int] = Field(default=None, foreign_key="commitments.id")
+    debt_id: Optional[int] = Field(default=None, foreign_key="debts.id")
+    nature: Optional[Nature] = None
