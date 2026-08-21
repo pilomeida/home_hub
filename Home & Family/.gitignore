@@ -8,3 +8,4 @@ app/static/documents/*
 .pytest_cache/
 Bills & Bank Statements/
 Utilities/
+.superpowers/
