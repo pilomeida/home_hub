@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+{% block content %}
+<h1>Transactions</h1>
+<nav class="subnav">
+  <a href="/transactions" class="active">All</a>
+  <a href="/transactions/needs-review">Needs Review</a>
+</nav>
+<form method="get" action="/transactions">
+  <select name="category">
+    <option value="">All categories</option>
+    {% for c in categories %}
+    <option value="{{ c.value }}" {% if filters.category == c.value %}selected{% endif %}>{{ c.value }}</option>
+    {% endfor %}
+  </select>
+  <select name="nature">
+    <option value="">All natures</option>
+    {% for n in natures %}
+    <option value="{{ n.value }}" {% if filters.nature == n.value %}selected{% endif %}>{{ n.value }}</option>
+    {% endfor %}
+  </select>
+  <select name="account_id">
+    <option value="">All accounts</option>
+    {% for a in accounts %}
+    <option value="{{ a.id }}" {% if filters.account_id == a.id %}selected{% endif %}>{{ a.name }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date_from" value="{{ filters.date_from or '' }}">
+  <input type="date" name="date_to" value="{{ filters.date_to or '' }}">
+  <button type="submit">Filter</button>
+</form>
+<table id="transactions-table">
+  <thead>
+    <tr><th></th><th>Date</th><th>Provider</th><th>Category</th><th>Nature</th><th>Account</th><th>Amount</th></tr>
+  </thead>
+  <tbody id="transactions-tbody">
+    {% include "transactions/_rows.html" %}
+  </tbody>
+</table>
+{% endblock %}
