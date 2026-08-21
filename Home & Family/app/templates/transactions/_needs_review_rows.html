@@ -1,0 +1,33 @@
+<section id="unconfirmed-merchants">
+  <h2>New merchants</h2>
+  {% for m in queue.unconfirmed_merchants %}
+  <div class="needs-attention">
+    {{ m.canonical_name }} — {{ m.default_category.value }} / {{ m.default_nature.value if m.default_nature else "" }}
+    <button hx-post="/transactions/merchants/{{ m.id }}/confirm" hx-target="#needs-review-body" hx-swap="innerHTML">Confirm</button>
+  </div>
+  {% else %}
+  <p>Nothing to confirm.</p>
+  {% endfor %}
+</section>
+<section id="recurring-candidates">
+  <h2>Looks recurring</h2>
+  {% for m in queue.recurring_candidates %}
+  <div class="needs-attention">
+    {{ m.canonical_name }} — looks like a recurring payment
+    <button hx-post="/transactions/merchants/{{ m.id }}/dismiss-recurring" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
+  </div>
+  {% else %}
+  <p>Nothing recurring detected.</p>
+  {% endfor %}
+</section>
+<section id="debt-candidates">
+  <h2>Possible debt transfers</h2>
+  {% for t in queue.debt_candidates %}
+  <div class="needs-attention">
+    {{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR
+    <button hx-post="/transactions/{{ t.id }}/dismiss-debt-candidate" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
+  </div>
+  {% else %}
+  <p>No debt candidates detected.</p>
+  {% endfor %}
+</section>

@@ -139,3 +139,67 @@ def test_bulk_edit_with_no_selection_changes_nothing(client, session):
     assert response.status_code == 200
     session.refresh(t1)
     assert t1.category == Category.OTHER_EXPENSE
+
+
+def _make_unconfirmed_merchant(session, name="New Shop", key="new-shop-router-test"):
+    from app.models.merchant import Merchant
+    merchant = Merchant(canonical_name=name, default_category=Category.SHOPPING, normalized_key=key)
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+    return merchant
+
+
+def test_needs_review_page_lists_unconfirmed_merchant(client, session):
+    merchant = _make_unconfirmed_merchant(session)
+
+    response = client.get("/transactions/needs-review")
+
+    assert response.status_code == 200
+    assert merchant.canonical_name in response.text
+
+
+def test_confirm_merchant_removes_it_from_queue(client, session):
+    merchant = _make_unconfirmed_merchant(session, name="Confirm Me", key="confirm-me-router-test")
+
+    response = client.post(f"/transactions/merchants/{merchant.id}/confirm")
+
+    assert response.status_code == 200
+    assert "Confirm Me" not in response.text
+    session.refresh(merchant)
+    assert merchant.confirmed is True
+
+
+def test_dismiss_recurring_marks_merchant_reviewed(client, session):
+    from app.models.merchant import Merchant
+    merchant = Merchant(
+        canonical_name="Recurring Test", default_category=Category.SUBSCRIPTIONS,
+        normalized_key="recurring-test-router", confirmed=True,
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+    for i, period in enumerate(["2026-05", "2026-06", "2026-07"]):
+        t = _make_transaction(session, "RECURRING TEST", Category.SUBSCRIPTIONS, 9.99)
+        t.merchant_id = merchant.id
+        t.statement_period = period
+        session.add(t)
+    session.commit()
+
+    response = client.post(f"/transactions/merchants/{merchant.id}/dismiss-recurring")
+
+    assert response.status_code == 200
+    session.refresh(merchant)
+    assert merchant.recurring_reviewed is True
+
+
+def test_dismiss_debt_candidate_marks_transaction_reviewed(client, session):
+    transaction = _make_transaction(
+        session, "TRF CRED SEPA+ P/ SOME PERSON", Category.OTHER_EXPENSE, 600.0
+    )
+
+    response = client.post(f"/transactions/{transaction.id}/dismiss-debt-candidate")
+
+    assert response.status_code == 200
+    session.refresh(transaction)
+    assert transaction.debt_candidate_reviewed is True
