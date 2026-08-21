@@ -1,0 +1,11 @@
+{% for t in transactions %}
+<tr>
+  <td><input type="checkbox" name="transaction_ids" value="{{ t.id }}"></td>
+  <td>{{ t.paid_date or "" }}</td>
+  <td>{{ t.provider }}</td>
+  <td>{{ t.category.value }}</td>
+  <td>{{ t.nature.value if t.nature else "" }}</td>
+  <td>{{ t.account_id or "" }}</td>
+  <td>{{ "%.2f"|format(t.amount) }}</td>
+</tr>
+{% endfor %}
