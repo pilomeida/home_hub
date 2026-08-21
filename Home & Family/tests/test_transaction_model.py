@@ -139,3 +139,55 @@ def test_transaction_new_fields_default_to_none(session):
     assert transaction.commitment_id is None
     assert transaction.debt_id is None
     assert transaction.nature is None
+
+
+def test_transaction_merchant_and_debt_review_fields_default_to_none(session):
+    document = Document(
+        filename="groceries2.pdf", file_path="/tmp/groceries2.pdf",
+        content_hash="hash-groceries-2", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="CONTINENTE", category=Category.GROCERIES,
+        amount=30.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    assert transaction.merchant_id is None
+    assert transaction.debt_candidate_reviewed is None
+
+
+def test_transaction_links_to_merchant(session):
+    from app.models.merchant import Merchant
+
+    document = Document(
+        filename="groceries3.pdf", file_path="/tmp/groceries3.pdf",
+        content_hash="hash-groceries-3", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    merchant = Merchant(
+        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
+        normalized_key="modelo hiper",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    transaction = Transaction(
+        document_id=document.id, provider="MODELO HIPER MAFRA", category=Category.GROCERIES,
+        amount=45.0, currency="EUR", merchant_id=merchant.id,
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    fetched = session.get(Transaction, transaction.id)
+    assert fetched.merchant_id == merchant.id
