@@ -1,5 +1,6 @@
 """Routes for browsing and filtering transactions."""
 
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -8,7 +9,10 @@ from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models.account import Account
+from app.models.commitment import Cadence, Commitment
+from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.merchant import Merchant
+from app.models.person import Person
 from app.models.transaction import Category, Nature, Transaction
 from app.services.classification_engine import get_needs_review_queue
 
@@ -130,5 +134,80 @@ async def dismiss_debt_candidate(request: Request, transaction_id: int, session:
     transaction.debt_candidate_reviewed = True
     session.add(transaction)
     session.commit()
+    queue = get_needs_review_queue(session)
+    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+
+
+@router.post("/merchants/{merchant_id}/create-commitment")
+async def create_commitment_from_merchant(
+    request: Request, merchant_id: int, session: Session = Depends(get_session)
+):
+    form = await request.form()
+    merchant = session.get(Merchant, merchant_id)
+    if merchant is None:
+        raise HTTPException(status_code=404, detail="Merchant not found")
+
+    commitment = Commitment(
+        name=merchant.canonical_name,
+        category=merchant.default_category,
+        cadence=Cadence(form["cadence"]),
+        planned_amount=float(form["planned_amount"]),
+        year=int(form["year"]) if form.get("year") else None,
+    )
+    session.add(commitment)
+    session.commit()
+    session.refresh(commitment)
+
+    linked_transactions = session.exec(
+        select(Transaction).where(Transaction.merchant_id == merchant_id)
+    ).all()
+    for t in linked_transactions:
+        t.commitment_id = commitment.id
+        session.add(t)
+    merchant.recurring_reviewed = True
+    session.add(merchant)
+    session.commit()
+
+    queue = get_needs_review_queue(session)
+    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+
+
+@router.post("/{transaction_id}/link-debt")
+async def link_debt(request: Request, transaction_id: int, session: Session = Depends(get_session)):
+    form = await request.form()
+    transaction = session.get(Transaction, transaction_id)
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    existing_debt_id = form.get("existing_debt_id")
+    if existing_debt_id:
+        debt = session.get(Debt, int(existing_debt_id))
+        if debt is None:
+            raise HTTPException(status_code=404, detail="Debt not found")
+    else:
+        person_id = None
+        person_name = form.get("person_name")
+        if person_name:
+            person = Person(name=person_name)
+            session.add(person)
+            session.commit()
+            session.refresh(person)
+            person_id = person.id
+        debt = Debt(
+            kind=DebtKind.INFORMAL,
+            person_id=person_id,
+            direction=DebtDirection(form["direction"]) if form.get("direction") else None,
+            original_amount=transaction.amount,
+            current_balance=Decimal(str(transaction.amount)),
+        )
+        session.add(debt)
+        session.commit()
+        session.refresh(debt)
+
+    transaction.debt_id = debt.id
+    transaction.debt_candidate_reviewed = True
+    session.add(transaction)
+    session.commit()
+
     queue = get_needs_review_queue(session)
     return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
