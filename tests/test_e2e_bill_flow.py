@@ -38,6 +38,10 @@ async def _fake_classify_statement(file_path, client=None):
     return "statement"
 
 
+async def _noop_classify_transaction(session, transaction, client=None):
+    return None
+
+
 def _last_month_period_and_date(today: date = None) -> tuple[str, date]:
     """Mirror app.services.dashboard_service.get_dashboard_data's "last month"
     computation, so this test's notion of "last month" can never drift from
@@ -92,6 +96,7 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
     monkeypatch.setattr(pipeline_module, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline_module, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline_module, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
         "/bills/upload",
@@ -135,6 +140,7 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
 
     monkeypatch.setattr(pipeline_module, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline_module, "extract_statement_transactions", fake_extract_statement_transactions)
+    monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
         "/bills/upload",
@@ -188,6 +194,7 @@ def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
     monkeypatch.setattr(pipeline_module, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline_module, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline_module, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
         "/bills/upload",
