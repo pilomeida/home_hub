@@ -32,4 +32,5 @@ class Document(SQLModel, table=True):
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None
+    account_id: Optional[int] = Field(default=None, foreign_key="accounts.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
