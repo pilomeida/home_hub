@@ -11,6 +11,18 @@ from app.services import pipeline
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractionError
 
 
+@pytest.fixture(autouse=True)
+def _stub_classify_transaction(monkeypatch):
+    """Every pre-existing test in this file predates classification-engine
+    wiring and doesn't expect an LLM call for merchant resolution. Stub it
+    to a no-op by default; the two tests that actually verify
+    classify_transaction gets called override this locally with their own
+    monkeypatch.setattr call, which simply takes effect after this one."""
+    async def _noop_classify_transaction(session, transaction, client=None):
+        return None
+    monkeypatch.setattr(pipeline, "classify_transaction", _noop_classify_transaction)
+
+
 def _make_document(session, tmp_path, filename="bill.pdf", content_hash="hash1"):
     document = Document(
         filename=filename, file_path=str(tmp_path / filename), content_hash=content_hash,
@@ -732,3 +744,68 @@ async def test_ingest_bill_skips_utility_reading_for_non_utility_category(sessio
     assert session.exec(
         select(UtilityReading).where(UtilityReading.document_id == document.id)
     ).first() is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_bill_calls_classify_transaction(session, monkeypatch, tmp_path):
+    document = _make_document(session, tmp_path, filename="classify-bill.pdf", content_hash="hash-pipeline-classify-1")
+
+    extracted = ExtractedBill(
+        provider="EDP", category_hint="electricity", amount=50.0, currency="EUR",
+        due_date=None, paid_date=None, statement_period="2026-08",
+    )
+
+    calls = []
+
+    async def spy_classify_transaction(session, transaction, client=None):
+        calls.append(transaction.id)
+
+    async def fake_extract_bill(file_path, client=None):
+        return extracted
+
+    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+        return None
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
+    monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "classify_transaction", spy_classify_transaction)
+
+    await pipeline.ingest_document(session, document)
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_ingest_statement_calls_classify_transaction_per_line_item(session, monkeypatch, tmp_path):
+    document = _make_document(session, tmp_path, filename="classify-statement.pdf", content_hash="hash-pipeline-classify-2")
+
+    extracted = ExtractedStatement(
+        statement_period="2026-07",
+        transactions=[
+            ExtractedTransaction(
+                transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
+                amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+            ),
+            ExtractedTransaction(
+                transaction_date=date(2026, 7, 10), description="SALARIO EMPRESA X",
+                amount=2200.0, currency="EUR", transaction_type="credit", category_hint="income",
+            ),
+        ],
+    )
+
+    calls = []
+
+    async def spy_classify_transaction(session, transaction, client=None):
+        calls.append(transaction.id)
+
+    async def fake_extract_statement_transactions(file_path, client=None):
+        return extracted
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
+    monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
+    monkeypatch.setattr(pipeline, "classify_transaction", spy_classify_transaction)
+
+    await pipeline.ingest_document(session, document)
+
+    assert len(calls) == 2

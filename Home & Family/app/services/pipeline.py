@@ -11,6 +11,7 @@ from app.models.document import Document, DocumentStatus
 from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.categorization import normalize_category
+from app.services.classification_engine import classify_transaction
 from app.services.dedup import find_duplicate_transaction
 from app.services.extraction import (
     ExtractedBill,
@@ -88,6 +89,17 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     session.commit()
     session.refresh(transaction)
 
+    try:
+        await classify_transaction(session, transaction)
+        session.commit()
+    except Exception as exc:
+        # Classification is enrichment on top of an already-successful bill,
+        # matching how utility-detail extraction below already degrades —
+        # a classification failure must not affect the bill's own
+        # Transaction/Document outcome.
+        session.rollback()
+        print(f"classification failed for transaction {transaction.id}: {exc}")
+
     utility_detail_failure_reason = None
     if transaction.category.value in _UTILITY_CATEGORY_VALUES:
         try:
@@ -143,6 +155,14 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
 
 
 async def _ingest_statement(session: Session, document: Document) -> Document:
+    # Transactions committed so far in this attempt — tracked so that if a
+    # later line item fails (e.g. a bad transaction_type value), we can
+    # explicitly delete them below. A plain session.rollback() only discards
+    # *uncommitted* state; it can no longer undo an earlier line item's
+    # Transaction row once classify_transaction has forced a per-item
+    # commit (needed so each transaction.id exists before classification
+    # can set merchant_id on it).
+    created_transactions: list[Transaction] = []
     try:
         extracted = await extract_statement_transactions(document.file_path)
         for item in extracted.transactions:
@@ -157,13 +177,30 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
                 statement_period=extracted.statement_period,
             )
             session.add(transaction)
-        session.commit()
+            session.commit()
+            session.refresh(transaction)
+            created_transactions.append(transaction)
+            try:
+                await classify_transaction(session, transaction)
+                session.commit()
+            except Exception as exc:
+                # Same reasoning as _ingest_bill: classification failure
+                # must not affect the statement's own ingestion outcome.
+                session.rollback()
+                print(f"classification failed for transaction {transaction.id}: {exc}")
     except Exception as exc:
-        # Roll back any staged-but-uncommitted Transaction rows from a
-        # partway-through failure (e.g. a bad transaction_type value on a
-        # later line item) before marking needs_attention, so nothing
-        # partially-ingested leaks into the next commit.
+        # Roll back any staged-but-uncommitted state, then explicitly
+        # delete any line items from this attempt that were already
+        # committed above, before marking needs_attention — so nothing
+        # partially-ingested leaks into the next commit (matching the
+        # pre-per-item-commit behavior, where a single trailing commit made
+        # a plain rollback sufficient).
         session.rollback()
+        for transaction in created_transactions:
+            db_transaction = session.get(Transaction, transaction.id)
+            if db_transaction is not None:
+                session.delete(db_transaction)
+        session.commit()
         return _mark_needs_attention(session, document, str(exc))
 
     # Statement-derived transactions are historical and already settled —

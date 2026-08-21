@@ -3,6 +3,12 @@
 {% block content %}
 <h1>Upload a bill or statement</h1>
 <form action="/bills/upload" method="post" enctype="multipart/form-data">
+  <select name="account_id">
+    <option value="">(no account selected)</option>
+    {% for a in accounts %}
+    <option value="{{ a.id }}">{{ a.name }}</option>
+    {% endfor %}
+  </select>
   <input type="file" name="file" required>
   <button type="submit">Upload</button>
 </form>

@@ -1,11 +1,14 @@
 """Routes for manual bill/statement upload and browsing."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
+from app.models.account import Account
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.transaction import Transaction
 from app.services.dedup import find_existing_document_by_hash
@@ -23,12 +26,17 @@ async def list_bills(request: Request, session: Session = Depends(get_session)):
 
 
 @router.get("/upload")
-async def upload_form(request: Request):
-    return templates.TemplateResponse(request, "bills/upload.html", {})
+async def upload_form(request: Request, session: Session = Depends(get_session)):
+    accounts = session.exec(select(Account)).all()
+    return templates.TemplateResponse(request, "bills/upload.html", {"accounts": accounts})
 
 
 @router.post("/upload")
-async def upload_bill(request: Request, file: UploadFile, session: Session = Depends(get_session)):
+async def upload_bill(
+    request: Request, file: UploadFile,
+    account_id: Optional[str] = Form(None),
+    session: Session = Depends(get_session),
+):
     content = await file.read()
     file_path, content_hash = save_upload(file.filename, content)
 
@@ -40,6 +48,7 @@ async def upload_bill(request: Request, file: UploadFile, session: Session = Dep
         filename=file.filename, file_path=file_path, content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
         uploaded_by=getattr(request.state, "user_email", None),
+        account_id=int(account_id) if account_id else None,
     )
     session.add(document)
     session.commit()
