@@ -137,3 +137,48 @@ async def classify_transaction(
 
     session.add(transaction)
     return ClassificationResult(merchant=merchant, created_new_merchant=created_new_merchant)
+
+
+def _is_consecutive_month(period_a: str, period_b: str) -> bool:
+    year_a, month_a = (int(p) for p in period_a.split("-"))
+    year_b, month_b = (int(p) for p in period_b.split("-"))
+    return (year_b * 12 + month_b) - (year_a * 12 + month_a) == 1
+
+
+def _has_recurring_run(transactions: list[Transaction], min_run: int = 3, tolerance: float = 0.10) -> bool:
+    periods = sorted({t.statement_period for t in transactions if t.statement_period})
+    if len(periods) < min_run:
+        return False
+
+    by_period: dict[str, list[float]] = {}
+    for t in transactions:
+        if t.statement_period:
+            by_period.setdefault(t.statement_period, []).append(t.amount)
+
+    consecutive = 1
+    for i in range(1, len(periods)):
+        consecutive = consecutive + 1 if _is_consecutive_month(periods[i - 1], periods[i]) else 1
+        if consecutive >= min_run:
+            run_periods = periods[i - min_run + 1 : i + 1]
+            run_amounts = [amt for p in run_periods for amt in by_period[p]]
+            average = sum(run_amounts) / len(run_amounts)
+            if average and all(abs(amt - average) / average <= tolerance for amt in run_amounts):
+                return True
+    return False
+
+
+def detect_recurring_candidates(session: Session) -> list[Merchant]:
+    """Merchants not yet reviewed for recurring status, whose transactions
+    show 3+ consecutive statement_periods with every amount within +/-10%
+    of that run's average."""
+    merchants = session.exec(
+        select(Merchant).where(Merchant.recurring_reviewed == False)  # noqa: E712
+    ).all()
+    candidates = []
+    for merchant in merchants:
+        transactions = session.exec(
+            select(Transaction).where(Transaction.merchant_id == merchant.id)
+        ).all()
+        if _has_recurring_run(transactions):
+            candidates.append(merchant)
+    return candidates

@@ -296,3 +296,136 @@ async def test_classify_transaction_does_not_commit_internally(session):
         select(Merchant).where(Merchant.normalized_key == "loja nova desconhecida")
     ).first()
     assert found is None
+
+
+def test_detect_recurring_candidates_flags_three_consecutive_similar_months(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_recurring_candidates
+
+    merchant = Merchant(
+        canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS,
+        normalized_key="netflix",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    for i, period in enumerate(["2026-05", "2026-06", "2026-07"]):
+        document = Document(
+            filename=f"netflix-{i}.pdf", file_path=f"/tmp/netflix-{i}.pdf",
+            content_hash=f"hash-netflix-{i}", source=DocumentSource.MANUAL,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        session.add(Transaction(
+            document_id=document.id, provider="NETFLIX", category=Category.SUBSCRIPTIONS,
+            amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
+        ))
+    session.commit()
+
+    candidates = detect_recurring_candidates(session)
+
+    assert merchant.id in [m.id for m in candidates]
+
+
+def test_detect_recurring_candidates_skips_already_reviewed_merchant(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_recurring_candidates
+
+    merchant = Merchant(
+        canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS,
+        normalized_key="netflix-reviewed", recurring_reviewed=True,
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    for i, period in enumerate(["2026-05", "2026-06", "2026-07"]):
+        document = Document(
+            filename=f"netflix-r-{i}.pdf", file_path=f"/tmp/netflix-r-{i}.pdf",
+            content_hash=f"hash-netflix-r-{i}", source=DocumentSource.MANUAL,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        session.add(Transaction(
+            document_id=document.id, provider="NETFLIX", category=Category.SUBSCRIPTIONS,
+            amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
+        ))
+    session.commit()
+
+    candidates = detect_recurring_candidates(session)
+
+    assert merchant.id not in [m.id for m in candidates]
+
+
+def test_detect_recurring_candidates_ignores_two_month_run(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_recurring_candidates
+
+    merchant = Merchant(
+        canonical_name="One-off Shop", default_category=Category.SHOPPING,
+        normalized_key="one-off shop",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    for i, period in enumerate(["2026-05", "2026-06"]):
+        document = Document(
+            filename=f"oneoff-{i}.pdf", file_path=f"/tmp/oneoff-{i}.pdf",
+            content_hash=f"hash-oneoff-{i}", source=DocumentSource.MANUAL,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        session.add(Transaction(
+            document_id=document.id, provider="ONE-OFF SHOP", category=Category.SHOPPING,
+            amount=30.0, currency="EUR", statement_period=period, merchant_id=merchant.id,
+        ))
+    session.commit()
+
+    candidates = detect_recurring_candidates(session)
+
+    assert merchant.id not in [m.id for m in candidates]
+
+
+def test_detect_recurring_candidates_ignores_run_with_dissimilar_amounts(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_recurring_candidates
+
+    merchant = Merchant(
+        canonical_name="Groceries Chain", default_category=Category.GROCERIES,
+        normalized_key="groceries chain",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    amounts = [15.0, 80.0, 12.0]
+    for i, (period, amount) in enumerate(zip(["2026-05", "2026-06", "2026-07"], amounts)):
+        document = Document(
+            filename=f"groc-{i}.pdf", file_path=f"/tmp/groc-{i}.pdf",
+            content_hash=f"hash-groc-{i}", source=DocumentSource.MANUAL,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        session.add(Transaction(
+            document_id=document.id, provider="GROCERIES CHAIN", category=Category.GROCERIES,
+            amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
+        ))
+    session.commit()
+
+    candidates = detect_recurring_candidates(session)
+
+    assert merchant.id not in [m.id for m in candidates]
