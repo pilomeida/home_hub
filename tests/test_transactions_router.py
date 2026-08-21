@@ -90,3 +90,52 @@ def test_list_transactions_combines_category_and_nature_filters(client, session)
     assert "NETFLIX" in response.text
     assert "GYM" not in response.text
     assert "CONTINENTE" not in response.text
+
+
+def test_bulk_edit_applies_category_to_selected_transactions(client, session):
+    t1 = _make_transaction(session, "SHOP A", Category.OTHER_EXPENSE, 10.0)
+    t2 = _make_transaction(session, "SHOP B", Category.OTHER_EXPENSE, 20.0)
+    t3 = _make_transaction(session, "SHOP C", Category.OTHER_EXPENSE, 30.0)
+
+    response = client.post("/transactions/bulk-edit", data={
+        "transaction_ids": [str(t1.id), str(t2.id)],
+        "new_category": "shopping",
+    })
+
+    assert response.status_code == 200
+    session.refresh(t1)
+    session.refresh(t2)
+    session.refresh(t3)
+    assert t1.category == Category.SHOPPING
+    assert t2.category == Category.SHOPPING
+    assert t3.category == Category.OTHER_EXPENSE
+
+
+def test_bulk_edit_applies_nature_and_account(client, session):
+    account = Account(name="Savings", institution="Millennium BCP", currency="EUR", account_type=AccountType.SAVINGS)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+
+    t1 = _make_transaction(session, "SHOP D", Category.SHOPPING, 10.0)
+
+    response = client.post("/transactions/bulk-edit", data={
+        "transaction_ids": [str(t1.id)],
+        "new_nature": "discretionary",
+        "new_account_id": str(account.id),
+    })
+
+    assert response.status_code == 200
+    session.refresh(t1)
+    assert t1.nature == Nature.DISCRETIONARY
+    assert t1.account_id == account.id
+
+
+def test_bulk_edit_with_no_selection_changes_nothing(client, session):
+    t1 = _make_transaction(session, "SHOP E", Category.OTHER_EXPENSE, 10.0)
+
+    response = client.post("/transactions/bulk-edit", data={"new_category": "shopping"})
+
+    assert response.status_code == 200
+    session.refresh(t1)
+    assert t1.category == Category.OTHER_EXPENSE
