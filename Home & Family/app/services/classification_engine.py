@@ -159,7 +159,7 @@ def _has_recurring_run(transactions: list[Transaction], min_run: int = 3, tolera
     for i in range(1, len(periods)):
         consecutive = consecutive + 1 if _is_consecutive_month(periods[i - 1], periods[i]) else 1
         if consecutive >= min_run:
-            run_periods = periods[i - min_run + 1 : i + 1]
+            run_periods = periods[i - consecutive + 1 : i + 1]
             run_amounts = [amt for p in run_periods for amt in by_period[p]]
             average = sum(run_amounts) / len(run_amounts)
             if average and all(abs(amt - average) / average <= tolerance for amt in run_amounts):

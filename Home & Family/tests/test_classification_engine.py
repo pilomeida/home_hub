@@ -429,3 +429,37 @@ def test_detect_recurring_candidates_ignores_run_with_dissimilar_amounts(session
     candidates = detect_recurring_candidates(session)
 
     assert merchant.id not in [m.id for m in candidates]
+
+
+def test_detect_recurring_candidates_flags_four_month_alternating_amounts(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_recurring_candidates
+
+    merchant = Merchant(
+        canonical_name="Alternating Service", default_category=Category.SUBSCRIPTIONS,
+        normalized_key="alternating-service",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    amounts = [110.0, 90.0, 110.0, 90.0]
+    for i, (period, amount) in enumerate(zip(["2026-01", "2026-02", "2026-03", "2026-04"], amounts)):
+        document = Document(
+            filename=f"alt-{i}.pdf", file_path=f"/tmp/alt-{i}.pdf",
+            content_hash=f"hash-alt-{i}", source=DocumentSource.MANUAL,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        session.add(Transaction(
+            document_id=document.id, provider="ALTERNATING SERVICE", category=Category.SUBSCRIPTIONS,
+            amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
+        ))
+    session.commit()
+
+    candidates = detect_recurring_candidates(session)
+
+    assert merchant.id in [m.id for m in candidates]
