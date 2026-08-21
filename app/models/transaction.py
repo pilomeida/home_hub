@@ -58,3 +58,5 @@ class Transaction(SQLModel, table=True):
     commitment_id: Optional[int] = Field(default=None, foreign_key="commitments.id")
     debt_id: Optional[int] = Field(default=None, foreign_key="debts.id")
     nature: Optional[Nature] = None
+    merchant_id: Optional[int] = Field(default=None, foreign_key="merchants.id")
+    debt_candidate_reviewed: Optional[bool] = None
