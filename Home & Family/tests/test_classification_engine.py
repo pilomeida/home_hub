@@ -215,3 +215,84 @@ async def test_classify_transaction_inherits_account_id_from_document(session):
     session.commit()
 
     assert transaction.account_id == account.id
+
+
+@pytest.mark.asyncio
+async def test_classify_transaction_does_not_overwrite_existing_account_id(session):
+    from app.models.account import Account, AccountType
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+
+    account_a = Account(name="Account A", institution="Millennium BCP", currency="EUR", account_type=AccountType.CHECKING)
+    account_b = Account(name="Account B", institution="Novo Banco", currency="EUR", account_type=AccountType.CHECKING)
+    session.add(account_a)
+    session.add(account_b)
+    session.commit()
+    session.refresh(account_a)
+    session.refresh(account_b)
+
+    document = Document(
+        filename="s4.pdf", file_path="/tmp/s4.pdf", content_hash="hash-classify-4",
+        source=DocumentSource.MANUAL, account_id=account_a.id,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    merchant = Merchant(
+        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
+        normalized_key="modelo hiper",
+    )
+    session.add(merchant)
+    session.commit()
+
+    transaction = Transaction(
+        document_id=document.id, provider="MODELO HIPER", category=Category.GROCERIES,
+        amount=20.0, currency="EUR", account_id=account_b.id,
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    session.commit()
+
+    assert transaction.account_id == account_b.id
+
+
+@pytest.mark.asyncio
+async def test_classify_transaction_does_not_commit_internally(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+    from sqlmodel import select
+
+    document = Document(
+        filename="s5.pdf", file_path="/tmp/s5.pdf", content_hash="hash-classify-5",
+        source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="LOJA NOVA DESCONHECIDA",
+        category=Category.OTHER_EXPENSE, amount=15.0, currency="EUR",
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    response = json.dumps({
+        "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
+    })
+    result = await classify_transaction(session, transaction, client=_FakeAnthropicClient(response))
+    assert result.created_new_merchant is True
+
+    session.rollback()
+
+    found = session.exec(
+        select(Merchant).where(Merchant.normalized_key == "loja nova desconhecida")
+    ).first()
+    assert found is None
