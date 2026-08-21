@@ -1,9 +1,11 @@
+from datetime import date
+
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource
 from app.models.transaction import Category, Nature, Transaction
 
 
-def _make_transaction(session, provider, category, amount, account_id=None, nature=None):
+def _make_transaction(session, provider, category, amount, account_id=None, nature=None, paid_date=None):
     document = Document(
         filename=f"{provider}.pdf", file_path=f"/tmp/{provider}.pdf",
         content_hash=f"hash-{provider}", source=DocumentSource.MANUAL,
@@ -14,6 +16,7 @@ def _make_transaction(session, provider, category, amount, account_id=None, natu
     transaction = Transaction(
         document_id=document.id, provider=provider, category=category,
         amount=amount, currency="EUR", account_id=account_id, nature=nature,
+        paid_date=paid_date,
     )
     session.add(transaction)
     session.commit()
@@ -65,3 +68,25 @@ def test_list_transactions_filters_by_account(client, session):
 
     assert "CONTINENTE" in response.text
     assert "EDP" not in response.text
+
+
+def test_list_transactions_filters_by_date_range(client, session):
+    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, paid_date=date(2026, 6, 15))
+    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0, paid_date=date(2026, 1, 5))
+
+    response = client.get("/transactions", params={"date_from": "2026-06-01", "date_to": "2026-06-30"})
+
+    assert "CONTINENTE" in response.text
+    assert "EDP" not in response.text
+
+
+def test_list_transactions_combines_category_and_nature_filters(client, session):
+    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, nature=Nature.ESSENTIAL)
+    _make_transaction(session, "NETFLIX", Category.SUBSCRIPTIONS, 12.99, nature=Nature.DISCRETIONARY)
+    _make_transaction(session, "GYM", Category.SUBSCRIPTIONS, 30.0, nature=Nature.ESSENTIAL)
+
+    response = client.get("/transactions", params={"category": "subscriptions", "nature": "discretionary"})
+
+    assert "NETFLIX" in response.text
+    assert "GYM" not in response.text
+    assert "CONTINENTE" not in response.text
