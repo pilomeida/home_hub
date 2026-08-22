@@ -128,7 +128,8 @@ async def classify_transaction(
         created_new_merchant = True
 
     transaction.merchant_id = merchant.id
-    transaction.nature = merchant.default_nature
+    if transaction.nature is None:
+        transaction.nature = merchant.default_nature
 
     if transaction.account_id is None:
         document = session.get(Document, transaction.document_id)
@@ -174,14 +175,18 @@ def detect_recurring_candidates(session: Session) -> list[Merchant]:
     merchants = session.exec(
         select(Merchant).where(Merchant.recurring_reviewed == False)  # noqa: E712
     ).all()
-    candidates = []
-    for merchant in merchants:
-        transactions = session.exec(
-            select(Transaction).where(Transaction.merchant_id == merchant.id)
-        ).all()
-        if _has_recurring_run(transactions):
-            candidates.append(merchant)
-    return candidates
+    merchant_ids = [m.id for m in merchants]
+    if not merchant_ids:
+        return []
+
+    all_transactions = session.exec(
+        select(Transaction).where(Transaction.merchant_id.in_(merchant_ids))
+    ).all()
+    transactions_by_merchant: dict[int, list[Transaction]] = {}
+    for t in all_transactions:
+        transactions_by_merchant.setdefault(t.merchant_id, []).append(t)
+
+    return [m for m in merchants if _has_recurring_run(transactions_by_merchant.get(m.id, []))]
 
 
 _DEBT_TRANSFER_MARKER_RE = re.compile(r"P/\s*[A-ZÀ-Ú][A-ZÀ-Ú\s]+", re.IGNORECASE)
@@ -211,16 +216,23 @@ class NeedsReviewQueue:
     unconfirmed_merchants: list[Merchant]
     recurring_candidates: list[Merchant]
     debt_candidates: list[Transaction]
+    unclassified_transactions: list[Transaction]
 
 
 def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
     """Everything currently needing a human decision: brand-new merchants
-    not yet confirmed, recurring-payment candidates, and debt candidates."""
+    not yet confirmed, recurring-payment candidates, debt candidates, and
+    transactions classify_transaction never managed to resolve to a
+    Merchant at all (merchant_id left NULL)."""
     unconfirmed = session.exec(
         select(Merchant).where(Merchant.confirmed == False)  # noqa: E712
+    ).all()
+    unclassified = session.exec(
+        select(Transaction).where(Transaction.merchant_id.is_(None))
     ).all()
     return NeedsReviewQueue(
         unconfirmed_merchants=unconfirmed,
         recurring_candidates=detect_recurring_candidates(session),
         debt_candidates=detect_debt_candidates(session),
+        unclassified_transactions=unclassified,
     )

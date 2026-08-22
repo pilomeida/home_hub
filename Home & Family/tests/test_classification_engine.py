@@ -262,6 +262,43 @@ async def test_classify_transaction_does_not_overwrite_existing_account_id(sessi
 
 
 @pytest.mark.asyncio
+async def test_classify_transaction_does_not_overwrite_existing_nature(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.transaction import Transaction
+
+    merchant = Merchant(
+        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
+        default_nature=Nature.ESSENTIAL, normalized_key="modelo hiper nature guard",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    document = Document(
+        filename="s6.pdf", file_path="/tmp/s6.pdf", content_hash="hash-classify-6",
+        source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    transaction = Transaction(
+        document_id=document.id, provider="MODELO HIPER NATURE GUARD",
+        category=Category.GROCERIES, amount=20.0, currency="EUR",
+        nature=Nature.DISCRETIONARY,
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    session.commit()
+
+    assert transaction.nature == Nature.DISCRETIONARY
+
+
+@pytest.mark.asyncio
 async def test_classify_transaction_does_not_commit_internally(session):
     from app.models.document import Document, DocumentSource
     from app.models.merchant import Merchant
@@ -628,3 +665,29 @@ def test_get_needs_review_queue_aggregates_all_three_categories(session):
     assert unconfirmed.id in [m.id for m in queue.unconfirmed_merchants]
     assert recurring_merchant.id in [m.id for m in queue.recurring_candidates]
     assert debt_transaction.id in [t.id for t in queue.debt_candidates]
+
+
+def test_get_needs_review_queue_includes_unclassified_transactions(session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import get_needs_review_queue
+
+    document = Document(
+        filename="unclassified.pdf", file_path="/tmp/unclassified.pdf",
+        content_hash="hash-unclassified-1", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    unclassified_transaction = Transaction(
+        document_id=document.id, provider="UNRESOLVABLE PROVIDER",
+        category=Category.OTHER, amount=25.0, currency="EUR", merchant_id=None,
+    )
+    session.add(unclassified_transaction)
+    session.commit()
+    session.refresh(unclassified_transaction)
+
+    queue = get_needs_review_queue(session)
+
+    assert unclassified_transaction.id in [t.id for t in queue.unclassified_transactions]
