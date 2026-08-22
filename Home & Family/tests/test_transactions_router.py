@@ -201,6 +201,25 @@ def test_bulk_edit_preserves_active_filter_on_rerender(client, session):
     assert "CONTINENTE" not in response.text
 
 
+def test_bulk_edit_preserves_active_page_on_rerender(client, session):
+    for i in range(120):
+        _make_transaction(session, f"PAGE SHOP {i:03d}", Category.OTHER_EXPENSE, 1.0, paid_date=date(2026, 1, 1))
+    page2_transaction = session.exec(
+        select(Transaction).where(Transaction.provider == "PAGE SHOP 000")
+    ).first()
+
+    response = client.post("/transactions/bulk-edit", data={
+        "transaction_ids": [str(page2_transaction.id)],
+        "new_nature": "essential",
+        "page": "2",
+    })
+
+    assert response.status_code == 200
+    page2_ids = set(re.findall(r"PAGE SHOP \d{3}", response.text))
+    assert len(page2_ids) == 20
+    assert "PAGE SHOP 000" in page2_ids
+
+
 def _make_unconfirmed_merchant(session, name="New Shop", key="new-shop-router-test"):
     from app.models.merchant import Merchant
     merchant = Merchant(canonical_name=name, default_category=Category.SHOPPING, normalized_key=key)
