@@ -50,3 +50,13 @@
   <p>No debt candidates detected.</p>
   {% endfor %}
 </section>
+<section id="unclassified-transactions">
+  <h2>Could not classify</h2>
+  {% for t in queue.unclassified_transactions %}
+  <div class="needs-attention">
+    <p>{{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR — flagged for manual attention</p>
+  </div>
+  {% else %}
+  <p>Nothing unclassified.</p>
+  {% endfor %}
+</section>
