@@ -147,6 +147,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     filter_account_id = form.get("account_id") or None
     filter_date_from = form.get("date_from") or None
     filter_date_to = form.get("date_to") or None
+    filter_page = form.get("page") or None
 
     if transaction_ids:
         transactions = session.exec(
@@ -169,6 +170,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         account_id=int(filter_account_id) if filter_account_id else None,
         date_from=filter_date_from,
         date_to=filter_date_to,
+        page=int(filter_page) if filter_page else 1,
     )
     merchant_names, account_names = _lookup_dicts_for(session, transactions)
     return templates.TemplateResponse(
