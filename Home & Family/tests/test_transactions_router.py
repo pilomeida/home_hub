@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -95,6 +96,46 @@ def test_list_transactions_combines_category_and_nature_filters(client, session)
     assert "CONTINENTE" not in response.text
 
 
+def test_list_transactions_paginates_100_per_page(client, session):
+    for i in range(120):
+        _make_transaction(session, f"SHOP {i:03d}", Category.OTHER_EXPENSE, 1.0, paid_date=date(2026, 1, 1))
+
+    page1 = client.get("/transactions", params={"page": 1})
+    page2 = client.get("/transactions", params={"page": 2})
+
+    assert page1.status_code == 200
+    assert page2.status_code == 200
+
+    page1_ids = set(re.findall(r"SHOP \d{3}", page1.text))
+    page2_ids = set(re.findall(r"SHOP \d{3}", page2.text))
+
+    assert len(page1_ids) == 100
+    assert len(page2_ids) == 20
+    assert page1_ids.isdisjoint(page2_ids)
+
+
+def test_list_transactions_shows_resolved_merchant_name(client, session):
+    from app.models.merchant import Merchant
+
+    merchant = Merchant(
+        canonical_name="Modelo Hiper Resolved", default_category=Category.GROCERIES,
+        normalized_key="modelo-hiper-resolved-router-test",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    transaction = _make_transaction(session, "MODELO HIPER 2640-MAFR", Category.GROCERIES, 40.0)
+    transaction.merchant_id = merchant.id
+    session.add(transaction)
+    session.commit()
+
+    response = client.get("/transactions")
+
+    assert response.status_code == 200
+    assert "Modelo Hiper Resolved" in response.text
+
+
 def test_bulk_edit_applies_category_to_selected_transactions(client, session):
     t1 = _make_transaction(session, "SHOP A", Category.OTHER_EXPENSE, 10.0)
     t2 = _make_transaction(session, "SHOP B", Category.OTHER_EXPENSE, 20.0)
@@ -142,6 +183,22 @@ def test_bulk_edit_with_no_selection_changes_nothing(client, session):
     assert response.status_code == 200
     session.refresh(t1)
     assert t1.category == Category.OTHER_EXPENSE
+
+
+def test_bulk_edit_preserves_active_filter_on_rerender(client, session):
+    t1 = _make_transaction(session, "EDP", Category.ELECTRICITY, 45.0)
+    t2 = _make_transaction(session, "EDP RENOVAVEIS", Category.ELECTRICITY, 55.0)
+    t3 = _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
+
+    response = client.post("/transactions/bulk-edit", data={
+        "transaction_ids": [str(t1.id), str(t2.id)],
+        "new_nature": "essential",
+        "category": "electricity",
+    })
+
+    assert response.status_code == 200
+    assert "EDP" in response.text
+    assert "CONTINENTE" not in response.text
 
 
 def _make_unconfirmed_merchant(session, name="New Shop", key="new-shop-router-test"):
@@ -254,6 +311,34 @@ def test_link_debt_creates_informal_debt_with_new_person(client, session):
     debt = session.get(Debt, transaction.debt_id)
     assert debt.kind.value == "informal"
     assert debt.original_amount == 3000.0
+
+
+def test_link_debt_reuses_existing_person_with_same_name(client, session):
+    from app.models.debt import Debt
+    from app.models.person import Person
+
+    t1 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", Category.OTHER_EXPENSE, 1000.0)
+    t2 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", Category.OTHER_EXPENSE, 2000.0)
+
+    response1 = client.post(f"/transactions/{t1.id}/link-debt", data={
+        "direction": "owed_to_us", "person_name": "Repeat Person",
+    })
+    response2 = client.post(f"/transactions/{t2.id}/link-debt", data={
+        "direction": "owed_to_us", "person_name": "Repeat Person",
+    })
+
+    assert response1.status_code == 200
+    assert response2.status_code == 200
+
+    people = session.exec(select(Person).where(Person.name == "Repeat Person")).all()
+    assert len(people) == 1
+
+    session.refresh(t1)
+    session.refresh(t2)
+    debt1 = session.get(Debt, t1.debt_id)
+    debt2 = session.get(Debt, t2.debt_id)
+    assert debt1.person_id == people[0].id
+    assert debt2.person_id == people[0].id
 
 
 def test_link_debt_to_existing_debt(client, session):

@@ -20,15 +20,17 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _filtered_transactions(
-    session: Session,
+_PAGE_SIZE = 100
+
+
+def _apply_transaction_filters(
+    statement,
     category: Optional[str] = None,
     nature: Optional[str] = None,
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ):
-    statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     if category:
         statement = statement.where(Transaction.category == Category(category))
     if nature:
@@ -39,7 +41,59 @@ def _filtered_transactions(
         statement = statement.where(Transaction.paid_date >= date_from)
     if date_to:
         statement = statement.where(Transaction.paid_date <= date_to)
+    return statement
+
+
+def _filtered_transactions(
+    session: Session,
+    category: Optional[str] = None,
+    nature: Optional[str] = None,
+    account_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    page: int = 1,
+):
+    statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
+    statement = _apply_transaction_filters(
+        statement, category=category, nature=nature, account_id=account_id,
+        date_from=date_from, date_to=date_to,
+    )
+    statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
+
+
+def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tuple[dict, dict]:
+    """Build {id: name} lookups for the merchants and accounts referenced by
+    a batch of transactions, for row rendering. There is no SQLModel
+    Relationship convention anywhere in this codebase's models, so rows are
+    annotated via these dicts rather than introducing one here."""
+    merchant_ids = {t.merchant_id for t in transactions if t.merchant_id is not None}
+    account_ids = {t.account_id for t in transactions if t.account_id is not None}
+    merchant_names = {
+        m.id: m.canonical_name
+        for m in (session.exec(select(Merchant).where(Merchant.id.in_(merchant_ids))).all() if merchant_ids else [])
+    }
+    account_names = {
+        a.id: a.name
+        for a in (session.exec(select(Account).where(Account.id.in_(account_ids))).all() if account_ids else [])
+    }
+    return merchant_names, account_names
+
+
+def _count_filtered_transactions(
+    session: Session,
+    category: Optional[str] = None,
+    nature: Optional[str] = None,
+    account_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+) -> int:
+    statement = select(Transaction)
+    statement = _apply_transaction_filters(
+        statement, category=category, nature=nature, account_id=account_id,
+        date_from=date_from, date_to=date_to,
+    )
+    return len(session.exec(statement).all())
 
 
 @router.get("")
@@ -50,10 +104,16 @@ async def list_transactions(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    page: int = 1,
     session: Session = Depends(get_session),
 ):
-    transactions = _filtered_transactions(session, category, nature, account_id, date_from, date_to)
+    transactions = _filtered_transactions(
+        session, category, nature, account_id, date_from, date_to, page=page,
+    )
+    total_count = _count_filtered_transactions(session, category, nature, account_id, date_from, date_to)
+    total_pages = max(1, -(-total_count // _PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
+    merchant_names, account_names = _lookup_dicts_for(session, transactions)
     return templates.TemplateResponse(
         request,
         "transactions/list.html",
@@ -66,6 +126,10 @@ async def list_transactions(
                 "category": category, "nature": nature, "account_id": account_id,
                 "date_from": date_from, "date_to": date_to,
             },
+            "page": page,
+            "total_pages": total_pages,
+            "merchant_names": merchant_names,
+            "account_names": account_names,
         },
     )
 
@@ -77,6 +141,12 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     new_category = form.get("new_category") or None
     new_nature = form.get("new_nature") or None
     new_account_id = form.get("new_account_id") or None
+
+    filter_category = form.get("category") or None
+    filter_nature = form.get("nature") or None
+    filter_account_id = form.get("account_id") or None
+    filter_date_from = form.get("date_from") or None
+    filter_date_to = form.get("date_to") or None
 
     if transaction_ids:
         transactions = session.exec(
@@ -92,8 +162,20 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
             session.add(t)
         session.commit()
 
-    transactions = _filtered_transactions(session)
-    return templates.TemplateResponse(request, "transactions/_rows.html", {"transactions": transactions})
+    transactions = _filtered_transactions(
+        session,
+        category=filter_category,
+        nature=filter_nature,
+        account_id=int(filter_account_id) if filter_account_id else None,
+        date_from=filter_date_from,
+        date_to=filter_date_to,
+    )
+    merchant_names, account_names = _lookup_dicts_for(session, transactions)
+    return templates.TemplateResponse(
+        request,
+        "transactions/_rows.html",
+        {"transactions": transactions, "merchant_names": merchant_names, "account_names": account_names},
+    )
 
 
 @router.get("/needs-review")
@@ -188,10 +270,12 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
         person_id = None
         person_name = form.get("person_name")
         if person_name:
-            person = Person(name=person_name)
-            session.add(person)
-            session.commit()
-            session.refresh(person)
+            person = session.exec(select(Person).where(Person.name == person_name)).first()
+            if person is None:
+                person = Person(name=person_name)
+                session.add(person)
+                session.commit()
+                session.refresh(person)
             person_id = person.id
         debt = Debt(
             kind=DebtKind.INFORMAL,
