@@ -160,9 +160,12 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
     # attempt — tracked so that if a later line item fails (e.g. a bad
     # transaction_type value), we can explicitly delete them below. A plain
     # session.rollback() only discards *uncommitted* state; it can no longer
-    # undo an earlier line item's Transaction (or Merchant) row once
-    # classify_transaction has forced a per-item commit (needed so each
-    # transaction.id exists before classification can set merchant_id on it).
+    # undo an earlier line item's Transaction (or Merchant) row once we've
+    # committed per item. Note: classify_transaction itself never reads
+    # transaction.id, so a session.flush() per item (assigning an id without
+    # committing) would likely have sufficed instead of a real commit — but
+    # this working, tested per-item-commit-plus-compensating-delete design
+    # was kept as-is deliberately rather than risk a refactor here.
     created_transactions: list[Transaction] = []
     created_merchant_ids: list[int] = []
     try:
