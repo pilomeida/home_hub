@@ -3,9 +3,10 @@
   <td><input type="checkbox" name="transaction_ids" value="{{ t.id }}"></td>
   <td>{{ t.paid_date or "" }}</td>
   <td>{{ t.provider }}</td>
+  <td>{{ merchant_names.get(t.merchant_id, "") if merchant_names else "" }}</td>
   <td>{{ t.category.value }}</td>
   <td>{{ t.nature.value if t.nature else "" }}</td>
-  <td>{{ t.account_id or "" }}</td>
+  <td>{{ account_names.get(t.account_id, "") if account_names else (t.account_id or "") }}</td>
   <td>{{ "%.2f"|format(t.amount) }}</td>
 </tr>
 {% endfor %}

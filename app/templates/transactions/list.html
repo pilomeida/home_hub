@@ -35,9 +35,14 @@
   hx-target="#transactions-tbody"
   hx-swap="innerHTML"
 >
+  <input type="hidden" name="category" value="{{ filters.category or '' }}">
+  <input type="hidden" name="nature" value="{{ filters.nature or '' }}">
+  <input type="hidden" name="account_id" value="{{ filters.account_id or '' }}">
+  <input type="hidden" name="date_from" value="{{ filters.date_from or '' }}">
+  <input type="hidden" name="date_to" value="{{ filters.date_to or '' }}">
   <table id="transactions-table">
     <thead>
-      <tr><th></th><th>Date</th><th>Provider</th><th>Category</th><th>Nature</th><th>Account</th><th>Amount</th></tr>
+      <tr><th></th><th>Date</th><th>Provider</th><th>Merchant</th><th>Category</th><th>Nature</th><th>Account</th><th>Amount</th></tr>
     </thead>
     <tbody id="transactions-tbody">
       {% include "transactions/_rows.html" %}
@@ -60,4 +65,14 @@
     <button type="submit">Apply to selected</button>
   </fieldset>
 </form>
+<nav class="pagination">
+  {% set qs = "category=" ~ (filters.category or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") %}
+  {% if page > 1 %}
+  <a href="/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
+  {% endif %}
+  <span>page {{ page }} of {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a href="/transactions?{{ qs }}&page={{ page + 1 }}">Next</a>
+  {% endif %}
+</nav>
 {% endblock %}
