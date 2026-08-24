@@ -8,6 +8,7 @@
   <div class="kpi-card-value">€{{ "{:,.0f}".format(card.actual_total) }} <small>of €{{ "{:,.0f}".format(card.planned_total) }}</small></div>
   <div class="progress-track">
     <div class="progress-fill" style="width: {{ ([card.pct_of_plan, 100] | min) if card.pct_of_plan is not none else 0 }}%;"></div>
+    <div class="progress-marker" style="margin-left: {{ card.pct_of_year_elapsed }}%;" title="{{ card.pct_of_year_elapsed }}% of year elapsed"></div>
   </div>
   {% if card.pct_of_plan is not none %}
   <p>{{ card.pct_of_plan }}% of plan consumed · {{ card.pct_of_year_elapsed }}% of year elapsed</p>
