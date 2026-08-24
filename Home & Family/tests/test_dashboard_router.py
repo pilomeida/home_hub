@@ -64,7 +64,7 @@ def test_overview_page_kpi_drill_down_links_present(client, session):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert 'href="/transactions?category=income' in response.text
+    assert 'href="/transactions?transaction_type=credit' in response.text
     assert 'href="/transactions?transaction_type=debit' in response.text
 
 

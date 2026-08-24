@@ -93,7 +93,7 @@ def get_flow_kpis(
     return [
         KpiCard(
             label="Income", value=income_mtd, color="green",
-            drill_down_url=f"/transactions?category=income&date_from={month_start}&date_to={today_iso}",
+            drill_down_url=f"/transactions?transaction_type=credit&date_from={month_start}&date_to={today_iso}",
             chart=build_trend_chart(income_complete, today, income_mtd),
         ),
         KpiCard(
