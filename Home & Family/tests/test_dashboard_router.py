@@ -81,3 +81,35 @@ def test_overview_page_handles_yearly_commitment_with_zero_planned_amount(client
     response = client.get("/")
 
     assert response.status_code == 200
+
+
+def test_overview_page_renders_cleanly_with_empty_database(client, session):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "No yearly commitments configured yet." in response.text
+    assert "No history tracked yet" in response.text  # Debt KPI, no Debt rows
+    assert "No category spend recorded yet." in response.text
+    assert "All clear." in response.text
+
+
+def test_cash_flow_range_pill_swap_changes_content(client, session):
+    document = Document(
+        filename="s.pdf", file_path="/tmp/s.pdf", content_hash="hh2", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+    session.add(Transaction(
+        document_id=document.id, provider="SALARIO", category=Category.INCOME,
+        transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
+        paid_date=date(2025, 1, 15),
+    ))
+    session.commit()
+
+    full_year = client.get("/cash-flow-chart", params={"range": "ytd"})
+    twelve_months = client.get("/cash-flow-chart", params={"range": "12m"})
+
+    assert full_year.status_code == 200
+    assert twelve_months.status_code == 200
+    assert full_year.text != twelve_months.text
