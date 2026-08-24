@@ -13,7 +13,7 @@ from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.merchant import Merchant
 from app.models.person import Person
-from app.models.transaction import Category, Nature, Transaction
+from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.classification_engine import get_needs_review_queue
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -30,6 +30,9 @@ def _apply_transaction_filters(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    commitment_id: Optional[int] = None,
+    debt_id: Optional[int] = None,
+    transaction_type: Optional[str] = None,
 ):
     if category:
         statement = statement.where(Transaction.category == Category(category))
@@ -41,6 +44,12 @@ def _apply_transaction_filters(
         statement = statement.where(Transaction.paid_date >= date_from)
     if date_to:
         statement = statement.where(Transaction.paid_date <= date_to)
+    if commitment_id:
+        statement = statement.where(Transaction.commitment_id == commitment_id)
+    if debt_id:
+        statement = statement.where(Transaction.debt_id == debt_id)
+    if transaction_type:
+        statement = statement.where(Transaction.transaction_type == TransactionType(transaction_type))
     return statement
 
 
@@ -51,12 +60,16 @@ def _filtered_transactions(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    commitment_id: Optional[int] = None,
+    debt_id: Optional[int] = None,
+    transaction_type: Optional[str] = None,
     page: int = 1,
 ):
     statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     statement = _apply_transaction_filters(
         statement, category=category, nature=nature, account_id=account_id,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, commitment_id=commitment_id,
+        debt_id=debt_id, transaction_type=transaction_type,
     )
     statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
@@ -87,11 +100,15 @@ def _count_filtered_transactions(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    commitment_id: Optional[int] = None,
+    debt_id: Optional[int] = None,
+    transaction_type: Optional[str] = None,
 ) -> int:
     statement = select(Transaction)
     statement = _apply_transaction_filters(
         statement, category=category, nature=nature, account_id=account_id,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, commitment_id=commitment_id,
+        debt_id=debt_id, transaction_type=transaction_type,
     )
     return len(session.exec(statement).all())
 
@@ -104,13 +121,20 @@ async def list_transactions(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    commitment_id: Optional[int] = None,
+    debt_id: Optional[int] = None,
+    transaction_type: Optional[str] = None,
     page: int = 1,
     session: Session = Depends(get_session),
 ):
     transactions = _filtered_transactions(
-        session, category, nature, account_id, date_from, date_to, page=page,
+        session, category, nature, account_id, date_from, date_to,
+        commitment_id, debt_id, transaction_type, page=page,
     )
-    total_count = _count_filtered_transactions(session, category, nature, account_id, date_from, date_to)
+    total_count = _count_filtered_transactions(
+        session, category, nature, account_id, date_from, date_to,
+        commitment_id, debt_id, transaction_type,
+    )
     total_pages = max(1, -(-total_count // _PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
     merchant_names, account_names = _lookup_dicts_for(session, transactions)
@@ -125,6 +149,8 @@ async def list_transactions(
             "filters": {
                 "category": category, "nature": nature, "account_id": account_id,
                 "date_from": date_from, "date_to": date_to,
+                "commitment_id": commitment_id, "debt_id": debt_id,
+                "transaction_type": transaction_type,
             },
             "page": page,
             "total_pages": total_pages,

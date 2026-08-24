@@ -67,7 +67,7 @@
   </fieldset>
 </form>
 <nav class="pagination">
-  {% set qs = "category=" ~ (filters.category or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") %}
+  {% set qs = "category=" ~ (filters.category or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") %}
   {% if page > 1 %}
   <a href="/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
   {% endif %}
