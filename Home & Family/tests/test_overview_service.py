@@ -4,9 +4,10 @@ from decimal import Decimal
 from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
-from app.models.document import Document, DocumentSource
+from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight, get_needs_attention, get_overview_data
 
 
 def _doc(session, name="doc"):
@@ -324,3 +325,59 @@ def test_narrative_insight_title_cases_underscored_category_names():
     assert "Travel Dining" in sentence  # same for this category
     assert "other_expense" not in sentence  # raw underscore form should not appear
     assert "travel_dining" not in sentence
+
+
+def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documents(session):
+    # Review queue: one unconfirmed merchant.
+    session.add(Merchant(canonical_name="New Shop", normalized_key="new shop", confirmed=False))
+    # Upcoming bill within the lookahead window.
+    commitment = Commitment(
+        name="Car insurance", cadence=Cadence.YEARLY, planned_amount=400.0,
+        year=2026, next_due_date=date(2026, 8, 20),
+    )
+    session.add(commitment)
+    # A needs-attention document.
+    session.add(Document(
+        filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="hbad",
+        source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, failure_reason="unreadable",
+    ))
+    session.commit()
+    session.refresh(commitment)
+
+    category_rows = [
+        CategoryComparisonRow("shopping", current_value=200.0, rolling_avg_value=100.0, delta_pct=100.0, bar_pct=100.0, drill_down_url="/transactions?category=shopping"),
+    ]
+
+    items = get_needs_attention(session, today=date(2026, 8, 10), category_rows=category_rows)
+    kinds = {i.kind for i in items}
+
+    assert "review_queue" in kinds
+    assert "upcoming_bill" in kinds
+    assert "category_anomaly" in kinds
+    assert "document" in kinds
+
+    upcoming = next(i for i in items if i.kind == "upcoming_bill")
+    assert upcoming.url == f"/transactions?commitment_id={commitment.id}"
+    doc_item = next(i for i in items if i.kind == "document")
+    assert doc_item.url.startswith("/bills/")
+
+
+def test_needs_attention_skips_small_anomalies_below_floor():
+    category_rows = [
+        CategoryComparisonRow("shopping", current_value=10.0, rolling_avg_value=5.0, delta_pct=100.0, bar_pct=100.0, drill_down_url=""),
+    ]
+    # rolling_avg_value (5.0) is below the €30 noise floor -- must not fire.
+    items = get_needs_attention(None, today=date(2026, 8, 10), category_rows=category_rows)
+    assert all(i.kind != "category_anomaly" for i in items)
+
+
+def test_get_overview_data_end_to_end(session):
+    data = get_overview_data(session, today=date(2026, 8, 10))
+
+    assert [k.label for k in data.flow_kpis] == ["Income", "Expenses", "Net flow"]
+    assert [k.label for k in data.position_kpis] == ["Cash", "Debt"]
+    assert data.yearly_commitments.has_commitments is False
+    assert data.narrative is None  # no transaction history in this empty DB
+    assert data.cash_flow_chart.range_key == "12m"
+    assert data.category_comparison == []
+    assert isinstance(data.needs_attention, list)

@@ -12,8 +12,16 @@ from sqlmodel import Session, select
 from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
+from app.models.document import Document, DocumentStatus
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_charts import TrendChart, build_trend_chart, _complete_months_before  # noqa: F401 -- re-exported helper reused for month-end snapshots
+from app.services.classification_engine import get_needs_review_queue
+from app.services.overview_charts import (  # noqa: F401 -- re-exported helper reused for month-end snapshots
+    CashFlowChart,
+    TrendChart,
+    build_cash_flow_chart,
+    build_trend_chart,
+    _complete_months_before,
+)
 
 _TREND_MONTHS_BACK = 24
 
@@ -323,3 +331,107 @@ def get_narrative_insight(category_rows: list[CategoryComparisonRow]) -> Optiona
     elif biggest_rise:
         sentence += f" {_title(biggest_rise[0])} accounted for €{round(biggest_rise[1]):,.0f} of the increase."
     return sentence
+
+
+_UPCOMING_BILL_LOOKAHEAD_DAYS = 14
+_ANOMALY_THRESHOLD_PCT = 40.0
+_ANOMALY_MIN_AVERAGE = 30.0
+
+
+@dataclass
+class NeedsAttentionItem:
+    kind: str
+    text: str
+    url: str
+
+
+def get_needs_attention(
+    session: Session, today: date, category_rows: list[CategoryComparisonRow]
+) -> list[NeedsAttentionItem]:
+    items: list[NeedsAttentionItem] = []
+
+    # Category anomalies never need the database -- checked first so the
+    # test that passes session=None with a below-floor average never
+    # touches `session` at all.
+    for row in category_rows:
+        if (
+            row.rolling_avg_value >= _ANOMALY_MIN_AVERAGE
+            and row.delta_pct is not None
+            and row.delta_pct >= _ANOMALY_THRESHOLD_PCT
+        ):
+            items.append(NeedsAttentionItem(
+                kind="category_anomaly",
+                text=f"{row.category.replace('_', ' ').title()} is {row.delta_pct:.0f}% above its 3-month average this month",
+                url=row.drill_down_url,
+            ))
+
+    if session is None:
+        return items
+
+    queue = get_needs_review_queue(session)
+    review_count = (
+        len(queue.unconfirmed_merchants) + len(queue.recurring_candidates)
+        + len(queue.debt_candidates) + len(queue.unclassified_transactions)
+    )
+    if review_count:
+        items.append(NeedsAttentionItem(
+            kind="review_queue",
+            text=f"{review_count} item{'s' if review_count != 1 else ''} waiting in Needs Review",
+            url="/transactions/needs-review",
+        ))
+
+    lookahead = today + timedelta(days=_UPCOMING_BILL_LOOKAHEAD_DAYS)
+    upcoming = session.exec(
+        select(Commitment).where(
+            Commitment.next_due_date.is_not(None),
+            Commitment.next_due_date >= today,
+            Commitment.next_due_date <= lookahead,
+        )
+    ).all()
+    for c in upcoming:
+        items.append(NeedsAttentionItem(
+            kind="upcoming_bill",
+            text=f"{c.name} due {c.next_due_date.strftime('%d %b')} (€{c.planned_amount:,.2f})",
+            url=f"/transactions?commitment_id={c.id}",
+        ))
+
+    needs_attention_documents = session.exec(
+        select(Document).where(Document.status.in_([DocumentStatus.NEEDS_ATTENTION, DocumentStatus.PENDING]))
+    ).all()
+    for doc in needs_attention_documents:
+        items.append(NeedsAttentionItem(
+            kind="document",
+            text=f"{doc.filename} — {doc.failure_reason or 'needs attention'}",
+            url=f"/bills/{doc.id}",
+        ))
+
+    return items
+
+
+@dataclass
+class OverviewData:
+    flow_kpis: list[KpiCard]
+    position_kpis: list[KpiCard]
+    yearly_commitments: YearlyCommitmentCard
+    narrative: Optional[str]
+    cash_flow_chart: CashFlowChart
+    category_comparison: list[CategoryComparisonRow]
+    needs_attention: list[NeedsAttentionItem]
+
+
+def get_overview_data(
+    session: Session, today: Optional[date] = None, cash_flow_range: str = "12m"
+) -> OverviewData:
+    today = today or date.today()
+    income_monthly, expense_monthly = _monthly_flow_totals(session, today)
+    category_rows = get_category_comparison(session, today)
+
+    return OverviewData(
+        flow_kpis=get_flow_kpis(session, today, income_monthly, expense_monthly),
+        position_kpis=[get_cash_kpi(session, today), get_debt_kpi(session, today)],
+        yearly_commitments=get_yearly_commitments_card(session, today),
+        narrative=get_narrative_insight(category_rows),
+        cash_flow_chart=build_cash_flow_chart(income_monthly, expense_monthly, cash_flow_range, today),
+        category_comparison=category_rows,
+        needs_attention=get_needs_attention(session, today, category_rows),
+    )
