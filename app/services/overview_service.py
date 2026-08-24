@@ -177,7 +177,12 @@ def _debt_net_position(session: Session) -> float:
     total = 0.0
     for d in debts:
         balance = float(d.current_balance)
-        if d.kind == DebtKind.FORMAL or d.direction == DebtDirection.OWED_BY_US:
+        # An INFORMAL debt with direction=None is a real, constructible
+        # state (Debt.direction is Optional). Treat a None direction as
+        # OWED_BY_US -- the common-case assumption for an informal debt
+        # someone forgot to set a direction on -- rather than letting it
+        # silently fall through both branches and contribute nothing.
+        if d.kind == DebtKind.FORMAL or d.direction != DebtDirection.OWED_TO_US:
             total += balance
         elif d.direction == DebtDirection.OWED_TO_US:
             total -= balance
