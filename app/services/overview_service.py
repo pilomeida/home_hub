@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
-from app.models.transaction import Transaction, TransactionType
+from app.models.transaction import Category, Transaction, TransactionType
 from app.services.overview_charts import TrendChart, build_trend_chart, _complete_months_before  # noqa: F401 -- re-exported helper reused for month-end snapshots
 
 _TREND_MONTHS_BACK = 24
@@ -221,3 +221,63 @@ def get_yearly_commitments_card(session: Session, today: date) -> YearlyCommitme
         drill_down_url=f"/transactions?date_from={date(year, 1, 1).isoformat()}&date_to={date(year, 12, 31).isoformat()}",
         has_commitments=bool(commitments),
     )
+
+
+_COMPARISON_ROLLING_MONTHS = 3
+_COMPARISON_EXCLUDED_CATEGORIES = (Category.TRANSFER, Category.ATM_WITHDRAWAL, Category.INCOME)
+
+
+@dataclass
+class CategoryComparisonRow:
+    category: str
+    current_value: float
+    rolling_avg_value: float
+    delta_pct: Optional[float]
+    bar_pct: float
+    drill_down_url: str
+
+
+def get_category_comparison(session: Session, today: date) -> list[CategoryComparisonRow]:
+    cutoff = _month_start(today) - timedelta(days=31 * (_COMPARISON_ROLLING_MONTHS + 1))
+    statement = select(Transaction).where(
+        Transaction.transaction_type == TransactionType.DEBIT,
+        Transaction.category.notin_(_COMPARISON_EXCLUDED_CATEGORIES),
+        Transaction.paid_date >= cutoff,
+        Transaction.paid_date <= today,
+    )
+
+    per_month_category: dict[tuple[str, str], float] = {}
+    for t in session.exec(statement):
+        if t.paid_date is None:
+            continue
+        key = (_month_key(t.paid_date), t.category.value)
+        per_month_category[key] = per_month_category.get(key, 0.0) + t.amount
+
+    current_key = _month_key(today)
+    history_periods = _complete_months_before(today, _COMPARISON_ROLLING_MONTHS)
+    categories = {cat for (_, cat) in per_month_category}
+
+    computed = []
+    for cat in categories:
+        current_value = per_month_category.get((current_key, cat), 0.0)
+        history_values = [per_month_category.get((p, cat), 0.0) for p in history_periods]
+        rolling_avg = sum(history_values) / len(history_values) if history_values else 0.0
+        if current_value == 0.0 and rolling_avg == 0.0:
+            continue
+        delta_pct = round((current_value - rolling_avg) / rolling_avg * 100.0, 1) if rolling_avg else None
+        computed.append((cat, current_value, rolling_avg, delta_pct))
+
+    computed.sort(key=lambda r: r[1], reverse=True)
+    max_value = max((r[1] for r in computed), default=0.0)
+    month_start = _month_start(today).isoformat()
+    today_iso = today.isoformat()
+
+    return [
+        CategoryComparisonRow(
+            category=cat, current_value=current_value, rolling_avg_value=rolling_avg,
+            delta_pct=delta_pct,
+            bar_pct=round(current_value / max_value * 100.0, 1) if max_value else 0.0,
+            drill_down_url=f"/transactions?category={cat}&date_from={month_start}&date_to={today_iso}",
+        )
+        for cat, current_value, rolling_avg, delta_pct in computed
+    ]
