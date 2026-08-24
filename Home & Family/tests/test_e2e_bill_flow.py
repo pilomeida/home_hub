@@ -152,11 +152,14 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
     assert "CONTINENTE MAFRA" in detail_response.text
     assert "SALARIO EMPRESA X" in detail_response.text
 
-    # Dashboard finance content (spend-by-category) is being rebuilt as the
-    # Overview screen in this branch's later tasks (see household_service.py);
-    # the home page is temporarily todos/wiki-only, so no finance assertion here.
+    # The Overview screen (built in this branch's later tasks) now renders
+    # real finance content on the home page -- the ingested statement's
+    # groceries spend shows up in the category-comparison table (as last
+    # month's rolling-average contribution, since last_month_date falls
+    # outside the current, still-empty month-to-date bucket).
     dashboard_response = client.get("/")
     assert dashboard_response.status_code == 200
+    assert "groceries" in dashboard_response.text.lower()
 
     todos_response = client.get("/todos")
     assert "CONTINENTE" not in todos_response.text

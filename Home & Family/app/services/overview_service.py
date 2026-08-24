@@ -39,7 +39,15 @@ def _monthly_flow_totals(session: Session, today: date) -> tuple[dict[str, float
     covering the trailing _TREND_MONTHS_BACK complete months plus the
     current in-progress month. TRANSFER-type rows are excluded (money
     moving between our own tracked accounts is neither income nor
-    expense)."""
+    expense).
+
+    Design note: every Overview aggregate is scoped by `paid_date`, here and
+    throughout this module. A transaction with no `paid_date` (e.g. an
+    unpaid bill) therefore does not appear in any Overview number -- it only
+    shows up as a Todo in the Household panel -- until it's marked paid.
+    This is a deliberate design point, not an oversight: the Overview is
+    meant to reflect money that has actually moved, not what's merely owed.
+    """
     cutoff = _month_start(today) - timedelta(days=31 * (_TREND_MONTHS_BACK + 1))
     statement = select(Transaction).where(
         Transaction.paid_date >= cutoff, Transaction.paid_date <= today,
