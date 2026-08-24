@@ -60,3 +60,4 @@ class Transaction(SQLModel, table=True):
     nature: Optional[Nature] = None
     merchant_id: Optional[int] = Field(default=None, foreign_key="merchants.id")
     debt_candidate_reviewed: Optional[bool] = None
+    linked_transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
