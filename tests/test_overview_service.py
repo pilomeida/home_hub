@@ -2,10 +2,11 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.account import Account, AccountType
+from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card
 
 
 def _doc(session, name="doc"):
@@ -155,3 +156,39 @@ def test_debt_kpi_floors_net_negative_at_zero(session):
     kpi = get_debt_kpi(session, today=date(2026, 8, 1))
 
     assert kpi.value == 0.0  # Ruling R10 -- never shown as a negative "debt"
+
+
+def test_yearly_commitments_progress_and_next_item(session):
+    imi = Commitment(name="IMI", cadence=Cadence.YEARLY, planned_amount=600.0, year=2026, next_due_date=date(2026, 7, 1))
+    vacation = Commitment(name="Vacation", cadence=Cadence.YEARLY, planned_amount=2000.0, year=2026, next_due_date=date(2026, 11, 30))
+    session.add_all([imi, vacation])
+    session.commit()
+    session.refresh(imi)
+    session.refresh(vacation)
+
+    document = _doc(session)
+    t1 = _txn(session, document, "AT IMI 1st installment", 300.0, TransactionType.DEBIT, date(2026, 4, 30))
+    t1.commitment_id = imi.id
+    session.add(t1)
+    session.commit()
+
+    card = get_yearly_commitments_card(session, today=date(2026, 6, 1))
+
+    assert card.has_commitments is True
+    assert card.planned_total == 2600.0
+    assert card.actual_total == 300.0
+    assert card.pct_of_plan == round(300.0 / 2600.0 * 100.0, 1)
+    assert card.pct_of_year_elapsed == round(152 / 365 * 100.0, 1)  # day 152 of 2026 (not a leap year)
+    assert card.next_item_label == "IMI"
+    assert card.next_item_date == date(2026, 7, 1)
+    assert card.next_item_url == f"/transactions?commitment_id={imi.id}"
+    assert card.drill_down_url == "/transactions?date_from=2026-01-01&date_to=2026-12-31"
+
+
+def test_yearly_commitments_empty_state(session):
+    card = get_yearly_commitments_card(session, today=date(2026, 6, 1))
+
+    assert card.has_commitments is False
+    assert card.planned_total == 0.0
+    assert card.pct_of_plan is None
+    assert card.next_item_label is None
