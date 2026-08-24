@@ -1,59 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Home & Family{% endblock %}
+{% block title %}Overview — Home & Family{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
-{% if data %}
-  <section>
-    <h2>Spend this month</h2>
-    <ul>
-      {% for category, amount in data.spend_this_month.items() %}
-        <li>{{ category }}: {{ "%.2f"|format(amount) }}</li>
-      {% else %}
-        <li>No spend recorded yet.</li>
-      {% endfor %}
-    </ul>
-  </section>
-  <section>
-    <h2>Spend last month</h2>
-    <ul>
-      {% for category, amount in data.spend_last_month.items() %}
-        <li>{{ category }}: {{ "%.2f"|format(amount) }}</li>
-      {% else %}
-        <li>No spend recorded yet.</li>
-      {% endfor %}
-    </ul>
-  </section>
-  <section>
-    <h2>Open to-dos</h2>
-    <ul>
-      {% for todo in data.open_todos %}
-        <li>{{ todo.title }} — due {{ todo.due_date }}</li>
-      {% else %}
-        <li>Nothing due.</li>
-      {% endfor %}
-    </ul>
-  </section>
-  <section>
-    <h2>Recently changed wiki facts</h2>
-    <ul>
-      {% for page in data.recently_changed_wiki_pages %}
-        <li><a href="/wiki/{{ page.id }}">{{ page.topic }}</a></li>
-      {% else %}
-        <li>No recent changes.</li>
-      {% endfor %}
-    </ul>
-  </section>
-  <section>
-    <h2 class="needs-attention">Needs attention</h2>
-    <ul>
-      {% for doc in data.needs_attention_documents %}
-        <li><a href="/bills/{{ doc.id }}">{{ doc.filename }}</a> — {{ doc.failure_reason }}</li>
-      {% else %}
-        <li>All clear.</li>
-      {% endfor %}
-    </ul>
-  </section>
-{% else %}
-  <p>Loading…</p>
-{% endif %}
+<h1>Overview</h1>
+<p><em>Finance KPIs are being rebuilt in this branch's later tasks.</em></p>
+<section>
+  <h2>Open to-dos</h2>
+  <ul>
+    {% for todo in household.open_todos %}
+      <li>{{ todo.title }} — due {{ todo.due_date }}</li>
+    {% else %}
+      <li>Nothing due.</li>
+    {% endfor %}
+  </ul>
+</section>
+<section>
+  <h2>Recently changed wiki facts</h2>
+  <ul>
+    {% for page in household.recently_changed_wiki_pages %}
+      <li><a href="/wiki/{{ page.id }}">{{ page.topic }}</a></li>
+    {% else %}
+      <li>No recent changes.</li>
+    {% endfor %}
+  </ul>
+</section>
 {% endblock %}
