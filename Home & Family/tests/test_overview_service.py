@@ -1,9 +1,11 @@
 from datetime import date
+from decimal import Decimal
 
 from app.models.account import Account, AccountType
+from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi
 
 
 def _doc(session, name="doc"):
@@ -113,3 +115,43 @@ def test_cash_kpi_has_no_historical_bars_with_only_one_month_of_data(session):
     # so the trend chart is legitimately in its "no history" empty state.
     assert kpi.chart.has_data is False
     assert kpi.value == 500.0
+
+
+def test_debt_kpi_sums_formal_and_owed_by_us_informal(session):
+    session.add(Debt(kind=DebtKind.FORMAL, original_amount=100000.0, current_balance=Decimal("95000.00")))
+    session.add(Debt(
+        kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_BY_US,
+        original_amount=500.0, current_balance=Decimal("300.00"),
+    ))
+    session.add(Debt(
+        kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_TO_US,
+        original_amount=200.0, current_balance=Decimal("200.00"),
+    ))
+    session.commit()
+
+    kpi = get_debt_kpi(session, today=date(2026, 8, 1))
+
+    assert kpi.label == "Debt"
+    assert kpi.value == 95100.0  # 95000 + 300 - 200
+    assert kpi.color == "red"
+    assert kpi.drill_down_url == "/transactions/needs-review"
+    assert kpi.chart.has_data is False  # no balance-history tracking exists (Ruling R2)
+
+
+def test_debt_kpi_with_no_debts_is_a_clean_zero(session):
+    kpi = get_debt_kpi(session, today=date(2026, 8, 1))
+
+    assert kpi.value == 0.0
+    assert kpi.chart.has_data is False
+
+
+def test_debt_kpi_floors_net_negative_at_zero(session):
+    session.add(Debt(
+        kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_TO_US,
+        original_amount=5000.0, current_balance=Decimal("5000.00"),
+    ))
+    session.commit()
+
+    kpi = get_debt_kpi(session, today=date(2026, 8, 1))
+
+    assert kpi.value == 0.0  # Ruling R10 -- never shown as a negative "debt"
