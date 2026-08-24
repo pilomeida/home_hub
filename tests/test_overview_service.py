@@ -64,7 +64,7 @@ def test_flow_kpis_now_and_drill_down_urls(session):
     assert by_label["Expenses"].color == "red"
     assert by_label["Net flow"].color == "green"
 
-    assert by_label["Income"].drill_down_url == "/transactions?category=income&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_label["Income"].drill_down_url == "/transactions?transaction_type=credit&date_from=2026-08-01&date_to=2026-08-10"
     assert by_label["Expenses"].drill_down_url == "/transactions?transaction_type=debit&date_from=2026-08-01&date_to=2026-08-10"
     assert by_label["Net flow"].drill_down_url == "/transactions?date_from=2026-08-01&date_to=2026-08-10"
 
