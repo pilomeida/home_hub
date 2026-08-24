@@ -263,3 +263,64 @@ def test_narrative_insight_names_biggest_drop_and_rise():
 
 def test_narrative_insight_none_when_no_history():
     assert get_narrative_insight([]) is None
+
+
+def test_narrative_insight_none_when_total_avg_is_zero():
+    rows = [
+        CategoryComparisonRow("groceries", current_value=100.0, rolling_avg_value=0.0, delta_pct=None, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("restaurants", current_value=50.0, rolling_avg_value=0.0, delta_pct=None, bar_pct=50.0, drill_down_url=""),
+    ]
+    # total_current = 150, total_avg = 0 -> should return None (prevents division-by-zero)
+
+    sentence = get_narrative_insight(rows)
+
+    assert sentence is None
+
+
+def test_narrative_insight_single_row_drop_only():
+    rows = [
+        CategoryComparisonRow("travel", current_value=100.0, rolling_avg_value=200.0, delta_pct=-50.0, bar_pct=100.0, drill_down_url=""),
+    ]
+    # total_current = 100, total_avg = 200 -> -50.0% overall, drop only, no rise
+
+    sentence = get_narrative_insight(rows)
+
+    assert sentence is not None
+    assert "fell 50.0%" in sentence
+    assert "Travel" in sentence
+    assert "of the change" in sentence
+    assert "offset by" not in sentence  # ensure no rise phrase when only drop exists
+
+
+def test_narrative_insight_single_row_rise_only():
+    rows = [
+        CategoryComparisonRow("restaurants", current_value=300.0, rolling_avg_value=200.0, delta_pct=50.0, bar_pct=100.0, drill_down_url=""),
+    ]
+    # total_current = 300, total_avg = 200 -> 50.0% overall, rise only, no drop
+
+    sentence = get_narrative_insight(rows)
+
+    assert sentence is not None
+    assert "rose 50.0%" in sentence
+    assert "Restaurants" in sentence
+    assert "of the increase" in sentence
+    assert "accounted for" not in sentence or "reduction" not in sentence  # no drop phrase
+
+
+def test_narrative_insight_title_cases_underscored_category_names():
+    rows = [
+        CategoryComparisonRow("other_expense", current_value=50.0, rolling_avg_value=200.0, delta_pct=-75.0, bar_pct=25.0, drill_down_url=""),
+        CategoryComparisonRow("travel_dining", current_value=300.0, rolling_avg_value=100.0, delta_pct=200.0, bar_pct=100.0, drill_down_url=""),
+    ]
+    # total_current = 350, total_avg = 300 -> 16.7% overall
+    # biggest drop: other_expense (50 - 200 = -150)
+    # biggest rise: travel_dining (300 - 100 = 200)
+
+    sentence = get_narrative_insight(rows)
+
+    assert sentence is not None
+    assert "rose 16.7%" in sentence
+    assert "Other Expense" in sentence  # underscore replaced with space, title-cased
+    assert "Travel Dining" in sentence  # same for this category
+    assert "other_expense" not in sentence  # raw underscore form should not appear
+    assert "travel_dining" not in sentence
