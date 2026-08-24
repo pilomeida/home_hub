@@ -9,8 +9,9 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
+from app.models.account import Account, AccountType
 from app.models.transaction import Transaction, TransactionType
-from app.services.overview_charts import TrendChart, build_trend_chart
+from app.services.overview_charts import TrendChart, build_trend_chart, _complete_months_before  # noqa: F401 -- re-exported helper reused for month-end snapshots
 
 _TREND_MONTHS_BACK = 24
 
@@ -95,3 +96,55 @@ def get_flow_kpis(
             chart=build_trend_chart(net_complete, today, net_mtd),
         ),
     ]
+
+
+_CASH_ACCOUNT_TYPES = (AccountType.CHECKING, AccountType.SAVINGS, AccountType.WALLET)
+
+
+def _cash_account_ids(session: Session) -> list[int]:
+    accounts = session.exec(select(Account).where(Account.account_type.in_(_CASH_ACCOUNT_TYPES))).all()
+    return [a.id for a in accounts]
+
+
+def _cash_transactions(session: Session, account_ids: list[int]) -> list[Transaction]:
+    if not account_ids:
+        return []
+    return session.exec(select(Transaction).where(Transaction.account_id.in_(account_ids))).all()
+
+
+def _cash_balance_as_of(transactions: list[Transaction], as_of: date) -> float:
+    """Cumulative net (CREDIT - DEBIT) across every transaction dated on or
+    before `as_of`. This is a tracked net cash flow since ingestion began,
+    not a live bank balance -- see plan Ruling R1."""
+    balance = 0.0
+    for t in transactions:
+        if t.paid_date is None or t.paid_date > as_of:
+            continue
+        if t.transaction_type == TransactionType.CREDIT:
+            balance += t.amount
+        elif t.transaction_type == TransactionType.DEBIT:
+            balance -= t.amount
+        # TRANSFER rows excluded: money moving between our own tracked
+        # accounts nets to zero across the cash pool as a whole.
+    return balance
+
+
+def _month_end(period: str) -> date:
+    year, month = (int(p) for p in period.split("-"))
+    if month == 12:
+        return date(year, 12, 31)
+    return date(year, month + 1, 1) - timedelta(days=1)
+
+
+def get_cash_kpi(session: Session, today: date) -> KpiCard:
+    account_ids = _cash_account_ids(session)
+    transactions = _cash_transactions(session, account_ids)
+    now_value = _cash_balance_as_of(transactions, today)
+
+    monthly = {
+        period: _cash_balance_as_of(transactions, _month_end(period))
+        for period in _complete_months_before(today, _TREND_MONTHS_BACK)
+        if any(t.paid_date and t.paid_date <= _month_end(period) for t in transactions)
+    }
+    chart = build_trend_chart(monthly, today, now_value)
+    return KpiCard(label="Cash", value=now_value, color="green", drill_down_url="/transactions", chart=chart)
