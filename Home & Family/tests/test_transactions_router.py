@@ -5,8 +5,10 @@ from decimal import Decimal
 from sqlmodel import select
 
 from app.models.account import Account, AccountType
+from app.models.commitment import Cadence, Commitment
+from app.models.debt import Debt, DebtKind
 from app.models.document import Document, DocumentSource
-from app.models.transaction import Category, Nature, Transaction
+from app.models.transaction import Category, Nature, Transaction, TransactionType
 
 
 def _make_transaction(session, provider, category, amount, account_id=None, nature=None, paid_date=None):
@@ -378,3 +380,54 @@ def test_link_debt_to_existing_debt(client, session):
     session.refresh(transaction)
     assert transaction.debt_id == existing_debt.id
     assert transaction.debt_candidate_reviewed is True
+
+
+def test_list_transactions_filters_by_commitment(client, session):
+    commitment = Commitment(name="IMI 2026", cadence=Cadence.YEARLY, planned_amount=600.0, year=2026)
+    session.add(commitment)
+    session.commit()
+    session.refresh(commitment)
+
+    t1 = _make_transaction(session, "AT IMI", Category.OTHER_EXPENSE, 300.0)
+    t1.commitment_id = commitment.id
+    session.add(t1)
+    session.commit()
+    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+
+    response = client.get("/transactions", params={"commitment_id": commitment.id})
+
+    assert "AT IMI" in response.text
+    assert "EDP" not in response.text
+
+
+def test_list_transactions_filters_by_debt(client, session):
+    debt = Debt(kind=DebtKind.INFORMAL, original_amount=500.0, current_balance=Decimal("500.00"))
+    session.add(debt)
+    session.commit()
+    session.refresh(debt)
+
+    t1 = _make_transaction(session, "TRANSFER TO JOAO", Category.TRANSFER, 500.0)
+    t1.debt_id = debt.id
+    session.add(t1)
+    session.commit()
+    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+
+    response = client.get("/transactions", params={"debt_id": debt.id})
+
+    assert "TRANSFER TO JOAO" in response.text
+    assert "EDP" not in response.text
+
+
+def test_list_transactions_filters_by_transaction_type(client, session):
+    _make_transaction(session, "SALARIO", Category.INCOME, 2000.0)
+    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    # _make_transaction defaults transaction_type to DEBIT; give SALARIO a CREDIT type directly.
+    salario = session.exec(select(Transaction).where(Transaction.provider == "SALARIO")).first()
+    salario.transaction_type = TransactionType.CREDIT
+    session.add(salario)
+    session.commit()
+
+    response = client.get("/transactions", params={"transaction_type": "credit"})
+
+    assert "SALARIO" in response.text
+    assert "EDP" not in response.text
