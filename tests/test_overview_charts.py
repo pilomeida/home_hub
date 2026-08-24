@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.services.overview_charts import build_trend_chart
+from app.services.overview_charts import build_trend_chart, build_cash_flow_chart
 
 
 def test_all_positive_values_scale_between_floor_and_max():
@@ -51,3 +51,36 @@ def test_floor_keeps_smallest_bar_visible():
 
     smallest = min(p.height_pct for p in chart.points)
     assert smallest > 0.0  # never fully disappears
+
+
+def test_cash_flow_chart_12m_includes_current_month_to_date():
+    income = {"2026-07": 2000.0}
+    expense = {"2026-07": 1500.0, "2026-08": 300.0}
+    chart = build_cash_flow_chart(income, expense, "12m", today=date(2026, 8, 10))
+
+    assert len(chart.months) == 12
+    assert chart.months[-1].label == "2026-08"
+    assert chart.months[-1].expense == 300.0
+    assert chart.months[-2].label == "2026-07"
+    assert chart.months[-2].income == 2000.0
+
+
+def test_cash_flow_chart_ytd_starts_in_january():
+    chart = build_cash_flow_chart({}, {}, "ytd", today=date(2026, 3, 15))
+
+    assert [m.label for m in chart.months] == ["2026-01", "2026-02", "2026-03"]
+
+
+def test_cash_flow_chart_unknown_range_falls_back_to_12m():
+    chart = build_cash_flow_chart({}, {}, "bogus", today=date(2026, 8, 1))
+
+    assert chart.range_key == "12m"
+    assert len(chart.months) == 12
+
+
+def test_cash_flow_chart_max_value_covers_both_series():
+    income = {"2026-08": 100.0}
+    expense = {"2026-08": 400.0}
+    chart = build_cash_flow_chart(income, expense, "1m", today=date(2026, 8, 1))
+
+    assert chart.max_value == 400.0
