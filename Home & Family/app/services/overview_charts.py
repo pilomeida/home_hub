@@ -97,3 +97,52 @@ def build_trend_chart(
             ))
 
     return TrendChart(points=points, bidirectional=bidirectional, has_data=has_data)
+
+
+_RANGE_MONTHS = {"1m": 1, "3m": 3, "6m": 6, "9m": 9, "12m": 12}
+_VALID_RANGES = set(_RANGE_MONTHS) | {"ytd"}
+
+
+def _last_n_months_including_current(today: date, n: int) -> list[str]:
+    periods = []
+    year, month = today.year, today.month
+    for _ in range(n):
+        periods.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            month, year = 12, year - 1
+    return list(reversed(periods))
+
+
+@dataclass
+class CashFlowMonth:
+    label: str
+    income: float
+    expense: float
+
+
+@dataclass
+class CashFlowChart:
+    months: list[CashFlowMonth] = field(default_factory=list)
+    max_value: float = 0.0
+    range_key: str = "12m"
+
+
+def build_cash_flow_chart(
+    monthly_income: dict[str, float],
+    monthly_expense: dict[str, float],
+    range_key: str,
+    today: date,
+) -> CashFlowChart:
+    range_key = range_key if range_key in _VALID_RANGES else "12m"
+    if range_key == "ytd":
+        periods = [f"{today.year:04d}-{m:02d}" for m in range(1, today.month + 1)]
+    else:
+        periods = _last_n_months_including_current(today, _RANGE_MONTHS[range_key])
+
+    months = [
+        CashFlowMonth(label=p, income=monthly_income.get(p, 0.0), expense=monthly_expense.get(p, 0.0))
+        for p in periods
+    ]
+    max_value = max([m.income for m in months] + [m.expense for m in months] + [0.0])
+    return CashFlowChart(months=months, max_value=max_value, range_key=range_key)
