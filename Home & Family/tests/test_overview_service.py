@@ -395,6 +395,27 @@ def test_needs_attention_skips_small_anomalies_below_floor():
     assert all(i.kind != "category_anomaly" for i in items)
 
 
+def test_get_overview_data_suppresses_narrative_in_first_3_days_of_month(session):
+    document = _doc(session)
+    # This month (posted on day 1, so it's present regardless of which
+    # "today" we ask about below): a category spend that would otherwise
+    # produce a narrative sentence.
+    _txn(session, document, "RESTAURANT A", 10.0, TransactionType.DEBIT, date(2026, 8, 1), Category.RESTAURANTS)
+    # Prior 3 months: restaurants averages to 100 -- a steep, narrative-worthy drop.
+    for m, amt in [(7, 100.0), (6, 100.0), (5, 100.0)]:
+        _txn(session, document, "RESTAURANT A", amt, TransactionType.DEBIT, date(2026, m, 6), Category.RESTAURANTS)
+
+    early_month = get_overview_data(session, today=date(2026, 8, 2))
+    later_in_month = get_overview_data(session, today=date(2026, 8, 10))
+
+    # Early-month MTD spend is too partial to fairly compare against a full
+    # prior-month average, so the banner is suppressed on day <= 3...
+    assert early_month.narrative is None
+    # ...even though the exact same data would otherwise produce one later
+    # in the month, proving this is the gate at work, not an absence of data.
+    assert later_in_month.narrative is not None
+
+
 def test_get_overview_data_end_to_end(session):
     data = get_overview_data(session, today=date(2026, 8, 10))
 

@@ -430,11 +430,22 @@ def get_overview_data(
     income_monthly, expense_monthly = _monthly_flow_totals(session, today)
     category_rows = get_category_comparison(session, today)
 
+    # Narrative banner mitigation (Important finding, deliberately narrow
+    # scope): get_narrative_insight compares month-to-date spend against a
+    # full prior 3-month average, which is structurally misleading in the
+    # first few days of a month (e.g. "fell 90%" when almost nothing has
+    # posted yet). A full fix (day-of-month proration) is out of scope here
+    # -- it would touch get_category_comparison and the anomaly-detection
+    # threshold in get_needs_attention, both covered by existing exact-value
+    # tests. Instead, just suppress the banner during the first 3 calendar
+    # days, when MTD data is too partial for a fair comparison.
+    narrative = get_narrative_insight(category_rows) if today.day > 3 else None
+
     return OverviewData(
         flow_kpis=get_flow_kpis(session, today, income_monthly, expense_monthly),
         position_kpis=[get_cash_kpi(session, today), get_debt_kpi(session, today)],
         yearly_commitments=get_yearly_commitments_card(session, today),
-        narrative=get_narrative_insight(category_rows),
+        narrative=narrative,
         cash_flow_chart=build_cash_flow_chart(income_monthly, expense_monthly, cash_flow_range, today),
         category_comparison=category_rows,
         needs_attention=get_needs_attention(session, today, category_rows),
