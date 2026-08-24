@@ -10,6 +10,7 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.models.account import Account, AccountType
+from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.transaction import Transaction, TransactionType
 from app.services.overview_charts import TrendChart, build_trend_chart, _complete_months_before  # noqa: F401 -- re-exported helper reused for month-end snapshots
 
@@ -148,3 +149,24 @@ def get_cash_kpi(session: Session, today: date) -> KpiCard:
     }
     chart = build_trend_chart(monthly, today, now_value)
     return KpiCard(label="Cash", value=now_value, color="green", drill_down_url="/transactions", chart=chart)
+
+
+def _debt_net_position(session: Session) -> float:
+    debts = session.exec(select(Debt)).all()
+    total = 0.0
+    for d in debts:
+        balance = float(d.current_balance)
+        if d.kind == DebtKind.FORMAL or d.direction == DebtDirection.OWED_BY_US:
+            total += balance
+        elif d.direction == DebtDirection.OWED_TO_US:
+            total -= balance
+    return max(0.0, total)  # Ruling R10
+
+
+def get_debt_kpi(session: Session, today: date) -> KpiCard:
+    value = _debt_net_position(session)
+    # No balance-history tracking exists for Debt yet (Ruling R2) -- an
+    # empty monthly dict makes build_trend_chart render its already-tested
+    # "no history yet" empty state, no special-casing needed here.
+    chart = build_trend_chart({}, today, value)
+    return KpiCard(label="Debt", value=value, color="red", drill_down_url="/transactions/needs-review", chart=chart)
