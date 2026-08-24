@@ -30,6 +30,7 @@ def _apply_transaction_filters(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    transaction_id: Optional[int] = None,
 ):
     if category:
         statement = statement.where(Transaction.category == Category(category))
@@ -41,6 +42,8 @@ def _apply_transaction_filters(
         statement = statement.where(Transaction.paid_date >= date_from)
     if date_to:
         statement = statement.where(Transaction.paid_date <= date_to)
+    if transaction_id:
+        statement = statement.where(Transaction.id == transaction_id)
     return statement
 
 
@@ -52,23 +55,31 @@ def _filtered_transactions(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     page: int = 1,
+    transaction_id: Optional[int] = None,
 ):
     statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     statement = _apply_transaction_filters(
         statement, category=category, nature=nature, account_id=account_id,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, transaction_id=transaction_id,
     )
     statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
 
 
-def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tuple[dict, dict]:
-    """Build {id: name} lookups for the merchants and accounts referenced by
-    a batch of transactions, for row rendering. There is no SQLModel
-    Relationship convention anywhere in this codebase's models, so rows are
-    annotated via these dicts rather than introducing one here."""
+def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tuple[dict, dict, dict]:
+    """Build {id: name}/{id: Transaction} lookups for the merchants,
+    accounts, and linked (internal-transfer counterpart) transactions
+    referenced by a batch of transactions, for row rendering. There is no
+    SQLModel Relationship convention anywhere in this codebase's models, so
+    rows are annotated via these dicts rather than introducing one here."""
     merchant_ids = {t.merchant_id for t in transactions if t.merchant_id is not None}
+    linked_ids = {t.linked_transaction_id for t in transactions if t.linked_transaction_id is not None}
+    linked_transactions = {
+        lt.id: lt
+        for lt in (session.exec(select(Transaction).where(Transaction.id.in_(linked_ids))).all() if linked_ids else [])
+    }
     account_ids = {t.account_id for t in transactions if t.account_id is not None}
+    account_ids |= {lt.account_id for lt in linked_transactions.values() if lt.account_id is not None}
     merchant_names = {
         m.id: m.canonical_name
         for m in (session.exec(select(Merchant).where(Merchant.id.in_(merchant_ids))).all() if merchant_ids else [])
@@ -77,7 +88,7 @@ def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tupl
         a.id: a.name
         for a in (session.exec(select(Account).where(Account.id.in_(account_ids))).all() if account_ids else [])
     }
-    return merchant_names, account_names
+    return merchant_names, account_names, linked_transactions
 
 
 def _count_filtered_transactions(
@@ -87,11 +98,12 @@ def _count_filtered_transactions(
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    transaction_id: Optional[int] = None,
 ) -> int:
     statement = select(Transaction)
     statement = _apply_transaction_filters(
         statement, category=category, nature=nature, account_id=account_id,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, transaction_id=transaction_id,
     )
     return len(session.exec(statement).all())
 
@@ -105,15 +117,19 @@ async def list_transactions(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     page: int = 1,
+    transaction_id: Optional[int] = None,
     session: Session = Depends(get_session),
 ):
     transactions = _filtered_transactions(
         session, category, nature, account_id, date_from, date_to, page=page,
+        transaction_id=transaction_id,
     )
-    total_count = _count_filtered_transactions(session, category, nature, account_id, date_from, date_to)
+    total_count = _count_filtered_transactions(
+        session, category, nature, account_id, date_from, date_to, transaction_id=transaction_id,
+    )
     total_pages = max(1, -(-total_count // _PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
-    merchant_names, account_names = _lookup_dicts_for(session, transactions)
+    merchant_names, account_names, linked_transactions = _lookup_dicts_for(session, transactions)
     return templates.TemplateResponse(
         request,
         "transactions/list.html",
@@ -130,6 +146,7 @@ async def list_transactions(
             "total_pages": total_pages,
             "merchant_names": merchant_names,
             "account_names": account_names,
+            "linked_transactions": linked_transactions,
         },
     )
 
@@ -172,11 +189,14 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         date_to=filter_date_to,
         page=int(filter_page) if filter_page else 1,
     )
-    merchant_names, account_names = _lookup_dicts_for(session, transactions)
+    merchant_names, account_names, linked_transactions = _lookup_dicts_for(session, transactions)
     return templates.TemplateResponse(
         request,
         "transactions/_rows.html",
-        {"transactions": transactions, "merchant_names": merchant_names, "account_names": account_names},
+        {
+            "transactions": transactions, "merchant_names": merchant_names, "account_names": account_names,
+            "linked_transactions": linked_transactions,
+        },
     )
 
 

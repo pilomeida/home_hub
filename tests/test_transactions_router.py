@@ -360,6 +360,47 @@ def test_link_debt_reuses_existing_person_with_same_name(client, session):
     assert debt2.person_id == people[0].id
 
 
+def test_list_transactions_filters_by_transaction_id(client, session):
+    t1 = _make_transaction(session, "SHOP F", Category.OTHER_EXPENSE, 10.0)
+    t2 = _make_transaction(session, "SHOP G", Category.OTHER_EXPENSE, 20.0)
+
+    response = client.get("/transactions", params={"transaction_id": t1.id})
+
+    assert response.status_code == 200
+    assert "SHOP F" in response.text
+    assert "SHOP G" not in response.text
+
+
+def test_list_transactions_shows_linked_transaction(client, session):
+    account_a = Account(name="Checking", institution="Bank A", currency="EUR", account_type=AccountType.CHECKING)
+    account_b = Account(name="Wallet", institution="Bank B", currency="EUR", account_type=AccountType.CHECKING)
+    session.add(account_a)
+    session.add(account_b)
+    session.commit()
+    session.refresh(account_a)
+    session.refresh(account_b)
+
+    outgoing = _make_transaction(
+        session, "TRANSFER OUT", Category.TRANSFER, 100.0,
+        account_id=account_a.id, paid_date=date(2026, 3, 5),
+    )
+    incoming = _make_transaction(
+        session, "TRANSFER IN", Category.TRANSFER, 100.0,
+        account_id=account_b.id, paid_date=date(2026, 3, 3),
+    )
+    outgoing.linked_transaction_id = incoming.id
+    incoming.linked_transaction_id = outgoing.id
+    session.add(outgoing)
+    session.add(incoming)
+    session.commit()
+
+    response = client.get("/transactions")
+
+    assert response.status_code == 200
+    assert f'/transactions?transaction_id={incoming.id}' in response.text
+    assert "Wallet" in response.text
+
+
 def test_link_debt_to_existing_debt(client, session):
     from app.models.debt import Debt, DebtKind
 

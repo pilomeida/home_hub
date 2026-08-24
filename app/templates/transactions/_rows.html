@@ -8,5 +8,13 @@
   <td>{{ t.nature.value if t.nature else "" }}</td>
   <td>{{ account_names.get(t.account_id, "") if account_names else (t.account_id or "") }}</td>
   <td>{{ "%.2f"|format(t.amount) }}</td>
+  <td>
+    {% if t.linked_transaction_id and linked_transactions and linked_transactions.get(t.linked_transaction_id) %}
+    {% set lt = linked_transactions[t.linked_transaction_id] %}
+    <a href="/transactions?transaction_id={{ lt.id }}" title="View linked transaction #{{ lt.id }}">
+      &harr; {{ lt.paid_date or "" }} ({{ account_names.get(lt.account_id, "") if account_names else "" }})
+    </a>
+    {% endif %}
+  </td>
 </tr>
 {% endfor %}
