@@ -1,0 +1,68 @@
+from datetime import date
+
+from app.models.document import Document, DocumentSource
+from app.models.transaction import Category, Transaction, TransactionType
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals
+
+
+def _doc(session, name="doc"):
+    document = Document(
+        filename=f"{name}.pdf", file_path=f"/tmp/{name}.pdf", content_hash=f"h-{name}",
+        source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+    return document
+
+
+def _txn(session, document, provider, amount, ttype, paid_date, category=Category.OTHER_EXPENSE):
+    t = Transaction(
+        document_id=document.id, provider=provider, category=category,
+        transaction_type=ttype, amount=amount, currency="EUR", paid_date=paid_date,
+    )
+    session.add(t)
+    session.commit()
+    return t
+
+
+def test_monthly_flow_totals_buckets_by_calendar_month(session):
+    document = _doc(session)
+    _txn(session, document, "SALARIO", 2000.0, TransactionType.CREDIT, date(2026, 7, 5))
+    _txn(session, document, "EDP", 60.0, TransactionType.DEBIT, date(2026, 7, 10))
+    _txn(session, document, "CONTINENTE", 40.0, TransactionType.DEBIT, date(2026, 8, 2))
+    _txn(session, document, "REVOLUT TOPUP", 100.0, TransactionType.TRANSFER, date(2026, 7, 15))
+
+    income, expense = _monthly_flow_totals(session, today=date(2026, 8, 10))
+
+    assert income == {"2026-07": 2000.0}
+    assert expense == {"2026-07": 60.0, "2026-08": 40.0}
+
+
+def test_flow_kpis_now_and_drill_down_urls(session):
+    document = _doc(session)
+    _txn(session, document, "SALARIO", 2000.0, TransactionType.CREDIT, date(2026, 7, 5))
+    _txn(session, document, "EDP", 60.0, TransactionType.DEBIT, date(2026, 7, 10))
+    _txn(session, document, "CONTINENTE", 40.0, TransactionType.DEBIT, date(2026, 8, 2))
+
+    income_monthly, expense_monthly = _monthly_flow_totals(session, today=date(2026, 8, 10))
+    kpis = get_flow_kpis(session, date(2026, 8, 10), income_monthly, expense_monthly)
+
+    by_label = {k.label: k for k in kpis}
+    assert list(by_label) == ["Income", "Expenses", "Net flow"]
+
+    assert by_label["Income"].value == 0.0  # nothing credited in August yet
+    assert by_label["Expenses"].value == 40.0
+    assert by_label["Net flow"].value == -40.0
+
+    assert by_label["Income"].color == "green"
+    assert by_label["Expenses"].color == "red"
+    assert by_label["Net flow"].color == "green"
+
+    assert by_label["Income"].drill_down_url == "/transactions?category=income&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_label["Expenses"].drill_down_url == "/transactions?transaction_type=debit&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_label["Net flow"].drill_down_url == "/transactions?date_from=2026-08-01&date_to=2026-08-10"
+
+    # July's complete-month totals feed the 1M trend point.
+    assert by_label["Income"].chart.points[1].value == 2000.0  # "1M" point
+    assert by_label["Expenses"].chart.points[1].value == 60.0
