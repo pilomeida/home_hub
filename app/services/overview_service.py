@@ -71,6 +71,7 @@ class KpiCard:
     color: str  # "green" or "red"
     drill_down_url: str
     chart: TrendChart
+    caption: Optional[str] = None
 
 
 def get_flow_kpis(
@@ -157,7 +158,10 @@ def get_cash_kpi(session: Session, today: date) -> KpiCard:
         if any(t.paid_date and t.paid_date <= _month_end(period) for t in transactions)
     }
     chart = build_trend_chart(monthly, today, now_value)
-    return KpiCard(label="Cash", value=now_value, color="green", drill_down_url="/transactions", chart=chart)
+    return KpiCard(
+        label="Cash", value=now_value, color="green", drill_down_url="/transactions", chart=chart,
+        caption="Net tracked flow since first statement — not a live bank balance",
+    )
 
 
 def _debt_net_position(session: Session) -> float:

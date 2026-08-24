@@ -99,6 +99,30 @@ def test_cash_kpi_nets_credits_and_debits_across_tracked_accounts(session):
     assert kpi.drill_down_url == "/transactions"
 
 
+def test_cash_kpi_has_a_non_bank_balance_caption(session):
+    # Ruling R1: Cash is a reconstructed net cash flow since the earliest
+    # ingested transaction, not a live bank balance -- the KPI card must
+    # carry a caption disclosing this so it isn't mistaken for one.
+    kpi = get_cash_kpi(session, today=date(2026, 8, 1))
+
+    assert kpi.caption
+    assert "not a live bank balance" in kpi.caption
+
+
+def test_only_cash_kpi_has_a_caption(session):
+    document = _doc(session)
+    _txn(session, document, "SALARIO", 2000.0, TransactionType.CREDIT, date(2026, 7, 5))
+    _txn(session, document, "EDP", 60.0, TransactionType.DEBIT, date(2026, 7, 10))
+
+    income_monthly, expense_monthly = _monthly_flow_totals(session, today=date(2026, 8, 10))
+    flow_kpis = get_flow_kpis(session, date(2026, 8, 10), income_monthly, expense_monthly)
+    debt_kpi = get_debt_kpi(session, today=date(2026, 8, 10))
+
+    for kpi in flow_kpis:
+        assert kpi.caption is None
+    assert debt_kpi.caption is None
+
+
 def test_cash_kpi_has_no_historical_bars_with_only_one_month_of_data(session):
     account = Account(name="Santander", institution="Santander", account_type=AccountType.CHECKING)
     session.add(account)

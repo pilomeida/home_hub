@@ -5,6 +5,9 @@
     <a class="kpi-card-link" href="{{ card.drill_down_url }}">↗</a>
   </div>
   <div class="kpi-card-value">€{{ "{:,.0f}".format(card.value) }}</div>
+  {% if card.caption %}
+  <p class="kpi-card-caption">{{ card.caption }}</p>
+  {% endif %}
   {% if card.chart.has_data %}
   <div class="kpi-mini-chart {{ 'bidirectional' if card.chart.bidirectional else '' }}">
     {% for point in card.chart.points %}
