@@ -281,3 +281,45 @@ def get_category_comparison(session: Session, today: date) -> list[CategoryCompa
         )
         for cat, current_value, rolling_avg, delta_pct in computed
     ]
+
+
+def get_narrative_insight(category_rows: list[CategoryComparisonRow]) -> Optional[str]:
+    """A single deterministic sentence: overall spend trend vs. the 3-month
+    average, plus whichever category moved the most in each direction.
+    Rule-based, not an LLM call -- this runs on every home-page load, and
+    an LLM round-trip there would add latency/cost/flakiness to the
+    highest-traffic page in the app for no benefit a templated sentence
+    over already-computed numbers doesn't already give."""
+    if not category_rows:
+        return None
+
+    total_current = sum(r.current_value for r in category_rows)
+    total_avg = sum(r.rolling_avg_value for r in category_rows)
+    if not total_avg:
+        return None
+
+    change_pct = (total_current - total_avg) / total_avg * 100.0
+    direction = "fell" if change_pct < 0 else "rose"
+    sentence = f"Your spending {direction} {abs(round(change_pct, 1))}% vs. your 3-month average."
+
+    deltas = sorted(
+        ((r.category, r.current_value - r.rolling_avg_value) for r in category_rows),
+        key=lambda d: d[1],
+    )
+    biggest_drop = deltas[0] if deltas[0][1] < 0 else None
+    drop_category = biggest_drop[0] if biggest_drop else None
+    biggest_rise = deltas[-1] if deltas[-1][1] > 0 and deltas[-1][0] != drop_category else None
+
+    def _title(cat: str) -> str:
+        return cat.replace("_", " ").title()
+
+    if biggest_drop and biggest_rise:
+        sentence += (
+            f" {_title(biggest_drop[0])} accounted for €{abs(round(biggest_drop[1])):,.0f} of the "
+            f"reduction, partly offset by €{round(biggest_rise[1]):,.0f} more in {_title(biggest_rise[0])}."
+        )
+    elif biggest_drop:
+        sentence += f" {_title(biggest_drop[0])} accounted for €{abs(round(biggest_drop[1])):,.0f} of the change."
+    elif biggest_rise:
+        sentence += f" {_title(biggest_rise[0])} accounted for €{round(biggest_rise[1]):,.0f} of the increase."
+    return sentence

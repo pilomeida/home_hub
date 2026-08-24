@@ -6,7 +6,7 @@ from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight
 
 
 def _doc(session, name="doc"):
@@ -243,3 +243,23 @@ def test_category_comparison_excludes_zero_zero_categories(session):
     # The shopping category should not appear in the results because
     # current_value (0.0) == 0 and rolling_avg (0.0) == 0
     assert "shopping" not in [r.category for r in rows]
+
+
+def test_narrative_insight_names_biggest_drop_and_rise():
+    rows = [
+        CategoryComparisonRow("travel", current_value=0.0, rolling_avg_value=600.0, delta_pct=-100.0, bar_pct=0.0, drill_down_url=""),
+        CategoryComparisonRow("restaurants", current_value=220.0, rolling_avg_value=100.0, delta_pct=120.0, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("groceries", current_value=300.0, rolling_avg_value=300.0, delta_pct=0.0, bar_pct=100.0, drill_down_url=""),
+    ]
+    # total_current = 520, total_avg = 1000 -> -48.0% overall
+
+    sentence = get_narrative_insight(rows)
+
+    assert sentence is not None
+    assert "fell 48.0%" in sentence
+    assert "Travel" in sentence
+    assert "Restaurants" in sentence
+
+
+def test_narrative_insight_none_when_no_history():
+    assert get_narrative_insight([]) is None
