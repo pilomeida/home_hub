@@ -160,6 +160,18 @@ def test_debt_kpi_sums_formal_and_owed_by_us_informal(session):
     assert kpi.label == "Debt"
     assert kpi.value == 95100.0  # 95000 + 300 - 200
     assert kpi.color == "red"
+
+
+def test_debt_kpi_treats_informal_none_direction_as_owed_by_us(session):
+    # direction is Optional on Debt -- an INFORMAL debt someone forgot to
+    # set a direction on must not silently contribute €0; the common-case
+    # assumption is that it's a real liability (owed BY us), not owed to us.
+    session.add(Debt(kind=DebtKind.INFORMAL, direction=None, original_amount=400.0, current_balance=Decimal("400.00")))
+    session.commit()
+
+    kpi = get_debt_kpi(session, today=date(2026, 8, 1))
+
+    assert kpi.value == 400.0
     assert kpi.drill_down_url == "/transactions/needs-review"
     assert kpi.chart.has_data is False  # no balance-history tracking exists (Ruling R2)
 
