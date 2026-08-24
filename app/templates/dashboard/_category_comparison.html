@@ -1,0 +1,18 @@
+<table class="category-comparison-table">
+  <thead>
+    <tr><th>Category</th><th></th><th>This month</th><th>3M avg</th><th>Δ</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="{{ row.drill_down_url }}">{{ row.category.replace('_', ' ')|title }}</a></td>
+      <td><span class="category-bar-track"><span class="category-bar-fill" style="width: {{ row.bar_pct }}%;"></span></span></td>
+      <td>€{{ "{:,.0f}".format(row.current_value) }}</td>
+      <td>€{{ "{:,.0f}".format(row.rolling_avg_value) }}</td>
+      <td>{{ "{:+.1f}%".format(row.delta_pct) if row.delta_pct is not none else "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No category spend recorded yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
