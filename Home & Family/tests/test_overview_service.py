@@ -229,3 +229,17 @@ def test_category_comparison_excludes_transfers_and_atm(session):
     rows = get_category_comparison(session, today=date(2026, 8, 10))
 
     assert rows == []
+
+
+def test_category_comparison_excludes_zero_zero_categories(session):
+    document = _doc(session)
+    # A transaction from April, which is outside both the current month (Aug)
+    # and the 3-month rolling history (May, June, July).
+    # This triggers the zero-zero exclusion branch in get_category_comparison().
+    _txn(session, document, "SHOPPING", 75.0, TransactionType.DEBIT, date(2026, 4, 15), Category.SHOPPING)
+
+    rows = get_category_comparison(session, today=date(2026, 8, 24))
+
+    # The shopping category should not appear in the results because
+    # current_value (0.0) == 0 and rolling_avg (0.0) == 0
+    assert "shopping" not in [r.category for r in rows]
