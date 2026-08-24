@@ -10,6 +10,7 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.models.account import Account, AccountType
+from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.transaction import Transaction, TransactionType
 from app.services.overview_charts import TrendChart, build_trend_chart, _complete_months_before  # noqa: F401 -- re-exported helper reused for month-end snapshots
@@ -170,3 +171,53 @@ def get_debt_kpi(session: Session, today: date) -> KpiCard:
     # "no history yet" empty state, no special-casing needed here.
     chart = build_trend_chart({}, today, value)
     return KpiCard(label="Debt", value=value, color="red", drill_down_url="/transactions/needs-review", chart=chart)
+
+
+@dataclass
+class YearlyCommitmentCard:
+    planned_total: float
+    actual_total: float
+    pct_of_plan: Optional[float]
+    pct_of_year_elapsed: float
+    next_item_label: Optional[str]
+    next_item_date: Optional[date]
+    next_item_url: Optional[str]
+    drill_down_url: str
+    has_commitments: bool
+
+
+def get_yearly_commitments_card(session: Session, today: date) -> YearlyCommitmentCard:
+    year = today.year
+    commitments = session.exec(
+        select(Commitment).where(Commitment.cadence == Cadence.YEARLY, Commitment.year == year)
+    ).all()
+    planned_total = sum(c.planned_amount for c in commitments)
+
+    commitment_ids = [c.id for c in commitments]
+    actual_total = 0.0
+    if commitment_ids:
+        linked = session.exec(select(Transaction).where(Transaction.commitment_id.in_(commitment_ids))).all()
+        actual_total = sum(t.amount for t in linked)
+
+    day_of_year = (today - date(year, 1, 1)).days + 1
+    days_in_year = (date(year + 1, 1, 1) - date(year, 1, 1)).days
+    pct_of_year_elapsed = round(day_of_year / days_in_year * 100.0, 1)
+    pct_of_plan = round(actual_total / planned_total * 100.0, 1) if planned_total else None
+
+    upcoming = sorted(
+        (c for c in commitments if c.next_due_date and c.next_due_date >= today),
+        key=lambda c: c.next_due_date,
+    )
+    next_commitment = upcoming[0] if upcoming else None
+
+    return YearlyCommitmentCard(
+        planned_total=planned_total,
+        actual_total=actual_total,
+        pct_of_plan=pct_of_plan,
+        pct_of_year_elapsed=pct_of_year_elapsed,
+        next_item_label=next_commitment.name if next_commitment else None,
+        next_item_date=next_commitment.next_due_date if next_commitment else None,
+        next_item_url=f"/transactions?commitment_id={next_commitment.id}" if next_commitment else None,
+        drill_down_url=f"/transactions?date_from={date(year, 1, 1).isoformat()}&date_to={date(year, 12, 31).isoformat()}",
+        has_commitments=bool(commitments),
+    )
