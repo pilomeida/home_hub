@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.models.account import Account, AccountType
+from app.models.commitment import Cadence, Commitment
 from app.models.document import Document, DocumentSource
 from app.models.todo import Todo
 from app.models.transaction import Category, Transaction, TransactionType
@@ -65,3 +66,18 @@ def test_overview_page_kpi_drill_down_links_present(client, session):
     assert response.status_code == 200
     assert 'href="/transactions?category=income' in response.text
     assert 'href="/transactions?transaction_type=debit' in response.text
+
+
+def test_overview_page_handles_yearly_commitment_with_zero_planned_amount(client, session):
+    # Regression test: a yearly Commitment can exist before its budget is filled
+    # in, i.e. planned_amount == 0. get_yearly_commitments_card() correctly sets
+    # pct_of_plan = None in that case (avoiding a division by zero), but with
+    # has_commitments True the template must still render without crashing.
+    session.add(
+        Commitment(name="X", cadence=Cadence.YEARLY, planned_amount=0.0, year=date.today().year)
+    )
+    session.commit()
+
+    response = client.get("/")
+
+    assert response.status_code == 200
