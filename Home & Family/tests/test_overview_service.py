@@ -6,7 +6,7 @@ from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison
 
 
 def _doc(session, name="doc"):
@@ -192,3 +192,40 @@ def test_yearly_commitments_empty_state(session):
     assert card.planned_total == 0.0
     assert card.pct_of_plan is None
     assert card.next_item_label is None
+
+
+def test_category_comparison_ranked_with_delta(session):
+    document = _doc(session)
+    # This month: groceries 100, restaurants 50
+    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), Category.GROCERIES)
+    _txn(session, document, "RESTAURANT A", 50.0, TransactionType.DEBIT, date(2026, 8, 6), Category.RESTAURANTS)
+    # Prior 3 months: groceries averages to 80, restaurants to 100
+    for m, amt in [(7, 90.0), (6, 80.0), (5, 70.0)]:
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+    for m, amt in [(7, 100.0), (6, 100.0), (5, 100.0)]:
+        _txn(session, document, "RESTAURANT A", amt, TransactionType.DEBIT, date(2026, m, 6), Category.RESTAURANTS)
+
+    rows = get_category_comparison(session, today=date(2026, 8, 10))
+
+    by_cat = {r.category: r for r in rows}
+    assert by_cat["groceries"].current_value == 100.0
+    assert by_cat["groceries"].rolling_avg_value == 80.0
+    assert by_cat["groceries"].delta_pct == 25.0
+    assert by_cat["restaurants"].current_value == 50.0
+    assert by_cat["restaurants"].rolling_avg_value == 100.0
+    assert by_cat["restaurants"].delta_pct == -50.0
+    # Ranked by current value descending.
+    assert [r.category for r in rows] == ["groceries", "restaurants"]
+    assert by_cat["groceries"].bar_pct == 100.0
+    assert by_cat["restaurants"].bar_pct == 50.0
+    assert by_cat["groceries"].drill_down_url == "/transactions?category=groceries&date_from=2026-08-01&date_to=2026-08-10"
+
+
+def test_category_comparison_excludes_transfers_and_atm(session):
+    document = _doc(session)
+    _txn(session, document, "REVOLUT TOPUP", 200.0, TransactionType.TRANSFER, date(2026, 8, 5), Category.TRANSFER)
+    _txn(session, document, "ATM", 40.0, TransactionType.DEBIT, date(2026, 8, 5), Category.ATM_WITHDRAWAL)
+
+    rows = get_category_comparison(session, today=date(2026, 8, 10))
+
+    assert rows == []
