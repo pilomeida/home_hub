@@ -1,0 +1,7 @@
+<ul>
+  {% for item in items %}
+  <li><a href="{{ item.url }}">{{ item.text }}</a></li>
+  {% else %}
+  <li>All clear.</li>
+  {% endfor %}
+</ul>

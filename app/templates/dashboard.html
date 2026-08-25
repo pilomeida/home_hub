@@ -1,59 +1,55 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Home & Family{% endblock %}
+{% import "dashboard/_kpi_card.html" as kpi %}
+{% import "dashboard/_yearly_commitments_card.html" as yearly %}
+{% block title %}Overview — Home & Family{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
-{% if data %}
+<div class="overview-page">
+  <h1>Overview</h1>
+
+  <div class="kpi-groups">
+    <div class="kpi-group">
+      <h2>This month</h2>
+      <div class="kpi-cards">
+        {% for card in overview.flow_kpis %}{{ kpi.kpi_card(card) }}{% endfor %}
+      </div>
+    </div>
+    <div class="kpi-group">
+      <h2>Position</h2>
+      <div class="kpi-cards">
+        {% for card in overview.position_kpis %}{{ kpi.kpi_card(card) }}{% endfor %}
+        {{ yearly.yearly_commitments_card(overview.yearly_commitments) }}
+      </div>
+    </div>
+  </div>
+
+  {% if overview.narrative %}
+  <div class="narrative-banner">{{ overview.narrative }}</div>
+  {% endif %}
+
   <section>
-    <h2>Spend this month</h2>
-    <ul>
-      {% for category, amount in data.spend_this_month.items() %}
-        <li>{{ category }}: {{ "%.2f"|format(amount) }}</li>
-      {% else %}
-        <li>No spend recorded yet.</li>
-      {% endfor %}
-    </ul>
+    <h2>Cash flow</h2>
+    {% with chart = overview.cash_flow_chart %}
+      {% include "dashboard/_cash_flow_chart.html" %}
+    {% endwith %}
   </section>
+
   <section>
-    <h2>Spend last month</h2>
-    <ul>
-      {% for category, amount in data.spend_last_month.items() %}
-        <li>{{ category }}: {{ "%.2f"|format(amount) }}</li>
-      {% else %}
-        <li>No spend recorded yet.</li>
-      {% endfor %}
-    </ul>
+    <h2>Where it went</h2>
+    {% with rows = overview.category_comparison %}
+      {% include "dashboard/_category_comparison.html" %}
+    {% endwith %}
   </section>
+
   <section>
-    <h2>Open to-dos</h2>
-    <ul>
-      {% for todo in data.open_todos %}
-        <li>{{ todo.title }} — due {{ todo.due_date }}</li>
-      {% else %}
-        <li>Nothing due.</li>
-      {% endfor %}
-    </ul>
+    <h2 class="needs-attention">Needs Attention</h2>
+    {% with items = overview.needs_attention %}
+      {% include "dashboard/_needs_attention.html" %}
+    {% endwith %}
   </section>
+
   <section>
-    <h2>Recently changed wiki facts</h2>
-    <ul>
-      {% for page in data.recently_changed_wiki_pages %}
-        <li><a href="/wiki/{{ page.id }}">{{ page.topic }}</a></li>
-      {% else %}
-        <li>No recent changes.</li>
-      {% endfor %}
-    </ul>
+    <h2>Household</h2>
+    {% include "dashboard/_household.html" %}
   </section>
-  <section>
-    <h2 class="needs-attention">Needs attention</h2>
-    <ul>
-      {% for doc in data.needs_attention_documents %}
-        <li><a href="/bills/{{ doc.id }}">{{ doc.filename }}</a> — {{ doc.failure_reason }}</li>
-      {% else %}
-        <li>All clear.</li>
-      {% endfor %}
-    </ul>
-  </section>
-{% else %}
-  <p>Loading…</p>
-{% endif %}
+</div>
 {% endblock %}

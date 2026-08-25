@@ -1,0 +1,23 @@
+<div id="cash-flow-chart-container">
+  <div class="range-pills">
+    {% for key, label in [("1m","1M"), ("3m","3M"), ("6m","6M"), ("9m","9M"), ("12m","12M"), ("ytd","YTD")] %}
+    <a
+      class="{{ 'active' if chart.range_key == key else '' }}"
+      href="#"
+      hx-get="/cash-flow-chart?range={{ key }}"
+      hx-target="#cash-flow-chart-container"
+      hx-swap="outerHTML"
+    >{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="cash-flow-chart">
+    {% for month in chart.months %}
+    <div class="cash-flow-month" title="{{ month.label }}: income €{{ '{:,.0f}'.format(month.income) }} / expense €{{ '{:,.0f}'.format(month.expense) }}">
+      {% set income_pct = (month.income / chart.max_value * 100) if chart.max_value else 0 %}
+      {% set expense_pct = (month.expense / chart.max_value * 100) if chart.max_value else 0 %}
+      <div class="cash-flow-bar income" style="height: {{ income_pct }}%;"></div>
+      <div class="cash-flow-bar expense" style="height: {{ expense_pct }}%;"></div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
