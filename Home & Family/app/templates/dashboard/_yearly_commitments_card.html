@@ -1,0 +1,25 @@
+{% macro yearly_commitments_card(card) %}
+<div class="yearly-commitments-card">
+  <div class="kpi-card-label">
+    <span>Yearly Commitments</span>
+    <a class="kpi-card-link" href="{{ card.drill_down_url }}">↗</a>
+  </div>
+  {% if card.has_commitments %}
+  <div class="kpi-card-value">€{{ "{:,.0f}".format(card.actual_total) }} <small>of €{{ "{:,.0f}".format(card.planned_total) }}</small></div>
+  <div class="progress-track">
+    <div class="progress-fill" style="width: {{ ([card.pct_of_plan, 100] | min) if card.pct_of_plan is not none else 0 }}%;"></div>
+    <div class="progress-marker" style="margin-left: {{ card.pct_of_year_elapsed }}%;" title="{{ card.pct_of_year_elapsed }}% of year elapsed"></div>
+  </div>
+  {% if card.pct_of_plan is not none %}
+  <p>{{ card.pct_of_plan }}% of plan consumed · {{ card.pct_of_year_elapsed }}% of year elapsed</p>
+  {% else %}
+  <p>No budget set · {{ card.pct_of_year_elapsed }}% of year elapsed</p>
+  {% endif %}
+  {% if card.next_item_label %}
+  <p><a href="{{ card.next_item_url }}">Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%d %b') }}</a></p>
+  {% endif %}
+  {% else %}
+  <p>No yearly commitments configured yet.</p>
+  {% endif %}
+</div>
+{% endmacro %}

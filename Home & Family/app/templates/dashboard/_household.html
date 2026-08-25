@@ -1,0 +1,20 @@
+<section>
+  <h3>Open to-dos</h3>
+  <ul>
+    {% for todo in household.open_todos %}
+      <li>{{ todo.title }} — due {{ todo.due_date }}</li>
+    {% else %}
+      <li>Nothing due.</li>
+    {% endfor %}
+  </ul>
+</section>
+<section>
+  <h3>Recently changed wiki facts</h3>
+  <ul>
+    {% for page in household.recently_changed_wiki_pages %}
+      <li><a href="/wiki/{{ page.id }}">{{ page.topic }}</a></li>
+    {% else %}
+      <li>No recent changes.</li>
+    {% endfor %}
+  </ul>
+</section>

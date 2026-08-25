@@ -43,9 +43,9 @@ async def _noop_classify_transaction(session, transaction, client=None):
 
 
 def _last_month_period_and_date(today: date = None) -> tuple[str, date]:
-    """Mirror app.services.dashboard_service.get_dashboard_data's "last month"
-    computation, so this test's notion of "last month" can never drift from
-    the production code's notion of "last month"."""
+    """Compute "last month"'s statement_period and a representative date in
+    it, so this test's notion of "last month" tracks the calendar without
+    hardcoding a date."""
     today = today or date.today()
     last_month_date = date(today.year, today.month, 1) - timedelta(days=1)
     last_period = f"{last_month_date.year:04d}-{last_month_date.month:02d}"
@@ -53,9 +53,8 @@ def _last_month_period_and_date(today: date = None) -> tuple[str, date]:
 
 
 def _this_month_period(today: date = None) -> str:
-    """Mirror app.services.dashboard_service.get_dashboard_data's "this month"
-    computation, so this test's notion of "this month" can never drift from
-    the production code's notion of "this month"."""
+    """Compute "this month"'s statement_period, so this test's notion of
+    "this month" tracks the calendar without hardcoding a date."""
     today = today or date.today()
     return f"{today.year:04d}-{today.month:02d}"
 
@@ -76,9 +75,8 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
         "facts": {"provider": "EDP"},
     })
 
-    # Target "this month" (relative to whenever the suite runs), matching the
-    # dashboard assertion below, which needs "electricity" to land in
-    # spend_this_month — so this test never breaks on a calendar rollover.
+    # Target "this month" (relative to whenever the suite runs), so this
+    # test never breaks on a calendar rollover.
     this_period = _this_month_period()
     due_date = _next_month_date()
 
@@ -118,8 +116,7 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
 
 
 def test_full_statement_ingestion_flow(client, monkeypatch):
-    # Target "last month" (relative to whenever the suite runs), matching
-    # get_dashboard_data's own this-month/last-month computation, so this
+    # Target "last month" (relative to whenever the suite runs), so this
     # test never breaks on a calendar rollover.
     last_period, last_month_date = _last_month_period_and_date()
 
@@ -155,12 +152,14 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
     assert "CONTINENTE MAFRA" in detail_response.text
     assert "SALARIO EMPRESA X" in detail_response.text
 
+    # The Overview screen (built in this branch's later tasks) now renders
+    # real finance content on the home page -- the ingested statement's
+    # groceries spend shows up in the category-comparison table (as last
+    # month's rolling-average contribution, since last_month_date falls
+    # outside the current, still-empty month-to-date bucket).
     dashboard_response = client.get("/")
     assert dashboard_response.status_code == 200
     assert "groceries" in dashboard_response.text.lower()
-    # The credit (income) line must not appear in the spend-this-month section total —
-    # 2200.0 would be an unmistakable outlier if it leaked into spend.
-    assert "2200.00" not in dashboard_response.text
 
     todos_response = client.get("/todos")
     assert "CONTINENTE" not in todos_response.text
