@@ -1,8 +1,8 @@
 {% macro yearly_commitments_card(card) %}
-<div class="yearly-commitments-card">
+<a class="yearly-commitments-card" href="{{ card.drill_down_url }}">
   <div class="kpi-card-label">
     <span>Yearly Commitments</span>
-    <a class="kpi-card-link" href="{{ card.drill_down_url }}">↗</a>
+    <span class="kpi-card-link">↗</span>
   </div>
   {% if card.has_commitments %}
   <div class="kpi-card-value">€{{ "{:,.0f}".format(card.actual_total) }} <small>of €{{ "{:,.0f}".format(card.planned_total) }}</small></div>
@@ -16,10 +16,10 @@
   <p>No budget set · {{ card.pct_of_year_elapsed }}% of year elapsed</p>
   {% endif %}
   {% if card.next_item_label %}
-  <p><a href="{{ card.next_item_url }}">Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%d %b') }}</a></p>
+  <p>Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%d %b') }}</p>
   {% endif %}
   {% else %}
   <p>No yearly commitments configured yet.</p>
   {% endif %}
-</div>
+</a>
 {% endmacro %}

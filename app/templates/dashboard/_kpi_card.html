@@ -1,35 +1,40 @@
-{% macro kpi_card(card) %}
-<div class="kpi-card">
+{% macro kpi_card(card, position=False) %}
+<a class="kpi-card {{ 'position' if position else '' }}" href="{{ card.drill_down_url }}">
   <div class="kpi-card-label">
     <span>{{ card.label }}</span>
-    <a class="kpi-card-link" href="{{ card.drill_down_url }}">↗</a>
+    <span class="kpi-card-link">↗</span>
   </div>
   <div class="kpi-card-value">€{{ "{:,.0f}".format(card.value) }}</div>
   {% if card.caption %}
   <p class="kpi-card-caption">{{ card.caption }}</p>
   {% endif %}
   {% if card.chart.has_data %}
-  <div class="kpi-mini-chart {{ 'bidirectional' if card.chart.bidirectional else '' }}">
-    {% for point in card.chart.points %}
-    <div class="kpi-mini-chart-col {{ 'distant' if point.is_distant else '' }}" title="{{ point.label }}: €{{ '{:,.0f}'.format(point.value) }}">
-      {% if card.chart.bidirectional %}
-      <div class="kpi-bar-zone-up">
-        {% if point.direction == 'up' %}<div class="kpi-bar {{ card.color }} {{ 'now' if point.is_now else '' }}" style="height: {{ point.height_pct }}%;"></div>{% endif %}
+  <div class="kpi-bars">
+    <div class="kpi-bars-highlight"></div>
+    <div class="kpi-mini-chart {{ 'bidirectional' if card.chart.bidirectional else '' }}">
+      {% for point in card.chart.points %}
+      <div class="kpi-mini-chart-col" title="{{ point.label }}: €{{ '{:,.0f}'.format(point.value) }}">
+        {% if card.chart.bidirectional %}
+        <div class="kpi-bar-zone-up">
+          {% if point.direction == 'up' %}<div class="kpi-bar {{ card.color }} {{ 'now' if point.is_now else '' }}" style="height: {{ point.height_pct }}%;"></div>{% endif %}
+        </div>
+        <div class="kpi-bar-zone-down">
+          {% if point.direction == 'down' %}<div class="kpi-bar {{ card.color }} {{ 'now' if point.is_now else '' }}" style="height: {{ point.height_pct }}%;"></div>{% endif %}
+        </div>
+        {% else %}
+        <div class="kpi-bar-zone-up">
+          <div class="kpi-bar {{ card.color }} {{ 'now' if point.is_now else '' }}" style="height: {{ point.height_pct }}%;"></div>
+        </div>
+        {% endif %}
       </div>
-      <div class="kpi-bar-zone-down">
-        {% if point.direction == 'down' %}<div class="kpi-bar {{ card.color }} {{ 'now' if point.is_now else '' }}" style="height: {{ point.height_pct }}%;"></div>{% endif %}
-      </div>
-      {% else %}
-      <div class="kpi-bar-zone-up">
-        <div class="kpi-bar {{ card.color }} {{ 'now' if point.is_now else '' }}" style="height: {{ point.height_pct }}%;"></div>
-      </div>
-      {% endif %}
-      <span>{{ point.label }}</span>
+      {% endfor %}
     </div>
-    {% endfor %}
+    <div class="kpi-bar-plabels">
+      {% for point in card.chart.points %}<div class="kpi-bar-plabel">{{ point.label }}</div>{% endfor %}
+    </div>
   </div>
   {% else %}
   <div class="kpi-no-history">No history tracked yet</div>
   {% endif %}
-</div>
+</a>
 {% endmacro %}

@@ -1,6 +1,20 @@
-<ul>
+{% set icons = {
+  "review_queue": "⚠", "upcoming_bill": "€", "recurring_candidate": "↑",
+  "category_anomaly": "!", "document": "⚠",
+} %}
+{% set go_labels = {
+  "review_queue": "Review →", "upcoming_bill": "Open commitment →", "recurring_candidate": "Confirm / dismiss →",
+  "category_anomaly": "See transactions →", "document": "Open →",
+} %}
+<ul class="needs-attention-list">
   {% for item in items %}
-  <li><a href="{{ item.url }}">{{ item.text }}</a></li>
+  <li>
+    <a class="needs-attention-row" href="{{ item.url }}">
+      <span class="ic">{{ icons.get(item.kind, "!") }}</span>
+      <span class="txt">{{ item.text }}</span>
+      <span class="go">{{ go_labels.get(item.kind, "See more →") }}</span>
+    </a>
+  </li>
   {% else %}
   <li>All clear.</li>
   {% endfor %}

@@ -16,7 +16,7 @@
     <div class="kpi-group">
       <h2>Position</h2>
       <div class="kpi-cards">
-        {% for card in overview.position_kpis %}{{ kpi.kpi_card(card) }}{% endfor %}
+        {% for card in overview.position_kpis %}{{ kpi.kpi_card(card, position=True) }}{% endfor %}
         {{ yearly.yearly_commitments_card(overview.yearly_commitments) }}
       </div>
     </div>
