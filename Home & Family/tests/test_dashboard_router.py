@@ -56,7 +56,7 @@ def test_overview_page_renders_kpi_cards_and_sections(client, session):
     assert "Cash" in response.text
     assert "Debt" in response.text
     assert "Yearly" in response.text
-    assert "Needs Attention" in response.text
+    assert "Needs attention" in response.text
     assert "Household" in response.text
 
 
