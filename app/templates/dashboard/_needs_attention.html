@@ -6,16 +6,14 @@
   "review_queue": "Review →", "upcoming_bill": "Open commitment →", "recurring_candidate": "Confirm / dismiss →",
   "category_anomaly": "See transactions →", "document": "Open →",
 } %}
-<ul class="needs-attention-list">
+<div class="fc-attn">
   {% for item in items %}
-  <li>
-    <a class="needs-attention-row" href="{{ item.url }}">
-      <span class="ic">{{ icons.get(item.kind, "!") }}</span>
-      <span class="txt">{{ item.text }}</span>
-      <span class="go">{{ go_labels.get(item.kind, "See more →") }}</span>
-    </a>
-  </li>
+  <a class="fc-attn-row" href="{{ item.url }}">
+    <span class="ic">{{ icons.get(item.kind, "!") }}</span>
+    <span class="txt">{{ item.text }}</span>
+    <span class="go">{{ go_labels.get(item.kind, "See more →") }}</span>
+  </a>
   {% else %}
-  <li>All clear.</li>
+  <p>All clear.</p>
   {% endfor %}
-</ul>
+</div>

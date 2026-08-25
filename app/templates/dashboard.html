@@ -3,53 +3,71 @@
 {% import "dashboard/_yearly_commitments_card.html" as yearly %}
 {% block title %}Overview — Home & Family{% endblock %}
 {% block content %}
-<div class="overview-page">
-  <h1>Overview</h1>
-
-  <div class="kpi-groups">
-    <div class="kpi-group">
-      <h2>This month</h2>
-      <div class="kpi-cards">
-        {% for card in overview.flow_kpis %}{{ kpi.kpi_card(card) }}{% endfor %}
-      </div>
+<div class="fc-page">
+<div class="fc-frame">
+  <div class="fc-topbar">
+    <div class="fc-brand">HOME &amp; FAMILY — FINANCE</div>
+    <div class="fc-period">
+      <span class="pill">{{ today.strftime('%B %Y') }} ▾</span>
+      <span class="pill">vs Previous month ▾</span>
     </div>
-    <div class="kpi-group">
-      <h2>Position</h2>
-      <div class="kpi-cards">
-        {% for card in overview.position_kpis %}{{ kpi.kpi_card(card, position=True) }}{% endfor %}
-        {{ yearly.yearly_commitments_card(overview.yearly_commitments) }}
-      </div>
+  </div>
+
+  <div class="fc-kpi-group">
+    <div class="fc-kpi-group-label">This month</div>
+    <div class="fc-cards">
+      {% for card in overview.flow_kpis %}{{ kpi.kpi_card(card) }}{% endfor %}
+    </div>
+  </div>
+
+  <div class="fc-kpi-group">
+    <div class="fc-kpi-group-label">Position</div>
+    <div class="fc-cards">
+      {% for card in overview.position_kpis %}{{ kpi.kpi_card(card, position=True) }}{% endfor %}
+      {{ yearly.yearly_commitments_card(overview.yearly_commitments) }}
     </div>
   </div>
 
   {% if overview.narrative %}
-  <div class="narrative-banner">{{ overview.narrative }}</div>
+  <div class="fc-insight">
+    <span style="font-size:16px">💡</span>
+    <span>{{ overview.narrative }}</span>
+  </div>
   {% endif %}
 
-  <section>
-    <h2>Cash flow</h2>
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Cash flow</span>
+    </div>
     {% with chart = overview.cash_flow_chart %}
       {% include "dashboard/_cash_flow_chart.html" %}
     {% endwith %}
-  </section>
+  </div>
 
-  <section>
-    <h2>Where it went</h2>
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Where it went</span>
+    </div>
     {% with rows = overview.category_comparison %}
       {% include "dashboard/_category_comparison.html" %}
     {% endwith %}
-  </section>
+  </div>
 
-  <section>
-    <h2 class="needs-attention">Needs Attention</h2>
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Needs attention</span>
+    </div>
     {% with items = overview.needs_attention %}
       {% include "dashboard/_needs_attention.html" %}
     {% endwith %}
-  </section>
+  </div>
 
-  <section>
-    <h2>Household</h2>
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Household</span>
+    </div>
     {% include "dashboard/_household.html" %}
-  </section>
+  </div>
+</div>
 </div>
 {% endblock %}

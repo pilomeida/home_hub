@@ -1,25 +1,25 @@
 {% macro yearly_commitments_card(card) %}
-<a class="yearly-commitments-card" href="{{ card.drill_down_url }}">
-  <div class="kpi-card-label">
-    <span>Yearly Commitments</span>
-    <span class="kpi-card-link">↗</span>
+<a class="fc-yc" href="{{ card.drill_down_url }}">
+  <div>
+    <div class="fc-yc-top"><span>Yearly commitments</span><span>{{ card.pct_of_year_elapsed }}% of year</span></div>
+    {% if card.has_commitments %}
+    <div class="fc-yc-val">€{{ "{:,.0f}".format(card.actual_total) }} <span>of €{{ "{:,.0f}".format(card.planned_total) }}</span></div>
+    {% endif %}
   </div>
   {% if card.has_commitments %}
-  <div class="kpi-card-value">€{{ "{:,.0f}".format(card.actual_total) }} <small>of €{{ "{:,.0f}".format(card.planned_total) }}</small></div>
-  <div class="progress-track">
-    <div class="progress-fill" style="width: {{ ([card.pct_of_plan, 100] | min) if card.pct_of_plan is not none else 0 }}%;"></div>
-    <div class="progress-marker" style="margin-left: {{ card.pct_of_year_elapsed }}%;" title="{{ card.pct_of_year_elapsed }}% of year elapsed"></div>
+  <div>
+    <div class="fc-yc-bar"><div class="fc-yc-fill" style="width: {{ ([card.pct_of_plan, 100] | min) if card.pct_of_plan is not none else 0 }}%;"></div></div>
+    {% if card.pct_of_plan is not none %}
+    <div class="fc-yc-sub">{{ card.pct_of_plan }}% consumed · {{ card.pct_of_year_elapsed }}% of year elapsed</div>
+    {% else %}
+    <div class="fc-yc-sub">No budget set · {{ card.pct_of_year_elapsed }}% of year elapsed</div>
+    {% endif %}
+    {% if card.next_item_label %}
+    <div class="fc-yc-sub">Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%d %b') }}</div>
+    {% endif %}
   </div>
-  {% if card.pct_of_plan is not none %}
-  <p>{{ card.pct_of_plan }}% of plan consumed · {{ card.pct_of_year_elapsed }}% of year elapsed</p>
   {% else %}
-  <p>No budget set · {{ card.pct_of_year_elapsed }}% of year elapsed</p>
-  {% endif %}
-  {% if card.next_item_label %}
-  <p>Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%d %b') }}</p>
-  {% endif %}
-  {% else %}
-  <p>No yearly commitments configured yet.</p>
+  <div class="fc-yc-empty">No yearly commitments configured yet.</div>
   {% endif %}
 </a>
 {% endmacro %}

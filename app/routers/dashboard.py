@@ -25,7 +25,8 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
     overview = get_overview_data(session)
     household = get_household_data(session)
     return templates.TemplateResponse(
-        request, "dashboard.html", {"overview": overview, "household": household},
+        request, "dashboard.html",
+        {"overview": overview, "household": household, "today": date.today()},
     )
 
 
