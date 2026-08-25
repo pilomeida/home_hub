@@ -18,11 +18,13 @@ def test_dashboard_renders_open_todos(client, session):
 
 
 def test_cash_flow_chart_partial_route_responds(client, session):
-    response = client.get("/cash-flow-chart", params={"range": "6m"})
+    response = client.get("/overview/period", params={"range": "6m"})
 
     assert response.status_code == 200
     # The partial re-render must not include the full page chrome.
     assert "<html" not in response.text
+    assert "Cash flow" in response.text
+    assert "Where it went" in response.text
 
 
 def test_overview_page_renders_kpi_cards_and_sections(client, session):
@@ -107,8 +109,8 @@ def test_cash_flow_range_pill_swap_changes_content(client, session):
     ))
     session.commit()
 
-    full_year = client.get("/cash-flow-chart", params={"range": "ytd"})
-    twelve_months = client.get("/cash-flow-chart", params={"range": "12m"})
+    full_year = client.get("/overview/period", params={"range": "ytd"})
+    twelve_months = client.get("/overview/period", params={"range": "12m"})
 
     assert full_year.status_code == 200
     assert twelve_months.status_code == 200

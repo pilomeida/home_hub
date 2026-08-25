@@ -1,13 +1,44 @@
 <section id="unconfirmed-merchants">
   <h2>New merchants</h2>
-  {% for m in queue.unconfirmed_merchants %}
-  <div class="needs-attention">
-    {{ m.canonical_name }} — {{ m.default_category.value }} / {{ m.default_nature.value if m.default_nature else "" }}
-    <button hx-post="/transactions/merchants/{{ m.id }}/confirm" hx-target="#needs-review-body" hx-swap="innerHTML">Confirm</button>
-  </div>
+  {% if queue.unconfirmed_merchants %}
+  <table class="review-table">
+    <thead>
+      <tr><th>Merchant</th><th>Category</th><th>Nature</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for m in queue.unconfirmed_merchants %}
+      <tr>
+        <td>{{ m.canonical_name }}</td>
+        <td>
+          <select name="category">
+            {% for c in categories %}
+            <option value="{{ c.value }}" {% if c == m.default_category %}selected{% endif %}>{{ c.value }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <select name="nature">
+            <option value="">(none)</option>
+            {% for n in natures %}
+            <option value="{{ n.value }}" {% if m.default_nature and n == m.default_nature %}selected{% endif %}>{{ n.value }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <button
+            hx-post="/transactions/merchants/{{ m.id }}/confirm"
+            hx-include="closest tr"
+            hx-target="#needs-review-body"
+            hx-swap="innerHTML"
+          >Save &amp; Confirm</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
   <p>Nothing to confirm.</p>
-  {% endfor %}
+  {% endif %}
 </section>
 <section id="recurring-candidates">
   <h2>Looks recurring</h2>

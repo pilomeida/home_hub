@@ -251,6 +251,31 @@ def test_confirm_merchant_removes_it_from_queue(client, session):
     assert merchant.confirmed is True
 
 
+def test_confirm_merchant_applies_edited_category_and_nature(client, session):
+    merchant = _make_unconfirmed_merchant(session, name="Edit Me", key="edit-me-router-test")
+
+    response = client.post(
+        f"/transactions/merchants/{merchant.id}/confirm",
+        data={"category": "restaurants", "nature": "discretionary"},
+    )
+
+    assert response.status_code == 200
+    session.refresh(merchant)
+    assert merchant.confirmed is True
+    assert merchant.default_category == Category.RESTAURANTS
+    assert merchant.default_nature == Nature.DISCRETIONARY
+
+
+def test_needs_review_page_shows_category_and_nature_dropdowns(client, session):
+    _make_unconfirmed_merchant(session, name="Dropdown Test", key="dropdown-test-router")
+
+    response = client.get("/transactions/needs-review")
+
+    assert response.status_code == 200
+    assert '<select name="category">' in response.text
+    assert '<select name="nature">' in response.text
+
+
 def test_dismiss_recurring_marks_merchant_reviewed(client, session):
     from app.models.merchant import Merchant
     merchant = Merchant(

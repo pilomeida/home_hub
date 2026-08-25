@@ -35,23 +35,9 @@
   </div>
   {% endif %}
 
-  <div class="fc-section">
-    <div class="fc-section-title">
-      <span>Cash flow</span>
-    </div>
-    {% with chart = overview.cash_flow_chart %}
-      {% include "dashboard/_cash_flow_chart.html" %}
-    {% endwith %}
-  </div>
-
-  <div class="fc-section">
-    <div class="fc-section-title">
-      <span>Where it went</span>
-    </div>
-    {% with rows = overview.category_comparison %}
-      {% include "dashboard/_category_comparison.html" %}
-    {% endwith %}
-  </div>
+  {% with chart = overview.cash_flow_chart, rows = overview.category_comparison %}
+    {% include "dashboard/_period_panel.html" %}
+  {% endwith %}
 
   <div class="fc-section">
     <div class="fc-section-title">

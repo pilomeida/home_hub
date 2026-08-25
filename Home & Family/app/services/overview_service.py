@@ -250,6 +250,21 @@ def get_yearly_commitments_card(session: Session, today: date) -> YearlyCommitme
 
 _COMPARISON_ROLLING_MONTHS = 3
 _COMPARISON_EXCLUDED_CATEGORIES = (Category.TRANSFER, Category.ATM_WITHDRAWAL, Category.INCOME)
+_RANGE_TO_ROLLING_MONTHS = {"1m": 1, "3m": 3, "6m": 6, "9m": 9, "12m": 12}
+RANGE_LABELS = {"1m": "1M", "3m": "3M", "6m": "6M", "9m": "9M", "12m": "12M", "ytd": "YTD"}
+
+
+def _resolve_lookback_months(range_key: str, today: date) -> int:
+    """Maps the cash-flow-chart's selectable range to a rolling-average
+    window for the category comparison table, so 'Where it went' reflects
+    whichever period the user picked. YTD maps to however many complete
+    months have elapsed this year (at least 1, so a January view still has
+    a comparison baseline)."""
+    if range_key in _RANGE_TO_ROLLING_MONTHS:
+        return _RANGE_TO_ROLLING_MONTHS[range_key]
+    if range_key == "ytd":
+        return max(1, today.month - 1)
+    return _COMPARISON_ROLLING_MONTHS
 
 
 @dataclass
@@ -262,8 +277,10 @@ class CategoryComparisonRow:
     drill_down_url: str
 
 
-def get_category_comparison(session: Session, today: date) -> list[CategoryComparisonRow]:
-    cutoff = _month_start(today) - timedelta(days=31 * (_COMPARISON_ROLLING_MONTHS + 1))
+def get_category_comparison(
+    session: Session, today: date, rolling_months: int = _COMPARISON_ROLLING_MONTHS
+) -> list[CategoryComparisonRow]:
+    cutoff = _month_start(today) - timedelta(days=31 * (rolling_months + 1))
     statement = select(Transaction).where(
         Transaction.transaction_type == TransactionType.DEBIT,
         Transaction.category.notin_(_COMPARISON_EXCLUDED_CATEGORIES),
@@ -279,7 +296,7 @@ def get_category_comparison(session: Session, today: date) -> list[CategoryCompa
         per_month_category[key] = per_month_category.get(key, 0.0) + t.amount
 
     current_key = _month_key(today)
-    history_periods = _complete_months_before(today, _COMPARISON_ROLLING_MONTHS)
+    history_periods = _complete_months_before(today, rolling_months)
     categories = {cat for (_, cat) in per_month_category}
 
     computed = []
@@ -436,11 +453,30 @@ class OverviewData:
     needs_attention: list[NeedsAttentionItem]
 
 
+def get_period_dependent_data(
+    session: Session, today: date, range_key: str
+) -> tuple[CashFlowChart, list[CategoryComparisonRow]]:
+    """The cash-flow chart and the category comparison table, both computed
+    against the same user-selected range (the pills above the chart) -- the
+    two are re-rendered together on every pill click so 'Where it went'
+    always reflects the same period as the chart above it."""
+    income_monthly, expense_monthly = _monthly_flow_totals(session, today)
+    chart = build_cash_flow_chart(income_monthly, expense_monthly, range_key, today)
+    rows = get_category_comparison(session, today, rolling_months=_resolve_lookback_months(range_key, today))
+    return chart, rows
+
+
 def get_overview_data(
     session: Session, today: Optional[date] = None, cash_flow_range: str = "12m"
 ) -> OverviewData:
     today = today or date.today()
-    income_monthly, expense_monthly = _monthly_flow_totals(session, today)
+
+    # The narrative banner and the needs-attention anomaly detector both
+    # hardcode "3-month average" in their generated text (see
+    # get_narrative_insight / get_needs_attention below) -- they always use
+    # the fixed 3-month baseline regardless of which period the user has
+    # selected for the visible "Where it went" table, so their wording never
+    # goes stale relative to what they actually computed.
     category_rows = get_category_comparison(session, today)
 
     # Narrative banner mitigation (Important finding, deliberately narrow
@@ -454,12 +490,18 @@ def get_overview_data(
     # days, when MTD data is too partial for a fair comparison.
     narrative = get_narrative_insight(category_rows) if today.day > 3 else None
 
+    income_monthly, expense_monthly = _monthly_flow_totals(session, today)
+    cash_flow_chart = build_cash_flow_chart(income_monthly, expense_monthly, cash_flow_range, today)
+    table_category_rows = get_category_comparison(
+        session, today, rolling_months=_resolve_lookback_months(cash_flow_range, today)
+    )
+
     return OverviewData(
         flow_kpis=get_flow_kpis(session, today, income_monthly, expense_monthly),
         position_kpis=[get_cash_kpi(session, today), get_debt_kpi(session, today)],
         yearly_commitments=get_yearly_commitments_card(session, today),
         narrative=narrative,
-        cash_flow_chart=build_cash_flow_chart(income_monthly, expense_monthly, cash_flow_range, today),
-        category_comparison=category_rows,
+        cash_flow_chart=cash_flow_chart,
+        category_comparison=table_category_rows,
         needs_attention=get_needs_attention(session, today, category_rows),
     )
