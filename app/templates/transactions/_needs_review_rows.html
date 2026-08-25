@@ -8,7 +8,7 @@
     <tbody>
       {% for m in queue.unconfirmed_merchants %}
       <tr>
-        <td>{{ m.canonical_name }}</td>
+        <td><a href="/transactions?merchant_id={{ m.id }}" target="_blank">{{ m.canonical_name }}</a></td>
         <td>
           <select name="category">
             {% for c in categories %}

@@ -237,6 +237,7 @@ def test_needs_review_page_lists_unconfirmed_merchant(client, session):
     response = client.get("/transactions/needs-review")
 
     assert response.status_code == 200
+    assert f'href="/transactions?merchant_id={merchant.id}"' in response.text
     assert merchant.canonical_name in response.text
 
 
@@ -396,6 +397,32 @@ def test_list_transactions_filters_by_transaction_id(client, session):
     assert response.status_code == 200
     assert "SHOP F" in response.text
     assert "SHOP G" not in response.text
+
+
+def test_list_transactions_filters_by_merchant_id(client, session):
+    from app.models.merchant import Merchant
+
+    merchant = Merchant(
+        canonical_name="Merchant Filter Test", default_category=Category.SHOPPING,
+        normalized_key="merchant-filter-test-router",
+    )
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+
+    t1 = _make_transaction(session, "SHOP H", Category.SHOPPING, 10.0)
+    t2 = _make_transaction(session, "SHOP I", Category.SHOPPING, 20.0)
+    t1.merchant_id = merchant.id
+    session.add(t1)
+    session.commit()
+
+    response = client.get("/transactions", params={"merchant_id": merchant.id})
+
+    assert response.status_code == 200
+    assert "SHOP H" in response.text
+    assert "SHOP I" not in response.text
+    assert "Merchant Filter Test" in response.text
+    assert f'href="/transactions?merchant_id={merchant.id}"' in response.text
 
 
 def test_list_transactions_shows_linked_transaction(client, session):

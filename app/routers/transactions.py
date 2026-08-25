@@ -34,6 +34,7 @@ def _apply_transaction_filters(
     debt_id: Optional[int] = None,
     transaction_type: Optional[str] = None,
     transaction_id: Optional[int] = None,
+    merchant_id: Optional[int] = None,
 ):
     if category:
         statement = statement.where(Transaction.category == Category(category))
@@ -53,6 +54,8 @@ def _apply_transaction_filters(
         statement = statement.where(Transaction.transaction_type == TransactionType(transaction_type))
     if transaction_id:
         statement = statement.where(Transaction.id == transaction_id)
+    if merchant_id:
+        statement = statement.where(Transaction.merchant_id == merchant_id)
     return statement
 
 
@@ -68,12 +71,14 @@ def _filtered_transactions(
     transaction_type: Optional[str] = None,
     page: int = 1,
     transaction_id: Optional[int] = None,
+    merchant_id: Optional[int] = None,
 ):
     statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     statement = _apply_transaction_filters(
         statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
+        merchant_id=merchant_id,
     )
     statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
@@ -115,12 +120,14 @@ def _count_filtered_transactions(
     debt_id: Optional[int] = None,
     transaction_type: Optional[str] = None,
     transaction_id: Optional[int] = None,
+    merchant_id: Optional[int] = None,
 ) -> int:
     statement = select(Transaction)
     statement = _apply_transaction_filters(
         statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
+        merchant_id=merchant_id,
     )
     return len(session.exec(statement).all())
 
@@ -138,21 +145,26 @@ async def list_transactions(
     transaction_type: Optional[str] = None,
     page: int = 1,
     transaction_id: Optional[int] = None,
+    merchant_id: Optional[int] = None,
     session: Session = Depends(get_session),
 ):
     transactions = _filtered_transactions(
         session, category, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
-        page=page, transaction_id=transaction_id,
+        page=page, transaction_id=transaction_id, merchant_id=merchant_id,
     )
     total_count = _count_filtered_transactions(
         session, category, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
-        transaction_id=transaction_id,
+        transaction_id=transaction_id, merchant_id=merchant_id,
     )
     total_pages = max(1, -(-total_count // _PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
     merchant_names, account_names, linked_transactions = _lookup_dicts_for(session, transactions)
+    merchant_filter_name = merchant_names.get(merchant_id) if merchant_id else None
+    if merchant_id and merchant_filter_name is None:
+        merchant = session.get(Merchant, merchant_id)
+        merchant_filter_name = merchant.canonical_name if merchant else None
     return templates.TemplateResponse(
         request,
         "transactions/list.html",
@@ -165,8 +177,9 @@ async def list_transactions(
                 "category": category, "nature": nature, "account_id": account_id,
                 "date_from": date_from, "date_to": date_to,
                 "commitment_id": commitment_id, "debt_id": debt_id,
-                "transaction_type": transaction_type,
+                "transaction_type": transaction_type, "merchant_id": merchant_id,
             },
+            "merchant_filter_name": merchant_filter_name,
             "page": page,
             "total_pages": total_pages,
             "merchant_names": merchant_names,
