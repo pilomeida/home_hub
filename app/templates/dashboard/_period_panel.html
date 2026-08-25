@@ -1,0 +1,61 @@
+{% set month_abbrev = {
+  "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr", "05": "May", "06": "Jun",
+  "07": "Jul", "08": "Aug", "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
+} %}
+{% set range_labels = {"1m": "1M", "3m": "3M", "6m": "6M", "9m": "9M", "12m": "12M", "ytd": "YTD"} %}
+{% set range_label = range_labels.get(chart.range_key, chart.range_key) %}
+<div id="period-panel">
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Cash flow</span>
+      <div class="fc-pills">
+        {% for key, label in [("1m","1M"), ("3m","3M"), ("6m","6M"), ("9m","9M"), ("12m","12M"), ("ytd","YTD")] %}
+        <a
+          class="{{ 'active' if chart.range_key == key else '' }}"
+          href="#"
+          hx-get="/overview/period?range={{ key }}"
+          hx-target="#period-panel"
+          hx-swap="outerHTML"
+        >{{ label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="fc-cashflow">
+      {% for month in chart.months %}
+      {% set income_pct = (month.income / chart.max_value * 100) if chart.max_value else 0 %}
+      {% set expense_pct = (month.expense / chart.max_value * 100) if chart.max_value else 0 %}
+      <div class="fc-cf-col" title="{{ month.label }}: income €{{ '{:,.0f}'.format(month.income) }} / expense €{{ '{:,.0f}'.format(month.expense) }}">
+        <div class="fc-cf-bars">
+          <div class="fc-cf-bar income" style="height: {{ income_pct }}%;"></div>
+          <div class="fc-cf-bar expense" style="height: {{ expense_pct }}%;"></div>
+        </div>
+        <div class="fc-cf-month">{{ month_abbrev.get(month.label[5:7], month.label) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="fc-cf-legend">
+      <span><i style="background:#1f8a4c"></i>Income</span>
+      <span><i style="background:#c0392b"></i>Expenses</span>
+    </div>
+  </div>
+
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Where it went — vs {{ range_label }} average</span>
+    </div>
+    <div class="fc-cat-table">
+      <div class="fc-cat-head"><div>Category</div><div></div><div style="text-align:right">Current</div><div style="text-align:right">{{ range_label }} avg</div><div style="text-align:right">Δ</div></div>
+      {% for row in rows %}
+      <a class="fc-cat-row" href="{{ row.drill_down_url }}">
+        <div class="fc-cat-name">{{ row.category.replace('_', ' ')|title }}</div>
+        <div class="fc-cat-track"><div class="fc-cat-fill" style="width: {{ row.bar_pct }}%;"></div></div>
+        <div class="fc-cat-val">€{{ "{:,.0f}".format(row.current_value) }}</div>
+        <div class="fc-cat-avg">€{{ "{:,.0f}".format(row.rolling_avg_value) }}</div>
+        <div class="fc-cat-delta {{ 'up' if row.delta_pct and row.delta_pct > 0 else 'down' if row.delta_pct and row.delta_pct < 0 else '' }}">{{ "{:+.1f}%".format(row.delta_pct) if row.delta_pct is not none else "—" }}</div>
+      </a>
+      {% else %}
+      <p>No category spend recorded yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>

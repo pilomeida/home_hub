@@ -7,7 +7,7 @@ from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
-from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight, get_needs_attention, get_overview_data
+from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight, get_needs_attention, get_overview_data, get_period_dependent_data, _resolve_lookback_months
 
 
 def _doc(session, name="doc"):
@@ -256,6 +256,48 @@ def test_category_comparison_ranked_with_delta(session):
     assert by_cat["groceries"].bar_pct == 100.0
     assert by_cat["restaurants"].bar_pct == 50.0
     assert by_cat["groceries"].drill_down_url == "/transactions?category=groceries&date_from=2026-08-01&date_to=2026-08-10"
+
+
+def test_category_comparison_rolling_months_is_configurable(session):
+    document = _doc(session)
+    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), Category.GROCERIES)
+    # 3-month history (May-Jul): averages to 80. 6-month history (Feb-Jul)
+    # adds Feb-Apr at 40 each, pulling the average down to 60.
+    for m, amt in [(7, 90.0), (6, 80.0), (5, 70.0)]:
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+    for m, amt in [(4, 40.0), (3, 40.0), (2, 40.0)]:
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+
+    default_rows = get_category_comparison(session, today=date(2026, 8, 10))
+    six_month_rows = get_category_comparison(session, today=date(2026, 8, 10), rolling_months=6)
+
+    assert {r.category: r for r in default_rows}["groceries"].rolling_avg_value == 80.0
+    assert {r.category: r for r in six_month_rows}["groceries"].rolling_avg_value == 60.0
+
+
+def test_resolve_lookback_months_maps_known_ranges():
+    today = date(2026, 8, 10)
+    assert _resolve_lookback_months("1m", today) == 1
+    assert _resolve_lookback_months("6m", today) == 6
+    assert _resolve_lookback_months("12m", today) == 12
+
+
+def test_resolve_lookback_months_ytd_uses_elapsed_months():
+    assert _resolve_lookback_months("ytd", date(2026, 8, 10)) == 7
+    # January: no complete elapsed months this year -- floors to 1, not 0.
+    assert _resolve_lookback_months("ytd", date(2026, 1, 15)) == 1
+
+
+def test_period_dependent_data_links_chart_and_table_to_same_range(session):
+    document = _doc(session)
+    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), Category.GROCERIES)
+    for m, amt in [(7, 90.0), (6, 80.0), (5, 70.0), (4, 40.0), (3, 40.0), (2, 40.0)]:
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+
+    chart, rows = get_period_dependent_data(session, date(2026, 8, 10), "6m")
+
+    assert chart.range_key == "6m"
+    assert {r.category: r for r in rows}["groceries"].rolling_avg_value == 60.0
 
 
 def test_category_comparison_excludes_transfers_and_atm(session):

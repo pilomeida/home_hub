@@ -225,10 +225,17 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     )
 
 
+def _needs_review_context(session: Session) -> dict:
+    return {
+        "queue": get_needs_review_queue(session),
+        "categories": list(Category),
+        "natures": list(Nature),
+    }
+
+
 @router.get("/needs-review")
 async def needs_review(request: Request, session: Session = Depends(get_session)):
-    queue = get_needs_review_queue(session)
-    return templates.TemplateResponse(request, "transactions/needs_review.html", {"queue": queue})
+    return templates.TemplateResponse(request, "transactions/needs_review.html", _needs_review_context(session))
 
 
 @router.post("/merchants/{merchant_id}/confirm")
@@ -236,11 +243,21 @@ async def confirm_merchant(request: Request, merchant_id: int, session: Session 
     merchant = session.get(Merchant, merchant_id)
     if merchant is None:
         raise HTTPException(status_code=404, detail="Merchant not found")
+
+    form = await request.form()
+    new_category = form.get("category") or None
+    new_nature = form.get("nature") or None
+    if new_category:
+        merchant.default_category = Category(new_category)
+    if new_nature:
+        merchant.default_nature = Nature(new_nature)
+
     merchant.confirmed = True
     session.add(merchant)
     session.commit()
-    queue = get_needs_review_queue(session)
-    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+    return templates.TemplateResponse(
+        request, "transactions/_needs_review_rows.html", _needs_review_context(session)
+    )
 
 
 @router.post("/merchants/{merchant_id}/dismiss-recurring")
@@ -251,8 +268,9 @@ async def dismiss_recurring(request: Request, merchant_id: int, session: Session
     merchant.recurring_reviewed = True
     session.add(merchant)
     session.commit()
-    queue = get_needs_review_queue(session)
-    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+    return templates.TemplateResponse(
+        request, "transactions/_needs_review_rows.html", _needs_review_context(session)
+    )
 
 
 @router.post("/{transaction_id}/dismiss-debt-candidate")
@@ -263,8 +281,9 @@ async def dismiss_debt_candidate(request: Request, transaction_id: int, session:
     transaction.debt_candidate_reviewed = True
     session.add(transaction)
     session.commit()
-    queue = get_needs_review_queue(session)
-    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+    return templates.TemplateResponse(
+        request, "transactions/_needs_review_rows.html", _needs_review_context(session)
+    )
 
 
 @router.post("/merchants/{merchant_id}/create-commitment")
@@ -297,8 +316,9 @@ async def create_commitment_from_merchant(
     session.add(merchant)
     session.commit()
 
-    queue = get_needs_review_queue(session)
-    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+    return templates.TemplateResponse(
+        request, "transactions/_needs_review_rows.html", _needs_review_context(session)
+    )
 
 
 @router.post("/{transaction_id}/link-debt")
@@ -340,5 +360,6 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
     session.add(transaction)
     session.commit()
 
-    queue = get_needs_review_queue(session)
-    return templates.TemplateResponse(request, "transactions/_needs_review_rows.html", {"queue": queue})
+    return templates.TemplateResponse(
+        request, "transactions/_needs_review_rows.html", _needs_review_context(session)
+    )

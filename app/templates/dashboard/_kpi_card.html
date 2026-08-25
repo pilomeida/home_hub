@@ -10,13 +10,14 @@
     <div class="fc-bars-highlight"></div>
     {% if card.chart.bidirectional %}
     <div class="fc-bar-area bidirectional">
+      <div class="fc-bidirectional-zero-line"></div>
       {% for point in card.chart.points %}
       <div class="fc-bar-slot" title="{{ point.label }}: €{{ '{:,.0f}'.format(point.value) }}">
         <div class="fc-bar-zone-up">
-          {% if point.direction == 'up' %}<div class="fc-bar {{ 'red' if card.color == 'red' else '' }} {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 20) | round(1) }}px;"></div>{% endif %}
+          {% if point.direction == 'up' %}<div class="fc-bar {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 20) | round(1) }}px;"></div>{% endif %}
         </div>
         <div class="fc-bar-zone-down">
-          {% if point.direction == 'down' %}<div class="fc-bar {{ 'red' if card.color == 'red' else '' }} {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 20) | round(1) }}px;"></div>{% endif %}
+          {% if point.direction == 'down' %}<div class="fc-bar red {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 20) | round(1) }}px;"></div>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -29,8 +30,8 @@
       </div>
       {% endfor %}
     </div>
-    {% endif %}
     <div class="fc-bars-zero-line"></div>
+    {% endif %}
     <div class="fc-bar-plabels">
       {% for point in card.chart.points %}<div class="fc-bar-plabel">{{ point.label }}</div>{% endfor %}
     </div>
