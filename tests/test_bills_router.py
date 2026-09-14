@@ -59,3 +59,23 @@ def test_bill_detail_renders_multiple_transactions(client, session):
     assert response.status_code == 200
     assert "CONTINENTE" in response.text
     assert "SALARIO" in response.text
+
+
+def test_upload_bill_sets_financials_domain(client, monkeypatch, session):
+    from app.models.domain import Domain
+
+    async def fake_ingest_document(session, document):
+        document.status = DocumentStatus.PROCESSED
+        return document
+
+    monkeypatch.setattr(bills_router, "ingest_document", fake_ingest_document)
+
+    response = client.post(
+        "/bills/upload",
+        files={"file": ("bill.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
+        follow_redirects=False,
+    )
+
+    document_id = int(response.headers["location"].rsplit("/", 1)[-1])
+    document = session.get(Document, document_id)
+    assert document.domain == Domain.FINANCIALS

@@ -48,3 +48,29 @@ def test_document_account_id_can_be_set(session):
 
     fetched = session.get(Document, document.id)
     assert fetched.account_id == account.id
+
+
+def test_document_domain_defaults_to_none(session):
+    document = Document(
+        filename="s.pdf", file_path="/tmp/s.pdf", content_hash="hash-domain-default",
+        source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    assert document.domain is None
+
+
+def test_document_domain_can_be_set(session):
+    from app.models.domain import Domain
+
+    document = Document(
+        filename="s.pdf", file_path="/tmp/s.pdf", content_hash="hash-domain-set",
+        source=DocumentSource.MANUAL, domain=Domain.FINANCIALS,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    assert document.domain == Domain.FINANCIALS

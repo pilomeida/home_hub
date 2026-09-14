@@ -41,3 +41,13 @@ def test_generate_todo_for_transaction_without_due_date_returns_none(session):
     todo = generate_todo_for_transaction(session, transaction)
 
     assert todo is None
+
+
+def test_generate_todo_for_transaction_sets_financials_domain(session):
+    from app.models.domain import Domain
+
+    transaction = _make_transaction(session, due_date=date(2026, 9, 5))
+
+    todo = generate_todo_for_transaction(session, transaction)
+
+    assert todo.domain == Domain.FINANCIALS

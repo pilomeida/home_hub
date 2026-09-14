@@ -127,3 +127,21 @@ async def test_no_op_when_facts_unchanged(session):
     change = await assess_and_update_wiki(session, document, transaction, client=client)
 
     assert change is None
+
+
+@pytest.mark.asyncio
+async def test_new_wiki_page_gets_financials_domain(session):
+    from app.models.domain import Domain
+
+    document, transaction = _make_document_and_transaction(session)
+    response = json.dumps({
+        "wiki_worthy": True,
+        "topic": "Water — provider & contract",
+        "facts": {"provider": "EPAL"},
+    })
+    client = _FakeAnthropicClient(response)
+
+    await assess_and_update_wiki(session, document, transaction, client=client)
+
+    page = session.exec(select(WikiPage).where(WikiPage.topic == "Water — provider & contract")).first()
+    assert page.domain == Domain.FINANCIALS

@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models.account import Account
 from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.domain import Domain
 from app.models.transaction import Transaction
 from app.services.dedup import find_existing_document_by_hash
 from app.services.pipeline import ingest_document
@@ -49,6 +50,7 @@ async def upload_bill(
         source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
         uploaded_by=getattr(request.state, "user_email", None),
         account_id=int(account_id) if account_id else None,
+        domain=Domain.FINANCIALS,
     )
     session.add(document)
     session.commit()

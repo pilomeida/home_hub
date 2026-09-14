@@ -6,6 +6,8 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
+from app.models.domain import Domain
+
 
 class DocumentSource(str, Enum):
     MANUAL = "manual"
@@ -29,6 +31,7 @@ class Document(SQLModel, table=True):
     source: DocumentSource
     status: DocumentStatus = Field(default=DocumentStatus.PENDING)
     doc_type: Optional[str] = None
+    domain: Optional[Domain] = None
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None

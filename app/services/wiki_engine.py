@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.models.document import Document
+from app.models.domain import Domain
 from app.models.transaction import Transaction
 from app.models.wiki import WikiChange, WikiPage
 from app.services.json_utils import strip_json_fences
@@ -66,7 +67,7 @@ async def assess_and_update_wiki(
 
     page = session.exec(select(WikiPage).where(WikiPage.topic == topic)).first()
     if page is None:
-        page = WikiPage(topic=topic, facts_json=json.dumps(new_facts))
+        page = WikiPage(topic=topic, facts_json=json.dumps(new_facts), domain=Domain.FINANCIALS)
         session.add(page)
         session.commit()
         session.refresh(page)

@@ -6,6 +6,8 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
+from app.models.domain import Domain
+
 
 class Todo(SQLModel, table=True):
     __tablename__ = "todos"
@@ -15,4 +17,5 @@ class Todo(SQLModel, table=True):
     due_date: Optional[date] = None
     done: bool = Field(default=False)
     transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
+    domain: Optional[Domain] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

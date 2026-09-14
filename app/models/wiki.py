@@ -5,6 +5,8 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
+from app.models.domain import Domain
+
 
 class WikiPage(SQLModel, table=True):
     __tablename__ = "wiki_pages"
@@ -12,6 +14,7 @@ class WikiPage(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     topic: str = Field(unique=True, index=True)
     facts_json: str = Field(default="{}")
+    domain: Optional[Domain] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
