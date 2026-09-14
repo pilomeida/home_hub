@@ -9,6 +9,9 @@
     nav { width: 180px; padding: 1rem; border-right: 1px solid #ddd; }
     nav a { display: block; margin-bottom: 0.5rem; color: #333; text-decoration: none; }
     nav a:hover { text-decoration: underline; }
+    .nav-group { margin-bottom: 0.5rem; }
+    .nav-group-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #999; margin: 0.75rem 0 0.35rem; }
+    .nav-group a { padding-left: 0.5rem; }
     main { flex: 1; padding: 1.5rem; }
     .needs-attention { color: #b00020; }
     .recently-changed { background: #fff8dc; }
@@ -121,10 +124,13 @@
 </head>
 <body>
   <nav>
-    <a href="/">Dashboard</a>
-    <a href="/bills">Bills & Bank</a>
-    <a href="/transactions">Transactions</a>
-    <a href="/utilities/electricity">Utilities</a>
+    <a href="/">Overview</a>
+    <div class="nav-group">
+      <span class="nav-group-label">Financials</span>
+      <a href="/financials/bills">Bills & Bank</a>
+      <a href="/financials/transactions">Transactions</a>
+      <a href="/financials/utilities/electricity">Utilities</a>
+    </div>
     <a href="/wiki">Wiki</a>
     <a href="/todos">To-Dos</a>
   </nav>
