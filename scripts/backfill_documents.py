@@ -21,6 +21,7 @@ from sqlmodel import Session, select
 
 from app.db import engine
 from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.domain import Domain
 from app.models.transaction import Transaction
 from app.services.dedup import find_existing_document_by_hash
 from app.services.pipeline import ingest_document
@@ -59,6 +60,7 @@ async def backfill(source_dir: Path) -> None:
                 source=DocumentSource.MANUAL,
                 status=DocumentStatus.PENDING,
                 uploaded_by="backfill-script",
+                domain=Domain.FINANCIALS,
             )
             session.add(document)
             session.commit()

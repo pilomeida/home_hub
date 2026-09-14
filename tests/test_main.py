@@ -10,3 +10,6 @@ def test_dashboard_renders(client):
     assert "Overview" in response.text
     assert "Financials" in response.text
     assert "Bills & Bank" in response.text
+    assert 'href="/financials/bills"' in response.text
+    assert 'href="/financials/transactions"' in response.text
+    assert 'href="/financials/utilities/electricity"' in response.text

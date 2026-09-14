@@ -14,9 +14,9 @@ FastAPI  (app/main.py)
   ├── CloudflareAccessMiddleware  (app/auth.py) — every request except /health
   │
   ├── GET  /                       ── app/routers/dashboard.py    (spend summary, open todos, needs-attention)
-  ├── GET/POST /bills/*            ── app/routers/bills.py        (upload, list, detail — the ingestion entry point)
-  ├── GET/POST /transactions/*     ── app/routers/transactions.py (browse/filter/bulk-edit, Needs Review queue)
-  ├── GET  /utilities/{tab}        ── app/routers/utilities.py    (Electricity/Water/Telecom consumption + charts)
+  ├── GET/POST /financials/bills/*        ── app/routers/bills.py        (upload, list, detail — the ingestion entry point)
+  ├── GET/POST /financials/transactions/* ── app/routers/transactions.py (browse/filter/bulk-edit, Needs Review queue)
+  ├── GET  /financials/utilities/{tab}    ── app/routers/utilities.py    (Electricity/Water/Telecom consumption + charts)
   ├── GET  /wiki/*                 ── app/routers/wiki.py         (auto-maintained standing-facts pages)
   ├── GET/POST /todos/*            ── app/routers/todos.py        (due-date-driven task list)
   │
@@ -66,7 +66,7 @@ DOCUMENTS_DIR, CF_ACCESS_* optional).
 ```
 
 The system is **single-process, no queue/worker daemon**. All ingestion (including the multi-call
-extraction + classification) runs synchronously inside the request handler for `POST /bills/upload`,
+extraction + classification) runs synchronously inside the request handler for `POST /financials/bills/upload`,
 or inside a one-off script's own event loop for backfills.
 
 ---
@@ -113,11 +113,11 @@ Home & Family/
 │   │
 │   ├── routers/                One file per nav section; each owns its own Jinja2Templates instance
 │   │   ├── dashboard.py        `/` and `/health`
-│   │   ├── bills.py            `/bills*` — upload form + POST (dedup by content_hash, then
+│   │   ├── bills.py            `/financials/bills*` — upload form + POST (dedup by content_hash, then
 │   │   │                       ingest_document), list, per-document detail
-│   │   ├── transactions.py     `/transactions*` — filtered/paginated list, bulk-edit, Needs Review
+│   │   ├── transactions.py     `/financials/transactions*` — filtered/paginated list, bulk-edit, Needs Review
 │   │   │                       tab (confirm/dismiss/create-commitment/link-debt actions)
-│   │   ├── utilities.py        `/utilities/{tab}` — Electricity/Water/Telecom table + bar charts
+│   │   ├── utilities.py        `/financials/utilities/{tab}` — Electricity/Water/Telecom table + bar charts
 │   │   ├── wiki.py             `/wiki*` — page list + detail with change history
 │   │   └── todos.py            `/todos*` — open/done lists, mark-done (htmx partial swap)
 │   │

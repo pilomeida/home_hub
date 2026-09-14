@@ -48,6 +48,7 @@ from sqlmodel import Session, select
 from app.db import engine
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.domain import Domain
 from app.models.transaction import Transaction, TransactionType
 from app.services.categorization import normalize_category
 from app.services.extraction import extract_statement_transactions
@@ -126,6 +127,7 @@ async def backfill() -> None:
                     source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
                     doc_type="statement", account_id=account.id,
                     uploaded_by="revolut-chunked-backfill",
+                    domain=Domain.FINANCIALS,
                 )
                 session.add(document)
                 session.commit()
