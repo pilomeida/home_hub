@@ -2,7 +2,7 @@
 {% block title %}Upload — Bills & Bank{% endblock %}
 {% block content %}
 <h1>Upload a bill or statement</h1>
-<form action="/bills/upload" method="post" enctype="multipart/form-data">
+<form action="/financials/bills/upload" method="post" enctype="multipart/form-data">
   <select name="account_id">
     <option value="">(no account selected)</option>
     {% for a in accounts %}

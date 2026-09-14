@@ -2,13 +2,13 @@
 {% block title %}Bills & Bank{% endblock %}
 {% block content %}
 <h1>Bills & Bank</h1>
-<p><a href="/bills/upload">Upload a new document</a></p>
+<p><a href="/financials/bills/upload">Upload a new document</a></p>
 <table>
   <thead><tr><th>File</th><th>Status</th><th>Uploaded</th></tr></thead>
   <tbody>
     {% for document in documents %}
     <tr>
-      <td><a href="/bills/{{ document.id }}">{{ document.filename }}</a></td>
+      <td><a href="/financials/bills/{{ document.id }}">{{ document.filename }}</a></td>
       <td class="{{ 'needs-attention' if document.status.value == 'needs_attention' else '' }}">{{ document.status.value }}</td>
       <td>{{ document.created_at }}</td>
     </tr>

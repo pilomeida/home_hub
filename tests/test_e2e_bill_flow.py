@@ -97,7 +97,7 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
     monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
-        "/bills/upload",
+        "/financials/bills/upload",
         files={"file": ("edp-august.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
         follow_redirects=False,
     )
@@ -140,7 +140,7 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
     monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
-        "/bills/upload",
+        "/financials/bills/upload",
         files={"file": ("santander-july.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
         follow_redirects=False,
     )
@@ -196,7 +196,7 @@ def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
     monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
-        "/bills/upload",
+        "/financials/bills/upload",
         files={"file": ("edp-july.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
         follow_redirects=False,
     )

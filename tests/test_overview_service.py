@@ -437,7 +437,7 @@ def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documen
     upcoming = next(i for i in items if i.kind == "upcoming_bill")
     assert upcoming.url == f"/transactions?commitment_id={commitment.id}"
     doc_item = next(i for i in items if i.kind == "document")
-    assert doc_item.url.startswith("/bills/")
+    assert doc_item.url.startswith("/financials/bills/")
 
 
 def test_needs_attention_skips_small_anomalies_below_floor():

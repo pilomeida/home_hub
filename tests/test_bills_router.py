@@ -13,23 +13,23 @@ def test_upload_bill_creates_document_and_redirects(client, monkeypatch):
     monkeypatch.setattr(bills_router, "ingest_document", fake_ingest_document)
 
     response = client.post(
-        "/bills/upload",
+        "/financials/bills/upload",
         files={"file": ("bill.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert response.headers["location"].startswith("/bills/")
+    assert response.headers["location"].startswith("/financials/bills/")
 
 
 def test_list_bills_renders(client):
-    response = client.get("/bills")
+    response = client.get("/financials/bills")
     assert response.status_code == 200
     assert "Bills" in response.text
 
 
 def test_bill_detail_404_for_missing_document(client):
-    response = client.get("/bills/9999")
+    response = client.get("/financials/bills/9999")
     assert response.status_code == 404
 
 
@@ -54,7 +54,7 @@ def test_bill_detail_renders_multiple_transactions(client, session):
     ))
     session.commit()
 
-    response = client.get(f"/bills/{document.id}")
+    response = client.get(f"/financials/bills/{document.id}")
 
     assert response.status_code == 200
     assert "CONTINENTE" in response.text
@@ -71,7 +71,7 @@ def test_upload_bill_sets_financials_domain(client, monkeypatch, session):
     monkeypatch.setattr(bills_router, "ingest_document", fake_ingest_document)
 
     response = client.post(
-        "/bills/upload",
+        "/financials/bills/upload",
         files={"file": ("bill.pdf", io.BytesIO(b"fake-pdf-bytes"), "application/pdf")},
         follow_redirects=False,
     )

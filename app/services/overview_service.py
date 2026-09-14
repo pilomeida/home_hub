@@ -436,7 +436,7 @@ def get_needs_attention(
         items.append(NeedsAttentionItem(
             kind="document",
             text=f"{doc.filename} — {doc.failure_reason or 'needs attention'}",
-            url=f"/bills/{doc.id}",
+            url=f"/financials/bills/{doc.id}",
         ))
 
     return items

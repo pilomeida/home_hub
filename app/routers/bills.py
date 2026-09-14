@@ -16,7 +16,7 @@ from app.services.dedup import find_existing_document_by_hash
 from app.services.pipeline import ingest_document
 from app.services.storage import save_upload
 
-router = APIRouter(prefix="/bills", tags=["bills"])
+router = APIRouter(prefix="/financials/bills", tags=["bills"])
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -43,7 +43,7 @@ async def upload_bill(
 
     existing = find_existing_document_by_hash(session, content_hash)
     if existing is not None:
-        return RedirectResponse(f"/bills/{existing.id}", status_code=303)
+        return RedirectResponse(f"/financials/bills/{existing.id}", status_code=303)
 
     document = Document(
         filename=file.filename, file_path=file_path, content_hash=content_hash,
@@ -57,7 +57,7 @@ async def upload_bill(
     session.refresh(document)
 
     document = await ingest_document(session, document)
-    return RedirectResponse(f"/bills/{document.id}", status_code=303)
+    return RedirectResponse(f"/financials/bills/{document.id}", status_code=303)
 
 
 @router.get("/{document_id}")
