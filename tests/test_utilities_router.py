@@ -14,18 +14,18 @@ def _make_document(session, content_hash):
 
 
 def test_utilities_root_redirects_to_electricity(client):
-    response = client.get("/utilities", follow_redirects=False)
+    response = client.get("/financials/utilities", follow_redirects=False)
     assert response.status_code == 307
-    assert response.headers["location"] == "/utilities/electricity"
+    assert response.headers["location"] == "/financials/utilities/electricity"
 
 
 def test_unknown_tab_returns_404(client):
-    response = client.get("/utilities/gas")
+    response = client.get("/financials/utilities/gas")
     assert response.status_code == 404
 
 
 def test_water_tab_renders_empty_state_with_no_data(client):
-    response = client.get("/utilities/water")
+    response = client.get("/financials/utilities/water")
     assert response.status_code == 200
     assert "No data yet" in response.text
 
@@ -40,7 +40,7 @@ def test_electricity_tab_renders_readings(client, session):
     ))
     session.commit()
 
-    response = client.get("/utilities/electricity")
+    response = client.get("/financials/utilities/electricity")
 
     assert response.status_code == 200
     assert "2026-07" in response.text
@@ -56,7 +56,7 @@ def test_electricity_tab_renders_charts(client, session):
     ))
     session.commit()
 
-    response = client.get("/utilities/electricity")
+    response = client.get("/financials/utilities/electricity")
 
     assert response.status_code == 200
     assert "2026-07" in response.text

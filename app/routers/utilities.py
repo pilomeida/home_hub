@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models.utility_reading import UtilityReading, UtilityType
 
-router = APIRouter(prefix="/utilities", tags=["utilities"])
+router = APIRouter(prefix="/financials/utilities", tags=["utilities"])
 templates = Jinja2Templates(directory="app/templates")
 
 _VALID_TABS = {
@@ -37,7 +37,7 @@ def _build_charts(readings: list[UtilityReading]) -> dict:
 
 @router.get("")
 async def utilities_root():
-    return RedirectResponse("/utilities/electricity")
+    return RedirectResponse("/financials/utilities/electricity")
 
 
 @router.get("/{tab}")

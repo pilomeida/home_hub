@@ -202,7 +202,7 @@ def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
     )
     assert upload_response.status_code == 303
 
-    electricity_response = client.get("/utilities/electricity")
+    electricity_response = client.get("/financials/utilities/electricity")
     assert electricity_response.status_code == 200
     assert "2026-07" in electricity_response.text
     assert "401" in electricity_response.text
