@@ -397,22 +397,24 @@ def downgrade() -> None:
         batch_op.drop_column("domain")
 ```
 
-- [ ] **Step 10: Verify the migration against a scratch copy of the real database**
+- [ ] **Step 10: Verify the full migration chain applies cleanly against a fresh scratch database**
+
+`data/home_family.db` is gitignored and does not exist in this isolated worktree (by design — no real financial data belongs in a scratch/review environment), so this step builds a fresh scratch database from an empty file and runs the entire migration chain (all 17 prior revisions plus the new one), rather than copying the real production/dev database. This verifies the new migration is syntactically valid and applies cleanly on top of the full existing chain; it does not exercise the backfill `UPDATE` against real historical rows (there are none in a fresh database) — that data-level check already happened via the ORM-level tests in Steps 1-8, and Pedro separately verifies against his real local dev copy before deploying, per `docs/SYSADMIN.md` §3's existing convention.
 
 Run:
 
 ```bash
-cp "data/home_family.db" /tmp/scratch_home_family.db
+rm -f /tmp/scratch_home_family.db
 DATABASE_PATH=/tmp/scratch_home_family.db alembic upgrade head
-sqlite3 /tmp/scratch_home_family.db "SELECT domain, COUNT(*) FROM documents GROUP BY domain;"
-sqlite3 /tmp/scratch_home_family.db "SELECT domain, COUNT(*) FROM todos GROUP BY domain;"
-sqlite3 /tmp/scratch_home_family.db "SELECT domain, COUNT(*) FROM wiki_pages GROUP BY domain;"
+sqlite3 /tmp/scratch_home_family.db "PRAGMA table_info(documents);" | grep domain
+sqlite3 /tmp/scratch_home_family.db "PRAGMA table_info(todos);" | grep domain
+sqlite3 /tmp/scratch_home_family.db "PRAGMA table_info(wiki_pages);" | grep domain
 DATABASE_PATH=/tmp/scratch_home_family.db alembic downgrade -1
 DATABASE_PATH=/tmp/scratch_home_family.db alembic upgrade head
 rm /tmp/scratch_home_family.db
 ```
 
-Expected: each `SELECT ... GROUP BY domain` returns exactly one row, `FINANCIALS|<total row count for that table>` — no `NULL` group. The downgrade/upgrade round-trip completes without error.
+Expected: `alembic upgrade head` completes without error from an empty database (proving the full 18-revision chain, not just the new migration, applies cleanly). Each `PRAGMA table_info` grep returns one line naming the `domain` column. The downgrade/upgrade round-trip completes without error.
 
 - [ ] **Step 11: Run the full test suite**
 
