@@ -3,13 +3,13 @@
 {% block content %}
 <h1>Transactions</h1>
 <nav class="subnav">
-  <a href="/transactions" class="active">All</a>
-  <a href="/transactions/needs-review">Needs Review</a>
+  <a href="/financials/transactions" class="active">All</a>
+  <a href="/financials/transactions/needs-review">Needs Review</a>
 </nav>
 {% if merchant_filter_name %}
-<p>Showing transactions for merchant: <strong>{{ merchant_filter_name }}</strong> — <a href="/transactions">clear</a></p>
+<p>Showing transactions for merchant: <strong>{{ merchant_filter_name }}</strong> — <a href="/financials/transactions">clear</a></p>
 {% endif %}
-<form method="get" action="/transactions">
+<form method="get" action="/financials/transactions">
   <select name="category">
     <option value="">All categories</option>
     {% for c in categories %}
@@ -34,7 +34,7 @@
 </form>
 <form
   id="bulk-edit-form"
-  hx-post="/transactions/bulk-edit"
+  hx-post="/financials/transactions/bulk-edit"
   hx-target="#transactions-tbody"
   hx-swap="innerHTML"
 >
@@ -72,11 +72,11 @@
 <nav class="pagination">
   {% set qs = "category=" ~ (filters.category or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") ~ "&merchant_id=" ~ (filters.merchant_id or "") %}
   {% if page > 1 %}
-  <a href="/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
+  <a href="/financials/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
   {% endif %}
   <span>page {{ page }} of {{ total_pages }}</span>
   {% if page < total_pages %}
-  <a href="/transactions?{{ qs }}&page={{ page + 1 }}">Next</a>
+  <a href="/financials/transactions?{{ qs }}&page={{ page + 1 }}">Next</a>
   {% endif %}
 </nav>
 {% endblock %}

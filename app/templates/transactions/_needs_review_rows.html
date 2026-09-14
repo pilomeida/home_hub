@@ -8,7 +8,7 @@
     <tbody>
       {% for m in queue.unconfirmed_merchants %}
       <tr>
-        <td><a href="/transactions?merchant_id={{ m.id }}" target="_blank">{{ m.canonical_name }}</a></td>
+        <td><a href="/financials/transactions?merchant_id={{ m.id }}" target="_blank">{{ m.canonical_name }}</a></td>
         <td>
           <select name="category">
             {% for c in categories %}
@@ -26,7 +26,7 @@
         </td>
         <td>
           <button
-            hx-post="/transactions/merchants/{{ m.id }}/confirm"
+            hx-post="/financials/transactions/merchants/{{ m.id }}/confirm"
             hx-include="closest tr"
             hx-target="#needs-review-body"
             hx-swap="innerHTML"
@@ -45,7 +45,7 @@
   {% for m in queue.recurring_candidates %}
   <div class="needs-attention">
     <p>{{ m.canonical_name }} — looks like a recurring payment</p>
-    <form hx-post="/transactions/merchants/{{ m.id }}/create-commitment" hx-target="#needs-review-body" hx-swap="innerHTML">
+    <form hx-post="/financials/transactions/merchants/{{ m.id }}/create-commitment" hx-target="#needs-review-body" hx-swap="innerHTML">
       <select name="cadence">
         <option value="monthly">monthly</option>
         <option value="quarterly">quarterly</option>
@@ -55,7 +55,7 @@
       <input type="number" name="year" placeholder="year (yearly only)">
       <button type="submit">Create Commitment</button>
     </form>
-    <button hx-post="/transactions/merchants/{{ m.id }}/dismiss-recurring" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
+    <button hx-post="/financials/transactions/merchants/{{ m.id }}/dismiss-recurring" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
   </div>
   {% else %}
   <p>Nothing recurring detected.</p>
@@ -66,7 +66,7 @@
   {% for t in queue.debt_candidates %}
   <div class="needs-attention">
     <p>{{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR</p>
-    <form hx-post="/transactions/{{ t.id }}/link-debt" hx-target="#needs-review-body" hx-swap="innerHTML">
+    <form hx-post="/financials/transactions/{{ t.id }}/link-debt" hx-target="#needs-review-body" hx-swap="innerHTML">
       <input type="text" name="person_name" placeholder="person name (new informal debt)">
       <select name="direction">
         <option value="owed_to_us">owed to us</option>
@@ -75,7 +75,7 @@
       <input type="number" name="existing_debt_id" placeholder="or existing debt id">
       <button type="submit">Link Debt</button>
     </form>
-    <button hx-post="/transactions/{{ t.id }}/dismiss-debt-candidate" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
+    <button hx-post="/financials/transactions/{{ t.id }}/dismiss-debt-candidate" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
   </div>
   {% else %}
   <p>No debt candidates detected.</p>

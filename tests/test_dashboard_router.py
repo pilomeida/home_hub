@@ -66,8 +66,8 @@ def test_overview_page_kpi_drill_down_links_present(client, session):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert 'href="/transactions?transaction_type=credit' in response.text
-    assert 'href="/transactions?transaction_type=debit' in response.text
+    assert 'href="/financials/transactions?transaction_type=credit' in response.text
+    assert 'href="/financials/transactions?transaction_type=debit' in response.text
 
 
 def test_overview_page_handles_yearly_commitment_with_zero_planned_amount(client, session):

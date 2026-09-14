@@ -16,7 +16,7 @@ from app.models.person import Person
 from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.classification_engine import get_needs_review_queue
 
-router = APIRouter(prefix="/transactions", tags=["transactions"])
+router = APIRouter(prefix="/financials/transactions", tags=["transactions"])
 templates = Jinja2Templates(directory="app/templates")
 
 

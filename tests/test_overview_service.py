@@ -64,9 +64,9 @@ def test_flow_kpis_now_and_drill_down_urls(session):
     assert by_label["Expenses"].color == "red"
     assert by_label["Net flow"].color == "green"
 
-    assert by_label["Income"].drill_down_url == "/transactions?transaction_type=credit&date_from=2026-08-01&date_to=2026-08-10"
-    assert by_label["Expenses"].drill_down_url == "/transactions?transaction_type=debit&date_from=2026-08-01&date_to=2026-08-10"
-    assert by_label["Net flow"].drill_down_url == "/transactions?date_from=2026-08-01&date_to=2026-08-10"
+    assert by_label["Income"].drill_down_url == "/financials/transactions?transaction_type=credit&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_label["Expenses"].drill_down_url == "/financials/transactions?transaction_type=debit&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_label["Net flow"].drill_down_url == "/financials/transactions?date_from=2026-08-01&date_to=2026-08-10"
 
     # July's complete-month totals feed the 1M trend point.
     assert by_label["Income"].chart.points[1].value == 2000.0  # "1M" point
@@ -96,7 +96,7 @@ def test_cash_kpi_nets_credits_and_debits_across_tracked_accounts(session):
     assert kpi.label == "Cash"
     assert kpi.value == 1700.0
     assert kpi.color == "green"
-    assert kpi.drill_down_url == "/transactions"
+    assert kpi.drill_down_url == "/financials/transactions"
 
 
 def test_cash_kpi_has_a_non_bank_balance_caption(session):
@@ -172,7 +172,7 @@ def test_debt_kpi_treats_informal_none_direction_as_owed_by_us(session):
     kpi = get_debt_kpi(session, today=date(2026, 8, 1))
 
     assert kpi.value == 400.0
-    assert kpi.drill_down_url == "/transactions/needs-review"
+    assert kpi.drill_down_url == "/financials/transactions/needs-review"
     assert kpi.chart.has_data is False  # no balance-history tracking exists (Ruling R2)
 
 
@@ -218,8 +218,8 @@ def test_yearly_commitments_progress_and_next_item(session):
     assert card.pct_of_year_elapsed == round(152 / 365 * 100.0, 1)  # day 152 of 2026 (not a leap year)
     assert card.next_item_label == "IMI"
     assert card.next_item_date == date(2026, 7, 1)
-    assert card.next_item_url == f"/transactions?commitment_id={imi.id}"
-    assert card.drill_down_url == "/transactions?date_from=2026-01-01&date_to=2026-12-31"
+    assert card.next_item_url == f"/financials/transactions?commitment_id={imi.id}"
+    assert card.drill_down_url == "/financials/transactions?date_from=2026-01-01&date_to=2026-12-31"
 
 
 def test_yearly_commitments_empty_state(session):
@@ -255,7 +255,7 @@ def test_category_comparison_ranked_with_delta(session):
     assert [r.category for r in rows] == ["groceries", "restaurants"]
     assert by_cat["groceries"].bar_pct == 100.0
     assert by_cat["restaurants"].bar_pct == 50.0
-    assert by_cat["groceries"].drill_down_url == "/transactions?category=groceries&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_cat["groceries"].drill_down_url == "/financials/transactions?category=groceries&date_from=2026-08-01&date_to=2026-08-10"
 
 
 def test_category_comparison_rolling_months_is_configurable(session):
@@ -423,7 +423,7 @@ def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documen
     session.refresh(commitment)
 
     category_rows = [
-        CategoryComparisonRow("shopping", current_value=200.0, rolling_avg_value=100.0, delta_pct=100.0, bar_pct=100.0, drill_down_url="/transactions?category=shopping"),
+        CategoryComparisonRow("shopping", current_value=200.0, rolling_avg_value=100.0, delta_pct=100.0, bar_pct=100.0, drill_down_url="/financials/transactions?category=shopping"),
     ]
 
     items = get_needs_attention(session, today=date(2026, 8, 10), category_rows=category_rows)
@@ -435,7 +435,7 @@ def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documen
     assert "document" in kinds
 
     upcoming = next(i for i in items if i.kind == "upcoming_bill")
-    assert upcoming.url == f"/transactions?commitment_id={commitment.id}"
+    assert upcoming.url == f"/financials/transactions?commitment_id={commitment.id}"
     doc_item = next(i for i in items if i.kind == "document")
     assert doc_item.url.startswith("/financials/bills/")
 

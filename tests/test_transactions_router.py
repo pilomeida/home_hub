@@ -34,7 +34,7 @@ def test_list_transactions_shows_all_by_default(client, session):
     _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
 
-    response = client.get("/transactions")
+    response = client.get("/financials/transactions")
 
     assert response.status_code == 200
     assert "CONTINENTE" in response.text
@@ -45,7 +45,7 @@ def test_list_transactions_filters_by_category(client, session):
     _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
 
-    response = client.get("/transactions", params={"category": "electricity"})
+    response = client.get("/financials/transactions", params={"category": "electricity"})
 
     assert "EDP" in response.text
     assert "CONTINENTE" not in response.text
@@ -55,7 +55,7 @@ def test_list_transactions_filters_by_nature(client, session):
     _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, nature=Nature.ESSENTIAL)
     _make_transaction(session, "NETFLIX", Category.SUBSCRIPTIONS, 12.99, nature=Nature.DISCRETIONARY)
 
-    response = client.get("/transactions", params={"nature": "discretionary"})
+    response = client.get("/financials/transactions", params={"nature": "discretionary"})
 
     assert "NETFLIX" in response.text
     assert "CONTINENTE" not in response.text
@@ -70,7 +70,7 @@ def test_list_transactions_filters_by_account(client, session):
     _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, account_id=account.id)
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
 
-    response = client.get("/transactions", params={"account_id": account.id})
+    response = client.get("/financials/transactions", params={"account_id": account.id})
 
     assert "CONTINENTE" in response.text
     assert "EDP" not in response.text
@@ -80,7 +80,7 @@ def test_list_transactions_filters_by_date_range(client, session):
     _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, paid_date=date(2026, 6, 15))
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0, paid_date=date(2026, 1, 5))
 
-    response = client.get("/transactions", params={"date_from": "2026-06-01", "date_to": "2026-06-30"})
+    response = client.get("/financials/transactions", params={"date_from": "2026-06-01", "date_to": "2026-06-30"})
 
     assert "CONTINENTE" in response.text
     assert "EDP" not in response.text
@@ -91,7 +91,7 @@ def test_list_transactions_combines_category_and_nature_filters(client, session)
     _make_transaction(session, "NETFLIX", Category.SUBSCRIPTIONS, 12.99, nature=Nature.DISCRETIONARY)
     _make_transaction(session, "GYM", Category.SUBSCRIPTIONS, 30.0, nature=Nature.ESSENTIAL)
 
-    response = client.get("/transactions", params={"category": "subscriptions", "nature": "discretionary"})
+    response = client.get("/financials/transactions", params={"category": "subscriptions", "nature": "discretionary"})
 
     assert "NETFLIX" in response.text
     assert "GYM" not in response.text
@@ -102,8 +102,8 @@ def test_list_transactions_paginates_100_per_page(client, session):
     for i in range(120):
         _make_transaction(session, f"SHOP {i:03d}", Category.OTHER_EXPENSE, 1.0, paid_date=date(2026, 1, 1))
 
-    page1 = client.get("/transactions", params={"page": 1})
-    page2 = client.get("/transactions", params={"page": 2})
+    page1 = client.get("/financials/transactions", params={"page": 1})
+    page2 = client.get("/financials/transactions", params={"page": 2})
 
     assert page1.status_code == 200
     assert page2.status_code == 200
@@ -132,7 +132,7 @@ def test_list_transactions_shows_resolved_merchant_name(client, session):
     session.add(transaction)
     session.commit()
 
-    response = client.get("/transactions")
+    response = client.get("/financials/transactions")
 
     assert response.status_code == 200
     assert "Modelo Hiper Resolved" in response.text
@@ -143,7 +143,7 @@ def test_bulk_edit_applies_category_to_selected_transactions(client, session):
     t2 = _make_transaction(session, "SHOP B", Category.OTHER_EXPENSE, 20.0)
     t3 = _make_transaction(session, "SHOP C", Category.OTHER_EXPENSE, 30.0)
 
-    response = client.post("/transactions/bulk-edit", data={
+    response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(t1.id), str(t2.id)],
         "new_category": "shopping",
     })
@@ -165,7 +165,7 @@ def test_bulk_edit_applies_nature_and_account(client, session):
 
     t1 = _make_transaction(session, "SHOP D", Category.SHOPPING, 10.0)
 
-    response = client.post("/transactions/bulk-edit", data={
+    response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(t1.id)],
         "new_nature": "discretionary",
         "new_account_id": str(account.id),
@@ -180,7 +180,7 @@ def test_bulk_edit_applies_nature_and_account(client, session):
 def test_bulk_edit_with_no_selection_changes_nothing(client, session):
     t1 = _make_transaction(session, "SHOP E", Category.OTHER_EXPENSE, 10.0)
 
-    response = client.post("/transactions/bulk-edit", data={"new_category": "shopping"})
+    response = client.post("/financials/transactions/bulk-edit", data={"new_category": "shopping"})
 
     assert response.status_code == 200
     session.refresh(t1)
@@ -192,7 +192,7 @@ def test_bulk_edit_preserves_active_filter_on_rerender(client, session):
     t2 = _make_transaction(session, "EDP RENOVAVEIS", Category.ELECTRICITY, 55.0)
     t3 = _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
 
-    response = client.post("/transactions/bulk-edit", data={
+    response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(t1.id), str(t2.id)],
         "new_nature": "essential",
         "category": "electricity",
@@ -210,7 +210,7 @@ def test_bulk_edit_preserves_active_page_on_rerender(client, session):
         select(Transaction).where(Transaction.provider == "PAGE SHOP 000")
     ).first()
 
-    response = client.post("/transactions/bulk-edit", data={
+    response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(page2_transaction.id)],
         "new_nature": "essential",
         "page": "2",
@@ -234,17 +234,17 @@ def _make_unconfirmed_merchant(session, name="New Shop", key="new-shop-router-te
 def test_needs_review_page_lists_unconfirmed_merchant(client, session):
     merchant = _make_unconfirmed_merchant(session)
 
-    response = client.get("/transactions/needs-review")
+    response = client.get("/financials/transactions/needs-review")
 
     assert response.status_code == 200
-    assert f'href="/transactions?merchant_id={merchant.id}"' in response.text
+    assert f'href="/financials/transactions?merchant_id={merchant.id}"' in response.text
     assert merchant.canonical_name in response.text
 
 
 def test_confirm_merchant_removes_it_from_queue(client, session):
     merchant = _make_unconfirmed_merchant(session, name="Confirm Me", key="confirm-me-router-test")
 
-    response = client.post(f"/transactions/merchants/{merchant.id}/confirm")
+    response = client.post(f"/financials/transactions/merchants/{merchant.id}/confirm")
 
     assert response.status_code == 200
     assert "Confirm Me" not in response.text
@@ -256,7 +256,7 @@ def test_confirm_merchant_applies_edited_category_and_nature(client, session):
     merchant = _make_unconfirmed_merchant(session, name="Edit Me", key="edit-me-router-test")
 
     response = client.post(
-        f"/transactions/merchants/{merchant.id}/confirm",
+        f"/financials/transactions/merchants/{merchant.id}/confirm",
         data={"category": "restaurants", "nature": "discretionary"},
     )
 
@@ -270,7 +270,7 @@ def test_confirm_merchant_applies_edited_category_and_nature(client, session):
 def test_needs_review_page_shows_category_and_nature_dropdowns(client, session):
     _make_unconfirmed_merchant(session, name="Dropdown Test", key="dropdown-test-router")
 
-    response = client.get("/transactions/needs-review")
+    response = client.get("/financials/transactions/needs-review")
 
     assert response.status_code == 200
     assert '<select name="category">' in response.text
@@ -293,7 +293,7 @@ def test_dismiss_recurring_marks_merchant_reviewed(client, session):
         session.add(t)
     session.commit()
 
-    response = client.post(f"/transactions/merchants/{merchant.id}/dismiss-recurring")
+    response = client.post(f"/financials/transactions/merchants/{merchant.id}/dismiss-recurring")
 
     assert response.status_code == 200
     session.refresh(merchant)
@@ -305,7 +305,7 @@ def test_dismiss_debt_candidate_marks_transaction_reviewed(client, session):
         session, "TRF CRED SEPA+ P/ SOME PERSON", Category.OTHER_EXPENSE, 600.0
     )
 
-    response = client.post(f"/transactions/{transaction.id}/dismiss-debt-candidate")
+    response = client.post(f"/financials/transactions/{transaction.id}/dismiss-debt-candidate")
 
     assert response.status_code == 200
     session.refresh(transaction)
@@ -328,7 +328,7 @@ def test_create_commitment_from_recurring_merchant(client, session):
     session.add(linked_transaction)
     session.commit()
 
-    response = client.post(f"/transactions/merchants/{merchant.id}/create-commitment", data={
+    response = client.post(f"/financials/transactions/merchants/{merchant.id}/create-commitment", data={
         "cadence": "monthly", "planned_amount": "12.99",
     })
 
@@ -347,7 +347,7 @@ def test_link_debt_creates_informal_debt_with_new_person(client, session):
 
     transaction = _make_transaction(session, "TRF CRED SEPA+ P/ NEW PERSON", Category.OTHER_EXPENSE, 3000.0)
 
-    response = client.post(f"/transactions/{transaction.id}/link-debt", data={
+    response = client.post(f"/financials/transactions/{transaction.id}/link-debt", data={
         "direction": "owed_to_us", "person_name": "New Person",
     })
 
@@ -367,10 +367,10 @@ def test_link_debt_reuses_existing_person_with_same_name(client, session):
     t1 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", Category.OTHER_EXPENSE, 1000.0)
     t2 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", Category.OTHER_EXPENSE, 2000.0)
 
-    response1 = client.post(f"/transactions/{t1.id}/link-debt", data={
+    response1 = client.post(f"/financials/transactions/{t1.id}/link-debt", data={
         "direction": "owed_to_us", "person_name": "Repeat Person",
     })
-    response2 = client.post(f"/transactions/{t2.id}/link-debt", data={
+    response2 = client.post(f"/financials/transactions/{t2.id}/link-debt", data={
         "direction": "owed_to_us", "person_name": "Repeat Person",
     })
 
@@ -392,7 +392,7 @@ def test_list_transactions_filters_by_transaction_id(client, session):
     t1 = _make_transaction(session, "SHOP F", Category.OTHER_EXPENSE, 10.0)
     t2 = _make_transaction(session, "SHOP G", Category.OTHER_EXPENSE, 20.0)
 
-    response = client.get("/transactions", params={"transaction_id": t1.id})
+    response = client.get("/financials/transactions", params={"transaction_id": t1.id})
 
     assert response.status_code == 200
     assert "SHOP F" in response.text
@@ -416,13 +416,13 @@ def test_list_transactions_filters_by_merchant_id(client, session):
     session.add(t1)
     session.commit()
 
-    response = client.get("/transactions", params={"merchant_id": merchant.id})
+    response = client.get("/financials/transactions", params={"merchant_id": merchant.id})
 
     assert response.status_code == 200
     assert "SHOP H" in response.text
     assert "SHOP I" not in response.text
     assert "Merchant Filter Test" in response.text
-    assert f'href="/transactions?merchant_id={merchant.id}"' in response.text
+    assert f'href="/financials/transactions?merchant_id={merchant.id}"' in response.text
 
 
 def test_list_transactions_shows_linked_transaction(client, session):
@@ -448,10 +448,10 @@ def test_list_transactions_shows_linked_transaction(client, session):
     session.add(incoming)
     session.commit()
 
-    response = client.get("/transactions")
+    response = client.get("/financials/transactions")
 
     assert response.status_code == 200
-    assert f'/transactions?transaction_id={incoming.id}' in response.text
+    assert f'/financials/transactions?transaction_id={incoming.id}' in response.text
     assert "Wallet" in response.text
 
 
@@ -465,7 +465,7 @@ def test_link_debt_to_existing_debt(client, session):
 
     transaction = _make_transaction(session, "TRF CRED SEPA+ P/ EXISTING PERSON", Category.OTHER_EXPENSE, 500.01)
 
-    response = client.post(f"/transactions/{transaction.id}/link-debt", data={
+    response = client.post(f"/financials/transactions/{transaction.id}/link-debt", data={
         "existing_debt_id": str(existing_debt.id),
     })
 
@@ -487,7 +487,7 @@ def test_list_transactions_filters_by_commitment(client, session):
     session.commit()
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
 
-    response = client.get("/transactions", params={"commitment_id": commitment.id})
+    response = client.get("/financials/transactions", params={"commitment_id": commitment.id})
 
     assert "AT IMI" in response.text
     assert "EDP" not in response.text
@@ -505,7 +505,7 @@ def test_list_transactions_filters_by_debt(client, session):
     session.commit()
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
 
-    response = client.get("/transactions", params={"debt_id": debt.id})
+    response = client.get("/financials/transactions", params={"debt_id": debt.id})
 
     assert "TRANSFER TO JOAO" in response.text
     assert "EDP" not in response.text
@@ -520,7 +520,7 @@ def test_list_transactions_filters_by_transaction_type(client, session):
     session.add(salario)
     session.commit()
 
-    response = client.get("/transactions", params={"transaction_type": "credit"})
+    response = client.get("/financials/transactions", params={"transaction_type": "credit"})
 
     assert "SALARIO" in response.text
     assert "EDP" not in response.text

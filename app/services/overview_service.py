@@ -101,17 +101,17 @@ def get_flow_kpis(
     return [
         KpiCard(
             label="Income", value=income_mtd, color="green",
-            drill_down_url=f"/transactions?transaction_type=credit&date_from={month_start}&date_to={today_iso}",
+            drill_down_url=f"/financials/transactions?transaction_type=credit&date_from={month_start}&date_to={today_iso}",
             chart=build_trend_chart(income_complete, today, income_mtd),
         ),
         KpiCard(
             label="Expenses", value=expense_mtd, color="red",
-            drill_down_url=f"/transactions?transaction_type=debit&date_from={month_start}&date_to={today_iso}",
+            drill_down_url=f"/financials/transactions?transaction_type=debit&date_from={month_start}&date_to={today_iso}",
             chart=build_trend_chart(expense_complete, today, expense_mtd),
         ),
         KpiCard(
             label="Net flow", value=net_mtd, color="green",
-            drill_down_url=f"/transactions?date_from={month_start}&date_to={today_iso}",
+            drill_down_url=f"/financials/transactions?date_from={month_start}&date_to={today_iso}",
             chart=build_trend_chart(net_complete, today, net_mtd),
         ),
     ]
@@ -167,7 +167,7 @@ def get_cash_kpi(session: Session, today: date) -> KpiCard:
     }
     chart = build_trend_chart(monthly, today, now_value)
     return KpiCard(
-        label="Cash", value=now_value, color="green", drill_down_url="/transactions", chart=chart,
+        label="Cash", value=now_value, color="green", drill_down_url="/financials/transactions", chart=chart,
         caption="Net tracked flow since first statement — not a live bank balance",
     )
 
@@ -195,7 +195,7 @@ def get_debt_kpi(session: Session, today: date) -> KpiCard:
     # empty monthly dict makes build_trend_chart render its already-tested
     # "no history yet" empty state, no special-casing needed here.
     chart = build_trend_chart({}, today, value)
-    return KpiCard(label="Debt", value=value, color="red", drill_down_url="/transactions/needs-review", chart=chart)
+    return KpiCard(label="Debt", value=value, color="red", drill_down_url="/financials/transactions/needs-review", chart=chart)
 
 
 @dataclass
@@ -242,8 +242,8 @@ def get_yearly_commitments_card(session: Session, today: date) -> YearlyCommitme
         pct_of_year_elapsed=pct_of_year_elapsed,
         next_item_label=next_commitment.name if next_commitment else None,
         next_item_date=next_commitment.next_due_date if next_commitment else None,
-        next_item_url=f"/transactions?commitment_id={next_commitment.id}" if next_commitment else None,
-        drill_down_url=f"/transactions?date_from={date(year, 1, 1).isoformat()}&date_to={date(year, 12, 31).isoformat()}",
+        next_item_url=f"/financials/transactions?commitment_id={next_commitment.id}" if next_commitment else None,
+        drill_down_url=f"/financials/transactions?date_from={date(year, 1, 1).isoformat()}&date_to={date(year, 12, 31).isoformat()}",
         has_commitments=bool(commitments),
     )
 
@@ -319,7 +319,7 @@ def get_category_comparison(
             category=cat, current_value=current_value, rolling_avg_value=rolling_avg,
             delta_pct=delta_pct,
             bar_pct=round(current_value / max_value * 100.0, 1) if max_value else 0.0,
-            drill_down_url=f"/transactions?category={cat}&date_from={month_start}&date_to={today_iso}",
+            drill_down_url=f"/financials/transactions?category={cat}&date_from={month_start}&date_to={today_iso}",
         )
         for cat, current_value, rolling_avg, delta_pct in computed
     ]
@@ -411,7 +411,7 @@ def get_needs_attention(
         items.append(NeedsAttentionItem(
             kind="review_queue",
             text=f"{review_count} item{'s' if review_count != 1 else ''} waiting in Needs Review",
-            url="/transactions/needs-review",
+            url="/financials/transactions/needs-review",
         ))
 
     lookahead = today + timedelta(days=_UPCOMING_BILL_LOOKAHEAD_DAYS)
@@ -426,7 +426,7 @@ def get_needs_attention(
         items.append(NeedsAttentionItem(
             kind="upcoming_bill",
             text=f"{c.name} due {c.next_due_date.strftime('%d %b')} (€{c.planned_amount:,.2f})",
-            url=f"/transactions?commitment_id={c.id}",
+            url=f"/financials/transactions?commitment_id={c.id}",
         ))
 
     needs_attention_documents = session.exec(

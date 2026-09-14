@@ -5,7 +5,7 @@
   <td>{{ t.provider }}</td>
   <td>
     {% if t.merchant_id and merchant_names and merchant_names.get(t.merchant_id) %}
-    <a href="/transactions?merchant_id={{ t.merchant_id }}">{{ merchant_names[t.merchant_id] }}</a>
+    <a href="/financials/transactions?merchant_id={{ t.merchant_id }}">{{ merchant_names[t.merchant_id] }}</a>
     {% endif %}
   </td>
   <td>{{ t.category.value }}</td>
@@ -15,7 +15,7 @@
   <td>
     {% if t.linked_transaction_id and linked_transactions and linked_transactions.get(t.linked_transaction_id) %}
     {% set lt = linked_transactions[t.linked_transaction_id] %}
-    <a href="/transactions?transaction_id={{ lt.id }}" title="View linked transaction #{{ lt.id }}">
+    <a href="/financials/transactions?transaction_id={{ lt.id }}" title="View linked transaction #{{ lt.id }}">
       &harr; {{ lt.paid_date or "" }} ({{ account_names.get(lt.account_id, "") if account_names else "" }})
     </a>
     {% endif %}
