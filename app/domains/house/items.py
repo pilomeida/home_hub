@@ -1,9 +1,10 @@
 """House item cards and Reference section.
 
-Every document about one appliance/gear item (manual, warranty,
+Every document/record about one appliance/gear item (manual, warranty,
 maintenance logs) is grouped by its item_name into one card; floor plans
-and ownership documents form the Reference section. Built from the raw
-documents (the source of truth); an item's wiki page is linked, not read."""
+and ownership documents form the Reference section. Built from
+domain_entries() (documents and records alike, the source of truth); an
+item's wiki page is linked, not read."""
 
 from __future__ import annotations
 
@@ -13,11 +14,12 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.domains.fields import field_date, load_fields
+from app.domains.entries import SourceEntry, domain_entries
+from app.domains.fields import field_date
 from app.domains.house.categories import (
     ITEM_CATEGORIES, ITEM_KIND_CATEGORIES, ITEM_PAGE_TYPE, HouseCategory,
 )
-from app.domains.house.warranty import REMINDER_LEAD_DAYS
+from app.domains.house.warranty import REMINDER_LEAD_DAYS, effective_warranty_expiry
 from app.models.document import Document, DocumentStatus
 from app.models.domain import Domain
 from app.services.wiki_store import PageRef, find_page, normalize_entity_key
@@ -35,19 +37,14 @@ REFERENCE_TITLES = {
 
 
 @dataclass
-class HouseDocument:
-    document: Document
-    fields: dict[str, str]
-
-
-@dataclass
 class ItemCard:
     key: str
     name: str
     kind: Optional[str] = None
     room: Optional[str] = None
-    documents: list[HouseDocument] = field(default_factory=list)
+    documents: list[SourceEntry] = field(default_factory=list)
     warranty_expiry: Optional[date] = None
+    warranty_assumed: bool = False
     last_serviced: Optional[date] = None
     wiki_page_id: Optional[int] = None
 
@@ -82,22 +79,24 @@ def _later(current: Optional[date], candidate: Optional[date]) -> Optional[date]
 
 def build_item_cards(session: Session) -> list[ItemCard]:
     cards: dict[str, ItemCard] = {}
-    for document in house_documents(session):
-        if document.category not in ITEM_CATEGORIES:
+    for entry in domain_entries(session, Domain.HOUSE):
+        if entry.category not in ITEM_CATEGORIES:
             continue
-        fields = load_fields(document)
+        fields = entry.fields
         name = (fields.get("item_name") or "").strip()
         if not name:
             continue
         key = normalize_entity_key(name)
         card = cards.setdefault(key, ItemCard(key=key, name=name))
         card.name = name
-        card.documents.append(HouseDocument(document=document, fields=fields))
-        if document.category in ITEM_KIND_CATEGORIES:
-            card.kind = document.category
+        card.documents.append(entry)
+        if entry.category in ITEM_KIND_CATEGORIES:
+            card.kind = entry.category
         if fields.get("room"):
             card.room = fields["room"]
-        card.warranty_expiry = _later(card.warranty_expiry, field_date(fields, "warranty_expiry"))
+        warranty = effective_warranty_expiry(fields) if entry.category == HouseCategory.WARRANTY_INVOICE.value else None
+        if warranty is not None and (card.warranty_expiry is None or warranty.date > card.warranty_expiry):
+            card.warranty_expiry, card.warranty_assumed = warranty.date, warranty.assumed
         card.last_serviced = _later(card.last_serviced, field_date(fields, "service_date"))
     for card in cards.values():
         page = find_page(session, PageRef(ITEM_PAGE_TYPE, card.name, card.key))
@@ -121,10 +120,10 @@ def group_item_cards(cards: list[ItemCard], group_by: str) -> list[tuple[str, li
     return sections
 
 
-def reference_sections(session: Session) -> list[tuple[str, list[HouseDocument]]]:
-    documents = house_documents(session)
+def reference_sections(session: Session) -> list[tuple[str, list[SourceEntry]]]:
+    entries = domain_entries(session, Domain.HOUSE)
     return [
-        (title, [HouseDocument(document=d, fields=load_fields(d)) for d in documents if d.category == category])
+        (title, [e for e in entries if e.category == category])
         for category, title in REFERENCE_TITLES.items()
     ]
 

@@ -6,6 +6,7 @@ import pytest
 from sqlmodel import select
 
 import app.domains.house.handler as house_handler
+from app.domains.house.warranty import WarrantyDates
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.todo import Todo
@@ -14,9 +15,9 @@ from app.models.todo import Todo
 @pytest.fixture(autouse=True)
 def no_llm(monkeypatch):
     async def fake_extract(file_path, client=None):
-        return None
+        return WarrantyDates(None, None)
 
-    monkeypatch.setattr(house_handler, "extract_warranty_expiry", fake_extract)
+    monkeypatch.setattr(house_handler, "extract_warranty_dates", fake_extract)
 
 
 def _upload(client, data, filename="manual.pdf", content=b"pdf-bytes", mime="application/pdf"):
@@ -103,7 +104,7 @@ def test_document_page_shows_fields_note_and_item_page_link(client, session):
 
     assert page.status_code == 200
     assert "Warranty / invoice" in page.text and "Boiler" in page.text
-    assert "enter it manually" in page.text
+    assert "enter" in page.text
     assert 'href="/wiki/' in page.text  # the Boiler item page
 
 

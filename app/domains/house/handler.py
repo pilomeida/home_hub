@@ -11,41 +11,41 @@ from sqlmodel import Session
 from app.domains.base import DomainHandler
 from app.domains.fields import dump_fields, field_date, load_fields
 from app.domains.house.categories import HouseCategory
-from app.domains.house.warranty import extract_warranty_expiry, sync_warranty_todo
+from app.domains.house.warranty import effective_warranty_expiry, extract_warranty_dates, sync_warranty_todo
 from app.models.document import Document, DocumentStatus
 from app.models.wiki import WikiOperation
 from app.services.wiki_engine import ingest_into_wiki
 
-MISSING_EXPIRY_NOTE = "No warranty expiry date found — enter it manually."
+MISSING_EXPIRY_NOTE = "No warranty expiry or purchase date found — enter one of them."
 
 
 def _is_warranty_without_expiry(document: Document) -> bool:
     return (
         document.category == HouseCategory.WARRANTY_INVOICE.value
-        and field_date(load_fields(document), "warranty_expiry") is None
+        and effective_warranty_expiry(load_fields(document)) is None
     )
 
 
 class HouseHandler(DomainHandler):
     async def process(self, session: Session, document: Document) -> Document:
         note: Optional[str] = None
-        if _is_warranty_without_expiry(document):
+        fields = load_fields(document)
+        if document.category == HouseCategory.WARRANTY_INVOICE.value and field_date(fields, "warranty_expiry") is None:
             try:
-                # Module-level lookup at call time so tests can monkeypatch it.
-                expiry = await extract_warranty_expiry(document.file_path)
+                dates = await extract_warranty_dates(document.file_path)
             except Exception as exc:
-                # Best-effort by design: a failed extraction never fails the
-                # upload -- the document is kept and the date asked for.
-                expiry = None
+                dates = None
                 note = f"Warranty date could not be read ({exc}) — enter it manually."
-            if expiry is not None:
-                fields = load_fields(document)
-                fields["warranty_expiry"] = expiry.isoformat()
+            if dates is not None:
+                if dates.expiry and not fields.get("warranty_expiry"):
+                    fields["warranty_expiry"] = dates.expiry.isoformat()
+                if dates.purchase_date and not fields.get("purchase_date"):
+                    fields["purchase_date"] = dates.purchase_date.isoformat()
                 document.fields_json = dump_fields(fields)
                 session.add(document)
                 session.commit()
                 session.refresh(document)
-            elif note is None:
+            if note is None and _is_warranty_without_expiry(document):
                 note = MISSING_EXPIRY_NOTE
 
         await self._sync_derived(session, document, WikiOperation.INGEST)

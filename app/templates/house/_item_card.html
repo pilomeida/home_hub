@@ -4,22 +4,23 @@
   {% if card.room %}<p class="item-meta">{{ card.room }}</p>{% endif %}
   {% if card.warranty_expiry %}
   <p class="{{ 'needs-attention' if state in ('lapsed', 'due') else '' }}">
-    Warranty {{ 'expired' if state == 'lapsed' else 'until' }} {{ card.warranty_expiry.strftime('%d %b %Y') }}
+    Warranty {{ 'expired' if state == 'lapsed' else 'until' }} {{ card.warranty_expiry.strftime('%d %b %Y') }}{% if card.warranty_assumed %} (assumed — 3-year legal guarantee){% endif %}
   </p>
   {% endif %}
   {% if card.last_serviced %}<p>Last serviced {{ card.last_serviced.strftime('%d %b %Y') }}</p>{% endif %}
   <ul>
     {% for item in card.documents %}
     <li>
-      <span class="badge">{{ category_label(item.document.category) }}</span>
-      <a href="/house/documents/{{ item.document.id }}">{{ item.document.filename }}</a>
+      <span class="badge">{{ category_label(item.category) }}</span>
+      <a href="{{ item.url }}">{{ item.title }}</a>
       {% if item.fields.get("service_date") %} — {{ item.fields["service_date"] }}{% endif %}
-      {% if item.document.failure_reason %}<span class="needs-attention">!</span>{% endif %}
+      {% if item.document and item.document.failure_reason %}<span class="needs-attention">!</span>{% endif %}
     </li>
     {% endfor %}
   </ul>
   <p class="item-links">
     {% if card.wiki_page_id %}<a href="/wiki/{{ card.wiki_page_id }}">Item page</a> · {% endif %}
     <a href="/house/upload?category=warranty_invoice&item_name={{ card.name|urlencode }}">Add document</a>
+    · <a href="/house/upload?category=maintenance_log&item_name={{ card.name|urlencode }}">Log maintenance</a>
   </p>
 </div>

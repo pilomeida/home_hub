@@ -6,6 +6,7 @@ from sqlmodel import select
 import app.domains.house.handler as house_handler
 from app.domains import registry
 from app.domains.fields import InvalidClassification, load_fields
+from app.domains.house.warranty import WarrantyDates
 from app.models.document import DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.todo import Todo
@@ -27,9 +28,9 @@ def extraction(monkeypatch):
         calls.append(file_path)
         if result["error"]:
             raise result["error"]
-        return result["value"]
+        return result["value"] or WarrantyDates(None, None)
 
-    monkeypatch.setattr(house_handler, "extract_warranty_expiry", fake_extract)
+    monkeypatch.setattr(house_handler, "extract_warranty_dates", fake_extract)
     return calls, result
 
 
@@ -69,7 +70,7 @@ async def test_appliance_manual_is_stored_tagged_and_builds_the_item_page(sessio
 @pytest.mark.asyncio
 async def test_warranty_expiry_is_extracted_reminded_and_recorded(session, extraction):
     calls, result = extraction
-    result["value"] = date(2030, 3, 1)
+    result["value"] = WarrantyDates(date(2030, 3, 1), None)
 
     document = await _ingest(session, "warranty_invoice", {"item_name": "Boiler"})
 
@@ -92,7 +93,7 @@ async def test_manually_entered_expiry_skips_extraction(session, extraction):
 async def test_missing_expiry_is_flagged_then_fixed_by_editing(session, extraction):
     document = await _ingest(session, "warranty_invoice", {"item_name": "Boiler"})
     assert document.status == DocumentStatus.PROCESSED
-    assert "enter it manually" in document.failure_reason
+    assert "enter" in document.failure_reason
     assert session.exec(select(Todo)).all() == []
 
     await update_document_fields(session, document, {"item_name": "Boiler", "warranty_expiry": "2031-06-30"})
@@ -179,3 +180,38 @@ async def test_every_processed_house_document_has_an_ingest_log_entry(session, e
     entries = session.exec(select(WikiLogEntry).where(WikiLogEntry.document_id == document.id,
                                                       WikiLogEntry.operation == WikiOperation.INGEST)).all()
     assert len(entries) == 1
+
+
+@pytest.mark.asyncio
+async def test_purchase_date_only_assumes_the_legal_guarantee(session, extraction):
+    _, result = extraction
+    result["value"] = WarrantyDates(None, date(2026, 3, 12))
+
+    document = await _ingest(session, "warranty_invoice", {"item_name": "Dishwasher"})
+
+    assert document.failure_reason is None
+    assert load_fields(document) == {"item_name": "Dishwasher", "purchase_date": "2026-03-12"}
+    assert session.exec(select(Todo)).one().due_date == date(2029, 2, 19)
+    claim = session.exec(select(WikiClaim).where(WikiClaim.key == "warranty_expires")).one()
+    assert claim.value == "2029-03-12" and "legal guarantee" in claim.note
+
+    await update_document_fields(session, document, {"item_name": "Dishwasher", "purchase_date": "2026-03-12",
+                                                     "warranty_expiry": "2028-03-12"})
+    active = session.exec(select(WikiClaim).where(WikiClaim.key == "warranty_expires",
+                                                  WikiClaim.status == ClaimStatus.ACTIVE)).one()
+    assert active.value == "2028-03-12" and active.note is None
+
+
+@pytest.mark.asyncio
+async def test_maintenance_by_hand_and_with_a_file_count_the_same(session, extraction):
+    from app.domains.house.items import build_item_cards
+    from app.services.ingestion import RecordInput, create_record
+
+    await create_record(session, RecordInput(Domain.HOUSE, "maintenance_log",
+                                             {"item_name": "Boiler", "service_date": "2026-06-01", "notes": "Annual service"}))
+    await _ingest(session, "maintenance_log", {"item_name": "Boiler", "service_date": "2025-06-01"}, filename="invoice.pdf")
+
+    (card,) = build_item_cards(session)
+    assert card.last_serviced == date(2026, 6, 1) and len(card.documents) == 2
+    page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
+    assert _active(session, page.id)["last_serviced"] == "2026-06-01"

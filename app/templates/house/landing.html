@@ -25,7 +25,7 @@
   <ul>
     {% for item in docs %}
     <li>
-      <a href="/house/documents/{{ item.document.id }}">{{ item.document.filename }}</a>
+      <a href="{{ item.url }}">{{ item.title }}</a>
       {% if item.fields.get("system_type") %} — {{ item.fields["system_type"] }}{% endif %}
       {% if item.fields.get("indoor_outdoor") %} · {{ item.fields["indoor_outdoor"]|capitalize }}{% endif %}
       {% if item.fields.get("observations") %}<br><small>{{ item.fields["observations"] }}</small>{% endif %}

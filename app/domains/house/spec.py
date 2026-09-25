@@ -2,11 +2,12 @@
 
 from app.domains.base import (
     DEFAULT_MEDIA, CategorySpec, DomainSpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec,
-    LinkSpec, MediaKind, NavLink, WikiSchema,
+    LinkSpec, MediaKind, NavLink, SourceKind, WikiSchema,
 )
 from app.domains.house.categories import ITEM_CATEGORIES, ITEM_KIND_CATEGORIES, ITEM_PAGE_TYPE, ROOM_PAGE_TYPE, HouseCategory
 from app.domains.house.handler import HouseHandler
 from app.domains.house.overview import house_overview_card
+from app.domains.house.warranty import house_derived_fields
 from app.models.domain import Domain
 
 _WARRANTY = frozenset({HouseCategory.WARRANTY_INVOICE.value})
@@ -29,7 +30,8 @@ SPEC = DomainSpec(
         CategorySpec(HouseCategory.WARRANTY_INVOICE.value, "Warranty / invoice",
                      "A purchase invoice, receipt or warranty certificate for a household item."),
         CategorySpec(HouseCategory.MAINTENANCE_LOG.value, "Maintenance log",
-                     "A record or report of a service, repair or inspection done on a household item."),
+                     "A service, repair or inspection done on a household item — typed in by hand, "
+                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD),
         CategorySpec(HouseCategory.FLOOR_PLAN.value, "Floor plan",
                      "A floor plan, or a diagram, photo or video of the house's pipes, sewage, wiring or floors.",
                      accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}),
@@ -41,7 +43,9 @@ SPEC = DomainSpec(
                   help="The same name groups the item's manual, warranty and maintenance records."),
         FieldSpec("room", "Room / location", FieldKind.SUGGEST, categories=ITEM_CATEGORIES),
         FieldSpec("warranty_expiry", "Warranty expires", FieldKind.DATE, categories=_WARRANTY,
-                  help="Leave blank to have it read from the document."),
+                  help="Leave blank to have it read from the document (or assumed from the purchase date)."),
+        FieldSpec("purchase_date", "Purchase / invoice date", FieldKind.DATE, categories=_WARRANTY,
+                  help="Used to assume Portugal's 3-year legal guarantee when no expiry date is stated."),
         FieldSpec("service_date", "Service date", FieldKind.DATE, categories=_MAINTENANCE, required=True),
         FieldSpec("notes", "Notes", FieldKind.LONGTEXT, categories=_MAINTENANCE),
         FieldSpec("system_type", "System", FieldKind.SUGGEST, categories=_FLOOR_PLAN, required=True,
@@ -64,8 +68,8 @@ SPEC = DomainSpec(
                 facts=(
                     FactSpec("type", "Type", "category", categories=frozenset(ITEM_KIND_CATEGORIES)),
                     FactSpec("room", "Room / location", "room"),
-                    FactSpec("warranty_expires", "Warranty expires", "warranty_expiry",
-                             categories=_WARRANTY, policy=FactPolicy.LATEST),
+                    FactSpec("warranty_expires", "Warranty expires", "effective_warranty_expiry",
+                             categories=_WARRANTY, policy=FactPolicy.LATEST, note_field="warranty_expiry_note"),
                     FactSpec("last_serviced", "Last serviced", "service_date",
                              categories=_MAINTENANCE, policy=FactPolicy.LATEST),
                 ),
@@ -76,4 +80,6 @@ SPEC = DomainSpec(
             ),
         ),
     ),
+    record_url=lambda record: f"/house/records/{record.id}",
+    derive_fields=house_derived_fields,
 )

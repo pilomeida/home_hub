@@ -71,7 +71,7 @@ def test_reference_sections(session):
     _doc(session, "floor_plan", {"system_type": "Pipes", "indoor_outdoor": "outdoor"}, filename="pipes.pdf")
     _doc(session, "ownership_document", {}, filename="deed.pdf")
     sections = reference_sections(session)
-    assert [(t, [h.document.filename for h in docs]) for t, docs in sections] == [
+    assert [(t, [h.title for h in docs]) for t, docs in sections] == [
         ("Floor plans", ["pipes.pdf"]), ("Ownership documents", ["deed.pdf"]),
     ]
     assert sections[0][1][0].fields["system_type"] == "Pipes"
@@ -118,3 +118,11 @@ def test_house_overview_card(session):
     ]
     assert [line.attention for line in card.lines] == [True, False, True, False, False]
     assert card.lines[0].url == "/house#item-boiler"
+
+
+def test_assumed_warranty_is_marked_on_card_and_overview(session):
+    _doc(session, "warranty_invoice", {"item_name": "Oven", "purchase_date": "2023-10-01"})
+    (card,) = build_item_cards(session)
+    assert card.warranty_expiry == date(2026, 10, 1) and card.warranty_assumed is True
+    line = house_overview_card(session, date(2026, 9, 24)).lines[0]
+    assert line.text == "Oven warranty expires 01 Oct 2026 (assumed)"

@@ -6,7 +6,8 @@ from sqlmodel import select
 
 from app.domains.house.categories import HouseCategory
 from app.domains.house.warranty import (
-    REMINDER_LEAD_DAYS, WarrantyExtractionError, extract_warranty_expiry, reminder_due_date, sync_warranty_todo,
+    LEGAL_GUARANTEE_YEARS, REMINDER_LEAD_DAYS, WarrantyDates, WarrantyExtractionError,
+    effective_warranty_expiry, extract_warranty_dates, house_derived_fields, reminder_due_date, sync_warranty_todo,
 )
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
@@ -51,27 +52,41 @@ def test_reminder_is_21_days_before_expiry():
 
 @pytest.mark.asyncio
 async def test_extracts_a_stated_expiry(tmp_path):
-    client = _FakeClient(json.dumps({"expiry_date": "2028-05-17"}))
-    assert await extract_warranty_expiry(_pdf(tmp_path), client=client) == date(2028, 5, 17)
+    client = _FakeClient(json.dumps({"expiry_date": "2028-05-17", "purchase_date": None}))
+    assert await extract_warranty_dates(_pdf(tmp_path), client=client) == WarrantyDates(date(2028, 5, 17), None)
     assert client.messages.calls[0]["model"] == "claude-haiku-4-5-20251001"
 
 
 @pytest.mark.asyncio
-async def test_returns_none_when_no_date_is_stated(tmp_path):
-    assert await extract_warranty_expiry(_pdf(tmp_path), client=_FakeClient('{"expiry_date": null}')) is None
+async def test_extracts_expiry_and_purchase_date(tmp_path):
+    client = _FakeClient(json.dumps({"expiry_date": None, "purchase_date": "2026-03-12"}))
+    assert await extract_warranty_dates(_pdf(tmp_path), client=client) == WarrantyDates(None, date(2026, 3, 12))
 
 
 @pytest.mark.asyncio
-async def test_returns_none_for_file_types_the_model_cannot_read(tmp_path):
+async def test_unreadable_file_types_give_no_dates(tmp_path):
     video = tmp_path / "clip.mp4"
-    video.write_bytes(b"not really a video")
-    assert await extract_warranty_expiry(str(video), client=_FakeClient("unused")) is None
+    video.write_bytes(b"x")
+    assert await extract_warranty_dates(str(video), client=_FakeClient("unused")) == WarrantyDates(None, None)
 
 
 @pytest.mark.asyncio
-async def test_raises_on_an_unparseable_reply(tmp_path):
+async def test_unparseable_reply_raises(tmp_path):
     with pytest.raises(WarrantyExtractionError):
-        await extract_warranty_expiry(_pdf(tmp_path), client=_FakeClient("the warranty lasts two years"))
+        await extract_warranty_dates(_pdf(tmp_path), client=_FakeClient("two years"))
+
+
+def test_effective_expiry_prefers_stated_then_assumes_legal_guarantee():
+    assert LEGAL_GUARANTEE_YEARS == 3
+    stated = effective_warranty_expiry({"warranty_expiry": "2028-01-01", "purchase_date": "2026-01-01"})
+    assert stated.date == date(2028, 1, 1) and stated.assumed is False
+    assumed = effective_warranty_expiry({"purchase_date": "2024-02-29"})
+    assert assumed.date == date(2027, 2, 28) and assumed.assumed is True
+    assert effective_warranty_expiry({}) is None
+    derived = house_derived_fields("warranty_invoice", {"purchase_date": "2026-03-12"})
+    assert derived["effective_warranty_expiry"] == "2029-03-12"
+    assert "3-year legal guarantee" in derived["warranty_expiry_note"] and "12 Mar 2026" in derived["warranty_expiry_note"]
+    assert house_derived_fields("house_appliance", {"purchase_date": "2026-03-12"}) == {}
 
 
 def _warranty_document(session, fields):
@@ -104,3 +119,9 @@ def test_sync_skips_missing_or_lapsed_expiry_and_other_categories(session):
     manual.category = HouseCategory.HOUSE_APPLIANCE.value
     assert sync_warranty_todo(session, manual, today=date(2026, 9, 24)) is None
     assert session.exec(select(Todo)).all() == []
+
+
+def test_sync_uses_an_assumed_expiry(session):
+    document = _warranty_document(session, {"item_name": "Oven", "purchase_date": "2026-03-12"})
+    todo = sync_warranty_todo(session, document, today=date(2026, 9, 24))
+    assert todo.due_date == date(2029, 2, 19)
