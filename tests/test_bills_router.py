@@ -113,3 +113,16 @@ def test_list_bills_shows_only_financials_documents(client, session):
 
     assert "edp.pdf" in response.text
     assert "boiler-manual.pdf" not in response.text
+
+
+def test_bills_page_shows_the_financials_backlog(client, session):
+    from app.models.domain import Domain
+    from app.models.todo import Todo
+
+    session.add(Todo(title="Pay the water bill", domain=Domain.FINANCIALS))
+    session.commit()
+
+    response = client.get("/financials/bills")
+
+    assert 'id="backlog-financials"' in response.text
+    assert "Pay the water bill" in response.text

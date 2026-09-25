@@ -1,0 +1,20 @@
+<section class="backlog" id="backlog-{{ backlog_domain.value }}">
+  <h2>{{ backlog_label }} to-dos</h2>
+  <ul>
+    {% for todo in backlog_todos %}
+    <li>
+      {{ todo.title }}{% if todo.due_date %} — due {{ todo.due_date.strftime('%d %b %Y') }}{% endif %}
+      <button hx-post="/todos/{{ todo.id }}/done?backlog={{ backlog_domain.value }}"
+              hx-target="#backlog-{{ backlog_domain.value }}" hx-swap="outerHTML">Done</button>
+    </li>
+    {% else %}
+    <li>Nothing open.</li>
+    {% endfor %}
+  </ul>
+  <form hx-post="/todos/add" hx-target="#backlog-{{ backlog_domain.value }}" hx-swap="outerHTML">
+    <input type="hidden" name="domain" value="{{ backlog_domain.value }}">
+    <input name="title" placeholder="Add a to-do" required>
+    <input type="date" name="due_date">
+    <button type="submit">Add</button>
+  </form>
+</section>

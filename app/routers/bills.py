@@ -14,6 +14,7 @@ from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
 from app.models.transaction import Transaction
 from app.services.ingestion import Classification, IncomingFile, ingest
+from app.services.todo_backlog import backlog_context
 from app.templating import templates
 
 router = APIRouter(prefix="/financials/bills", tags=["bills"])
@@ -23,7 +24,9 @@ async def list_bills(request: Request, session: Session = Depends(get_session)):
     documents = session.exec(
         select(Document).where(Document.domain == Domain.FINANCIALS).order_by(Document.created_at.desc())
     ).all()
-    return templates.TemplateResponse(request, "bills/list.html", {"documents": documents})
+    return templates.TemplateResponse(
+        request, "bills/list.html", {"documents": documents, **backlog_context(session, Domain.FINANCIALS)}
+    )
 
 @router.get("/upload")
 async def upload_form(request: Request, session: Session = Depends(get_session)):

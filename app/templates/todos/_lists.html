@@ -3,7 +3,7 @@
   <ul>
     {% for todo in open_todos %}
     <li>
-      {{ todo.title }} — due {{ todo.due_date }}
+      {% if todo.domain %}<span class="badge">{{ domain_label(todo.domain) }}</span> {% endif %}{{ todo.title }} — due {{ todo.due_date }}
       <button hx-post="/todos/{{ todo.id }}/done" hx-target="#todo-lists" hx-swap="innerHTML">Done</button>
     </li>
     {% else %}
@@ -15,7 +15,7 @@
   <h2>Done</h2>
   <ul>
     {% for todo in done_todos %}
-    <li>{{ todo.title }} — done</li>
+    <li>{% if todo.domain %}<span class="badge">{{ domain_label(todo.domain) }}</span> {% endif %}{{ todo.title }} — done</li>
     {% else %}
     <li>Nothing done yet.</li>
     {% endfor %}
