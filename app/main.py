@@ -16,7 +16,9 @@ if settings.CF_ACCESS_TEAM_DOMAIN:
 static_dir = Path("app/static")
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-from app.routers import ask, bills, dashboard, documents, house, inbox, todos, transactions, utilities, wiki  # noqa: E402
+from app.routers import (  # noqa: E402
+    ask, bills, dashboard, documents, house, inbox, todos, transactions, utilities, wiki, wiki_lint,
+)
 
 app.include_router(dashboard.router)
 app.include_router(ask.router)
@@ -27,4 +29,5 @@ app.include_router(inbox.router)
 app.include_router(todos.router)
 app.include_router(transactions.router)
 app.include_router(utilities.router)
+app.include_router(wiki_lint.router)
 app.include_router(wiki.router)

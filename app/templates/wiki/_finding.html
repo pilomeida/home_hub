@@ -1,0 +1,12 @@
+<li class="fc-attn-row" id="finding-{{ finding.id }}">
+  <span class="txt">
+    {{ finding.summary }}
+    {% if finding.suggested_action %}<br><small>Suggested: {{ finding.suggested_action }}</small>{% endif %}
+    {% if pages %}<br><small>{% for p in pages %}<a href="/wiki/{{ p.id }}">{{ p.topic }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}
+  </span>
+  {% if finding.kind.value == "missing_link" %}
+  <button hx-post="/wiki/lint/findings/{{ finding.id }}/add-link" hx-target="#finding-{{ finding.id }}" hx-swap="outerHTML">Add link</button>
+  {% endif %}
+  <button hx-post="/wiki/lint/findings/{{ finding.id }}/fixed" hx-target="#finding-{{ finding.id }}" hx-swap="outerHTML">Mark fixed</button>
+  <button hx-post="/wiki/lint/findings/{{ finding.id }}/dismiss" hx-target="#finding-{{ finding.id }}" hx-swap="outerHTML">Dismiss</button>
+</li>

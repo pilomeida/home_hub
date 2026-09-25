@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Wiki check — Home & Family{% endblock %}
+{% block content %}
+<h1>Wiki check</h1>
+<p>
+  {% if last_run %}Last checked {{ last_run.started_at.strftime('%Y-%m-%d %H:%M') }} ({{ last_run.status.value }}).{% else %}Not checked yet.{% endif %}
+  {{ open_count }} item(s) to review.
+</p>
+{% if message %}<p class="ask-note">{{ message }}</p>{% endif %}
+<form method="post" action="/wiki/lint/run"><button type="submit">Run check now</button></form>
+{% for kind, label, items in groups %}
+  <h2>{{ label }}</h2>
+  <ul class="fc-attn">
+    {% for finding, pages in items %}{% include "wiki/_finding.html" %}{% endfor %}
+  </ul>
+{% else %}
+  <p>Nothing to review. The wiki looks healthy.</p>
+{% endfor %}
+{% endblock %}

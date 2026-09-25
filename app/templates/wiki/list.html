@@ -3,6 +3,7 @@
 {% block content %}
 <h1>Wiki</h1>
 <p><a href="/wiki/log">Activity log</a></p>
+{% if lint_open_count %}<p><a href="/wiki/lint">{{ lint_open_count }} wiki issue{{ "s" if lint_open_count != 1 }} to review →</a></p>{% endif %}
 {% for section in sections %}
 <section>
   <h2>{{ section.domain_label }} — {{ section.section_label }}</h2>

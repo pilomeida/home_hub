@@ -12,6 +12,7 @@ from app.db import get_session
 from app.domains.fields import file_url
 from app.domains.registry import document_url
 from app.models.wiki import WikiChange, WikiPage
+from app.routers.wiki_lint import open_finding_count
 from app.services.wiki_store import (
     active_claims, build_wiki_index, links_from, links_to, recent_log, sources_for_claims, superseded_claims,
 )
@@ -34,7 +35,8 @@ async def wiki_index(request: Request, session: Session = Depends(get_session)):
     sections = build_wiki_index(session)
     recently_changed_ids = {e.page_id for s in sections for e in s.entries if e.updated_at >= cutoff}
     return templates.TemplateResponse(
-        request, "wiki/list.html", {"sections": sections, "recently_changed_ids": recently_changed_ids}
+        request, "wiki/list.html", {"sections": sections, "recently_changed_ids": recently_changed_ids,
+                                    "lint_open_count": open_finding_count(session)}
     )
 
 
