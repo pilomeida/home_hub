@@ -1,0 +1,301 @@
+"""Knowledge-layer storage: HOW the wiki is stored. Pure database work, no
+LLM (app.services.wiki_engine decides WHAT to record).
+
+Pages are made of claims; every claim links to the Document(s) asserting
+it; a changed claim supersedes the old one (never deleted); every call to
+apply_claims appends one entry to the wiki log; the index is generated.
+Plan C's Query (filing answers back) and Lint also go through here."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Iterable, Optional, Sequence
+
+from sqlmodel import Session, select
+
+from app.domains.base import FactPolicy
+from app.models.document import Document
+from app.models.domain import Domain
+from app.models.wiki import (
+    TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLogEntry, WikiOperation, WikiPage,
+)
+
+_SUMMARY_MAX = 160
+
+
+def normalize_entity_key(name: str) -> str:
+    return " ".join(name.lower().split())
+
+
+@dataclass(frozen=True)
+class PageRef:
+    page_type: str
+    title: str
+    entity_key: Optional[str] = None
+    summary: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ClaimInput:
+    page: PageRef
+    key: str
+    value: str
+    label: Optional[str] = None
+    policy: FactPolicy = FactPolicy.REPLACE
+
+
+@dataclass
+class IngestReport:
+    page_ids: list[int] = field(default_factory=list)
+    added: int = 0
+    superseded: int = 0
+    confirmed: int = 0
+    log_entry_id: Optional[int] = None
+
+
+def _candidate_titles(ref: PageRef) -> list[str]:
+    return [ref.title, f"{ref.title} ({ref.page_type})"]
+
+
+def find_page(session: Session, ref: PageRef) -> Optional[WikiPage]:
+    if ref.entity_key is not None:
+        return session.exec(
+            select(WikiPage).where(WikiPage.page_type == ref.page_type, WikiPage.entity_key == ref.entity_key)
+        ).first()
+    return session.exec(
+        select(WikiPage).where(
+            WikiPage.page_type == ref.page_type,
+            WikiPage.entity_key.is_(None),
+            WikiPage.topic.in_(_candidate_titles(ref)),
+        )
+    ).first()
+
+
+def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Domain]) -> WikiPage:
+    page = find_page(session, ref)
+    if page is not None:
+        return page
+    taken = set(session.exec(select(WikiPage.topic).where(WikiPage.topic.in_(_candidate_titles(ref)))).all())
+    title = next((t for t in _candidate_titles(ref) if t not in taken), None)
+    if title is None:
+        raise ValueError(f"Wiki title collision for {ref.title!r} ({ref.page_type})")
+    page = WikiPage(topic=title, page_type=ref.page_type, entity_key=ref.entity_key,
+                    summary=ref.summary, domain=domain)
+    session.add(page)
+    session.flush()
+    return page
+
+
+def active_claims(session: Session, page_id: int) -> list[WikiClaim]:
+    return list(session.exec(
+        select(WikiClaim).where(WikiClaim.page_id == page_id, WikiClaim.status == ClaimStatus.ACTIVE)
+        .order_by(WikiClaim.id)
+    ).all())
+
+
+def superseded_claims(session: Session, page_id: int) -> list[WikiClaim]:
+    return list(session.exec(
+        select(WikiClaim).where(WikiClaim.page_id == page_id, WikiClaim.status == ClaimStatus.SUPERSEDED)
+        .order_by(WikiClaim.superseded_at.desc(), WikiClaim.id.desc())
+    ).all())
+
+
+def _active_claim(session: Session, page_id: int, key: str) -> Optional[WikiClaim]:
+    return session.exec(
+        select(WikiClaim).where(
+            WikiClaim.page_id == page_id, WikiClaim.key == key, WikiClaim.status == ClaimStatus.ACTIVE,
+        )
+    ).first()
+
+
+def _source_ids(session: Session, claim_id: int) -> set[int]:
+    return set(session.exec(select(WikiClaimSource.document_id).where(WikiClaimSource.claim_id == claim_id)).all())
+
+
+def _add_source(session: Session, claim_id: int, document_id: int) -> None:
+    if document_id not in _source_ids(session, claim_id):
+        session.add(WikiClaimSource(claim_id=claim_id, document_id=document_id))
+        session.flush()
+
+
+def sources_for_claims(session: Session, claim_ids: Sequence[int]) -> dict[int, list[Document]]:
+    if not claim_ids:
+        return {}
+    rows = session.exec(
+        select(WikiClaimSource.claim_id, Document)
+        .join(Document, Document.id == WikiClaimSource.document_id)
+        .where(WikiClaimSource.claim_id.in_(list(claim_ids)))
+        .order_by(WikiClaimSource.id)
+    ).all()
+    result: dict[int, list[Document]] = {}
+    for claim_id, document in rows:
+        result.setdefault(claim_id, []).append(document)
+    return result
+
+
+def _derived_summary(pairs: Iterable[tuple[str, str]]) -> Optional[str]:
+    text = " · ".join(f"{label}: {value}" for label, value in pairs)
+    if not text:
+        return None
+    return text if len(text) <= _SUMMARY_MAX else text[: _SUMMARY_MAX - 1] + "…"
+
+
+def _refresh_page(session: Session, page: WikiPage, now: datetime) -> None:
+    claims = active_claims(session, page.id)
+    page.facts_json = json.dumps({c.key: c.value for c in claims}, ensure_ascii=False)
+    if page.entity_key is not None or not page.summary:
+        page.summary = _derived_summary((c.label or c.key, c.value) for c in claims)
+    page.updated_at = now
+    session.add(page)
+
+
+def append_log(
+    session: Session,
+    operation: WikiOperation,
+    description: str,
+    *,
+    document_id: Optional[int] = None,
+    page_ids: Sequence[int] = (),
+    commit: bool = True,
+) -> WikiLogEntry:
+    entry = WikiLogEntry(operation=operation, description=description, document_id=document_id,
+                         page_ids_json=json.dumps(list(page_ids)))
+    session.add(entry)
+    if commit:
+        session.commit()
+        session.refresh(entry)
+    else:
+        session.flush()
+    return entry
+
+
+def apply_claims(
+    session: Session,
+    claims: Sequence[ClaimInput],
+    *,
+    document: Optional[Document],
+    domain: Optional[Domain] = None,
+    operation: WikiOperation = WikiOperation.INGEST,
+    description: Optional[str] = None,
+) -> IngestReport:
+    domain = domain if domain is not None else (document.domain if document is not None else None)
+    now = datetime.utcnow()
+    report = IngestReport()
+    touched: dict[int, WikiPage] = {}
+    changed: set[int] = set()
+
+    for claim_input in claims:
+        page = _get_or_create_page(session, claim_input.page, domain)
+        touched[page.id] = page
+        if claim_input.page.summary and page.entity_key is None and page.summary != claim_input.page.summary:
+            page.summary = claim_input.page.summary
+            changed.add(page.id)
+
+        active = _active_claim(session, page.id, claim_input.key)
+        if active is not None and active.value == claim_input.value:
+            if document is not None:
+                _add_source(session, active.id, document.id)
+            report.confirmed += 1
+            continue
+
+        new = WikiClaim(page_id=page.id, key=claim_input.key, label=claim_input.label, value=claim_input.value)
+        session.add(new)
+        session.flush()
+        if document is not None:
+            _add_source(session, new.id, document.id)
+        report.added += 1
+        changed.add(page.id)
+
+        if active is None:
+            continue
+        is_correction = document is not None and document.id in _source_ids(session, active.id)
+        if claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value and not is_correction:
+            new.status = ClaimStatus.SUPERSEDED
+            new.superseded_by_claim_id = active.id
+            new.superseded_at = now
+            session.add(new)
+        else:
+            active.status = ClaimStatus.SUPERSEDED
+            active.superseded_by_claim_id = new.id
+            active.superseded_at = now
+            session.add(active)
+        report.superseded += 1
+
+    session.flush()
+    for page_id in changed:
+        _refresh_page(session, touched[page_id], now)
+
+    report.page_ids = list(touched)
+    if description is None:
+        source = document.filename if document is not None else "manual entry"
+        titles = ", ".join(p.topic for p in touched.values()) or "no wiki pages"
+        description = f"{source} → {titles}"
+    entry = append_log(
+        session, operation, description,
+        document_id=document.id if document is not None else None,
+        page_ids=report.page_ids, commit=False,
+    )
+    session.commit()
+    report.log_entry_id = entry.id
+    return report
+
+
+def recent_log(session: Session, limit: int = 200) -> list[WikiLogEntry]:
+    return list(session.exec(
+        select(WikiLogEntry).order_by(WikiLogEntry.occurred_at.desc(), WikiLogEntry.id.desc()).limit(limit)
+    ).all())
+
+
+@dataclass
+class IndexEntry:
+    page_id: int
+    title: str
+    summary: Optional[str]
+    updated_at: datetime
+
+
+@dataclass
+class IndexSection:
+    domain_label: str
+    section_label: str
+    entries: list[IndexEntry]
+
+
+def build_wiki_index(session: Session) -> list[IndexSection]:
+    from app.domains.registry import implemented_domains
+
+    specs = implemented_domains()
+    domain_order = {spec.domain: i for i, spec in enumerate(specs)}
+    domain_labels = {spec.domain: spec.label for spec in specs}
+    type_labels = {TOPIC_PAGE_TYPE: "Topics"}
+    for spec in specs:
+        for entity_type in spec.wiki.entity_types:
+            type_labels[entity_type.page_type] = entity_type.label
+
+    grouped: dict[tuple[Optional[Domain], str], list[IndexEntry]] = {}
+    for page in session.exec(select(WikiPage)).all():
+        page_type = page.page_type or TOPIC_PAGE_TYPE
+        summary = page.summary or _derived_summary(json.loads(page.facts_json or "{}").items())
+        grouped.setdefault((page.domain, page_type), []).append(
+            IndexEntry(page_id=page.id, title=page.topic, summary=summary, updated_at=page.updated_at)
+        )
+
+    def sort_key(key: tuple[Optional[Domain], str]):
+        domain, page_type = key
+        return (domain_order.get(domain, len(domain_order)), page_type == TOPIC_PAGE_TYPE,
+                type_labels.get(page_type, page_type))
+
+    sections = []
+    for (domain, page_type), entries in sorted(grouped.items(), key=lambda item: sort_key(item[0])):
+        if domain is None:
+            domain_label = "General"
+        else:
+            domain_label = domain_labels.get(domain, domain.value.replace("_", " ").title())
+        sections.append(IndexSection(
+            domain_label=domain_label,
+            section_label=type_labels.get(page_type, page_type.replace("_", " ").title()),
+            entries=sorted(entries, key=lambda e: e.title.lower()),
+        ))
+    return sections
