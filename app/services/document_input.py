@@ -7,6 +7,7 @@ _IMAGE_MEDIA_TYPES = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
 }
 
 
@@ -33,3 +34,10 @@ def build_content_block(file_path: str) -> dict:
             "source": {"type": "base64", "media_type": _IMAGE_MEDIA_TYPES[suffix], "data": data},
         }
     raise UnsupportedFileTypeError(f"Unsupported file type: {suffix}")
+
+
+def is_model_readable(file_path: str) -> bool:
+    """True if build_content_block can turn this file into a Claude block.
+    Channels still store other media (HEIC, video); the classifier skips them."""
+    suffix = Path(file_path).suffix.lower()
+    return suffix == ".pdf" or suffix in _IMAGE_MEDIA_TYPES

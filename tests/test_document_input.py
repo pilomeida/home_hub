@@ -2,7 +2,7 @@ import base64
 
 import pytest
 
-from app.services.document_input import UnsupportedFileTypeError, build_content_block
+from app.services.document_input import UnsupportedFileTypeError, build_content_block, is_model_readable
 
 
 def test_build_content_block_for_pdf(tmp_path):
@@ -44,3 +44,17 @@ def test_build_content_block_raises_on_unsupported_extension(tmp_path):
 
     with pytest.raises(UnsupportedFileTypeError):
         build_content_block(str(txt_path))
+
+
+def test_is_model_readable():
+    assert is_model_readable("/x/a.PDF")
+    assert is_model_readable("/x/a.webp")
+    assert not is_model_readable("/x/clip.mp4")
+    assert not is_model_readable("/x/photo.heic")
+
+
+def test_build_content_block_webp(tmp_path):
+    path = tmp_path / "a.webp"
+    path.write_bytes(b"RIFFxxxxWEBP")
+    block = build_content_block(str(path))
+    assert block["type"] == "image" and block["source"]["media_type"] == "image/webp"
