@@ -16,6 +16,7 @@ from app.models.domain import Domain
 
 _SPEC_MODULES: tuple[str, ...] = (
     "app.domains.financials.spec",
+    "app.domains.house.spec",
 )
 
 _specs_cache: Optional[dict[Domain, DomainSpec]] = None
