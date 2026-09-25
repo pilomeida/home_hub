@@ -17,5 +17,6 @@ class Todo(SQLModel, table=True):
     due_date: Optional[date] = None
     done: bool = Field(default=False)
     transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
+    document_id: Optional[int] = Field(default=None, foreign_key="documents.id", index=True)
     domain: Optional[Domain] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

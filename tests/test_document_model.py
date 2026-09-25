@@ -74,3 +74,34 @@ def test_document_domain_can_be_set(session):
     session.refresh(document)
 
     assert document.domain == Domain.FINANCIALS
+
+
+def test_document_category_and_fields_default(session):
+    document = Document(
+        filename="manual.pdf", file_path="/tmp/manual.pdf",
+        content_hash="hash-category-default", source=DocumentSource.MANUAL,
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    assert document.category is None
+    assert document.fields_json == "{}"
+
+
+def test_document_accepts_house_domain_category_and_fields(session):
+    from app.models.domain import Domain
+
+    document = Document(
+        filename="boiler-warranty.pdf", file_path="/tmp/boiler-warranty.pdf",
+        content_hash="hash-house", source=DocumentSource.MANUAL,
+        domain=Domain.HOUSE, category="warranty_invoice",
+        fields_json='{"item_name": "Boiler"}',
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    assert document.domain == Domain.HOUSE
+    assert document.category == "warranty_invoice"
+    assert document.fields_json == '{"item_name": "Boiler"}'

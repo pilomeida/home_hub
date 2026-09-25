@@ -31,6 +31,8 @@ class Document(SQLModel, table=True):
     source: DocumentSource
     status: DocumentStatus = Field(default=DocumentStatus.PENDING)
     doc_type: Optional[str] = None
+    category: Optional[str] = Field(default=None, index=True)
+    fields_json: str = Field(default="{}")
     domain: Optional[Domain] = None
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None

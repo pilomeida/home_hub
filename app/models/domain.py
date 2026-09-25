@@ -1,10 +1,12 @@
-"""Domain: which area of the household this record belongs to. FINANCIALS
-is the only implemented domain today -- new members get added here as each
-future domain tab (House, Health, Education, Vehicles, Legal & Identity)
-ships. See brainstorms/2026-09-14-home-hub-tabs-restructure.md."""
+"""Domain: which area of the household a record belongs to. Every member
+must have a matching DomainSpec registered in app/domains/registry.py
+before it is used, and adding a member needs a migration that alters the
+`domain` column on documents, todos and wiki_pages (values are stored by
+NAME). See docs/ARCHITECTURE.md § "Adding a domain"."""
 
 from enum import Enum
 
 
 class Domain(str, Enum):
     FINANCIALS = "financials"
+    HOUSE = "house"
