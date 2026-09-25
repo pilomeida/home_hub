@@ -13,3 +13,13 @@ def test_dashboard_renders(client):
     assert 'href="/financials/bills"' in response.text
     assert 'href="/financials/transactions"' in response.text
     assert 'href="/financials/utilities/electricity"' in response.text
+
+
+def test_nav_is_built_from_the_registry(client, fake_domain):
+    response = client.get("/todos")
+
+    assert response.status_code == 200
+    assert 'href="/fake"' in response.text
+    assert "Fake home" in response.text
+    # Financials is not in the fake registry, so its links are gone.
+    assert 'href="/financials/bills"' not in response.text

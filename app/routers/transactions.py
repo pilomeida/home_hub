@@ -4,7 +4,6 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -15,13 +14,11 @@ from app.models.merchant import Merchant
 from app.models.person import Person
 from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.classification_engine import get_needs_review_queue
+from app.templating import templates
 
 router = APIRouter(prefix="/financials/transactions", tags=["transactions"])
-templates = Jinja2Templates(directory="app/templates")
-
 
 _PAGE_SIZE = 100
-
 
 def _apply_transaction_filters(
     statement,
@@ -58,7 +55,6 @@ def _apply_transaction_filters(
         statement = statement.where(Transaction.merchant_id == merchant_id)
     return statement
 
-
 def _filtered_transactions(
     session: Session,
     category: Optional[str] = None,
@@ -82,7 +78,6 @@ def _filtered_transactions(
     )
     statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
-
 
 def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tuple[dict, dict, dict]:
     """Build {id: name}/{id: Transaction} lookups for the merchants,
@@ -108,7 +103,6 @@ def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tupl
     }
     return merchant_names, account_names, linked_transactions
 
-
 def _count_filtered_transactions(
     session: Session,
     category: Optional[str] = None,
@@ -130,7 +124,6 @@ def _count_filtered_transactions(
         merchant_id=merchant_id,
     )
     return len(session.exec(statement).all())
-
 
 @router.get("")
 async def list_transactions(
@@ -188,7 +181,6 @@ async def list_transactions(
         },
     )
 
-
 @router.post("/bulk-edit")
 async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     form = await request.form()
@@ -237,7 +229,6 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         },
     )
 
-
 def _needs_review_context(session: Session) -> dict:
     return {
         "queue": get_needs_review_queue(session),
@@ -245,11 +236,9 @@ def _needs_review_context(session: Session) -> dict:
         "natures": list(Nature),
     }
 
-
 @router.get("/needs-review")
 async def needs_review(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(request, "transactions/needs_review.html", _needs_review_context(session))
-
 
 @router.post("/merchants/{merchant_id}/confirm")
 async def confirm_merchant(request: Request, merchant_id: int, session: Session = Depends(get_session)):
@@ -272,7 +261,6 @@ async def confirm_merchant(request: Request, merchant_id: int, session: Session 
         request, "transactions/_needs_review_rows.html", _needs_review_context(session)
     )
 
-
 @router.post("/merchants/{merchant_id}/dismiss-recurring")
 async def dismiss_recurring(request: Request, merchant_id: int, session: Session = Depends(get_session)):
     merchant = session.get(Merchant, merchant_id)
@@ -285,7 +273,6 @@ async def dismiss_recurring(request: Request, merchant_id: int, session: Session
         request, "transactions/_needs_review_rows.html", _needs_review_context(session)
     )
 
-
 @router.post("/{transaction_id}/dismiss-debt-candidate")
 async def dismiss_debt_candidate(request: Request, transaction_id: int, session: Session = Depends(get_session)):
     transaction = session.get(Transaction, transaction_id)
@@ -297,7 +284,6 @@ async def dismiss_debt_candidate(request: Request, transaction_id: int, session:
     return templates.TemplateResponse(
         request, "transactions/_needs_review_rows.html", _needs_review_context(session)
     )
-
 
 @router.post("/merchants/{merchant_id}/create-commitment")
 async def create_commitment_from_merchant(
@@ -332,7 +318,6 @@ async def create_commitment_from_merchant(
     return templates.TemplateResponse(
         request, "transactions/_needs_review_rows.html", _needs_review_context(session)
     )
-
 
 @router.post("/{transaction_id}/link-debt")
 async def link_debt(request: Request, transaction_id: int, session: Session = Depends(get_session)):

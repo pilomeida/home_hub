@@ -1,15 +1,13 @@
 """Routes for the To-Do list."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models.todo import Todo
+from app.templating import templates
 
 router = APIRouter(prefix="/todos", tags=["todos"])
-templates = Jinja2Templates(directory="app/templates")
-
 
 def _todo_lists(session: Session):
     open_todos = session.exec(
@@ -20,14 +18,12 @@ def _todo_lists(session: Session):
     ).all()
     return open_todos, done_todos
 
-
 @router.get("")
 async def list_todos(request: Request, session: Session = Depends(get_session)):
     open_todos, done_todos = _todo_lists(session)
     return templates.TemplateResponse(
         request, "todos/list.html", {"open_todos": open_todos, "done_todos": done_todos}
     )
-
 
 @router.post("/{todo_id}/done")
 async def mark_done(request: Request, todo_id: int, session: Session = Depends(get_session)):

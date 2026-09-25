@@ -4,7 +4,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -15,10 +14,9 @@ from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
 from app.models.transaction import Transaction
 from app.services.ingestion import Classification, IncomingFile, ingest
+from app.templating import templates
 
 router = APIRouter(prefix="/financials/bills", tags=["bills"])
-templates = Jinja2Templates(directory="app/templates")
-
 
 @router.get("")
 async def list_bills(request: Request, session: Session = Depends(get_session)):
@@ -27,12 +25,10 @@ async def list_bills(request: Request, session: Session = Depends(get_session)):
     ).all()
     return templates.TemplateResponse(request, "bills/list.html", {"documents": documents})
 
-
 @router.get("/upload")
 async def upload_form(request: Request, session: Session = Depends(get_session)):
     accounts = session.exec(select(Account)).all()
     return templates.TemplateResponse(request, "bills/upload.html", {"accounts": accounts})
-
 
 @router.post("/upload")
 async def upload_bill(
@@ -54,7 +50,6 @@ async def upload_bill(
     except InvalidClassification as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse(document_url(result.document) or "/financials/bills", status_code=303)
-
 
 @router.get("/{document_id}")
 async def bill_detail(request: Request, document_id: int, session: Session = Depends(get_session)):

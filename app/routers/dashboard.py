@@ -3,21 +3,18 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
 from app.db import get_session
 from app.services.household_service import get_household_data
 from app.services.overview_service import get_overview_data, get_period_dependent_data
+from app.templating import templates
 
 router = APIRouter(tags=["dashboard"])
-templates = Jinja2Templates(directory="app/templates")
-
 
 @router.get("/health")
 async def health():
     return {"status": "ok"}
-
 
 @router.get("/")
 async def dashboard(request: Request, session: Session = Depends(get_session)):
@@ -27,7 +24,6 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
         request, "dashboard.html",
         {"overview": overview, "household": household, "today": date.today()},
     )
-
 
 @router.get("/overview/period")
 async def overview_period(request: Request, range: str = "12m", session: Session = Depends(get_session)):

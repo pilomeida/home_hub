@@ -4,17 +4,15 @@ import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models.wiki import WikiChange, WikiPage
+from app.templating import templates
 
 router = APIRouter(prefix="/wiki", tags=["wiki"])
-templates = Jinja2Templates(directory="app/templates")
 
 _RECENTLY_CHANGED_DAYS = 7
-
 
 @router.get("")
 async def list_wiki_pages(request: Request, session: Session = Depends(get_session)):
@@ -24,7 +22,6 @@ async def list_wiki_pages(request: Request, session: Session = Depends(get_sessi
     return templates.TemplateResponse(
         request, "wiki/list.html", {"pages": pages, "recently_changed_ids": recently_changed_ids}
     )
-
 
 @router.get("/{page_id}")
 async def wiki_page_detail(request: Request, page_id: int, session: Session = Depends(get_session)):

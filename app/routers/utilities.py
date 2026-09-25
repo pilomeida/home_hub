@@ -2,21 +2,19 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models.utility_reading import UtilityReading, UtilityType
+from app.templating import templates
 
 router = APIRouter(prefix="/financials/utilities", tags=["utilities"])
-templates = Jinja2Templates(directory="app/templates")
 
 _VALID_TABS = {
     "electricity": UtilityType.ELECTRICITY,
     "water": UtilityType.WATER,
     "telecom": UtilityType.TELECOM,
 }
-
 
 def _build_charts(readings: list[UtilityReading]) -> dict:
     def series(field: str) -> dict:
@@ -34,11 +32,9 @@ def _build_charts(readings: list[UtilityReading]) -> dict:
         "vat_cost": series("vat_cost"),
     }
 
-
 @router.get("")
 async def utilities_root():
     return RedirectResponse("/financials/utilities/electricity")
-
 
 @router.get("/{tab}")
 async def utility_tab(request: Request, tab: str, session: Session = Depends(get_session)):

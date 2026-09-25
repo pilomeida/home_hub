@@ -125,12 +125,14 @@
 <body>
   <nav>
     <a href="/">Overview</a>
+    {% for spec in domain_nav() %}
     <div class="nav-group">
-      <span class="nav-group-label">Financials</span>
-      <a href="/financials/bills">Bills & Bank</a>
-      <a href="/financials/transactions">Transactions</a>
-      <a href="/financials/utilities/electricity">Utilities</a>
+      <span class="nav-group-label">{{ spec.label }}</span>
+      {% for link in spec.nav_links %}
+      <a href="{{ link.url }}">{{ link.label|safe }}</a>
+      {% endfor %}
     </div>
+    {% endfor %}
     <a href="/wiki">Wiki</a>
     <a href="/todos">To-Dos</a>
   </nav>
