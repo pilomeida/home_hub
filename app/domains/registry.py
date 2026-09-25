@@ -61,3 +61,10 @@ def document_url(document: Document) -> Optional[str]:
     if not is_implemented(document.domain):
         return None
     return get_spec(document.domain).document_url(document)
+
+
+def record_url(record) -> Optional[str]:
+    if not is_implemented(record.domain):
+        return None
+    spec = get_spec(record.domain)
+    return spec.record_url(record) if spec.record_url else None

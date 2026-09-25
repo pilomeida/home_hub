@@ -20,9 +20,10 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.domains.base import DomainSpec
-from app.domains.fields import load_fields
+from app.domains.fields import effective_fields, load_fields
 from app.domains.registry import get_spec
 from app.models.document import Document
+from app.models.record import Record
 from app.models.wiki import TOPIC_PAGE_TYPE, WikiOperation, WikiPage
 from app.services.json_utils import strip_json_fences
 from app.services.wiki_store import ClaimInput, IngestReport, LinkInput, PageRef, apply_claims, normalize_entity_key
@@ -48,8 +49,13 @@ class WikiAssessmentError(Exception):
     pass
 
 
-def claims_from_fields(spec: DomainSpec, document: Document) -> list[ClaimInput]:
-    fields = {**load_fields(document), "category": spec.category_label(document.category)}
+def _fact_fields(spec: DomainSpec, source: Document | Record) -> dict[str, str]:
+    return {**effective_fields(spec, source.category, load_fields(source)),
+            "category": spec.category_label(source.category)}
+
+
+def claims_from_fields(spec: DomainSpec, document: Document | Record) -> list[ClaimInput]:
+    fields = _fact_fields(spec, document)
     claims: list[ClaimInput] = []
     for entity_type in spec.wiki.entity_types:
         if document.category not in entity_type.categories:
@@ -63,12 +69,13 @@ def claims_from_fields(spec: DomainSpec, document: Document) -> list[ClaimInput]
                 continue
             value = fields.get(fact.field)
             if value:
-                claims.append(ClaimInput(page=page, key=fact.key, value=value, label=fact.label, policy=fact.policy))
+                claims.append(ClaimInput(page=page, key=fact.key, value=value, label=fact.label, policy=fact.policy,
+                                         note=fields.get(fact.note_field) if fact.note_field else None))
     return claims
 
 
-def links_from_fields(spec: DomainSpec, document: Document) -> list[LinkInput]:
-    fields = load_fields(document)
+def links_from_fields(spec: DomainSpec, document: Document | Record) -> list[LinkInput]:
+    fields = _fact_fields(spec, document)
     links: list[LinkInput] = []
     for entity_type in spec.wiki.entity_types:
         if document.category not in entity_type.categories:
@@ -128,18 +135,33 @@ async def assess_document_for_wiki(
 
 async def ingest_into_wiki(
     session: Session,
-    document: Document,
+    document: Document | Record,
     *,
     context: Optional[str] = None,
     operation: WikiOperation = WikiOperation.INGEST,
     client: Optional[AsyncAnthropic] = None,
 ) -> IngestReport:
     """Always writes exactly one wiki_log entry (`operation`, INGEST by default), even when nothing
-    changes; Plan C's lint relies on it to find never-ingested documents."""
+    changes; Plan C's lint relies on it to find never-ingested documents. Accepts either a Document
+    or a Record (a hand-entered source); a re-ingest always reflects the source's current fields."""
     spec = get_spec(document.domain)
+    is_record = isinstance(document, Record)
     claims = claims_from_fields(spec, document)
-    if context is not None and spec.wiki.guidance:
+    if context is not None and spec.wiki.guidance and not is_record:
         claims += await assess_document_for_wiki(session, document, context, client=client)
     return apply_claims(
-        session, claims, document=document, operation=operation, links=links_from_fields(spec, document),
+        session, claims,
+        document=None if is_record else document, record=document if is_record else None,
+        operation=operation, links=links_from_fields(spec, document), retract_missing=True,
+    )
+
+
+async def withdraw_from_wiki(session: Session, source: Document | Record, *, description: str) -> IngestReport:
+    """Everything this source asserted is superseded (or, where other sources
+    still support a claim, only this source's link is withdrawn). Used when a
+    document or record is re-filed."""
+    is_record = isinstance(source, Record)
+    return apply_claims(
+        session, [], document=None if is_record else source, record=source if is_record else None,
+        domain=source.domain, operation=WikiOperation.EDIT, description=description, retract_missing=True,
     )

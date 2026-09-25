@@ -3,7 +3,7 @@ without depending on any real domain."""
 
 from app.domains.base import (
     CardLine, CategorySpec, DomainCard, DomainHandler, DomainSpec, EntityTypeSpec,
-    FactPolicy, FactSpec, FieldKind, FieldSpec, MediaKind, NavLink, WikiSchema,
+    FactPolicy, FactSpec, FieldKind, FieldSpec, MediaKind, NavLink, SourceKind, WikiSchema,
 )
 from app.models.document import DocumentStatus
 from app.models.domain import Domain
@@ -41,14 +41,16 @@ def make_fake_spec(handler=None, domain=Domain.HOUSE, infers_category=False, wik
                 "clip", "Clip", "A photo or video clip.",
                 accepted_media=frozenset({MediaKind.PDF, MediaKind.IMAGE, MediaKind.VIDEO}),
             ),
+            CategorySpec("visit", "Visit", "A hand-logged visit.", kind=SourceKind.RECORD),
         ),
         fields=(
-            FieldSpec("item_name", "Item", FieldKind.SUGGEST, categories=frozenset({"manual"}), required=True),
+            FieldSpec("item_name", "Item", FieldKind.SUGGEST, categories=frozenset({"manual", "visit"}), required=True),
             FieldSpec("side", "Side", FieldKind.CHOICE, categories=frozenset({"clip"}),
                       choices=(("in", "Indoor"), ("out", "Outdoor"))),
             FieldSpec("seen_on", "Seen on", FieldKind.DATE),
             FieldSpec("observations", "Observations", FieldKind.LONGTEXT, categories=frozenset({"clip"}),
                       media=frozenset({MediaKind.IMAGE, MediaKind.VIDEO})),
+            FieldSpec("visit_date", "Visit date", FieldKind.DATE, categories=frozenset({"visit"}), required=True),
         ),
         handler=handler or RecordingHandler(),
         nav_links=(NavLink("Fake home", "/fake"),),
@@ -59,15 +61,20 @@ def make_fake_spec(handler=None, domain=Domain.HOUSE, infers_category=False, wik
             entity_types=(
                 EntityTypeSpec(
                     page_type="fake.item", label="Items", key_field="item_name",
-                    categories=frozenset({"manual"}),
+                    categories=frozenset({"manual", "visit"}),
                     facts=(
                         FactSpec("type", "Type", "category"),
-                        FactSpec("seen", "Seen on", "seen_on", policy=FactPolicy.LATEST),
+                        FactSpec("seen", "Seen on", "seen_on", policy=FactPolicy.LATEST, note_field="seen_note"),
+                        FactSpec("visited", "Visited", "visit_date", categories=frozenset({"visit"}), policy=FactPolicy.LATEST),
                     ),
                 ),
             ),
         ),
         infers_category=infers_category,
+        record_url=lambda record: f"/fake/records/{record.id}",
+        derive_fields=lambda category, fields: (
+            {"seen_note": "assumed"} if fields.get("seen_on") == "2000-01-01" else {}
+        ),
     )
 
 

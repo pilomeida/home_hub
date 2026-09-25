@@ -173,3 +173,49 @@ def test_links_from_fields_follow_the_schema(session, monkeypatch):
         ("Boiler", "fake.day", "2026-01-01", True),
     ]
     assert links_from_fields(spec, _document(session, fields={"item_name": "Oven"}, content_hash="h9")) == []
+
+
+@pytest.mark.asyncio
+async def test_records_are_ingested_like_documents(session, fake_domain):
+    from app.models.record import Record
+
+    record = Record(domain=Domain.HOUSE, category="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+
+    await ingest_into_wiki(session, record)
+
+    page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
+    assert {c.key: c.value for c in wiki_store.active_claims(session, page.id)} == {"type": "Visit", "visited": "2026-04-01"}
+
+
+@pytest.mark.asyncio
+async def test_derived_fields_feed_facts_and_notes(session, fake_domain):
+    document = _document(session, fields={"item_name": "Boiler", "seen_on": "2000-01-01"})
+    await ingest_into_wiki(session, document)
+    page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
+    seen = next(c for c in wiki_store.active_claims(session, page.id) if c.key == "seen")
+    assert seen.note == "assumed"
+
+
+@pytest.mark.asyncio
+async def test_reingest_after_rename_retracts_the_old_item(session, fake_domain):
+    from app.services.wiki_engine import withdraw_from_wiki
+
+    document = _document(session, fields={"item_name": "Boiler"})
+    await ingest_into_wiki(session, document)
+    document.fields_json = json.dumps({"item_name": "Heat pump"})
+    session.add(document)
+    session.commit()
+
+    await ingest_into_wiki(session, document, operation=WikiOperation.EDIT)
+
+    old = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
+    assert wiki_store.active_claims(session, old.id) == []
+    new = session.exec(select(WikiPage).where(WikiPage.entity_key == "heat pump")).one()
+    assert wiki_store.active_claims(session, new.id)
+
+    report = await withdraw_from_wiki(session, document, description="doc.pdf re-filed")
+    assert wiki_store.active_claims(session, new.id) == []
+    assert session.get(WikiLogEntry, report.log_entry_id).operation == WikiOperation.EDIT

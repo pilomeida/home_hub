@@ -18,6 +18,7 @@ from sqlmodel import Session
 
 from app.models.document import Document
 from app.models.domain import Domain
+from app.models.record import Record
 
 
 class FieldKind(str, Enum):
@@ -42,12 +43,22 @@ DEFAULT_MEDIA = frozenset({MediaKind.PDF, MediaKind.IMAGE})
 RESERVED_FIELD_KEYS = frozenset({"category"})
 
 
+class SourceKind(str, Enum):
+    DOCUMENT = "document"  # the entry IS an uploaded file (fields live on the Document)
+    RECORD = "record"      # the entry is typed in by hand (fields live on a Record); a file may be attached
+
+
+def _no_derived_fields(category: Optional[str], fields: dict[str, str]) -> dict[str, str]:
+    return {}
+
+
 @dataclass(frozen=True)
 class CategorySpec:
     value: str            # stored in Document.category, e.g. "warranty_invoice"
     label: str            # human label, e.g. "Warranty / invoice"
     description: str      # one sentence; also fed to Plan B's classifier prompt
     accepted_media: frozenset[MediaKind] = DEFAULT_MEDIA
+    kind: SourceKind = SourceKind.DOCUMENT
 
 
 @dataclass(frozen=True)
@@ -87,6 +98,7 @@ class FactSpec:
     field: str                                 # document field key it comes from ("category" = category label)
     categories: Optional[frozenset[str]] = None
     policy: FactPolicy = FactPolicy.REPLACE
+    note_field: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -148,6 +160,24 @@ class DomainHandler:
     ) -> None:
         return None
 
+    async def process_record(self, session: Session, record: Record) -> None:
+        from app.services.wiki_engine import ingest_into_wiki  # lazy: wiki_engine imports the registry
+        await ingest_into_wiki(session, record)
+
+    async def on_record_changed(self, session: Session, record: Record, previous_fields: dict[str, str]) -> None:
+        from app.models.wiki import WikiOperation
+        from app.services.wiki_engine import ingest_into_wiki
+        await ingest_into_wiki(session, record, operation=WikiOperation.EDIT)
+
+    def refile_blocker(self, session: Session, document: Document) -> Optional[str]:
+        """Why this document cannot leave its current classification, or None."""
+        return None
+
+    async def withdraw(self, session: Session, document: Document) -> None:
+        """Reverse this domain's own derived data for a document being re-filed
+        away (the core already handles wiki claims and document-linked to-dos)."""
+        return None
+
 
 class UnknownCategoryError(KeyError):
     pass
@@ -167,6 +197,8 @@ class DomainSpec:
     document_url: Callable[[Document], str]
     wiki: WikiSchema = WikiSchema()
     infers_category: bool = False                     # True: handler may determine a missing category itself
+    record_url: Optional[Callable[[Record], str]] = None
+    derive_fields: Callable[[Optional[str], dict[str, str]], dict[str, str]] = _no_derived_fields
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.categories]

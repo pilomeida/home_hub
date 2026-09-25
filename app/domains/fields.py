@@ -21,6 +21,7 @@ from app.domains.base import DomainSpec, FieldKind, FieldSpec, MediaKind
 from app.domains.registry import document_url, get_spec, is_implemented
 from app.models.document import Document
 from app.models.domain import Domain
+from app.models.record import Record
 
 _EXTENSION_MEDIA = {
     ".pdf": MediaKind.PDF,
@@ -45,7 +46,7 @@ def media_kind_for(filename: str) -> MediaKind:
     return _EXTENSION_MEDIA.get(Path(filename).suffix.lower(), MediaKind.OTHER)
 
 
-def load_fields(document: Document) -> dict[str, str]:
+def load_fields(document: Document | Record) -> dict[str, str]:
     return json.loads(document.fields_json or "{}")
 
 
@@ -72,8 +73,13 @@ def distinct_field_values(session: Session, domain: Domain, key: str) -> list[st
     rows = session.execute(
         sa_select(value).where(Document.domain == domain, value.is_not(None)).order_by(Document.id)
     ).scalars().all()
+    record_value = func.json_extract(Record.fields_json, f"$.{key}")
+    record_rows = session.execute(
+        sa_select(record_value).where(Record.domain == domain, Record.retired_at.is_(None), record_value.is_not(None))
+        .order_by(Record.id)
+    ).scalars().all()
     seen: dict[str, str] = {}
-    for raw in rows:
+    for raw in [*rows, *record_rows]:
         if isinstance(raw, str) and raw.strip():
             seen.setdefault(raw.strip().lower(), raw.strip())
     return sorted(seen.values(), key=str.lower)
@@ -83,7 +89,7 @@ def validate_fields(
     session: Session,
     spec: DomainSpec,
     category: Optional[str],
-    media_kind: MediaKind,
+    media_kind: Optional[MediaKind],
     raw: Mapping[str, Any],
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
@@ -115,6 +121,11 @@ def validate_fields(
     if errors:
         raise InvalidClassification(errors)
     return clean
+
+
+def effective_fields(spec: DomainSpec, category: Optional[str], fields: Mapping[str, str]) -> dict[str, str]:
+    """Stored fields plus the domain's derived fields (never stored)."""
+    return {**fields, **spec.derive_fields(category, dict(fields))}
 
 
 def file_url(document: Document) -> str:

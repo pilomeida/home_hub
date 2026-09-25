@@ -103,3 +103,11 @@ def test_build_form_fields_carries_options_values_and_errors(session, fake_domai
     assert item.options == [("Boiler", "Boiler")]
     clip_fields = build_form_fields(session, fake_domain, "clip", {}, {})
     assert clip_fields[0].options == [("in", "Indoor"), ("out", "Outdoor")]
+
+
+def test_suggestions_include_record_values(session, fake_domain):
+    from app.models.record import Record
+
+    session.add(Record(domain=Domain.HOUSE, category="visit", fields_json='{"item_name": "Heat pump"}'))
+    session.commit()
+    assert distinct_field_values(session, Domain.HOUSE, "item_name") == ["Heat pump"]

@@ -18,6 +18,7 @@ from sqlmodel import Session, select
 from app.domains.base import FactPolicy
 from app.models.document import Document
 from app.models.domain import Domain
+from app.models.record import Record
 from app.models.wiki import (
     ANSWER_PAGE_TYPE, TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry,
     WikiOperation, WikiPage,
@@ -45,6 +46,7 @@ class ClaimInput:
     value: str
     label: Optional[str] = None
     policy: FactPolicy = FactPolicy.REPLACE
+    note: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class IngestReport:
     superseded: int = 0
     confirmed: int = 0
     links_added: int = 0
+    retracted: int = 0
     log_entry_id: Optional[int] = None
 
 
@@ -153,14 +156,36 @@ def _active_claim(session: Session, page_id: int, key: str) -> Optional[WikiClai
     ).first()
 
 
-def _source_ids(session: Session, claim_id: int) -> set[int]:
-    return set(session.exec(select(WikiClaimSource.document_id).where(WikiClaimSource.claim_id == claim_id)).all())
+def _source_filter(document: Optional[Document], record: Optional[Record]):
+    if record is not None:
+        return WikiClaimSource.record_id == record.id
+    return WikiClaimSource.document_id == document.id
 
 
-def _add_source(session: Session, claim_id: int, document_id: int) -> None:
-    if document_id not in _source_ids(session, claim_id):
-        session.add(WikiClaimSource(claim_id=claim_id, document_id=document_id))
-        session.flush()
+def _active_links(session: Session, claim_id: int) -> list[WikiClaimSource]:
+    return list(session.exec(
+        select(WikiClaimSource).where(WikiClaimSource.claim_id == claim_id, WikiClaimSource.withdrawn_at.is_(None))
+    ).all())
+
+
+def _has_source(session: Session, claim_id: int, document: Optional[Document], record: Optional[Record]) -> bool:
+    return any(
+        (record is not None and link.record_id == record.id) or (record is None and link.document_id == document.id)
+        for link in _active_links(session, claim_id)
+    )
+
+
+def _add_source(session: Session, claim_id: int, document: Optional[Document], record: Optional[Record]) -> None:
+    link = session.exec(
+        select(WikiClaimSource).where(WikiClaimSource.claim_id == claim_id, _source_filter(document, record))
+    ).first()
+    if link is None:
+        session.add(WikiClaimSource(claim_id=claim_id, document_id=None if record else document.id,
+                                    record_id=record.id if record else None))
+    elif link.withdrawn_at is not None:
+        link.withdrawn_at = None
+        session.add(link)
+    session.flush()
 
 
 def sources_for_claims(session: Session, claim_ids: Sequence[int]) -> dict[int, list[Document]]:
@@ -169,12 +194,26 @@ def sources_for_claims(session: Session, claim_ids: Sequence[int]) -> dict[int, 
     rows = session.exec(
         select(WikiClaimSource.claim_id, Document)
         .join(Document, Document.id == WikiClaimSource.document_id)
-        .where(WikiClaimSource.claim_id.in_(list(claim_ids)))
+        .where(WikiClaimSource.claim_id.in_(list(claim_ids)), WikiClaimSource.withdrawn_at.is_(None))
         .order_by(WikiClaimSource.id)
     ).all()
     result: dict[int, list[Document]] = {}
     for claim_id, document in rows:
         result.setdefault(claim_id, []).append(document)
+    return result
+
+
+def claim_sources(session: Session, claim_ids: Sequence[int]) -> dict[int, list[Document | Record]]:
+    if not claim_ids:
+        return {}
+    links = session.exec(
+        select(WikiClaimSource).where(WikiClaimSource.claim_id.in_(list(claim_ids)), WikiClaimSource.withdrawn_at.is_(None))
+        .order_by(WikiClaimSource.id)
+    ).all()
+    result: dict[int, list[Document | Record]] = {}
+    for link in links:
+        source = session.get(Record, link.record_id) if link.record_id else session.get(Document, link.document_id)
+        result.setdefault(link.claim_id, []).append(source)
     return result
 
 
@@ -200,11 +239,12 @@ def append_log(
     description: str,
     *,
     document_id: Optional[int] = None,
+    record_id: Optional[int] = None,
     page_ids: Sequence[int] = (),
     commit: bool = True,
 ) -> WikiLogEntry:
     entry = WikiLogEntry(operation=operation, description=description, document_id=document_id,
-                         page_ids_json=json.dumps(list(page_ids)))
+                         record_id=record_id, page_ids_json=json.dumps(list(page_ids)))
     session.add(entry)
     if commit:
         session.commit()
@@ -218,43 +258,51 @@ def apply_claims(
     session: Session,
     claims: Sequence[ClaimInput],
     *,
-    document: Optional[Document],
+    document: Optional[Document] = None,
+    record: Optional[Record] = None,
     domain: Optional[Domain] = None,
     operation: WikiOperation = WikiOperation.INGEST,
     description: Optional[str] = None,
     links: Sequence[LinkInput] = (),
+    retract_missing: bool = False,
 ) -> IngestReport:
-    domain = domain if domain is not None else (document.domain if document is not None else None)
+    source_given = document is not None or record is not None
+    domain = domain if domain is not None else (
+        record.domain if record is not None else (document.domain if document is not None else None)
+    )
     now = datetime.utcnow()
     report = IngestReport()
     touched: dict[int, WikiPage] = {}
     changed: set[int] = set()
+    asserted: set[tuple[int, str]] = set()
 
     for claim_input in claims:
         page = _get_or_create_page(session, claim_input.page, domain)
         touched[page.id] = page
+        asserted.add((page.id, claim_input.key))
         if claim_input.page.summary and page.entity_key is None and page.summary != claim_input.page.summary:
             page.summary = claim_input.page.summary
             changed.add(page.id)
 
         active = _active_claim(session, page.id, claim_input.key)
-        if active is not None and active.value == claim_input.value:
-            if document is not None:
-                _add_source(session, active.id, document.id)
+        if active is not None and active.value == claim_input.value and active.note == claim_input.note:
+            if source_given:
+                _add_source(session, active.id, document, record)
             report.confirmed += 1
             continue
 
-        new = WikiClaim(page_id=page.id, key=claim_input.key, label=claim_input.label, value=claim_input.value)
+        new = WikiClaim(page_id=page.id, key=claim_input.key, label=claim_input.label, value=claim_input.value,
+                        note=claim_input.note)
         session.add(new)
         session.flush()
-        if document is not None:
-            _add_source(session, new.id, document.id)
+        if source_given:
+            _add_source(session, new.id, document, record)
         report.added += 1
         changed.add(page.id)
 
         if active is None:
             continue
-        is_correction = document is not None and document.id in _source_ids(session, active.id)
+        is_correction = source_given and _has_source(session, active.id, document, record)
         if claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value and not is_correction:
             new.status = ClaimStatus.SUPERSEDED
             new.superseded_by_claim_id = active.id
@@ -276,18 +324,45 @@ def apply_claims(
         if link.bidirectional:
             report.links_added += add_link(session, target_page.id, source_page.id, commit=False)
 
+    if retract_missing and source_given:
+        linked_claims = session.exec(
+            select(WikiClaim).join(WikiClaimSource, WikiClaimSource.claim_id == WikiClaim.id).where(
+                _source_filter(document, record), WikiClaimSource.withdrawn_at.is_(None),
+                WikiClaim.status == ClaimStatus.ACTIVE,
+            )
+        ).all()
+        for claim in linked_claims:
+            if (claim.page_id, claim.key) in asserted:
+                continue
+            others = [l for l in _active_links(session, claim.id)
+                      if not ((record is not None and l.record_id == record.id)
+                              or (record is None and l.document_id == document.id))]
+            if others:
+                own = session.exec(select(WikiClaimSource).where(
+                    WikiClaimSource.claim_id == claim.id, _source_filter(document, record))).one()
+                own.withdrawn_at = now
+                session.add(own)
+            else:
+                claim.status = ClaimStatus.SUPERSEDED
+                claim.superseded_at = now
+                session.add(claim)
+                changed.add(claim.page_id)
+                touched.setdefault(claim.page_id, session.get(WikiPage, claim.page_id))
+            report.retracted += 1
+
     session.flush()
     for page_id in changed:
         _refresh_page(session, touched[page_id], now)
 
     report.page_ids = list(touched)
     if description is None:
-        source = document.filename if document is not None else "manual entry"
+        source = document.filename if document else (f"{record.category} record #{record.id}" if record else "manual entry")
         titles = ", ".join(p.topic for p in touched.values()) or "no wiki pages"
         description = f"{source} → {titles}"
     entry = append_log(
         session, operation, description,
-        document_id=document.id if document is not None else None,
+        document_id=document.id if document else (record.document_id if record else None),
+        record_id=record.id if record else None,
         page_ids=report.page_ids, commit=False,
     )
     session.commit()

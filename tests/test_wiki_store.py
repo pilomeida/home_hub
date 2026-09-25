@@ -191,3 +191,50 @@ def test_answer_pages_are_indexed_as_saved_answers(session):
     wiki_store.apply_claims(session, [ClaimInput(ref, "answer", "Boiler (March)")], document=None,
                             operation=WikiOperation.QUERY, description="Saved answer")
     assert [(s.domain_label, s.section_label) for s in wiki_store.build_wiki_index(session)] == [("General", "Saved answers")]
+
+
+from app.models.record import Record
+
+
+def _record(session, fields=None):
+    record = Record(domain=Domain.HOUSE, category="visit", fields_json=json.dumps(fields or {}))
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
+
+
+def test_a_record_can_be_a_claim_source_and_is_logged(session):
+    record = _record(session)
+    report = wiki_store.apply_claims(session, [ClaimInput(BOILER, "visited", "2026-02-01")], document=None, record=record)
+    page = wiki_store.find_page(session, BOILER)
+    claim = wiki_store.active_claims(session, page.id)[0]
+    assert wiki_store.claim_sources(session, [claim.id])[claim.id] == [record]
+    entry = session.get(WikiLogEntry, report.log_entry_id)
+    assert entry.record_id == record.id and entry.document_id is None and page.domain == Domain.HOUSE
+
+
+def test_note_change_is_a_new_claim(session):
+    document = _document(session)
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "warranty_expires", "2029-03-01", note="assumed")], document=document)
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "warranty_expires", "2029-03-01")], document=document)
+    page = wiki_store.find_page(session, BOILER)
+    (active,) = wiki_store.active_claims(session, page.id)
+    assert active.note is None
+    assert [c.note for c in wiki_store.superseded_claims(session, page.id)] == ["assumed"]
+
+
+def test_retract_missing_supersedes_sole_source_claims_and_withdraws_shared_links(session):
+    first, second = _document(session), _document(session, "b.pdf", "h-b")
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen"), ClaimInput(BOILER, "type", "Oven")], document=first)
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=second)
+
+    report = wiki_store.apply_claims(session, [], document=first, retract_missing=True)
+
+    page = wiki_store.find_page(session, BOILER)
+    active = {c.key: c for c in wiki_store.active_claims(session, page.id)}
+    assert set(active) == {"room"}  # still supported by `second`
+    assert [d.id for d in wiki_store.claim_sources(session, [active["room"].id])[active["room"].id]] == [second.id]
+    (gone,) = wiki_store.superseded_claims(session, page.id)
+    assert gone.key == "type" and gone.superseded_by_claim_id is None
+    assert report.retracted == 2

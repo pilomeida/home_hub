@@ -72,3 +72,17 @@ def test_upsert_document_todo_creates_then_updates_one_open_todo(session):
     assert first.id == second.id
     assert second.due_date == date(2028, 2, 8) and second.document_id == document.id and second.domain == Domain.HOUSE
     assert len(session.exec(select(Todo)).all()) == 1
+
+
+def test_upsert_source_todo_links_records(session):
+    from app.models.domain import Domain
+    from app.models.record import Record
+    from app.services.todo_engine import upsert_source_todo
+
+    record = Record(domain=Domain.HOUSE, category="maintenance_log")
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    todo = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 1, 1), domain=Domain.HOUSE)
+    again = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 2, 1), domain=Domain.HOUSE)
+    assert todo.id == again.id and again.record_id == record.id and again.document_id is None
