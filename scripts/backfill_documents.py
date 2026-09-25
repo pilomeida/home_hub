@@ -1,7 +1,8 @@
 """One-off backfill: ingest every PDF in a source folder through the same
-code path the web upload uses (save_upload -> dedup check -> Document ->
-ingest_document). Idempotent via content-hash dedup, so re-running after a
-partial failure just skips whatever already succeeded.
+generic ingestion core the web upload uses (app.services.ingestion.ingest:
+content-hash dedup -> store -> Financials handler). Idempotent via
+content-hash dedup, so re-running after a partial failure just skips
+whatever already succeeded.
 
 Not part of the reviewed application code (see the bank-statement-ingestion
 spec's "Out of Scope" section) — a personal utility for the historical
@@ -20,12 +21,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.document import DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.transaction import Transaction
-from app.services.dedup import find_existing_document_by_hash
-from app.services.pipeline import ingest_document
-from app.services.storage import save_upload
+from app.services.ingestion import Classification, IncomingFile, ingest
 
 DEFAULT_SOURCE_DIR = Path(__file__).resolve().parent.parent / "Bills & Bank Statements"
 
@@ -44,29 +43,19 @@ async def backfill(source_dir: Path) -> None:
 
     with Session(engine) as session:
         for pdf_path in pdf_files:
-            content = pdf_path.read_bytes()
-            file_path, content_hash = save_upload(pdf_path.name, content)
-
-            existing = find_existing_document_by_hash(session, content_hash)
-            if existing is not None:
-                print(f"SKIP (duplicate)     {pdf_path.name} -> document #{existing.id}")
+            result = await ingest(
+                session,
+                IncomingFile(
+                    filename=pdf_path.name, content=pdf_path.read_bytes(),
+                    source=DocumentSource.MANUAL, uploaded_by="backfill-script",
+                ),
+                Classification(domain=Domain.FINANCIALS),
+            )
+            document = result.document
+            if result.duplicate:
+                print(f"SKIP (duplicate)     {pdf_path.name} -> document #{document.id}")
                 skipped += 1
                 continue
-
-            document = Document(
-                filename=pdf_path.name,
-                file_path=file_path,
-                content_hash=content_hash,
-                source=DocumentSource.MANUAL,
-                status=DocumentStatus.PENDING,
-                uploaded_by="backfill-script",
-                domain=Domain.FINANCIALS,
-            )
-            session.add(document)
-            session.commit()
-            session.refresh(document)
-
-            document = await ingest_document(session, document)
 
             if document.status == DocumentStatus.PROCESSED:
                 txn_count = len(

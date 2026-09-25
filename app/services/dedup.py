@@ -29,7 +29,7 @@ def find_duplicate_transaction(
         .where(
             Transaction.provider == provider,
             Transaction.statement_period == statement_period,
-            or_(Document.doc_type.is_(None), Document.doc_type != "statement"),
+            or_(Document.category.is_(None), Document.category != "statement"),
         )
     )
     return session.exec(statement).first()

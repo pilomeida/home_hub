@@ -9,7 +9,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
-from app.services import pipeline
+from app.domains.financials import handler as pipeline
 from app.services.classification_engine import classify_transaction as _real_classify_transaction
 from app.services.classification_engine import normalize_provider
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractionError
@@ -88,7 +88,7 @@ async def test_ingest_document_creates_transaction(session, monkeypatch, tmp_pat
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     transaction = session.exec(
@@ -110,7 +110,7 @@ async def test_ingest_document_marks_needs_attention_on_classification_failure(s
 
     monkeypatch.setattr(pipeline, "classify_document", failing_classify)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     assert "classification API timeout" in result.failure_reason
@@ -126,7 +126,7 @@ async def test_ingest_document_marks_needs_attention_on_extraction_failure(sessi
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", failing_extract_bill)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     assert "could not parse" in result.failure_reason
@@ -158,7 +158,7 @@ async def test_ingest_document_skips_duplicate_transaction(session, monkeypatch,
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
 
-    result = await pipeline.ingest_document(session, new_document)
+    result = await pipeline.process_financials_document(session, new_document)
 
     assert result.status == DocumentStatus.PROCESSED
     assert "duplicate" in result.failure_reason
@@ -178,7 +178,7 @@ async def test_ingest_document_marks_needs_attention_on_unexpected_extraction_er
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", failing_extract_bill)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     assert "API timeout" in result.failure_reason
@@ -203,7 +203,7 @@ async def test_ingest_document_marks_needs_attention_on_enrichment_failure(sessi
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", failing_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     assert result.status != DocumentStatus.PENDING
@@ -245,7 +245,7 @@ async def test_ingest_statement_creates_one_transaction_per_line_item(session, m
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     transactions = session.exec(
@@ -290,7 +290,7 @@ async def test_ingest_statement_skips_dedup_todo_and_wiki(session, monkeypatch, 
     monkeypatch.setattr(pipeline, "generate_todo_for_transaction", failing_generate_todo)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", failing_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     assert session.exec(select(Todo)).all() == []
@@ -307,7 +307,7 @@ async def test_ingest_statement_marks_needs_attention_on_extraction_failure(sess
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", failing_extract_statement)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     assert "could not parse statement" in result.failure_reason
@@ -340,7 +340,7 @@ async def test_ingest_statement_marks_needs_attention_on_bad_transaction_type_va
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     transactions = session.exec(
@@ -378,7 +378,7 @@ async def test_ingest_statement_normalizes_mixed_case_and_whitespace_transaction
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     transactions = session.exec(
@@ -412,7 +412,7 @@ async def test_ingest_statement_stores_absolute_value_of_negative_amount(session
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     transaction = session.exec(
@@ -423,7 +423,7 @@ async def test_ingest_statement_stores_absolute_value_of_negative_amount(session
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_sets_doc_type_on_document(session, monkeypatch, tmp_path):
+async def test_ingest_document_sets_category_on_document(session, monkeypatch, tmp_path):
     """ingest_document persists the classification result onto the Document
     itself, so downstream dedup queries can distinguish bill-derived
     transactions from statement line items."""
@@ -444,8 +444,8 @@ async def test_ingest_document_sets_doc_type_on_document(session, monkeypatch, t
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, bill_document)
-    assert result.doc_type == "bill"
+    result = await pipeline.process_financials_document(session, bill_document)
+    assert result.category == "bill"
 
     statement_document = _make_document(session, tmp_path, filename="statement.pdf", content_hash="hash-doctype-stmt")
     extracted_statement = ExtractedStatement(statement_period="2026-07", transactions=[])
@@ -456,8 +456,8 @@ async def test_ingest_document_sets_doc_type_on_document(session, monkeypatch, t
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
-    result2 = await pipeline.ingest_document(session, statement_document)
-    assert result2.doc_type == "statement"
+    result2 = await pipeline.process_financials_document(session, statement_document)
+    assert result2.category == "statement"
 
 
 @pytest.mark.asyncio
@@ -486,7 +486,7 @@ async def test_ingest_document_bill_not_falsely_deduped_by_statement_line_item(s
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
-    statement_result = await pipeline.ingest_document(session, statement_document)
+    statement_result = await pipeline.process_financials_document(session, statement_document)
     assert statement_result.status == DocumentStatus.PROCESSED
 
     bill_document = _make_document(session, tmp_path, filename="edp-bill.pdf", content_hash="hash-regr-bill")
@@ -514,7 +514,7 @@ async def test_ingest_document_bill_not_falsely_deduped_by_statement_line_item(s
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    bill_result = await pipeline.ingest_document(session, bill_document)
+    bill_result = await pipeline.process_financials_document(session, bill_document)
 
     assert bill_result.status == DocumentStatus.PROCESSED
     assert bill_result.failure_reason is None
@@ -556,12 +556,12 @@ async def test_ingest_document_true_bill_duplicate_still_detected(session, monke
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    first_result = await pipeline.ingest_document(session, first_document)
+    first_result = await pipeline.process_financials_document(session, first_document)
     assert first_result.status == DocumentStatus.PROCESSED
     assert first_result.failure_reason is None
 
     second_document = _make_document(session, tmp_path, filename="edp-bill-2.pdf", content_hash="hash-dup-bill-2")
-    second_result = await pipeline.ingest_document(session, second_document)
+    second_result = await pipeline.process_financials_document(session, second_document)
 
     assert second_result.status == DocumentStatus.PROCESSED
     assert second_result.failure_reason is not None
@@ -573,16 +573,16 @@ async def test_ingest_document_true_bill_duplicate_still_detected(session, monke
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_bill_dedup_still_works_when_prior_document_doc_type_is_null(
+async def test_ingest_document_bill_dedup_still_works_when_prior_document_category_is_null(
     session, monkeypatch, tmp_path
 ):
-    """Pre-migration Documents have doc_type=None (the column didn't exist
+    """Pre-migration Documents have category=None (the column didn't exist
     before this branch, and every such document was necessarily a bill).
     The NULL-safe or_() filter must still treat these as bill-derived and
     participate in dedup, not silently exclude them."""
     legacy_document = _make_document(session, tmp_path, filename="legacy-bill.pdf", content_hash="hash-legacy")
     legacy_document.status = DocumentStatus.PROCESSED
-    assert legacy_document.doc_type is None
+    assert legacy_document.category is None
     session.add(legacy_document)
     session.commit()
 
@@ -605,7 +605,7 @@ async def test_ingest_document_bill_dedup_still_works_when_prior_document_doc_ty
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
 
-    result = await pipeline.ingest_document(session, new_document)
+    result = await pipeline.process_financials_document(session, new_document)
 
     assert result.status == DocumentStatus.PROCESSED
     assert result.failure_reason is not None
@@ -648,7 +648,7 @@ async def test_ingest_bill_creates_utility_reading_for_electricity_category(sess
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     reading = session.exec(
@@ -689,7 +689,7 @@ async def test_ingest_bill_creates_utility_reading_for_water_category(session, m
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     reading = session.exec(
@@ -723,7 +723,7 @@ async def test_ingest_bill_utility_detail_failure_does_not_mark_needs_attention(
     monkeypatch.setattr(pipeline, "extract_utility_detail", failing_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     assert result.failure_reason is not None
@@ -764,7 +764,7 @@ async def test_ingest_bill_skips_utility_reading_for_non_utility_category(sessio
     monkeypatch.setattr(pipeline, "extract_utility_detail", spy_extract_utility_detail)
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert calls == []
     assert result.status == DocumentStatus.PROCESSED
@@ -798,7 +798,7 @@ async def test_ingest_bill_calls_classify_transaction(session, monkeypatch, tmp_
     monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
     monkeypatch.setattr(pipeline, "classify_transaction", spy_classify_transaction)
 
-    await pipeline.ingest_document(session, document)
+    await pipeline.process_financials_document(session, document)
 
     assert len(calls) == 1
 
@@ -833,7 +833,7 @@ async def test_ingest_statement_calls_classify_transaction_per_line_item(session
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
     monkeypatch.setattr(pipeline, "classify_transaction", spy_classify_transaction)
 
-    await pipeline.ingest_document(session, document)
+    await pipeline.process_financials_document(session, document)
 
     assert len(calls) == 2
 
@@ -884,7 +884,7 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
     monkeypatch.setattr(pipeline, "classify_transaction", real_classify_transaction_with_fake_client)
 
-    result = await pipeline.ingest_document(session, document)
+    result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     transactions = session.exec(

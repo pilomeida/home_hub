@@ -1,12 +1,16 @@
-"""Orchestrates the document ingestion pipeline: classify -> extract ->
-categorize -> dedup -> persist -> todo -> wiki. Every ingestion channel
-(manual upload, email, bank sync) calls ingest_document as its single entry
-point."""
+"""Financials domain handler: the bill/statement pipeline (classify ->
+extract -> categorize -> dedup -> persist -> todo -> wiki). Reached only
+through the generic ingestion core (app.services.ingestion ->
+FinancialsHandler.process); routers, scripts and channels never call it
+directly."""
 
 from __future__ import annotations
 
 from sqlmodel import Session
 
+from app.domains.base import DomainHandler
+from app.domains.fields import dump_fields, load_fields
+from app.domains.financials.categories import FinancialsCategory
 from app.models.document import Document, DocumentStatus
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
@@ -21,48 +25,55 @@ from app.services.extraction import (
     extract_statement_transactions,
     extract_utility_detail,
 )
+from app.services.ingestion import mark_needs_attention
 from app.services.todo_engine import generate_todo_for_transaction
 from app.services.wiki_engine import assess_and_update_wiki
 
 _UTILITY_CATEGORY_VALUES = {t.value for t in UtilityType}
 
 
-async def ingest_document(session: Session, document: Document) -> Document:
-    """Run the full ingestion pipeline for a Document already saved to disk.
+async def process_financials_document(session: Session, document: Document) -> Document:
+    """Run the Financials pipeline for a Document the ingestion core has
+    already finalized (domain, category -- possibly None -- and fields set).
     Updates and persists the Document's status before returning it."""
-    try:
-        doc_type = await classify_document(document.file_path)
-    except Exception as exc:
-        # Broad by design: ingest_document is the ingestion boundary — any
-        # classification failure must land the Document on needs_attention
-        # with a reason, never propagate uncaught.
-        return _mark_needs_attention(session, document, str(exc))
+    fields = load_fields(document)
+    account_id = fields.pop("account_id", None)
+    if account_id is not None:
+        # account_id is declared as a FieldSpec so every channel's form
+        # (upload, Plan B's Inbox) collects it generically, but it lives in
+        # the real Document.account_id FK column -- moved there, not duplicated.
+        document.account_id = int(account_id)
+        document.fields_json = dump_fields(fields)
 
-    document.doc_type = doc_type
+    if document.category is None:
+        try:
+            document.category = await classify_document(document.file_path)
+        except Exception as exc:
+            # Broad by design: any classification failure must land the
+            # Document on needs_attention with a reason, never propagate.
+            return mark_needs_attention(session, document, str(exc))
 
-    if doc_type == "statement":
+    if document.category == FinancialsCategory.STATEMENT.value:
         return await _ingest_statement(session, document)
     return await _ingest_bill(session, document)
 
 
-def _mark_needs_attention(session: Session, document: Document, reason: str) -> Document:
-    document.status = DocumentStatus.NEEDS_ATTENTION
-    document.failure_reason = reason
-    session.add(document)
-    session.commit()
-    session.refresh(document)
-    return document
+class FinancialsHandler(DomainHandler):
+    async def process(self, session: Session, document: Document) -> Document:
+        # Module-level lookup at call time, so tests can monkeypatch
+        # process_financials_document.
+        return await process_financials_document(session, document)
 
 
 async def _ingest_bill(session: Session, document: Document) -> Document:
     try:
         extracted: ExtractedBill = await extract_bill(document.file_path)
     except Exception as exc:
-        # Broad by design — see ingest_document's docstring: any extraction
+        # Broad by design — see process_financials_document: any extraction
         # failure (Anthropic SDK errors, malformed responses, anything
         # unanticipated) must land on needs_attention, never propagate
         # uncaught and leave the Document stuck at PENDING.
-        return _mark_needs_attention(session, document, str(exc))
+        return mark_needs_attention(session, document, str(exc))
 
     duplicate = find_duplicate_transaction(
         session, provider=extracted.provider, statement_period=extracted.statement_period
@@ -145,7 +156,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         # enrichment failure (todo generation or the wiki's Claude call /
         # response parsing) must not leave Document.status stuck at PENDING,
         # an inconsistent partial-success state invisible to the dashboard.
-        return _mark_needs_attention(session, document, f"processed but enrichment failed: {exc}")
+        return mark_needs_attention(session, document, f"processed but enrichment failed: {exc}")
 
     document.status = DocumentStatus.PROCESSED
     document.failure_reason = utility_detail_failure_reason
@@ -217,14 +228,14 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
             if db_merchant is not None:
                 session.delete(db_merchant)
         session.commit()
-        return _mark_needs_attention(session, document, str(exc))
+        return mark_needs_attention(session, document, str(exc))
 
     # Statement-derived transactions are historical and already settled —
     # unlike bills, they never generate a to-do (no upcoming due date) or a
     # wiki assessment (no standing fact to record). Duplicate line items
     # sharing a provider/period within one statement are expected, not a
     # dedup signal; only whole-file re-upload (content-hash dedup, already
-    # enforced before ingest_document is called) applies here.
+    # enforced by the ingestion core's receive_file) applies here.
     document.status = DocumentStatus.PROCESSED
     document.failure_reason = None
     session.add(document)

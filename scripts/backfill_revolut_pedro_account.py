@@ -125,7 +125,7 @@ async def backfill() -> None:
                 document = Document(
                     filename=filename, file_path=file_path, content_hash=content_hash,
                     source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
-                    doc_type="statement", account_id=account.id,
+                    category="statement", account_id=account.id,
                     uploaded_by="revolut-chunked-backfill",
                     domain=Domain.FINANCIALS,
                 )

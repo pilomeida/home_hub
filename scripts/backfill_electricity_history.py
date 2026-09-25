@@ -159,7 +159,7 @@ def backfill() -> None:
                 content_hash=content_hash,
                 source=DocumentSource.MANUAL,
                 status=DocumentStatus.PROCESSED,
-                doc_type="bill",
+                category="bill",
                 uploaded_by="backfill-electricity-history-script",
                 domain=Domain.FINANCIALS,
             )

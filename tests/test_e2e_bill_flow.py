@@ -2,7 +2,7 @@ import io
 import json
 from datetime import date, timedelta
 
-import app.services.pipeline as pipeline_module
+import app.domains.financials.handler as pipeline_module
 import app.services.wiki_engine as wiki_engine_module
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractedUtilityDetail
 

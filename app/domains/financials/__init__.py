@@ -1,0 +1,1 @@
+"""Financials domain: bills, bank statements, transactions, utilities."""

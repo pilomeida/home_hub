@@ -48,12 +48,12 @@ def test_find_duplicate_transaction_returns_none_without_statement_period(sessio
 
 
 def test_find_duplicate_transaction_ignores_statement_derived_transactions(session):
-    """A statement line item (Document.doc_type == 'statement') sharing
+    """A statement line item (Document.category == 'statement') sharing
     provider/period with an unrelated bill must not be treated as a
     duplicate — only bill-derived transactions count."""
     statement_document = Document(
         filename="statement.pdf", file_path="/tmp/statement.pdf", content_hash="hash-stmt",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, doc_type="statement",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category="statement",
     )
     session.add(statement_document)
     session.commit()
@@ -71,11 +71,11 @@ def test_find_duplicate_transaction_ignores_statement_derived_transactions(sessi
 
 
 def test_find_duplicate_transaction_matches_bill_derived_transaction(session):
-    """A bill-derived transaction (Document.doc_type == 'bill') sharing
+    """A bill-derived transaction (Document.category == 'bill') sharing
     provider/period must still be detected as a duplicate."""
     bill_document = Document(
         filename="bill.pdf", file_path="/tmp/bill.pdf", content_hash="hash-bill-typed",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, doc_type="bill",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category="bill",
     )
     session.add(bill_document)
     session.commit()
@@ -94,15 +94,15 @@ def test_find_duplicate_transaction_matches_bill_derived_transaction(session):
     assert found.id == transaction.id
 
 
-def test_find_duplicate_transaction_matches_when_doc_type_is_null(session):
-    """A pre-migration Document with doc_type=None must still participate in
+def test_find_duplicate_transaction_matches_when_category_is_null(session):
+    """A pre-migration Document with category=None must still participate in
     dedup — NULL means 'not a statement' (every document created before
     this branch was necessarily a bill), not 'excluded'."""
     legacy_document = Document(
         filename="legacy-bill.pdf", file_path="/tmp/legacy-bill.pdf", content_hash="hash-legacy-typed",
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
     )
-    assert legacy_document.doc_type is None
+    assert legacy_document.category is None
     session.add(legacy_document)
     session.commit()
     session.refresh(legacy_document)

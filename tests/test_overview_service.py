@@ -5,6 +5,7 @@ from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.domain import Domain
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
 from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight, get_needs_attention, get_overview_data, get_period_dependent_data, _resolve_lookback_months
@@ -418,6 +419,7 @@ def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documen
     session.add(Document(
         filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="hbad",
         source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, failure_reason="unreadable",
+        domain=Domain.FINANCIALS,
     ))
     session.commit()
     session.refresh(commitment)
