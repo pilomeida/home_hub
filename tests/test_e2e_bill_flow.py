@@ -69,11 +69,9 @@ def _next_month_date(today: date = None, day: int = 5) -> date:
 
 
 def test_full_bill_ingestion_flow(client, monkeypatch):
-    wiki_response = json.dumps({
-        "wiki_worthy": True,
-        "topic": "Electricity — provider & contract",
-        "facts": {"provider": "EDP"},
-    })
+    wiki_response = json.dumps({"pages": [
+        {"title": "Electricity — provider & contract", "summary": "EDP", "facts": {"provider": "EDP"}},
+    ]})
 
     # Target "this month" (relative to whenever the suite runs), so this
     # test never breaks on a calendar rollover.
@@ -86,14 +84,14 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
             due_date=due_date, paid_date=None, statement_period=this_period,
         )
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
-        return await wiki_engine_module.assess_and_update_wiki(
-            session, document, transaction, client=_FakeAnthropicClient(wiki_response)
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
+        return await wiki_engine_module.ingest_into_wiki(
+            session, document, context=context, client=_FakeAnthropicClient(wiki_response)
         )
 
     monkeypatch.setattr(pipeline_module, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline_module, "extract_bill", fake_extract_bill)
-    monkeypatch.setattr(pipeline_module, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline_module, "ingest_into_wiki", fake_ingest_into_wiki)
     monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(
@@ -186,13 +184,13 @@ def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
             energy_cost=56.5, power_cost=4.54, fees_taxes_cost=12.99, vat_cost=10.97,
         )
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline_module, "classify_document", fake_classify_bill)
     monkeypatch.setattr(pipeline_module, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline_module, "extract_utility_detail", fake_extract_utility_detail)
-    monkeypatch.setattr(pipeline_module, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline_module, "ingest_into_wiki", fake_ingest_into_wiki)
     monkeypatch.setattr(pipeline_module, "classify_transaction", _noop_classify_transaction)
 
     upload_response = client.post(

@@ -81,12 +81,12 @@ async def test_ingest_document_creates_transaction(session, monkeypatch, tmp_pat
     async def fake_extract_bill(file_path, client=None):
         return extracted
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -196,12 +196,12 @@ async def test_ingest_document_marks_needs_attention_on_enrichment_failure(sessi
     async def fake_extract_bill(file_path, client=None):
         return extracted
 
-    async def failing_assess_and_update_wiki(session, document, transaction, client=None):
+    async def failing_ingest_into_wiki(session, document, context=None, **kwargs):
         raise RuntimeError("wiki assessment failed")
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", failing_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", failing_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -282,13 +282,13 @@ async def test_ingest_statement_skips_dedup_todo_and_wiki(session, monkeypatch, 
     def failing_generate_todo(session, transaction):
         raise AssertionError("generate_todo_for_transaction must not be called for statement transactions")
 
-    async def failing_assess_and_update_wiki(session, document, transaction, client=None):
-        raise AssertionError("assess_and_update_wiki must not be called for statement transactions")
+    async def failing_ingest_into_wiki(session, document, context=None, **kwargs):
+        raise AssertionError("ingest_into_wiki must not be called for statement transactions")
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
     monkeypatch.setattr(pipeline, "generate_todo_for_transaction", failing_generate_todo)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", failing_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", failing_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -437,12 +437,12 @@ async def test_ingest_document_sets_category_on_document(session, monkeypatch, t
     async def fake_extract_bill(file_path, client=None):
         return extracted
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, bill_document)
     assert result.category == "bill"
@@ -506,13 +506,13 @@ async def test_ingest_document_bill_not_falsely_deduped_by_statement_line_item(s
             energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None,
         )
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     bill_result = await pipeline.process_financials_document(session, bill_document)
 
@@ -548,13 +548,13 @@ async def test_ingest_document_true_bill_duplicate_still_detected(session, monke
             energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None,
         )
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     first_result = await pipeline.process_financials_document(session, first_document)
     assert first_result.status == DocumentStatus.PROCESSED
@@ -640,13 +640,13 @@ async def test_ingest_bill_creates_utility_reading_for_electricity_category(sess
             energy_cost=56.5, power_cost=4.54, fees_taxes_cost=12.99, vat_cost=10.97,
         )
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -681,13 +681,13 @@ async def test_ingest_bill_creates_utility_reading_for_water_category(session, m
             energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None,
         )
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -715,13 +715,13 @@ async def test_ingest_bill_utility_detail_failure_does_not_mark_needs_attention(
     async def failing_extract_utility_detail(file_path, utility_type, client=None):
         raise RuntimeError("utility model call failed")
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "extract_utility_detail", failing_extract_utility_detail)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -756,13 +756,13 @@ async def test_ingest_bill_skips_utility_reading_for_non_utility_category(sessio
         calls.append((file_path, utility_type))
         raise RuntimeError("should never be called for non-utility categories")
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
     monkeypatch.setattr(pipeline, "extract_utility_detail", spy_extract_utility_detail)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
@@ -790,12 +790,12 @@ async def test_ingest_bill_calls_classify_transaction(session, monkeypatch, tmp_
     async def fake_extract_bill(file_path, client=None):
         return extracted
 
-    async def fake_assess_and_update_wiki(session, document, transaction, client=None):
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return None
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
     monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
-    monkeypatch.setattr(pipeline, "assess_and_update_wiki", fake_assess_and_update_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
     monkeypatch.setattr(pipeline, "classify_transaction", spy_classify_transaction)
 
     await pipeline.process_financials_document(session, document)

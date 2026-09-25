@@ -27,9 +27,19 @@ from app.services.extraction import (
 )
 from app.services.ingestion import mark_needs_attention
 from app.services.todo_engine import generate_todo_for_transaction
-from app.services.wiki_engine import assess_and_update_wiki
+from app.services.wiki_engine import ingest_into_wiki
 
 _UTILITY_CATEGORY_VALUES = {t.value for t in UtilityType}
+
+
+def _wiki_context(transaction: Transaction) -> str:
+    # Text-only context (no file) -- the same cheap input the pre-knowledge-
+    # layer wiki assessment used.
+    return (
+        f"Provider: {transaction.provider}\n"
+        f"Category: {transaction.category.value}\n"
+        f"Statement period: {transaction.statement_period}\n"
+    )
 
 
 async def process_financials_document(session: Session, document: Document) -> Document:
@@ -150,7 +160,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
 
     try:
         generate_todo_for_transaction(session, transaction)
-        await assess_and_update_wiki(session, document, transaction)
+        await ingest_into_wiki(session, document, context=_wiki_context(transaction))
     except Exception as exc:
         # The Transaction is already safely committed at this point — an
         # enrichment failure (todo generation or the wiki's Claude call /
