@@ -18,7 +18,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.models.domain import Domain
@@ -68,6 +68,7 @@ class WikiClaim(SQLModel, table=True):
     key: str
     label: Optional[str] = None
     value: str
+    note: Optional[str] = None
     status: ClaimStatus = Field(default=ClaimStatus.ACTIVE)
     superseded_by_claim_id: Optional[int] = Field(default=None, foreign_key="wiki_claims.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -75,12 +76,22 @@ class WikiClaim(SQLModel, table=True):
 
 
 class WikiClaimSource(SQLModel, table=True):
+    """Links a claim to the source asserting it: a Document OR a Record
+    (exactly one). `withdrawn_at` is set when the source was re-filed or
+    edited and no longer asserts the claim while other sources still do."""
+
     __tablename__ = "wiki_claim_sources"
-    __table_args__ = (UniqueConstraint("claim_id", "document_id", name="uq_wiki_claim_sources_claim_document"),)
+    __table_args__ = (
+        UniqueConstraint("claim_id", "document_id", name="uq_wiki_claim_sources_claim_document"),
+        UniqueConstraint("claim_id", "record_id", name="uq_wiki_claim_sources_claim_record"),
+        CheckConstraint("(document_id IS NULL) <> (record_id IS NULL)", name="ck_wiki_claim_sources_one_source"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     claim_id: int = Field(foreign_key="wiki_claims.id", index=True)
-    document_id: int = Field(foreign_key="documents.id", index=True)
+    document_id: Optional[int] = Field(default=None, foreign_key="documents.id", index=True)
+    record_id: Optional[int] = Field(default=None, foreign_key="records.id", index=True)
+    withdrawn_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -101,6 +112,7 @@ class WikiLogEntry(SQLModel, table=True):
     operation: WikiOperation
     description: str
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id")
+    record_id: Optional[int] = Field(default=None, foreign_key="records.id")
     page_ids_json: str = Field(default="[]")
 
 

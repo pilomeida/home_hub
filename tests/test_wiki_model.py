@@ -119,3 +119,25 @@ def test_wiki_links_are_unique_per_direction(session):
 
 def test_review_operation_exists():
     assert WikiOperation.REVIEW.value == "review"
+
+
+def test_claim_source_needs_exactly_one_of_document_or_record(session):
+    from app.models.domain import Domain
+    from app.models.record import Record
+
+    page = WikiPage(topic="Heat pump")
+    record = Record(domain=Domain.HOUSE, category="maintenance_log")
+    session.add(page)
+    session.add(record)
+    session.commit()
+    claim = WikiClaim(page_id=page.id, key="last_serviced", value="2026-01-01", note="entered by hand")
+    session.add(claim)
+    session.commit()
+
+    session.add(WikiClaimSource(claim_id=claim.id, record_id=record.id))
+    session.commit()
+    assert claim.note == "entered by hand"
+
+    session.add(WikiClaimSource(claim_id=claim.id))
+    with pytest.raises(IntegrityError):
+        session.commit()
