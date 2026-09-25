@@ -199,6 +199,7 @@ class DomainSpec:
     infers_category: bool = False                     # True: handler may determine a missing category itself
     record_url: Optional[Callable[[Record], str]] = None
     derive_fields: Callable[[Optional[str], dict[str, str]], dict[str, str]] = _no_derived_fields
+    ask_tools: tuple = ()                             # tuple[app.services.ask.contracts.AskTool, ...] (Plan C)
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.categories]
