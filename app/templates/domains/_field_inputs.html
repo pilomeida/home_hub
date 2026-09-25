@@ -1,0 +1,31 @@
+{# Renders `form_fields` (list of app.domains.fields.FormField) for any domain.
+   Optional `id_prefix` (default "") keeps element ids unique when several forms
+   share a page (e.g. Plan B's Inbox cards: id_prefix="doc-12-"). #}
+{% set p = id_prefix|default("") %}
+{% for ff in form_fields %}
+<div class="field">
+  <label for="{{ p }}f-{{ ff.spec.key }}">{{ ff.spec.label }}{% if ff.spec.required %} *{% endif %}</label>
+  {% if ff.spec.kind.value == "longtext" %}
+  <textarea id="{{ p }}f-{{ ff.spec.key }}" name="{{ ff.spec.key }}" rows="3">{{ ff.value }}</textarea>
+  {% elif ff.spec.kind.value == "date" %}
+  <input type="date" id="{{ p }}f-{{ ff.spec.key }}" name="{{ ff.spec.key }}" value="{{ ff.value }}">
+  {% elif ff.spec.kind.value == "choice" %}
+  <select id="{{ p }}f-{{ ff.spec.key }}" name="{{ ff.spec.key }}">
+    <option value="">—</option>
+    {% for value, label in ff.options %}
+    <option value="{{ value }}"{% if value == ff.value %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% elif ff.spec.kind.value == "suggest" %}
+  <input type="text" id="{{ p }}f-{{ ff.spec.key }}" name="{{ ff.spec.key }}" value="{{ ff.value }}"
+         list="{{ p }}list-{{ ff.spec.key }}" autocomplete="off">
+  <datalist id="{{ p }}list-{{ ff.spec.key }}">
+    {% for value, label in ff.options %}<option value="{{ value }}">{% endfor %}
+  </datalist>
+  {% else %}
+  <input type="text" id="{{ p }}f-{{ ff.spec.key }}" name="{{ ff.spec.key }}" value="{{ ff.value }}">
+  {% endif %}
+  {% if ff.spec.help %}<small>{{ ff.spec.help }}</small>{% endif %}
+  {% if ff.error %}<span class="needs-attention">{{ ff.error }}</span>{% endif %}
+</div>
+{% endfor %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Add a document — House{% endblock %}
+{% block content %}
+<p><a href="/house">← House</a></p>
+<h1>Add a House document</h1>
+<form action="/house/upload" method="post" enctype="multipart/form-data">
+  <div class="field">
+    <label for="f-category">Category *</label>
+    <select id="f-category" name="category" hx-get="/house/upload/fields" hx-target="#house-fields" hx-trigger="change">
+      <option value="">— choose —</option>
+      {% for c in categories %}
+      <option value="{{ c.value }}"{% if c.value == category %} selected{% endif %}>{{ c.label }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
+  </div>
+  <div id="house-fields">
+    {% include "domains/_field_inputs.html" %}
+  </div>
+  <div class="field">
+    <label for="f-file">File (PDF, photo, or video for floor plans) *</label>
+    <input type="file" id="f-file" name="file" accept="application/pdf,image/*,video/*">
+    {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
+  </div>
+  <button type="submit">Upload</button>
+</form>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ document.filename }} — House{% endblock %}
+{% block content %}
+<p><a href="/house">← House</a></p>
+<h1>{{ document.filename }}</h1>
+<p><span class="badge">{{ description.category_label }}</span> · added {{ document.created_at.strftime('%d %b %Y') }}</p>
+{% if document.failure_reason %}<p class="needs-attention">{{ document.failure_reason }}</p>{% endif %}
+
+<div class="doc-preview">
+  {% if media_kind == "image" %}
+  <img src="{{ description.file_url }}" alt="{{ document.filename }}">
+  {% elif media_kind == "video" %}
+  <video src="{{ description.file_url }}" controls></video>
+  {% endif %}
+  <p><a href="{{ description.file_url }}" target="_blank" rel="noopener">Open the file</a></p>
+</div>
+
+{% if item_page %}
+<p>Item page: <a href="/wiki/{{ item_page.id }}">{{ item_page.topic }}</a></p>
+{% endif %}
+
+<h2>Details</h2>
+<form action="/house/documents/{{ document.id }}/fields" method="post">
+  {% include "domains/_field_inputs.html" %}
+  <button type="submit">Save</button>
+</form>
+{% endblock %}
