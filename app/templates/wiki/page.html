@@ -25,6 +25,13 @@
 </dl>
 {% endif %}
 
+{% if linked_pages %}
+<h2>Linked pages</h2>
+<ul>
+  {% for linked in linked_pages %}<li><a href="/wiki/{{ linked.id }}">{{ linked.topic }}</a></li>{% endfor %}
+</ul>
+{% endif %}
+
 {% if history %}
 <h2>Superseded</h2>
 <table class="review-table">

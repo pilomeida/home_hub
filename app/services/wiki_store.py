@@ -19,7 +19,8 @@ from app.domains.base import FactPolicy
 from app.models.document import Document
 from app.models.domain import Domain
 from app.models.wiki import (
-    TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLogEntry, WikiOperation, WikiPage,
+    ANSWER_PAGE_TYPE, TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry,
+    WikiOperation, WikiPage,
 )
 
 _SUMMARY_MAX = 160
@@ -46,12 +47,20 @@ class ClaimInput:
     policy: FactPolicy = FactPolicy.REPLACE
 
 
+@dataclass(frozen=True)
+class LinkInput:
+    from_page: PageRef
+    to_page: PageRef
+    bidirectional: bool = True
+
+
 @dataclass
 class IngestReport:
     page_ids: list[int] = field(default_factory=list)
     added: int = 0
     superseded: int = 0
     confirmed: int = 0
+    links_added: int = 0
     log_entry_id: Optional[int] = None
 
 
@@ -86,6 +95,40 @@ def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Domain]
     session.add(page)
     session.flush()
     return page
+
+
+def ensure_page(session: Session, ref: PageRef, domain: Optional[Domain]) -> WikiPage:
+    return _get_or_create_page(session, ref, domain)
+
+
+def add_link(session: Session, from_page_id: int, to_page_id: int, *, commit: bool = True) -> bool:
+    if from_page_id == to_page_id:
+        return False
+    existing = session.exec(
+        select(WikiLink).where(WikiLink.from_page_id == from_page_id, WikiLink.to_page_id == to_page_id)
+    ).first()
+    if existing is not None:
+        return False
+    session.add(WikiLink(from_page_id=from_page_id, to_page_id=to_page_id))
+    if commit:
+        session.commit()
+    else:
+        session.flush()
+    return True
+
+
+def links_from(session: Session, page_id: int) -> list[WikiPage]:
+    return list(session.exec(
+        select(WikiPage).join(WikiLink, WikiLink.to_page_id == WikiPage.id)
+        .where(WikiLink.from_page_id == page_id).order_by(WikiPage.topic)
+    ).all())
+
+
+def links_to(session: Session, page_id: int) -> list[WikiPage]:
+    return list(session.exec(
+        select(WikiPage).join(WikiLink, WikiLink.from_page_id == WikiPage.id)
+        .where(WikiLink.to_page_id == page_id).order_by(WikiPage.topic)
+    ).all())
 
 
 def active_claims(session: Session, page_id: int) -> list[WikiClaim]:
@@ -179,6 +222,7 @@ def apply_claims(
     domain: Optional[Domain] = None,
     operation: WikiOperation = WikiOperation.INGEST,
     description: Optional[str] = None,
+    links: Sequence[LinkInput] = (),
 ) -> IngestReport:
     domain = domain if domain is not None else (document.domain if document is not None else None)
     now = datetime.utcnow()
@@ -222,6 +266,15 @@ def apply_claims(
             active.superseded_at = now
             session.add(active)
         report.superseded += 1
+
+    for link in links:
+        source_page = _get_or_create_page(session, link.from_page, domain)
+        target_page = _get_or_create_page(session, link.to_page, domain)
+        touched[source_page.id] = source_page
+        touched[target_page.id] = target_page
+        report.links_added += add_link(session, source_page.id, target_page.id, commit=False)
+        if link.bidirectional:
+            report.links_added += add_link(session, target_page.id, source_page.id, commit=False)
 
     session.flush()
     for page_id in changed:
@@ -269,7 +322,7 @@ def build_wiki_index(session: Session) -> list[IndexSection]:
     specs = implemented_domains()
     domain_order = {spec.domain: i for i, spec in enumerate(specs)}
     domain_labels = {spec.domain: spec.label for spec in specs}
-    type_labels = {TOPIC_PAGE_TYPE: "Topics"}
+    type_labels = {TOPIC_PAGE_TYPE: "Topics", ANSWER_PAGE_TYPE: "Saved answers"}
     for spec in specs:
         for entity_type in spec.wiki.entity_types:
             type_labels[entity_type.page_type] = entity_type.label

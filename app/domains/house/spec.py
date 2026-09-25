@@ -2,9 +2,9 @@
 
 from app.domains.base import (
     DEFAULT_MEDIA, CategorySpec, DomainSpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec,
-    MediaKind, NavLink, WikiSchema,
+    LinkSpec, MediaKind, NavLink, WikiSchema,
 )
-from app.domains.house.categories import ITEM_CATEGORIES, ITEM_KIND_CATEGORIES, ITEM_PAGE_TYPE, HouseCategory
+from app.domains.house.categories import ITEM_CATEGORIES, ITEM_KIND_CATEGORIES, ITEM_PAGE_TYPE, ROOM_PAGE_TYPE, HouseCategory
 from app.domains.house.handler import HouseHandler
 from app.domains.house.overview import house_overview_card
 from app.models.domain import Domain
@@ -60,6 +60,7 @@ SPEC = DomainSpec(
         entity_types=(
             EntityTypeSpec(
                 page_type=ITEM_PAGE_TYPE, label="Items", key_field="item_name", categories=ITEM_CATEGORIES,
+                links=(LinkSpec("room", ROOM_PAGE_TYPE),),
                 facts=(
                     FactSpec("type", "Type", "category", categories=frozenset(ITEM_KIND_CATEGORIES)),
                     FactSpec("room", "Room / location", "room"),
@@ -68,6 +69,10 @@ SPEC = DomainSpec(
                     FactSpec("last_serviced", "Last serviced", "service_date",
                              categories=_MAINTENANCE, policy=FactPolicy.LATEST),
                 ),
+            ),
+            EntityTypeSpec(
+                page_type=ROOM_PAGE_TYPE, label="Rooms", key_field="room",
+                categories=ITEM_CATEGORIES, facts=(),
             ),
         ),
     ),

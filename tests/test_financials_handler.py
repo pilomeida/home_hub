@@ -263,7 +263,7 @@ async def test_ingest_statement_creates_one_transaction_per_line_item(session, m
 
 
 @pytest.mark.asyncio
-async def test_ingest_statement_skips_dedup_todo_and_wiki(session, monkeypatch, tmp_path):
+async def test_ingest_statement_skips_dedup_todo_and_wiki_pages_but_logs_ingest(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="statement2.pdf", content_hash="hash-stmt-2")
 
     extracted = ExtractedStatement(
@@ -282,19 +282,22 @@ async def test_ingest_statement_skips_dedup_todo_and_wiki(session, monkeypatch, 
     def failing_generate_todo(session, transaction):
         raise AssertionError("generate_todo_for_transaction must not be called for statement transactions")
 
-    async def failing_ingest_into_wiki(session, document, context=None, **kwargs):
-        raise AssertionError("ingest_into_wiki must not be called for statement transactions")
+    wiki_calls = []
+
+    async def recording_ingest_into_wiki(session, document, context=None, **kwargs):
+        wiki_calls.append(context)
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
     monkeypatch.setattr(pipeline, "generate_todo_for_transaction", failing_generate_todo)
-    monkeypatch.setattr(pipeline, "ingest_into_wiki", failing_ingest_into_wiki)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", recording_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, document)
 
     assert result.status == DocumentStatus.PROCESSED
     assert session.exec(select(Todo)).all() == []
     assert session.exec(select(WikiPage)).all() == []
+    assert wiki_calls == [None]  # logged as ingested, but no LLM wiki assessment for statements
 
 
 @pytest.mark.asyncio
@@ -736,6 +739,32 @@ async def test_ingest_bill_utility_detail_failure_does_not_mark_needs_attention(
     ).first()
     assert transaction is not None
     assert transaction.amount == 85.0
+
+
+@pytest.mark.asyncio
+async def test_duplicate_bill_is_still_logged_as_ingested(session, monkeypatch, tmp_path):
+    first = _make_document(session, tmp_path, filename="a.pdf", content_hash="dup-a")
+    second = _make_document(session, tmp_path, filename="b.pdf", content_hash="dup-b")
+    # category "other": no utility-detail enrichment, so no unpatched LLM call.
+    extracted = ExtractedBill(provider="Leroy Merlin", category_hint="other", amount=10.0, currency="EUR",
+                              due_date=None, paid_date=None, statement_period="2026-08")
+    wiki_calls = []
+
+    async def fake_extract_bill(file_path, client=None):
+        return extracted
+
+    async def recording_ingest_into_wiki(session, document, context=None, **kwargs):
+        wiki_calls.append((document.id, context))
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
+    monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", recording_ingest_into_wiki)
+
+    await pipeline.process_financials_document(session, first)
+    result = await pipeline.process_financials_document(session, second)
+
+    assert result.failure_reason.startswith("duplicate")
+    assert (second.id, None) in wiki_calls
 
 
 @pytest.mark.asyncio

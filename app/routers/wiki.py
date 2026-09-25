@@ -13,7 +13,7 @@ from app.domains.fields import file_url
 from app.domains.registry import document_url
 from app.models.wiki import WikiChange, WikiPage
 from app.services.wiki_store import (
-    active_claims, build_wiki_index, recent_log, sources_for_claims, superseded_claims,
+    active_claims, build_wiki_index, links_from, links_to, recent_log, sources_for_claims, superseded_claims,
 )
 from app.templating import templates
 
@@ -67,4 +67,6 @@ async def wiki_page_detail(request: Request, page_id: int, session: Session = De
     return templates.TemplateResponse(request, "wiki/page.html", {
         "page": page, "facts": json.loads(page.facts_json), "active_claims": current,
         "history": history, "sources": sources, "changes": legacy_changes,
+        "linked_pages": sorted({p.id: p for p in links_from(session, page_id) + links_to(session, page_id)}.values(),
+                               key=lambda p: p.topic.lower()),
     })

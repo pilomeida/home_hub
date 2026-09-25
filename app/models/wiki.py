@@ -24,6 +24,7 @@ from sqlmodel import Field, SQLModel
 from app.models.domain import Domain
 
 TOPIC_PAGE_TYPE = "topic"
+ANSWER_PAGE_TYPE = "answer"  # Plan C's saved Ask answers (no source document)
 
 
 class WikiPage(SQLModel, table=True):
@@ -88,6 +89,7 @@ class WikiOperation(str, Enum):
     EDIT = "edit"
     QUERY = "query"          # Plan C
     LINT = "lint"            # Plan C
+    REVIEW = "review"        # Plan B's Inbox approve/discard
     MIGRATION = "migration"
 
 
@@ -100,3 +102,16 @@ class WikiLogEntry(SQLModel, table=True):
     description: str
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id")
     page_ids_json: str = Field(default="[]")
+
+
+class WikiLink(SQLModel, table=True):
+    """A directed cross-link between two wiki pages (a bidirectional relation
+    is two rows). Written by wiki_store.add_link / apply_claims(links=...)."""
+
+    __tablename__ = "wiki_links"
+    __table_args__ = (UniqueConstraint("from_page_id", "to_page_id", name="uq_wiki_links_from_to"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    from_page_id: int = Field(foreign_key="wiki_pages.id", index=True)
+    to_page_id: int = Field(foreign_key="wiki_pages.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)

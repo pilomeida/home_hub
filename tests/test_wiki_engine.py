@@ -143,3 +143,33 @@ async def test_ingest_records_a_log_entry_even_with_nothing_to_record(session, f
     assert report.page_ids == []
     assert session.get(WikiLogEntry, report.log_entry_id).operation == WikiOperation.EDIT
     assert wiki_store.recent_log(session)[0].description == "doc.pdf → no wiki pages"
+
+
+@pytest.mark.asyncio
+async def test_ingest_logs_an_ingest_entry_even_when_nothing_changes(session, fake_domain):
+    document = _document(session, category="clip", fields={"side": "in"})
+
+    await ingest_into_wiki(session, document)
+    await ingest_into_wiki(session, document)
+
+    entries = session.exec(select(WikiLogEntry).where(WikiLogEntry.document_id == document.id)).all()
+    assert [e.operation for e in entries] == [WikiOperation.INGEST, WikiOperation.INGEST]
+
+
+def test_links_from_fields_follow_the_schema(session, monkeypatch):
+    import dataclasses
+
+    from app.domains.base import LinkSpec, WikiSchema
+    from app.services.wiki_engine import links_from_fields
+
+    base = make_fake_spec()
+    item_type = dataclasses.replace(base.wiki.entity_types[0], links=(LinkSpec("seen_on", "fake.day"),))
+    spec = dataclasses.replace(base, wiki=WikiSchema(entity_types=(item_type,)))
+    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+
+    links = links_from_fields(spec, _document(session, fields={"item_name": "Boiler", "seen_on": "2026-01-01"}))
+
+    assert [(l.from_page.title, l.to_page.page_type, l.to_page.title, l.bidirectional) for l in links] == [
+        ("Boiler", "fake.day", "2026-01-01", True),
+    ]
+    assert links_from_fields(spec, _document(session, fields={"item_name": "Oven"}, content_hash="h9")) == []

@@ -23,3 +23,4 @@ ITEM_KIND_CATEGORIES = (HouseCategory.HOUSE_APPLIANCE.value, HouseCategory.OUTDO
 REFERENCE_CATEGORIES = (HouseCategory.FLOOR_PLAN.value, HouseCategory.OWNERSHIP_DOCUMENT.value)
 
 ITEM_PAGE_TYPE = "house.item"
+ROOM_PAGE_TYPE = "house.room"

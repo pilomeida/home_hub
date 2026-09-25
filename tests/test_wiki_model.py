@@ -100,3 +100,22 @@ def test_log_entry_defaults(session):
     session.commit()
     session.refresh(entry)
     assert entry.page_ids_json == "[]" and entry.document_id is None and entry.occurred_at is not None
+
+
+def test_wiki_links_are_unique_per_direction(session):
+    from app.models.wiki import WikiLink
+
+    a, b = WikiPage(topic="Boiler"), WikiPage(topic="Kitchen")
+    session.add(a)
+    session.add(b)
+    session.commit()
+    session.add(WikiLink(from_page_id=a.id, to_page_id=b.id))
+    session.add(WikiLink(from_page_id=b.id, to_page_id=a.id))
+    session.commit()
+    session.add(WikiLink(from_page_id=a.id, to_page_id=b.id))
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_review_operation_exists():
+    assert WikiOperation.REVIEW.value == "review"

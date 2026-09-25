@@ -25,7 +25,7 @@ from app.domains.registry import get_spec
 from app.models.document import Document
 from app.models.wiki import TOPIC_PAGE_TYPE, WikiOperation, WikiPage
 from app.services.json_utils import strip_json_fences
-from app.services.wiki_store import ClaimInput, IngestReport, PageRef, apply_claims, normalize_entity_key
+from app.services.wiki_store import ClaimInput, IngestReport, LinkInput, PageRef, apply_claims, normalize_entity_key
 
 _MODEL = "claude-haiku-4-5-20251001"
 
@@ -65,6 +65,27 @@ def claims_from_fields(spec: DomainSpec, document: Document) -> list[ClaimInput]
             if value:
                 claims.append(ClaimInput(page=page, key=fact.key, value=value, label=fact.label, policy=fact.policy))
     return claims
+
+
+def links_from_fields(spec: DomainSpec, document: Document) -> list[LinkInput]:
+    fields = load_fields(document)
+    links: list[LinkInput] = []
+    for entity_type in spec.wiki.entity_types:
+        if document.category not in entity_type.categories:
+            continue
+        name = fields.get(entity_type.key_field)
+        if not name:
+            continue
+        source = PageRef(page_type=entity_type.page_type, title=name, entity_key=normalize_entity_key(name))
+        for link in entity_type.links:
+            if link.categories is not None and document.category not in link.categories:
+                continue
+            target_name = fields.get(link.field)
+            if target_name:
+                target = PageRef(page_type=link.target_page_type, title=target_name,
+                                 entity_key=normalize_entity_key(target_name))
+                links.append(LinkInput(from_page=source, to_page=target, bidirectional=link.bidirectional))
+    return links
 
 
 async def assess_document_for_wiki(
@@ -113,8 +134,12 @@ async def ingest_into_wiki(
     operation: WikiOperation = WikiOperation.INGEST,
     client: Optional[AsyncAnthropic] = None,
 ) -> IngestReport:
+    """Always writes exactly one wiki_log entry (`operation`, INGEST by default), even when nothing
+    changes; Plan C's lint relies on it to find never-ingested documents."""
     spec = get_spec(document.domain)
     claims = claims_from_fields(spec, document)
     if context is not None and spec.wiki.guidance:
         claims += await assess_document_for_wiki(session, document, context, client=client)
-    return apply_claims(session, claims, document=document, operation=operation)
+    return apply_claims(
+        session, claims, document=document, operation=operation, links=links_from_fields(spec, document),
+    )

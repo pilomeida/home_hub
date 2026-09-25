@@ -243,7 +243,7 @@ Home & Family/
 
 ## Database Schema
 
-Single file: `data/home_family.db` (SQLite). Additive-only migration history (18 revisions, one
+Single file: `data/home_family.db` (SQLite). Additive-only migration history (19 revisions, one
 linear chain, no branches) — every schema change to date has been a new table or a new nullable
 column; nothing has ever been dropped or had an existing column's meaning changed.
 
@@ -346,15 +346,18 @@ Task list. Straightforward columns (title, due_date, done) plus optional FKs: `t
 renewal To-Do derived from a warranty document). Every Todo belongs to a `domain`, which is
 what the per-domain backlogs (`app/services/todo_backlog.py`, `todos/_backlog.html`) filter on.
 
-### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_log`, `wiki_changes`
+### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_links`, `wiki_log`, `wiki_changes`
 The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique together) —
 `TOPIC` pages (the original standing-facts pages, `entity_key` NULL) plus per-domain item pages
 (e.g. House items, where `entity_key` is the normalized item name); it carries `summary` and
 `facts_json` — a **cache of the page's ACTIVE claims**, rebuilt only by `apply_claims`.
 `WikiClaim` rows are the actual knowledge units (page_id, key, value, superseded_at); a changed
 claim is superseded — a new row written, the old one stamped — never deleted or edited.
-`WikiClaimSource` links each claim to its source `documents.id`. `WikiLogEntry` is an
-append-only log of every `apply_claims` run; `/wiki/log` shows it. `wiki_changes` is the legacy
+`WikiClaimSource` links each claim to its source `documents.id`. `WikiLink` rows are directed
+page-to-page cross-links (a bidirectional relation is two rows; unique per direction;
+append-only). `WikiLogEntry` is an
+append-only log of every `apply_claims` run, tagged with a `WikiOperation`
+(ingest / edit / query / lint / review / migration); `/wiki/log` shows it. `wiki_changes` is the legacy
 WikiChange history table — still read-only, no longer written.
 
 ### `alembic_version`
@@ -384,7 +387,7 @@ Standard Alembic bookkeeping, single row, current head at time of writing: see `
 
 **Domain metadata is `fields_json` validated by `FieldSpec`s, not per-domain tables.** Each domain wants different metadata on its documents (a warranty has an expiry date; a bill has a provider and period), and per-domain tables would mean a new table + migration + query surface per domain forever. Instead every Document carries one generic `fields_json` blob of string values, and the registry's `FieldSpec`s are what make it meaningful — they define which fields exist per category, which are required, and how they validate, so `finalize_document` can refuse an invalid write and templates can render fields generically.
 
-**The wiki is a claim-based knowledge layer** (Karpathy's LLM-Wiki pattern). Raw sources stay as Documents; wiki pages are assembled from *claims* (`wiki_claims`), each traceable to its source documents via `wiki_claim_sources`. Claims are never deleted or edited — a new value supersedes the old one, which stays for provenance. Each page's `facts_json` is a rebuilt cache of its active claims, and every `apply_claims` run appends exactly one `wiki_log` entry, so the wiki's full evolution is auditable. Ingestion of claims lives here (Task 17's knowledge layer); Query and Lint of the wiki are Plan C work.
+**The wiki is a claim-based knowledge layer** (Karpathy's LLM-Wiki pattern). Raw sources stay as Documents; wiki pages are assembled from *claims* (`wiki_claims`), each traceable to its source documents via `wiki_claim_sources`. Claims are never deleted or edited — a new value supersedes the old one, which stays for provenance. Each page's `facts_json` is a rebuilt cache of its active claims, and every `apply_claims` run appends exactly one `wiki_log` entry, so the wiki's full evolution is auditable. Ingestion of claims lives here (Task 17's knowledge layer); Query and Lint of the wiki are Plan C work. Cross-links between pages are declared per domain via `EntityTypeSpec.links` (`LinkSpec`) — House links item ↔ room — and written through `apply_claims(links=...)`; they are append-only like claims. `ingest_into_wiki` logs every call, so every PROCESSED finalized document has at least one `INGEST` entry. `answer` pages (page_type `answer`) are Plan C's saved Ask answers — no source document, indexed under "Saved answers".
 
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 

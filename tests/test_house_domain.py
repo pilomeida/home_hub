@@ -158,3 +158,24 @@ async def test_video_is_rejected_for_an_appliance_manual(session, extraction):
     with pytest.raises(InvalidClassification) as exc:
         await _ingest(session, "house_appliance", {"item_name": "Boiler"}, filename="demo.mp4")
     assert "file" in exc.value.errors
+
+
+@pytest.mark.asyncio
+async def test_item_and_room_pages_link_to_each_other(session, extraction):
+    from app.services.wiki_store import links_from
+
+    await _ingest(session, "house_appliance", {"item_name": "Boiler", "room": "Kitchen"})
+
+    item = session.exec(select(WikiPage).where(WikiPage.page_type == "house.item")).one()
+    room = session.exec(select(WikiPage).where(WikiPage.page_type == "house.room")).one()
+    assert room.topic == "Kitchen" and room.entity_key == "kitchen"
+    assert [p.id for p in links_from(session, item.id)] == [room.id]
+    assert [p.id for p in links_from(session, room.id)] == [item.id]
+
+
+@pytest.mark.asyncio
+async def test_every_processed_house_document_has_an_ingest_log_entry(session, extraction):
+    document = await _ingest(session, "ownership_document", {}, filename="deed.pdf")
+    entries = session.exec(select(WikiLogEntry).where(WikiLogEntry.document_id == document.id,
+                                                      WikiLogEntry.operation == WikiOperation.INGEST)).all()
+    assert len(entries) == 1

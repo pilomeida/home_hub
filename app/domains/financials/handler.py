@@ -75,6 +75,17 @@ class FinancialsHandler(DomainHandler):
         return await process_financials_document(session, document)
 
 
+async def _log_ingest_without_assessment(session: Session, document: Document) -> None:
+    # Every processed document is logged as ingested into the wiki (Plan C's
+    # lint relies on it). No context => no LLM call; Financials declares no
+    # entity types, so this only writes the log entry.
+    try:
+        await ingest_into_wiki(session, document)
+    except Exception as exc:
+        session.rollback()
+        print(f"wiki ingest log failed for document {document.id}: {exc}")
+
+
 async def _ingest_bill(session: Session, document: Document) -> Document:
     try:
         extracted: ExtractedBill = await extract_bill(document.file_path)
@@ -89,6 +100,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         session, provider=extracted.provider, statement_period=extracted.statement_period
     )
     if duplicate is not None:
+        await _log_ingest_without_assessment(session, document)
         document.status = DocumentStatus.PROCESSED
         document.failure_reason = "duplicate — matched existing transaction"
         session.add(document)
@@ -241,11 +253,13 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
         return mark_needs_attention(session, document, str(exc))
 
     # Statement-derived transactions are historical and already settled —
-    # unlike bills, they never generate a to-do (no upcoming due date) or a
-    # wiki assessment (no standing fact to record). Duplicate line items
+    # unlike bills, they never generate a to-do (no upcoming due date) and
+    # get no LLM wiki assessment; they are only logged as ingested. Duplicate
+    # line items
     # sharing a provider/period within one statement are expected, not a
     # dedup signal; only whole-file re-upload (content-hash dedup, already
     # enforced by the ingestion core's receive_file) applies here.
+    await _log_ingest_without_assessment(session, document)
     document.status = DocumentStatus.PROCESSED
     document.failure_reason = None
     session.add(document)

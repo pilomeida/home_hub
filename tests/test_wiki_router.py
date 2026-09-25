@@ -85,3 +85,15 @@ def test_wiki_log_lists_operations(client, session):
     assert response.status_code == 200
     assert "boiler-warranty.pdf → Boiler" in response.text
     assert "ingest" in response.text
+
+
+def test_wiki_page_lists_links_both_ways(client, session, fake_domain):
+    from app.services.wiki_store import LinkInput
+
+    kitchen = PageRef("fake.room", "Kitchen", "kitchen")
+    boiler = PageRef("fake.item", "Boiler", "boiler")
+    wiki_store.apply_claims(session, [], document=_house_document(session), links=[LinkInput(boiler, kitchen)])
+
+    response = client.get(f"/wiki/{wiki_store.find_page(session, kitchen).id}")
+
+    assert "Linked pages" in response.text and "Boiler" in response.text

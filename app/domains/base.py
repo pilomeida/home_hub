@@ -90,12 +90,21 @@ class FactSpec:
 
 
 @dataclass(frozen=True)
+class LinkSpec:
+    field: str                                  # document field naming the target entity, e.g. "room"
+    target_page_type: str                       # e.g. "house.room"
+    categories: Optional[frozenset[str]] = None
+    bidirectional: bool = True
+
+
+@dataclass(frozen=True)
 class EntityTypeSpec:
     page_type: str                  # e.g. "house.item"; unique across all domains
     label: str                      # index section heading, e.g. "Items"
     key_field: str                  # document field naming the entity, e.g. "item_name"
     categories: frozenset[str]      # document categories that feed this entity
     facts: tuple[FactSpec, ...]
+    links: tuple[LinkSpec, ...] = ()
 
 
 @dataclass(frozen=True)

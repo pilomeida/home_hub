@@ -148,3 +148,46 @@ def test_build_wiki_index_groups_by_domain_and_page_type(session, fake_domain):
     ]
     assert sections[0].entries[0].title == "Boiler" and sections[0].entries[0].summary == "Room: Kitchen"
     assert sections[2].entries[0].summary == "provider: EDP"
+
+
+from app.services.wiki_store import LinkInput
+
+KITCHEN = PageRef(page_type="fake.room", title="Kitchen", entity_key="kitchen")
+
+
+def test_add_link_is_idempotent_and_directional(session):
+    a = wiki_store.ensure_page(session, BOILER, Domain.HOUSE)
+    b = wiki_store.ensure_page(session, KITCHEN, Domain.HOUSE)
+    session.commit()
+
+    assert wiki_store.add_link(session, a.id, b.id) is True
+    assert wiki_store.add_link(session, a.id, b.id) is False
+    assert wiki_store.add_link(session, a.id, a.id) is False
+    assert [p.topic for p in wiki_store.links_from(session, a.id)] == ["Kitchen"]
+    assert [p.topic for p in wiki_store.links_to(session, b.id)] == ["Boiler"]
+    assert wiki_store.links_from(session, b.id) == []
+
+
+def test_apply_claims_writes_bidirectional_links_and_logs_linked_pages(session):
+    document = _document(session)
+
+    report = wiki_store.apply_claims(
+        session, [ClaimInput(BOILER, "room", "Kitchen")], document=document, links=[LinkInput(BOILER, KITCHEN)],
+    )
+
+    boiler, kitchen = wiki_store.find_page(session, BOILER), wiki_store.find_page(session, KITCHEN)
+    assert kitchen is not None and kitchen.domain == Domain.HOUSE
+    assert [p.id for p in wiki_store.links_from(session, boiler.id)] == [kitchen.id]
+    assert [p.id for p in wiki_store.links_from(session, kitchen.id)] == [boiler.id]
+    assert report.links_added == 2
+    assert set(json.loads(session.get(WikiLogEntry, report.log_entry_id).page_ids_json)) == {boiler.id, kitchen.id}
+
+    again = wiki_store.apply_claims(session, [], document=document, links=[LinkInput(BOILER, KITCHEN)])
+    assert again.links_added == 0
+
+
+def test_answer_pages_are_indexed_as_saved_answers(session):
+    ref = PageRef(page_type="answer", title="Which warranties expire this year?")
+    wiki_store.apply_claims(session, [ClaimInput(ref, "answer", "Boiler (March)")], document=None,
+                            operation=WikiOperation.QUERY, description="Saved answer")
+    assert [(s.domain_label, s.section_label) for s in wiki_store.build_wiki_index(session)] == [("General", "Saved answers")]
