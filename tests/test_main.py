@@ -9,7 +9,7 @@ def test_dashboard_renders(client):
     assert response.status_code == 200
     assert "Overview" in response.text
     assert "Financials" in response.text
-    assert "Bills & Bank" in response.text
+    assert "Bills &amp; Bank" in response.text  # Jinja autoescapes the "&" in the registry label
     assert 'href="/financials/bills"' in response.text
     assert 'href="/financials/transactions"' in response.text
     assert 'href="/financials/utilities/electricity"' in response.text

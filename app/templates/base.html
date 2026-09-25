@@ -133,7 +133,7 @@
     <div class="nav-group">
       <span class="nav-group-label">{{ spec.label }}</span>
       {% for link in spec.nav_links %}
-      <a href="{{ link.url }}">{{ link.label|safe }}</a>
+      <a href="{{ link.url }}">{{ link.label }}</a>
       {% endfor %}
     </div>
     {% endfor %}
