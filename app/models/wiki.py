@@ -1,24 +1,48 @@
-"""WikiPage: current standing facts for a topic. WikiChange: its history."""
+"""The knowledge layer (Karpathy "LLM Wiki" pattern, adapted):
+
+- raw sources  = Document rows + stored files (never modified by the wiki);
+- wiki         = WikiPage rows (entity pages such as a House item, or
+                 free-form topic pages), each made of WikiClaims; every claim
+                 links back to the Document(s) asserting it (WikiClaimSource);
+                 a changed claim SUPERSEDES the old one, never deletes it;
+- log          = WikiLogEntry, append-only record of every operation
+                 (ingest / edit / query / lint);
+- index        = generated from WikiPage (app.services.wiki_store.build_wiki_index);
+- schema       = per-domain WikiSchema declared in the domain registry.
+
+WikiPage.facts_json is a cache of the page's ACTIVE claims, rebuilt only by
+app.services.wiki_store. WikiChange is the pre-claims history table: kept
+read-only, no longer written."""
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.models.domain import Domain
 
+TOPIC_PAGE_TYPE = "topic"
+
 
 class WikiPage(SQLModel, table=True):
     __tablename__ = "wiki_pages"
+    __table_args__ = (UniqueConstraint("page_type", "entity_key", name="uq_wiki_pages_page_type_entity_key"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     topic: str = Field(unique=True, index=True)
     facts_json: str = Field(default="{}")
     domain: Optional[Domain] = None
+    page_type: str = Field(default=TOPIC_PAGE_TYPE, index=True)
+    entity_key: Optional[str] = None
+    summary: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class WikiChange(SQLModel, table=True):
+    """Legacy per-fact history (pre-claims). Read-only; not written anymore."""
+
     __tablename__ = "wiki_changes"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -28,3 +52,51 @@ class WikiChange(SQLModel, table=True):
     new_value: str
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id")
     changed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ClaimStatus(str, Enum):
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+
+
+class WikiClaim(SQLModel, table=True):
+    __tablename__ = "wiki_claims"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    page_id: int = Field(foreign_key="wiki_pages.id", index=True)
+    key: str
+    label: Optional[str] = None
+    value: str
+    status: ClaimStatus = Field(default=ClaimStatus.ACTIVE)
+    superseded_by_claim_id: Optional[int] = Field(default=None, foreign_key="wiki_claims.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    superseded_at: Optional[datetime] = None
+
+
+class WikiClaimSource(SQLModel, table=True):
+    __tablename__ = "wiki_claim_sources"
+    __table_args__ = (UniqueConstraint("claim_id", "document_id", name="uq_wiki_claim_sources_claim_document"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    claim_id: int = Field(foreign_key="wiki_claims.id", index=True)
+    document_id: int = Field(foreign_key="documents.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class WikiOperation(str, Enum):
+    INGEST = "ingest"
+    EDIT = "edit"
+    QUERY = "query"          # Plan C
+    LINT = "lint"            # Plan C
+    MIGRATION = "migration"
+
+
+class WikiLogEntry(SQLModel, table=True):
+    __tablename__ = "wiki_log"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    occurred_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    operation: WikiOperation
+    description: str
+    document_id: Optional[int] = Field(default=None, foreign_key="documents.id")
+    page_ids_json: str = Field(default="[]")
