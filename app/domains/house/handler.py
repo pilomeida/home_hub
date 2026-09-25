@@ -1,5 +1,5 @@
 """House domain handler: store-and-tag, plus the warranty reminder and the
-item's wiki page. The only LLM use is extract_warranty_expiry, and only for
+item's wiki page. The only LLM use is extract_warranty_dates, and only for
 a warranty whose expiry was not entered by hand."""
 
 from __future__ import annotations

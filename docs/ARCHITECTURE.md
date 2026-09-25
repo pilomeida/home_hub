@@ -115,21 +115,29 @@ Home & Family/
 │   │   │                       sa.Numeric(12,2), not float (it's a running accumulator)
 │   │   ├── utility_reading.py  UtilityReading: consumption + cost-breakdown detail beyond what
 │   │   │                       Transaction tracks, one row per billed month per utility_type
-│   │   ├── todo.py             Todo: title, due_date, done, domain, optional transaction_id / document_id
+│   │   ├── todo.py             Todo: title, due_date, done, domain, optional transaction_id /
+│   │   │                       document_id / record_id
+│   │   ├── record.py           Record: a hand-entered source (domain, category, fields_json,
+│   │   │                       optional attached document_id, entered_by, retired_at)
 │   │   └── wiki.py             WikiPage (page_type + entity_key, facts_json = active-claims cache),
-│   │                           WikiClaim, WikiClaimSource, WikiLogEntry, WikiChange (legacy)
+│   │                           WikiClaim (+ note), WikiClaimSource (document OR record, +
+│   │                           withdrawn_at), WikiLogEntry (+ record_id), WikiLink, WikiChange (legacy)
 │   │
 │   ├── domains/                Domain registry — the ONLY extension point (see Design Decisions
 │   │   │                       and "Adding a domain"); shared code never names a domain
 │   │   ├── base.py             Domain enum, DomainSpec / DomainHandler / CategorySpec / FieldSpec /
-│   │   │                       WikiSchema dataclasses
+│   │   │                       WikiSchema dataclasses; SourceKind (DOCUMENT | RECORD, on CategorySpec)
 │   │   ├── registry.py         get_spec / all_specs — loads SPEC from _SPEC_MODULES, validates
-│   │   │                       domain uniqueness
+│   │   │                       domain uniqueness; document_url / record_url
 │   │   ├── fields.py           FieldInput helpers shared by the domain field-inputs template
-│   │   ├── financials/         categories.py, handler.py (FinancialsHandler), overview.py
+│   │   ├── entries.py          domain_entries / SourceEntry / record_for_document — the uniform
+│   │   │                       document-or-record listing (see Documents vs Records)
+│   │   ├── financials/         categories.py, handler.py (FinancialsHandler — refile_blocker +
+│   │   │                       withdraw enforce the Financials re-filing rule), overview.py
 │   │   │                       (overview_card), spec.py (SPEC)
 │   │   └── house/              Same shape + items.py (item-card aggregation) and warranty.py
-│   │                           (extract_warranty_expiry + the −21-day renewal To-Do)
+│   │                           (extract_warranty_expiry, effective_warranty_expiry/derive_fields,
+│   │                           the −21-day renewal To-Do)
 │   │
 │   ├── routers/                One file per nav section; each owns its own Jinja2Templates instance
 │   │   ├── dashboard.py        `/` and `/health`
@@ -137,6 +145,11 @@ Home & Family/
 │   │   │                       the ingestion core), list, per-document detail
 │   │   ├── house.py            `/house*` — landing, Add a document (fields swap per category), item
 │   │   │                       cards, detail, edit fields, backlog — via the ingestion core
+│   │   ├── documents.py        `/documents/{id}/edit`, `/records/{id}/edit` — the generic,
+│   │   │                       domain-agnostic Edit / re-file screens (change domain, category and
+│   │   │                       fields for any finalized Document or Record, via refile_document /
+│   │   │                       refile_record); redirects a Document with an attached Record to the
+│   │   │                       Record's edit screen
 │   │   ├── transactions.py     `/financials/transactions*` — filtered/paginated list, bulk-edit, Needs Review
 │   │   │                       tab (confirm/dismiss/create-commitment/link-debt actions)
 │   │   ├── utilities.py        `/financials/utilities/{tab}` — Electricity/Water/Telecom table + bar charts
@@ -145,7 +158,10 @@ Home & Family/
 │   │
 │   ├── services/                Business logic, no HTTP/template concerns
 │   │   ├── ingestion.py         receive_file / finalize_document — the ingestion core: the ONLY
-│   │   │                       way a file becomes a Document (see diagram above)
+│   │   │                       way a file becomes a Document (see diagram above); also
+│   │   │                       create_record / attach_file / update_record_fields (the only way
+│   │   │                       into a RECORD category) and refile_document / refile_record (see
+│   │   │                       Re-filing)
 │   │   ├── extraction.py        Every Claude call for document understanding: classify_document,
 │   │   │                       extract_bill, extract_statement_transactions, extract_utility_detail
 │   │   ├── classification_engine.py  normalize_provider, resolve_merchant_via_llm,
@@ -243,9 +259,9 @@ Home & Family/
 
 ## Database Schema
 
-Single file: `data/home_family.db` (SQLite). Additive-only migration history (19 revisions, one
-linear chain, no branches) — every schema change to date has been a new table or a new nullable
-column; nothing has ever been dropped or had an existing column's meaning changed.
+Single file: `data/home_family.db` (SQLite). Additive-only migration history (20 revisions, one
+linear chain, no branches, head `e7b3d1f4a6c8`) — every schema change to date has been a new table
+or a new nullable column; nothing has ever been dropped or had an existing column's meaning changed.
 
 ### `documents`
 A source file (uploaded, forwarded, or synced). `domain` set ⇔ finalized: a Document whose
@@ -342,9 +358,24 @@ Consumption + cost-breakdown detail beyond the generic Transaction, one row per 
 
 ### `todos`
 Task list. Straightforward columns (title, due_date, done) plus optional FKs: `transaction_id`
-(financials todo from a bill) and `document_id` (nullable FK → `documents.id`, e.g. a House
-renewal To-Do derived from a warranty document). Every Todo belongs to a `domain`, which is
+(financials todo from a bill), `document_id` (nullable FK → `documents.id`, e.g. a House
+renewal To-Do derived from a warranty document) and `record_id` (nullable FK → `records.id`,
+indexed — a To-Do derived from a hand-entered record). Every Todo belongs to a `domain`, which is
 what the per-domain backlogs (`app/services/todo_backlog.py`, `todos/_backlog.html`) filter on.
+
+### `records`
+A hand-entered source — the Record counterpart to Document (see *Documents vs Records* below).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | PK | |
+| `domain` | enum, indexed | |
+| `category` | TEXT, indexed | A `SourceKind.RECORD` category value from the same per-domain registry as Document categories |
+| `fields_json` | TEXT | Same shape and validation as `Document.fields_json` |
+| `document_id` | INT, nullable FK → `documents.id`, **unique index** | The record's optional attached file (receipt/report) — unique because a Document attaches to at most one Record |
+| `entered_by` | TEXT, nullable | CF Access email, or a script name |
+| `created_at`, `updated_at` | | |
+| `retired_at` | TEXT/DATETIME, nullable | Set when the record is re-filed into a DOCUMENT category (see *Re-filing*); the row is kept, never deleted |
 
 ### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_links`, `wiki_log`, `wiki_changes`
 The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique together) —
@@ -352,13 +383,20 @@ The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique t
 (e.g. House items, where `entity_key` is the normalized item name); it carries `summary` and
 `facts_json` — a **cache of the page's ACTIVE claims**, rebuilt only by `apply_claims`.
 `WikiClaim` rows are the actual knowledge units (page_id, key, value, superseded_at); a changed
-claim is superseded — a new row written, the old one stamped — never deleted or edited.
-`WikiClaimSource` links each claim to its source `documents.id`. `WikiLink` rows are directed
-page-to-page cross-links (a bidirectional relation is two rows; unique per direction;
+claim is superseded — a new row written, the old one stamped — never deleted or edited. `WikiClaim.note`
+(nullable) carries a claim-level annotation such as an "assumed" note (see *Derived fields and claim
+notes* below) — a normal field of the claim, not itself versioned.
+`WikiClaimSource` links each claim to the source asserting it: **a Document OR a Record, exactly
+one** (`document_id` nullable, `record_id` nullable FK → `records.id` indexed, check constraint
+`ck_wiki_claim_sources_one_source` enforces exactly one of the two is set). `withdrawn_at`
+(nullable) is set when that source is re-filed or edited and no longer asserts the claim, while the
+claim itself stays ACTIVE if another source still supports it (see *Re-filing*). `WikiLink` rows are
+directed page-to-page cross-links (a bidirectional relation is two rows; unique per direction;
 append-only). `WikiLogEntry` is an
 append-only log of every `apply_claims` run, tagged with a `WikiOperation`
-(ingest / edit / query / lint / review / migration); `/wiki/log` shows it. `wiki_changes` is the legacy
-WikiChange history table — still read-only, no longer written.
+(ingest / edit / query / lint / review / migration), with `record_id` (nullable FK, alongside the
+existing `document_id`) so an entry can point at a hand-entered source; `/wiki/log` shows it.
+`wiki_changes` is the legacy WikiChange history table — still read-only, no longer written.
 
 ### `alembic_version`
 Standard Alembic bookkeeping, single row, current head at time of writing: see `alembic/versions/` for the latest filename.
@@ -389,13 +427,75 @@ Standard Alembic bookkeeping, single row, current head at time of writing: see `
 
 **The wiki is a claim-based knowledge layer** (Karpathy's LLM-Wiki pattern). Raw sources stay as Documents; wiki pages are assembled from *claims* (`wiki_claims`), each traceable to its source documents via `wiki_claim_sources`. Claims are never deleted or edited — a new value supersedes the old one, which stays for provenance. Each page's `facts_json` is a rebuilt cache of its active claims, and every `apply_claims` run appends exactly one `wiki_log` entry, so the wiki's full evolution is auditable. Ingestion of claims lives here (Task 17's knowledge layer); Query and Lint of the wiki are Plan C work. Cross-links between pages are declared per domain via `EntityTypeSpec.links` (`LinkSpec`) — House links item ↔ room — and written through `apply_claims(links=...)`; they are append-only like claims. `ingest_into_wiki` logs every call, so every PROCESSED finalized document has at least one `INGEST` entry. `answer` pages (page_type `answer`) are Plan C's saved Ask answers — no source document, indexed under "Saved answers".
 
+**Documents vs Records.** A `Document` is an immutable raw source: a file plus its provenance
+(`file_path`, `content_hash`, `source`) — it is never rewritten, only re-tagged. A `Record` is a
+human-authored source: domain, category, `fields_json` and who entered it, with no file of its
+own required. The registry decides per category which shape applies: `CategorySpec.kind` is
+`SourceKind.DOCUMENT` (the entry IS an uploaded file) or `SourceKind.RECORD` (typed in by hand; a
+file *may* be attached — e.g. a maintenance visit with a receipt). A Record's optional attachment
+is a normal Document with `Record.document_id` pointing at it (unique — a Document attaches to at
+most one Record); the attachment's own `fields_json` stays `{}`, since the Record holds the fields.
+**The ingestion core is the only way into a RECORD category** — a file finalized into one, whether
+by upload, Plan B approval, or re-filing, becomes a Record's attachment, never a bare Document with
+fields. Both kinds are treated uniformly downstream: `app/domains/entries.py`'s `domain_entries()`
+returns documents and records in one shape (`SourceEntry`) for listings and cards; the wiki takes
+either as a claim source (`WikiClaimSource.record_id`, exactly one of document/record set); derived
+to-dos can link to either (`Todo.record_id`).
+
+**Derived fields and claim notes.** Some facts are computed, not stated — Portugal's 3-year legal
+guarantee is the first example: when a House warranty document states a purchase date but no
+explicit expiry, the app assumes the expiry is the purchase date plus 3 years, and marks it
+**assumed**, never as if it were a stated fact. `DomainSpec.derive_fields(category, fields)` is the
+per-domain hook that computes such fields (House's `house_derived_fields` /
+`effective_warranty_expiry`) from whatever the user or extractor actually provided; it never writes
+to `fields_json` itself. The wiki carries the distinction via `WikiClaim.note` (e.g. "Assumed:
+Portugal's 3-year legal guarantee from the purchase date (…)"), populated through
+`FactSpec.note_field`. Entering a real expiry date later removes the assumption automatically — the
+derived value disappears once a stated one exists, and the new claim supersedes the assumed one.
+
+**Re-filing: withdraw, then file again through the same core path.** Any finalized Document or
+Record can be re-filed — its domain, category and fields can all change — via `refile_document` /
+`refile_record`, which withdraw the source from its old classification and then run it through the
+same `_file_under` path a fresh upload uses, so there is exactly one way a source ends up filed
+anywhere.
+- The wiki withdrawal (`withdraw_from_wiki`) *supersedes* the source's claims; it never deletes
+  them. A claim that other sources still support stays ACTIVE — only this source's
+  `WikiClaimSource` link is marked `withdrawn_at`. The withdrawal is logged as `EDIT`.
+- Open auto-generated to-dos linked to the source are derived data: `_drop_open_derived_todos`
+  deletes them and the new handler re-derives what's still applicable. Done to-dos are history and
+  are kept.
+- The old domain's handler reverses its own derived data via `DomainHandler.withdraw()`. It can
+  refuse via `refile_blocker()` when reversing would destroy a human decision — checked, and
+  raising `RefileRefusedError`, *before* any mutation happens.
+- **Financials rule:** re-filing a Financials document deletes its derived Transactions,
+  UtilityReadings and their open to-dos. Merchants are shared and are kept. Re-filing is refused,
+  with an explanation, if any of its Transactions carries a human-made link: a Commitment, a Debt,
+  or a transfer pair (`linked_transaction_id` in either direction). Automated derivations are
+  recomputable; human decisions are never discarded silently.
+- A Record re-filed into a DOCUMENT category is *retired* (`Record.retired_at` set), not deleted —
+  its attached Document is re-filed in its place and becomes a normal, unattached Document.
+- Implementation note: `create_record`/`refile_record` check the target category's `kind` via a
+  private `_target_kind()` helper *before* `validate_classification` runs, so they can raise their
+  own specific error ("filed from a document, not entered by hand" / "can only become a document if
+  it has a file attached") ahead of `validate_classification`'s generic "choose a file" error for a
+  DOCUMENT-kind category with no file — a coordinator ruling made during Task 22 (see the build log),
+  since `validate_classification` itself is correct as written for the upload/Inbox path and was
+  left unchanged.
+
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 
 1. Add the `Domain` member + a migration altering `domain` on `documents`, `todos`, and `wiki_pages` (copy `3b7e9c1d2f40`'s pattern).
 2. Create `app/domains/<domain>/` with `categories.py`, `handler.py` (a `DomainHandler`), `overview.py` (`overview_card`), and `spec.py` (`SPEC`, including its `fields` and `wiki` schema).
 3. Append `"app.domains.<domain>.spec"` to `_SPEC_MODULES` in `app/domains/registry.py`.
 4. Create `app/routers/<domain>.py` (+ `app/templates/<domain>/`) using `app.templating.templates`, the ingestion core (`receive_file` / `finalize_document`) for uploads, `domains/_field_inputs.html` for metadata, and `todos/_backlog.html` for the backlog; include the router in `app/main.py`.
-5. Nothing else changes: nav, Overview card row, backlogs, the wiki index, and (once they exist) Plan B's Inbox classifier and Plan C's Ask all pick the domain up from the registry.
+5. For any category that's hand-entered rather than filed from a file (a mileage log, a doctor
+   visit), declare `kind=SourceKind.RECORD` on its `CategorySpec` and set `DomainSpec.record_url`
+   (where a Record of this domain is viewed — parallel to `document_url`). Optionally set
+   `DomainSpec.derive_fields` for any fact that should be computed rather than stated (see *Derived
+   fields and claim notes*).
+6. Nothing else changes: nav, Overview card row, backlogs, the wiki index, the generic
+   `/documents/{id}/edit` and `/records/{id}/edit` re-filing screens, and (once they exist) Plan B's
+   Inbox classifier and Plan C's Ask all pick the domain up from the registry.
 
 **Known follow-up:** Financials-only services still live in `app/services/` — `extraction.py`, `categorization.py`, `classification_engine.py`, and `find_duplicate_transaction` / `generate_todo_for_transaction` in their current files. They are not shared code; they are called only by the Financials handler and Financials routers. Moving them under `app/domains/financials/` is a pure relocation reserved for a later cleanup.
 

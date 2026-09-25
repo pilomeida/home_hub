@@ -33,7 +33,7 @@ A single-tenant FastAPI web app that ingests bank statements/bills (PDF/image, v
 
 ## 3. Deploying
 
-**This release (House tab)** applies **three migrations**: `3b7e9c1d2f40` (House domain, `category` + `fields_json` on documents), `9c4d2a7e5b18` (knowledge layer: wiki claims/claim-sources/log, **the second of which backfills wiki claims from existing wiki pages**) and `c5f1a8e3d902` (wiki links, `REVIEW` log operation, legacy ingest log entries). Take the usual snapshot **before pushing**:
+**This release (House tab)** applies **four migrations**: `3b7e9c1d2f40` (House domain, `category` + `fields_json` on documents), `9c4d2a7e5b18` (knowledge layer: wiki claims/claim-sources/log, **the second of which backfills wiki claims from existing wiki pages**), `c5f1a8e3d902` (wiki links, `REVIEW` log operation, legacy ingest log entries) and `e7b3d1f4a6c8` (the `records` table; `wiki_claims.note`; `wiki_claim_sources.record_id`/`withdrawn_at`, made nullable on `document_id`; `wiki_log.record_id`; `todos.record_id` — the final head for this release). Take the usual snapshot **before pushing**:
 
 ```bash
 ssh root@167.233.51.113
