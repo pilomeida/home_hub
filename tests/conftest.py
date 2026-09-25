@@ -41,3 +41,15 @@ def client(engine, tmp_path, monkeypatch):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def fake_domain(monkeypatch):
+    """Replace the registry with a single fake domain (registered under
+    Domain.HOUSE) so shared code can be tested against the contract alone."""
+    from app.domains import registry
+    from tests.domain_fakes import make_fake_spec
+
+    spec = make_fake_spec()
+    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    return spec
