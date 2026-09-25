@@ -31,3 +31,57 @@ def test_wiki_page_detail_renders_facts_and_changes(client, session):
 def test_wiki_page_detail_404_for_missing_page(client):
     response = client.get("/wiki/9999")
     assert response.status_code == 404
+
+
+from app.models.document import Document, DocumentSource, DocumentStatus
+from app.models.domain import Domain
+from app.models.wiki import WikiOperation
+from app.services import wiki_store
+from app.services.wiki_store import ClaimInput, PageRef
+
+
+def _house_document(session, name="boiler-warranty.pdf", content_hash="hw1"):
+    document = Document(filename=name, file_path=f"/srv/docs/{content_hash}.pdf", content_hash=content_hash,
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.HOUSE)
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+    return document
+
+
+def test_wiki_index_groups_and_summarises(client, session, fake_domain):
+    ref = PageRef("fake.item", "Boiler", "boiler")
+    wiki_store.apply_claims(session, [ClaimInput(ref, "room", "Kitchen", label="Room")], document=_house_document(session))
+
+    response = client.get("/wiki")
+
+    assert "Fake" in response.text and "Items" in response.text
+    assert "Room: Kitchen" in response.text
+    assert 'href="/wiki/log"' in response.text
+
+
+def test_wiki_page_shows_claims_sources_and_superseded_history(client, session, fake_domain):
+    ref = PageRef("fake.item", "Boiler", "boiler")
+    first = _house_document(session)
+    second = _house_document(session, "boiler-extended.pdf", "hw2")
+    wiki_store.apply_claims(session, [ClaimInput(ref, "warranty_expires", "2027-01-01", label="Warranty expires")], document=first)
+    wiki_store.apply_claims(session, [ClaimInput(ref, "warranty_expires", "2029-01-01", label="Warranty expires")], document=second)
+    page = wiki_store.find_page(session, ref)
+
+    response = client.get(f"/wiki/{page.id}")
+
+    assert response.status_code == 200
+    assert "2029-01-01" in response.text
+    assert "boiler-extended.pdf" in response.text
+    assert f'href="/fake/documents/{second.id}"' in response.text
+    assert "Superseded" in response.text and "2027-01-01" in response.text
+
+
+def test_wiki_log_lists_operations(client, session):
+    wiki_store.append_log(session, WikiOperation.INGEST, "boiler-warranty.pdf → Boiler")
+
+    response = client.get("/wiki/log")
+
+    assert response.status_code == 200
+    assert "boiler-warranty.pdf → Boiler" in response.text
+    assert "ingest" in response.text

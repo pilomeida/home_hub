@@ -1,18 +1,53 @@
 {% extends "base.html" %}
 {% block title %}{{ page.topic }} — Wiki{% endblock %}
 {% block content %}
+<p><a href="/wiki">← Wiki</a></p>
 <h1>{{ page.topic }}</h1>
+{% if page.summary %}<p>{{ page.summary }}</p>{% endif %}
+
+<h2>Current facts</h2>
+{% if active_claims %}
+<table class="review-table">
+  <thead><tr><th>Fact</th><th>Value</th><th>Source</th></tr></thead>
+  <tbody>
+    {% for claim in active_claims %}
+    <tr>
+      <td>{{ claim.label or claim.key }}</td>
+      <td>{{ claim.value }}</td>
+      <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
 <dl>
-  {% for key, value in facts.items() %}
-  <dt>{{ key }}</dt><dd>{{ value }}</dd>
-  {% endfor %}
+  {% for key, value in facts.items() %}<dt>{{ key }}</dt><dd>{{ value }}</dd>{% endfor %}
 </dl>
-<h2>Change history</h2>
+{% endif %}
+
+{% if history %}
+<h2>Superseded</h2>
+<table class="review-table">
+  <thead><tr><th>Fact</th><th>Was</th><th>Replaced on</th><th>Source</th></tr></thead>
+  <tbody>
+    {% for claim in history %}
+    <tr>
+      <td>{{ claim.label or claim.key }}</td>
+      <td>{{ claim.value }}</td>
+      <td>{{ claim.superseded_at.strftime('%d %b %Y') if claim.superseded_at else '—' }}</td>
+      <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if changes %}
+<h2>Earlier history</h2>
 <ul>
   {% for change in changes %}
   <li>{{ change.changed_at }} — {{ change.fact_key }}: {{ change.old_value }} → {{ change.new_value }}</li>
-  {% else %}
-  <li>No changes recorded.</li>
   {% endfor %}
 </ul>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Wiki log{% endblock %}
+{% block content %}
+<p><a href="/wiki">← Wiki</a></p>
+<h1>Wiki activity log</h1>
+<table class="review-table">
+  <thead><tr><th>When</th><th>Operation</th><th>What</th><th>Pages</th></tr></thead>
+  <tbody>
+    {% for entry, pages in rows %}
+    <tr>
+      <td>{{ entry.occurred_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ entry.operation.value }}</td>
+      <td>{{ entry.description }}</td>
+      <td>{% for page_id, title in pages %}<a href="/wiki/{{ page_id }}">{{ title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">Nothing logged yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
