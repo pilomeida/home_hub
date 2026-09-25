@@ -1,5 +1,6 @@
 """House tab: /house/*."""
 
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -11,10 +12,13 @@ from app.domains.fields import (
     InvalidClassification, build_form_fields, describe_document, load_fields, media_kind_for,
 )
 from app.domains.house.categories import ITEM_PAGE_TYPE
+from app.domains.house.items import build_item_cards, group_item_cards, reference_sections
+from app.domains.house.warranty import REMINDER_LEAD_DAYS
 from app.domains.registry import document_url, get_spec
 from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
 from app.services.ingestion import Classification, IncomingFile, ingest, update_document_fields
+from app.services.todo_backlog import backlog_context
 from app.services.wiki_store import PageRef, find_page, normalize_entity_key
 from app.templating import templates
 
@@ -55,6 +59,22 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
         "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind),
         "item_page": item_page,
     }
+
+
+@router.get("")
+async def house_landing(request: Request, group_by: str = "type", session: Session = Depends(get_session)):
+    if group_by not in ("type", "room"):
+        group_by = "type"
+    spec = get_spec(Domain.HOUSE)
+    return templates.TemplateResponse(request, "house/landing.html", {
+        "group_by": group_by,
+        "sections": group_item_cards(build_item_cards(session), group_by),
+        "reference": reference_sections(session),
+        "category_label": spec.category_label,
+        "today": date.today(),
+        "reminder_days": REMINDER_LEAD_DAYS,
+        **backlog_context(session, Domain.HOUSE),
+    })
 
 
 @router.get("/upload")

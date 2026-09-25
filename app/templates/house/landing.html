@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}House{% endblock %}
+{% block content %}
+<h1>House</h1>
+<p>
+  <a href="/house/upload">+ Add a document</a>
+  · Group by:
+  <a href="/house?group_by=type" class="{{ 'active' if group_by == 'type' else '' }}">Type</a> |
+  <a href="/house?group_by=room" class="{{ 'active' if group_by == 'room' else '' }}">Room</a>
+</p>
+
+{% for title, cards in sections %}
+<section>
+  <h2>{{ title }}</h2>
+  <div class="item-grid">
+    {% for card in cards %}{% include "house/_item_card.html" %}{% else %}<p>Nothing here yet.</p>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<section>
+  <h2>Reference</h2>
+  {% for title, docs in reference %}
+  <h3>{{ title }}</h3>
+  <ul>
+    {% for item in docs %}
+    <li>
+      <a href="/house/documents/{{ item.document.id }}">{{ item.document.filename }}</a>
+      {% if item.fields.get("system_type") %} — {{ item.fields["system_type"] }}{% endif %}
+      {% if item.fields.get("indoor_outdoor") %} · {{ item.fields["indoor_outdoor"]|capitalize }}{% endif %}
+      {% if item.fields.get("observations") %}<br><small>{{ item.fields["observations"] }}</small>{% endif %}
+    </li>
+    {% else %}
+    <li>Nothing here yet.</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+</section>
+
+{% include "todos/_backlog.html" %}
+{% endblock %}

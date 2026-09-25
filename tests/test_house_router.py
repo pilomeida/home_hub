@@ -133,3 +133,37 @@ def test_non_house_documents_are_404(client, session):
     session.refresh(document)
     assert client.get(f"/house/documents/{document.id}").status_code == 404
     assert client.get("/house/documents/99999").status_code == 404
+
+
+def test_landing_groups_items_by_type_with_reference_and_backlog(client, session):
+    _upload(client, {"category": "house_appliance", "item_name": "Boiler", "room": "Kitchen"}, content=b"1")
+    _upload(client, {"category": "warranty_invoice", "item_name": "boiler", "warranty_expiry": "2030-03-01"}, content=b"2")
+    _upload(client, {"category": "outdoor_gear", "item_name": "Lawnmower", "room": "Garage"}, content=b"3")
+    _upload(client, {"category": "floor_plan", "system_type": "Pipes", "indoor_outdoor": "outdoor"},
+            filename="pipes.pdf", content=b"4")
+
+    response = client.get("/house")
+
+    assert response.status_code == 200
+    text = response.text
+    assert text.index("House Appliances") < text.index("Boiler") < text.index("Outdoor Gear") < text.index("Lawnmower")
+    assert "Reference" in text and "Floor plans" in text and "pipes.pdf" in text and "Outdoor" in text
+    assert text.count('class="item-card"') == 2  # manual + warranty share the Boiler card
+    assert "01 Mar 2030" in text
+    assert 'id="backlog-house"' in text and "Renew Boiler warranty" in text
+    assert 'href="/house/upload?category=warranty_invoice&item_name=Boiler"' in text
+
+
+def test_landing_groups_by_room(client, session):
+    _upload(client, {"category": "house_appliance", "item_name": "Boiler", "room": "Kitchen"}, content=b"1")
+    _upload(client, {"category": "house_appliance", "item_name": "TV"}, content=b"2")
+
+    text = client.get("/house?group_by=room").text
+
+    assert text.index("Kitchen") < text.index("No room set")
+    assert client.get("/house?group_by=nonsense").status_code == 200
+
+
+def test_landing_when_empty(client):
+    text = client.get("/house").text
+    assert "Nothing here yet" in text
