@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from app.domains.base import (
     CategorySpec, DomainSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
 )
+from app.domains.financials.ask import FINANCIALS_ASK_TOOLS
 from app.domains.financials.categories import FinancialsCategory
 from app.domains.financials.handler import FinancialsHandler
 from app.domains.financials.overview import financials_overview_card
@@ -54,4 +55,5 @@ SPEC = DomainSpec(
         ),
     ),
     infers_category=True,
+    ask_tools=FINANCIALS_ASK_TOOLS,
 )
