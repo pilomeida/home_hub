@@ -3,6 +3,7 @@
 {% block content %}
 <h1>{{ document.filename }}</h1>
 <p>Status: {{ document.status.value }}</p>
+<p><a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
 {% if document.failure_reason %}
 <p class="needs-attention">{{ document.failure_reason }}</p>
 {% endif %}

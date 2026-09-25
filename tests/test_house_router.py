@@ -168,3 +168,26 @@ def test_landing_groups_by_room(client, session):
 def test_landing_when_empty(client):
     text = client.get("/house").text
     assert "Nothing here yet" in text
+
+
+def test_maintenance_can_be_logged_without_a_file(client, session):
+    response = client.post("/house/upload", data={
+        "category": "maintenance_log", "item_name": "Boiler", "service_date": "2026-06-01", "notes": "Annual service",
+    }, follow_redirects=False)
+
+    assert response.status_code == 303 and response.headers["location"].startswith("/house/records/")
+    page = client.get(response.headers["location"]).text
+    assert "Annual service" in page and "Attach a file" in page and "Edit / re-file" in page
+    assert "Boiler" in client.get("/house").text
+
+
+def test_a_file_can_be_attached_to_a_record_later(client, session):
+    location = client.post("/house/upload", data={
+        "category": "maintenance_log", "item_name": "Boiler", "service_date": "2026-06-01",
+    }, follow_redirects=False).headers["location"]
+
+    response = client.post(f"{location}/attachment", files={"file": ("r.pdf", io.BytesIO(b"r"), "application/pdf")},
+                           follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "r.pdf" in client.get(location).text

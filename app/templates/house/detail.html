@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/house">← House</a></p>
 <h1>{{ document.filename }}</h1>
-<p><span class="badge">{{ description.category_label }}</span> · added {{ document.created_at.strftime('%d %b %Y') }}</p>
+<p><span class="badge">{{ description.category_label }}</span> · added {{ document.created_at.strftime('%d %b %Y') }} · <a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
 {% if document.failure_reason %}<p class="needs-attention">{{ document.failure_reason }}</p>{% endif %}
 
 <div class="doc-preview">
@@ -20,6 +20,8 @@
 {% endif %}
 
 <h2>Details</h2>
+{% set derived = description.fields %}
+{% if document.category == "warranty_invoice" and warranty_note %}<p><em>{{ warranty_note }}</em></p>{% endif %}
 <form action="/house/documents/{{ document.id }}/fields" method="post">
   {% include "domains/_field_inputs.html" %}
   <button type="submit">Save</button>

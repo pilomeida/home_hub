@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Edit / re-file — {{ title }}{% endblock %}
+{% block content %}
+<h1>Edit / re-file: {{ title }}</h1>
+{% if refused %}<p class="needs-attention">{{ refused }}</p>{% endif %}
+<form action="{{ action }}" method="post">
+  <div class="field">
+    <label for="f-domain">Domain *</label>
+    <select id="f-domain" name="domain" hx-get="/documents/edit/categories" hx-target="#category-slot" hx-trigger="change">
+      {% for spec in domains %}
+      <option value="{{ spec.domain.value }}"{% if spec.domain == domain %} selected{% endif %}>{{ spec.label }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.get("domain") %}<span class="needs-attention">{{ errors["domain"] }}</span>{% endif %}
+  </div>
+  <div class="field">
+    <label for="f-category">Category</label>
+    <span id="category-slot">{% include "documents/_category_select.html" %}</span>
+    {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
+    {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
+  </div>
+  <div id="edit-fields">{% include "domains/_field_inputs.html" %}</div>
+  <button type="submit">Save</button>
+</form>
+{% endblock %}

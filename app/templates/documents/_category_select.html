@@ -1,0 +1,7 @@
+<select id="f-category" name="category" hx-get="/documents/edit/fields" hx-include="[name='domain']"
+        hx-target="#edit-fields" hx-trigger="change">
+  <option value="">— choose —</option>
+  {% for c in categories %}
+  <option value="{{ c.value }}"{% if c.value == category %} selected{% endif %}>{{ c.label }}</option>
+  {% endfor %}
+</select>

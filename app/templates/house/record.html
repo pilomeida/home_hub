@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ category_label }} — House{% endblock %}
+{% block content %}
+<p><a href="/house">← House</a></p>
+<h1>{{ category_label }}</h1>
+<p>Entered {{ record.created_at.strftime('%d %b %Y') }}{% if record.entered_by %} by {{ record.entered_by }}{% endif %}
+ · <a href="/records/{{ record.id }}/edit">Edit / re-file</a></p>
+
+{% if attachment %}
+<div class="doc-preview">
+  {% if media_kind == "image" %}<img src="{{ attachment_description.file_url }}" alt="{{ attachment.filename }}">{% endif %}
+  <p>Attached: <a href="{{ attachment_description.file_url }}" target="_blank" rel="noopener">{{ attachment.filename }}</a></p>
+</div>
+{% else %}
+<form action="/house/records/{{ record.id }}/attachment" method="post" enctype="multipart/form-data">
+  <label for="f-attach">Attach a file (receipt, report or photo)</label>
+  <input type="file" id="f-attach" name="file" accept="application/pdf,image/*">
+  <button type="submit">Attach</button>
+  {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
+</form>
+{% endif %}
+
+<h2>Details</h2>
+<form action="/house/records/{{ record.id }}/fields" method="post">
+  {% include "domains/_field_inputs.html" %}
+  <button type="submit">Save</button>
+</form>
+{% endblock %}

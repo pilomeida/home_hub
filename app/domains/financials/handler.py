@@ -6,13 +6,16 @@ directly."""
 
 from __future__ import annotations
 
-from sqlmodel import Session
+from typing import Optional
+
+from sqlmodel import Session, or_, select
 
 from app.domains.base import DomainHandler
 from app.domains.fields import dump_fields, load_fields
 from app.domains.financials.categories import FinancialsCategory
 from app.models.document import Document, DocumentStatus
 from app.models.merchant import Merchant
+from app.models.todo import Todo
 from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.categorization import normalize_category
@@ -73,6 +76,41 @@ class FinancialsHandler(DomainHandler):
         # Module-level lookup at call time, so tests can monkeypatch
         # process_financials_document.
         return await process_financials_document(session, document)
+
+    def refile_blocker(self, session: Session, document: Document) -> Optional[str]:
+        transactions = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
+        ids = [t.id for t in transactions]
+        linked = [t for t in transactions if t.commitment_id or t.debt_id or t.linked_transaction_id]
+        if ids and not linked:
+            linked = session.exec(select(Transaction).where(Transaction.linked_transaction_id.in_(ids))).all()
+        if linked:
+            return (
+                f"{len(linked)} transaction(s) from this document are linked to a commitment, debt or transfer. "
+                "Remove those links in Transactions first — re-filing would discard them."
+            )
+        return None
+
+    async def withdraw(self, session: Session, document: Document) -> None:
+        """Reverse Financials' automated derivations for this document.
+        Merchants are shared across documents and are kept."""
+        transactions = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
+        ids = [t.id for t in transactions]
+        for reading in session.exec(select(UtilityReading).where(UtilityReading.document_id == document.id)).all():
+            session.delete(reading)
+        if ids:
+            for todo in session.exec(select(Todo).where(Todo.transaction_id.in_(ids))).all():
+                if todo.done:
+                    todo.transaction_id = None
+                    todo.document_id = document.id
+                    session.add(todo)
+                else:
+                    session.delete(todo)
+            session.flush()
+            for transaction in transactions:
+                session.delete(transaction)
+        document.account_id = None
+        session.add(document)
+        session.commit()
 
 
 async def _log_ingest_without_assessment(session: Session, document: Document) -> None:

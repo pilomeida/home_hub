@@ -18,7 +18,7 @@
     {% include "domains/_field_inputs.html" %}
   </div>
   <div class="field">
-    <label for="f-file">File (PDF, photo, or video for floor plans) *</label>
+    <label for="f-file">File{% if optional_file_labels %} (optional for: {{ optional_file_labels|join(", ") }}){% endif %}</label>
     <input type="file" id="f-file" name="file" accept="application/pdf,image/*,video/*">
     {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
   </div>
