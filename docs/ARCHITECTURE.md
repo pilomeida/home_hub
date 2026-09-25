@@ -17,27 +17,32 @@ FastAPI  (app/main.py)
   ├── GET/POST /financials/bills/*        ── app/routers/bills.py        (upload, list, detail — the ingestion entry point)
   ├── GET/POST /financials/transactions/* ── app/routers/transactions.py (browse/filter/bulk-edit, Needs Review queue)
   ├── GET  /financials/utilities/{tab}    ── app/routers/utilities.py    (Electricity/Water/Telecom consumption + charts)
+  ├── GET/POST /house/*                  ── app/routers/house.py        (House documents, items, backlog)
   ├── GET  /wiki/*                 ── app/routers/wiki.py         (auto-maintained standing-facts pages)
   ├── GET/POST /todos/*            ── app/routers/todos.py        (due-date-driven task list)
   │
   └── Static: /static/*  (htmx.min.js; app/static/documents/ — uploaded source PDFs)
 
-Ingestion pipeline (app/services/pipeline.py — the single entry point every
-upload goes through, `ingest_document()`):
+Ingestion core (app/services/ingestion.py — the ONLY way a file becomes a Document):
 
-  classify_document (Claude Haiku: bill vs statement)
-        │
-        ├─ "bill"      → extract_bill → dedup check → Transaction (1) → classify_transaction
-        │                                                    │              │
-        │                                          [if utility category]   └─ merchant_id/nature
-        │                                          extract_utility_detail (enrichment, non-fatal)
-        │                                                    │
-        │                                          generate_todo_for_transaction
-        │                                          assess_and_update_wiki
-        │
-        └─ "statement" → extract_statement_transactions → Transaction (N, per-item commit)
-                                                                │
-                                                          classify_transaction (per item)
+  receive_file (content-hash dedup → store → UNCLASSIFIED Document, domain=NULL)
+        │            (a reviewing channel — Plan B's Inbox — holds the document here)
+        ▼
+  finalize_document (validate domain + category + fields against the registry
+        │            → tag the Document → dispatch)
+        ├─ Financials → FinancialsHandler (app/domains/financials/handler.py):
+        │     classify (if no category) → bill: extract_bill → Transaction → classify_transaction
+        │                                   → utility detail → todo → ingest_into_wiki
+        │                               statement: extract_statement_transactions → Transactions
+        └─ House      → HouseHandler (app/domains/house/handler.py):
+              warranty without a date → extract_warranty_expiry (Haiku, best effort)
+              → renewal To-Do at expiry − 21 days → ingest_into_wiki (item page, no LLM)
+
+Knowledge layer (app/services/wiki_engine.py decides WHAT, app/services/wiki_store.py HOW):
+  ingest_into_wiki(document) → claims_from_fields (registry WikiSchema entity types)
+                             + assess_document_for_wiki (LLM, only if the domain gives guidance)
+                             → apply_claims: pages ← claims ← source documents;
+                               changed claims SUPERSEDED (never deleted); one wiki_log entry
 
 Classification engine (app/services/classification_engine.py — populates
 merchant_id / account_id / nature on every Transaction; also the standalone
@@ -84,6 +89,8 @@ Home & Family/
 │   │                           PRAGMA foreign_keys=ON connect-event listener
 │   ├── auth.py                 CloudflareAccessMiddleware — verifies the CF Access JWT via JWKS,
 │   │                           attaches request.state.user_email; skips only /health
+│   ├── templating.py           Shared Jinja2Templates instance (`app.templating.templates`) —
+│   │                           domain routers use this instead of building their own
 │   │
 │   ├── models/                 One file per entity; app/models/__init__.py imports every module so
 │   │   │                       SQLModel.metadata is fully populated (required for create_all/alembic)
@@ -108,21 +115,37 @@ Home & Family/
 │   │   │                       sa.Numeric(12,2), not float (it's a running accumulator)
 │   │   ├── utility_reading.py  UtilityReading: consumption + cost-breakdown detail beyond what
 │   │   │                       Transaction tracks, one row per billed month per utility_type
-│   │   ├── todo.py             Todo: title, due_date, done, optional transaction_id
-│   │   └── wiki.py             WikiPage (current facts per topic) + WikiChange (history)
+│   │   ├── todo.py             Todo: title, due_date, done, domain, optional transaction_id / document_id
+│   │   └── wiki.py             WikiPage (page_type + entity_key, facts_json = active-claims cache),
+│   │                           WikiClaim, WikiClaimSource, WikiLogEntry, WikiChange (legacy)
+│   │
+│   ├── domains/                Domain registry — the ONLY extension point (see Design Decisions
+│   │   │                       and "Adding a domain"); shared code never names a domain
+│   │   ├── base.py             Domain enum, DomainSpec / DomainHandler / CategorySpec / FieldSpec /
+│   │   │                       WikiSchema dataclasses
+│   │   ├── registry.py         get_spec / all_specs — loads SPEC from _SPEC_MODULES, validates
+│   │   │                       domain uniqueness
+│   │   ├── fields.py           FieldInput helpers shared by the domain field-inputs template
+│   │   ├── financials/         categories.py, handler.py (FinancialsHandler), overview.py
+│   │   │                       (overview_card), spec.py (SPEC)
+│   │   └── house/              Same shape + items.py (item-card aggregation) and warranty.py
+│   │                           (extract_warranty_expiry + the −21-day renewal To-Do)
 │   │
 │   ├── routers/                One file per nav section; each owns its own Jinja2Templates instance
 │   │   ├── dashboard.py        `/` and `/health`
 │   │   ├── bills.py            `/financials/bills*` — upload form + POST (dedup by content_hash, then
-│   │   │                       ingest_document), list, per-document detail
+│   │   │                       the ingestion core), list, per-document detail
+│   │   ├── house.py            `/house*` — landing, Add a document (fields swap per category), item
+│   │   │                       cards, detail, edit fields, backlog — via the ingestion core
 │   │   ├── transactions.py     `/financials/transactions*` — filtered/paginated list, bulk-edit, Needs Review
 │   │   │                       tab (confirm/dismiss/create-commitment/link-debt actions)
 │   │   ├── utilities.py        `/financials/utilities/{tab}` — Electricity/Water/Telecom table + bar charts
-│   │   ├── wiki.py             `/wiki*` — page list + detail with change history
+│   │   ├── wiki.py             `/wiki*` — page list + detail with change history, `/wiki/log`
 │   │   └── todos.py            `/todos*` — open/done lists, mark-done (htmx partial swap)
 │   │
 │   ├── services/                Business logic, no HTTP/template concerns
-│   │   ├── pipeline.py          ingest_document() — the ingestion orchestrator (see diagram above)
+│   │   ├── ingestion.py         receive_file / finalize_document — the ingestion core: the ONLY
+│   │   │                       way a file becomes a Document (see diagram above)
 │   │   ├── extraction.py        Every Claude call for document understanding: classify_document,
 │   │   │                       extract_bill, extract_statement_transactions, extract_utility_detail
 │   │   ├── classification_engine.py  normalize_provider, resolve_merchant_via_llm,
@@ -135,10 +158,16 @@ Home & Family/
 │   │   │                       find_duplicate_transaction (bill re-upload, by provider+period,
 │   │   │                       excluding statement-derived line items)
 │   │   ├── todo_engine.py       generate_todo_for_transaction — one Todo per due_date
-│   │   ├── wiki_engine.py       assess_and_update_wiki — second-pass Claude call deciding if a
-│   │   │                       document holds a standing fact (vs. purely transactional data)
-│   │   ├── dashboard_service.py get_dashboard_data — spend-by-category (this/last month),
-│   │   │                       open todos, recently-changed wiki pages, needs-attention documents
+│   │   ├── todo_backlog.py      open_todos_for_domain / open_todo_count / backlog_context —
+│   │   │                       the per-domain backlog behind `todos/_backlog.html`
+│   │   ├── domain_overview.py   build_domain_cards — per-domain cards on the Overview dashboard
+│   │   ├── wiki_engine.py       WHAT goes in the wiki: claims_from_fields (registry WikiSchema
+│   │   │                       entity types) + assess_document_for_wiki (LLM, only if the domain
+│   │   │                       gives guidance) → ingest_into_wiki
+│   │   ├── wiki_store.py        HOW the wiki is stored: find_page / _get_or_create_page,
+│   │   │                       apply_claims (pages ← claims ← source documents; changed claims
+│   │   │                       superseded, never deleted; one wiki_log entry), active_claims,
+│   │   │                       sources_for_claims, recent_log, build_wiki_index
 │   │   ├── document_input.py    build_content_block — base64 PDF/image → Claude content block
 │   │   ├── json_utils.py        strip_json_fences — strips a ```json fence if Claude adds one
 │   │   └── storage.py           save_upload — writes to DOCUMENTS_DIR, returns (path, sha256 hash)
@@ -146,7 +175,11 @@ Home & Family/
 │   ├── templates/               Jinja2, server-rendered, htmx for partial-swap interactivity
 │   │   ├── base.html            Nav shell; loads htmx.min.js; shared CSS
 │   │   ├── dashboard.html
+│   │   ├── dashboard/           Overview partials (_kpi_card, _domain_cards, _household,
+│   │   │                       _needs_attention, _period_panel, _yearly_commitments_card)
 │   │   ├── bills/{list,upload,detail}.html
+│   │   ├── house/{landing,upload,detail}.html + _item_card.html
+│   │   ├── domains/_field_inputs.html   Shared per-domain metadata field inputs (htmx swap)
 │   │   ├── transactions/
 │   │   │   ├── list.html                 Filters (GET form) + bulk-edit (htmx POST form, paginated)
 │   │   │   ├── _rows.html                 Table body partial (swapped in after bulk-edit)
@@ -155,8 +188,8 @@ Home & Family/
 │   │   │                                 (+ create-Commitment form), debt candidates (+ link-Debt
 │   │   │                                 form), unclassified transactions (read-only)
 │   │   ├── utilities/tab.html
-│   │   ├── wiki/{list,page}.html
-│   │   └── todos/{list,_lists}.html
+│   │   ├── wiki/{list,page,log}.html
+│   │   └── todos/{list,_lists}.html + _backlog.html (shared per-domain backlog partial)
 │   │
 │   └── static/
 │       ├── htmx.min.js          The app's only vendored JS dependency
@@ -165,7 +198,7 @@ Home & Family/
 ├── alembic/
 │   ├── env.py                   render_as_batch=True (required for SQLite ALTER TABLE); reads
 │   │                           settings.database_url; imports app.models so metadata is complete
-│   └── versions/                16 linear migrations, no branches — see Database Schema below
+│   └── versions/                18 linear migrations, no branches — see Database Schema below
 │
 ├── scripts/                      One-off historical-import scripts. NOT part of the reviewed
 │   │                           application code (no test coverage expected) — each has its own
@@ -187,6 +220,8 @@ Home & Family/
 │   │                           a fresh SQLite DB per test from SQLModel.metadata (NOT via Alembic —
 │   │                           migrations are verified separately, by hand, against scratch copies
 │   │                           of the real database during development)
+│   ├── domain_fakes.py          Stand-in DomainSpec/DomainHandler fakes shared by tests that
+│   │                           exercise the registry without touching the real domains
 │   └── test_*.py                One file per model/service/router, matching the app/ layout
 │
 ├── docs/
@@ -208,12 +243,13 @@ Home & Family/
 
 ## Database Schema
 
-Single file: `data/home_family.db` (SQLite). Additive-only migration history (16 revisions, one
+Single file: `data/home_family.db` (SQLite). Additive-only migration history (18 revisions, one
 linear chain, no branches) — every schema change to date has been a new table or a new nullable
 column; nothing has ever been dropped or had an existing column's meaning changed.
 
 ### `documents`
-A source file (uploaded, forwarded, or synced).
+A source file (uploaded, forwarded, or synced). `domain` set ⇔ finalized: a Document whose
+`domain` is NULL is UNCLASSIFIED and waiting in a reviewing channel (Plan B's Inbox).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -222,7 +258,10 @@ A source file (uploaded, forwarded, or synced).
 | `content_hash` | TEXT, indexed | SHA-256 of the file bytes — upload-time dedup key |
 | `source` | enum | MANUAL / EMAIL / API |
 | `status` | enum | PENDING → PROCESSED \| NEEDS_ATTENTION |
-| `doc_type` | TEXT, nullable | "bill" or "statement", set by `classify_document`; nullable because it didn't exist before an early migration — pre-migration rows are treated as "bill" by dedup's NULL-safe filter |
+| `domain` | enum, nullable | FINANCIALS \| HOUSE — set at `finalize_document`; NULL ⇒ UNCLASSIFIED |
+| `category` | TEXT, nullable, indexed | The domain's category value (validated against the registry at finalize); Financials' former `doc_type` |
+| `fields_json` | TEXT | JSON object of string values — per-domain metadata, validated against the registry's `FieldSpec`s before write |
+| `doc_type` | TEXT, nullable | **Deprecated** — copied into `category` by 3b7e9c1d2f40, no longer read or written |
 | `password_protected` | bool | |
 | `failure_reason` | TEXT, nullable | Populated whenever status is NEEDS_ATTENTION, or as a non-fatal note when PROCESSED with degraded enrichment |
 | `uploaded_by` | TEXT, nullable | CF Access email, or a script name for backfills |
@@ -301,8 +340,22 @@ Formal (mortgage-style) or informal (person-to-person), one shape for both.
 ### `utility_readings`
 Consumption + cost-breakdown detail beyond the generic Transaction, one row per billed month per utility. Deliberately a separate table from `transactions` so Water/Telecom can reuse it without bloating Transaction for every non-utility category.
 
-### `todos`, `wiki_pages`, `wiki_changes`
-Straightforward — see model files. `WikiPage.topic` is unique; a page is upserted (not replaced) so its change history accumulates in `wiki_changes`.
+### `todos`
+Task list. Straightforward columns (title, due_date, done) plus optional FKs: `transaction_id`
+(financials todo from a bill) and `document_id` (nullable FK → `documents.id`, e.g. a House
+renewal To-Do derived from a warranty document). Every Todo belongs to a `domain`, which is
+what the per-domain backlogs (`app/services/todo_backlog.py`, `todos/_backlog.html`) filter on.
+
+### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_log`, `wiki_changes`
+The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique together) —
+`TOPIC` pages (the original standing-facts pages, `entity_key` NULL) plus per-domain item pages
+(e.g. House items, where `entity_key` is the normalized item name); it carries `summary` and
+`facts_json` — a **cache of the page's ACTIVE claims**, rebuilt only by `apply_claims`.
+`WikiClaim` rows are the actual knowledge units (page_id, key, value, superseded_at); a changed
+claim is superseded — a new row written, the old one stamped — never deleted or edited.
+`WikiClaimSource` links each claim to its source `documents.id`. `WikiLogEntry` is an
+append-only log of every `apply_claims` run; `/wiki/log` shows it. `wiki_changes` is the legacy
+WikiChange history table — still read-only, no longer written.
 
 ### `alembic_version`
 Standard Alembic bookkeeping, single row, current head at time of writing: see `alembic/versions/` for the latest filename.
@@ -326,6 +379,22 @@ Standard Alembic bookkeeping, single row, current head at time of writing: see `
 **Statement ingestion commits per line item, not once at the end — with a compensating-delete safety net.** `_ingest_statement` needs each `Transaction` to exist as its own row before `classify_transaction` can act on it without one item's classification failure rolling back its siblings; this was changed from an original single-final-commit design, which broke a pre-existing "no partial ingestion on failure" regression test. The fix tracks every `Transaction` (and any brand-new `Merchant`) created during a failed attempt and deletes them if a later line item aborts the whole statement — restoring the original atomicity guarantee without giving up per-item resilience. (A final-review pass later noted `classify_transaction` never actually reads `transaction.id`, meaning a `session.flush()`-based design might have avoided needing this mechanism at all — left as a documented simplification opportunity, not acted on, since refactoring the highest-regression-risk code path in the system without a fresh review cycle wasn't worth the risk once the compensating-delete version was already verified correct.)
 
 **Migrations are additive-only by policy**, not just by accident: every sub-project's plan explicitly forbids column removals or enum-value changes, and every new `Transaction`/`Document` column has shipped nullable specifically so historical rows never need a backfill *at the same time* as the schema change — backfilling is always a separate, later, explicitly-run step.
+
+**Domain registry is the only extension point.** Every per-domain behavior — categories, metadata fields, handlers, overview cards, wiki schema — is declared in a `DomainSpec` (`app/domains/<domain>/spec.py`) and reached through `app/domains/registry.py`; shared code (ingestion core, backlogs, overview cards, wiki engine, templating, base template) never names a domain, it looks everything up. A `DomainSpec` declares: the `Domain` member, its `CategorySpec`s (label + which media kinds it applies to + option ordering), its `FieldSpec`s (per-category metadata fields with validation rules), a `WikiSchema` (which entity claims this domain's fields feed), its `DomainHandler` (the `process` / `on_fields_changed` hooks the ingestion core dispatches to), and its `overview_card`. The ingestion core is deliberately split into `receive_file` (dedup → store → UNCLASSIFIED Document with `domain=NULL`) and `finalize_document` (validate domain+category+fields against the registry → tag → dispatch to the handler) so that a reviewing channel — Plan B's Inbox — can hold a document between the two, letting a human classify instead of forcing an eager guess at upload time.
+
+**Domain metadata is `fields_json` validated by `FieldSpec`s, not per-domain tables.** Each domain wants different metadata on its documents (a warranty has an expiry date; a bill has a provider and period), and per-domain tables would mean a new table + migration + query surface per domain forever. Instead every Document carries one generic `fields_json` blob of string values, and the registry's `FieldSpec`s are what make it meaningful — they define which fields exist per category, which are required, and how they validate, so `finalize_document` can refuse an invalid write and templates can render fields generically.
+
+**The wiki is a claim-based knowledge layer** (Karpathy's LLM-Wiki pattern). Raw sources stay as Documents; wiki pages are assembled from *claims* (`wiki_claims`), each traceable to its source documents via `wiki_claim_sources`. Claims are never deleted or edited — a new value supersedes the old one, which stays for provenance. Each page's `facts_json` is a rebuilt cache of its active claims, and every `apply_claims` run appends exactly one `wiki_log` entry, so the wiki's full evolution is auditable. Ingestion of claims lives here (Task 17's knowledge layer); Query and Lint of the wiki are Plan C work.
+
+**Adding a domain** (checklist for Health / Education / Vehicles / Legal):
+
+1. Add the `Domain` member + a migration altering `domain` on `documents`, `todos`, and `wiki_pages` (copy `3b7e9c1d2f40`'s pattern).
+2. Create `app/domains/<domain>/` with `categories.py`, `handler.py` (a `DomainHandler`), `overview.py` (`overview_card`), and `spec.py` (`SPEC`, including its `fields` and `wiki` schema).
+3. Append `"app.domains.<domain>.spec"` to `_SPEC_MODULES` in `app/domains/registry.py`.
+4. Create `app/routers/<domain>.py` (+ `app/templates/<domain>/`) using `app.templating.templates`, the ingestion core (`receive_file` / `finalize_document`) for uploads, `domains/_field_inputs.html` for metadata, and `todos/_backlog.html` for the backlog; include the router in `app/main.py`.
+5. Nothing else changes: nav, Overview card row, backlogs, the wiki index, and (once they exist) Plan B's Inbox classifier and Plan C's Ask all pick the domain up from the registry.
+
+**Known follow-up:** Financials-only services still live in `app/services/` — `extraction.py`, `categorization.py`, `classification_engine.py`, and `find_duplicate_transaction` / `generate_todo_for_transaction` in their current files. They are not shared code; they are called only by the Financials handler and Financials routers. Moving them under `app/domains/financials/` is a pure relocation reserved for a later cleanup.
 
 ---
 

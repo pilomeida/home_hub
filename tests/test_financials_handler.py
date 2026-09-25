@@ -70,7 +70,7 @@ async def _fake_classify_statement(file_path, client=None):
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_creates_transaction(session, monkeypatch, tmp_path):
+async def test_process_financials_document_creates_transaction(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path)
 
     extracted = ExtractedBill(
@@ -102,7 +102,7 @@ async def test_ingest_document_creates_transaction(session, monkeypatch, tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_marks_needs_attention_on_classification_failure(session, monkeypatch, tmp_path):
+async def test_process_financials_document_marks_needs_attention_on_classification_failure(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="mystery.pdf", content_hash="hash-classify")
 
     async def failing_classify(file_path, client=None):
@@ -117,7 +117,7 @@ async def test_ingest_document_marks_needs_attention_on_classification_failure(s
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_marks_needs_attention_on_extraction_failure(session, monkeypatch, tmp_path):
+async def test_process_financials_document_marks_needs_attention_on_extraction_failure(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="bad.pdf", content_hash="hash2")
 
     async def failing_extract_bill(file_path, client=None):
@@ -133,7 +133,7 @@ async def test_ingest_document_marks_needs_attention_on_extraction_failure(sessi
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_skips_duplicate_transaction(session, monkeypatch, tmp_path):
+async def test_process_financials_document_skips_duplicate_transaction(session, monkeypatch, tmp_path):
     existing_document = _make_document(session, tmp_path, filename="first.pdf", content_hash="hash-a")
     existing_document.status = DocumentStatus.PROCESSED
     session.add(existing_document)
@@ -169,7 +169,7 @@ async def test_ingest_document_skips_duplicate_transaction(session, monkeypatch,
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_marks_needs_attention_on_unexpected_extraction_error(session, monkeypatch, tmp_path):
+async def test_process_financials_document_marks_needs_attention_on_unexpected_extraction_error(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="corrupt.pdf", content_hash="hash3")
 
     async def failing_extract_bill(file_path, client=None):
@@ -185,7 +185,7 @@ async def test_ingest_document_marks_needs_attention_on_unexpected_extraction_er
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_marks_needs_attention_on_enrichment_failure(session, monkeypatch, tmp_path):
+async def test_process_financials_document_marks_needs_attention_on_enrichment_failure(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="bill.pdf", content_hash="hash4")
 
     extracted = ExtractedBill(
@@ -423,8 +423,8 @@ async def test_ingest_statement_stores_absolute_value_of_negative_amount(session
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_sets_category_on_document(session, monkeypatch, tmp_path):
-    """ingest_document persists the classification result onto the Document
+async def test_process_financials_document_sets_category_on_document(session, monkeypatch, tmp_path):
+    """process_financials_document persists the classification result onto the Document
     itself, so downstream dedup queries can distinguish bill-derived
     transactions from statement line items."""
     bill_document = _make_document(session, tmp_path, filename="bill.pdf", content_hash="hash-doctype-bill")
@@ -461,7 +461,7 @@ async def test_ingest_document_sets_category_on_document(session, monkeypatch, t
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_bill_not_falsely_deduped_by_statement_line_item(session, monkeypatch, tmp_path):
+async def test_process_financials_document_bill_not_falsely_deduped_by_statement_line_item(session, monkeypatch, tmp_path):
     """Regression test for the bug the reviewer found: a statement line item
     sharing provider/period with a genuine, unrelated bill must NOT cause
     the bill to be silently marked as a duplicate. Ingest a statement
@@ -527,7 +527,7 @@ async def test_ingest_document_bill_not_falsely_deduped_by_statement_line_item(s
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_true_bill_duplicate_still_detected(session, monkeypatch, tmp_path):
+async def test_process_financials_document_true_bill_duplicate_still_detected(session, monkeypatch, tmp_path):
     """The original behavior this dedup function exists for must keep
     working: uploading the same bill provider/period twice must mark the
     second upload as a duplicate, producing no second Transaction."""
@@ -573,7 +573,7 @@ async def test_ingest_document_true_bill_duplicate_still_detected(session, monke
 
 
 @pytest.mark.asyncio
-async def test_ingest_document_bill_dedup_still_works_when_prior_document_category_is_null(
+async def test_process_financials_document_bill_dedup_still_works_when_prior_document_category_is_null(
     session, monkeypatch, tmp_path
 ):
     """Pre-migration Documents have category=None (the column didn't exist

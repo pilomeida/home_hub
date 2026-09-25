@@ -33,6 +33,13 @@ A single-tenant FastAPI web app that ingests bank statements/bills (PDF/image, v
 
 ## 3. Deploying
 
+**This release (House tab)** applies **two migrations**: `3b7e9c1d2f40` (House domain, `category` + `fields_json` on documents) and `9c4d2a7e5b18` (knowledge layer: wiki claims/claim-sources/log, **the second of which backfills wiki claims from existing wiki pages**). Take the usual snapshot **before pushing**:
+
+```bash
+ssh root@167.233.51.113
+cp /srv/home-hub/app/data/home_family.db /root/home_family_pre_house_tab_$(date +%Y%m%d).db
+```
+
 **Fully automatic on every push to `main`** — no manual deploy step exists or should be added.
 
 ```
@@ -75,6 +82,13 @@ has no sudo beyond restarting its own service).
 **Health check**: `GET /health` is the one route excluded from Cloudflare Access middleware, so it's
 reachable for uptime checks without an Access session. The deploy workflow itself checks liveness via
 `systemctl is-active`, not an HTTP call.
+
+**Known issue / one-time step:** House floor plans accept **videos**. Nginx's
+`client_max_body_size` for the `home-hub` site must allow them — e.g.
+`client_max_body_size 200M;` in `/etc/nginx/sites-enabled/home-hub`, then
+`nginx -t && systemctl reload nginx`, as root. Until that is done, large video uploads fail
+**at Nginx** with HTTP 413 before ever reaching the app. Note also that uploads are read fully
+into memory by the app — keep videos short.
 
 **Migrations run automatically as part of every deploy** (`alembic upgrade head`, no
 `DATABASE_PATH` override — it deploys against the real file, by design, using the env file's own
@@ -203,7 +217,7 @@ scheduled job; every run so far has been triggered by hand.
 | Script | Purpose | Idempotent? | Run so far (production) |
 |---|---|---|---|
 | `backfill_electricity_history.py` | Ingests a historical Excel export of electricity readings (ground truth, no LLM calls) into Document + Transaction + UtilityReading | Yes | Run once during the Utilities feature's original rollout |
-| `backfill_documents.py` | (Untracked locally — exists on the VPS filesystem only; not yet reconciled into the git repo. Treat as inventory-only until committed or removed.) | Unknown | Unknown |
+| `backfill_documents.py` | Historical bulk import of existing documents; now goes through the ingestion core (`receive_file` / `finalize_document`) like every other upload path | Yes | Unknown |
 | `backfill_transaction_classification.py` | Runs the shared `classify_transaction()` over every Transaction/Document currently missing classification | Yes — filters on `merchant_id IS NULL` | Run **3 times** against production: (1) full historical Santander backfill after sub-project 3 merged, (2) a resumed continuation after an SSH-drop interrupted run 1 partway through, (3) after the Revolut import, to classify the 1,122 new transactions (1 error both times: transaction #3092, `'parking' is not a valid Category` — pre-existing, not caused by any classification-engine bug; still open, see §9) |
 | `merge_duplicate_merchants.py` | Merges exact-case-insensitive-`canonical_name` duplicate `Merchant` rows (repoints their transactions, deletes the duplicate) | Yes, by construction | Run **twice**: after the Santander backfill (503 merged, 761 repointed, 0 errors), and again after the Revolut import (227 merged, 313 repointed, 0 errors) — expected to need re-running after any future large import, since each institution's provider-string format tends to slip past `normalize_provider()`'s rules tier in its own way |
 | `backfill_revolut_pedro_account.py` | Chunked import of Pedro's own Revolut current account (Jan 2024–present) out of a 221-page combined 5-sub-account family statement, sliced into per-month PDF page ranges and run through the normal extraction pipeline once per month (the whole statement is far too large for one extraction call) | Yes — skips any `(year, month)` that already has a `Document` row | Run once: 32/32 months succeeded, 1,122 transactions created, 0 errors. **⚠ Currently exists only on the VPS filesystem** (`/srv/home-hub/app/scripts/`), uploaded by `scp` — **not yet committed to the local git repo**. Should be added to the repo to match how the other scripts here are version-controlled; it's the one loose end from this import. Explicitly does **not** cover Matias's or Vicente's Revolut sub-accounts/pockets — out of scope by deliberate user decision, not yet started |
