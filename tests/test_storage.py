@@ -21,3 +21,15 @@ def test_save_upload_generates_unique_filenames(monkeypatch, tmp_path):
     path_b, _ = save_upload("bill.pdf", b"content-b")
 
     assert path_a != path_b
+
+
+def test_content_hash_and_save_file(tmp_path, monkeypatch):
+    import hashlib
+
+    from app.services.storage import content_hash, save_file
+
+    monkeypatch.setattr("app.services.storage.settings.DOCUMENTS_DIR", tmp_path / "docs")
+    assert content_hash(b"abc") == hashlib.sha256(b"abc").hexdigest()
+    path = save_file("scan.JPG", b"abc")
+    assert path.endswith(".JPG")
+    assert (tmp_path / "docs").joinpath(path.rsplit("/", 1)[-1]).read_bytes() == b"abc"
