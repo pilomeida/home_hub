@@ -1,0 +1,23 @@
+<div class="inbox-card{% if entry.confident %} confident{% endif %}" id="inbox-{{ entry.document.id }}">
+  <div class="inbox-meta">
+    <a href="{{ file_href }}" target="_blank"><strong>{{ entry.document.filename }}</strong></a>
+    <span>from {{ entry.document.uploaded_by or "unknown sender" }}</span>
+    <span>{{ entry.item.received_at.strftime("%d %b %H:%M") }}</span>
+  </div>
+  {% if entry.item.context_text %}<p class="inbox-context">{{ entry.item.context_text }}</p>{% endif %}
+  {% if not entry.confident %}
+    <p class="inbox-hint">
+      {% if entry.suggestion_label %}Best guess: {{ entry.suggestion_label }} — not sure.{% else %}Not sure where this belongs.{% endif %}
+      {% if entry.item.classifier_note %}<em>{{ entry.item.classifier_note }}</em>{% endif %}
+    </p>
+  {% endif %}
+  <form hx-post="/inbox/{{ entry.document.id }}/approve" hx-target="#inbox-{{ entry.document.id }}" hx-swap="outerHTML">
+    <div id="fields-{{ entry.document.id }}" class="inbox-fields">
+      {% include "inbox/_fields.html" %}
+    </div>
+    <button type="submit" class="inbox-approve">Approve</button>
+    <button type="button" class="inbox-discard"
+            hx-post="/inbox/{{ entry.document.id }}/discard" hx-target="#inbox-{{ entry.document.id }}" hx-swap="outerHTML"
+            hx-confirm="Discard this document? It will be kept on file but not filed anywhere.">Discard</button>
+  </form>
+</div>

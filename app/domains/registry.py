@@ -11,7 +11,7 @@ import importlib
 from typing import Optional
 
 from app.domains.base import DomainSpec
-from app.models.document import Document
+from app.models.document import Document, DocumentStatus
 from app.models.domain import Domain
 
 _SPEC_MODULES: tuple[str, ...] = (
@@ -55,12 +55,13 @@ def get_spec(domain: Optional[Domain]) -> DomainSpec:
 
 
 def document_url(document: Document) -> Optional[str]:
-    """Where a document is viewed. None while it is unfinalized (domain not
-    set) -- Plan B extends this function (not its callers) to return the
-    Inbox URL for such documents."""
-    if not is_implemented(document.domain):
-        return None
-    return get_spec(document.domain).document_url(document)
+    """Where a document is viewed: its domain's page once finalized; its
+    Inbox card while it waits for review; None otherwise (e.g. discarded)."""
+    if is_implemented(document.domain):
+        return get_spec(document.domain).document_url(document)
+    if document.domain is None and document.status == DocumentStatus.PENDING_REVIEW:
+        return f"/inbox#inbox-{document.id}"
+    return None
 
 
 def record_url(record) -> Optional[str]:

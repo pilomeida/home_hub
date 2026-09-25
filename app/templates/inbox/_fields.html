@@ -1,0 +1,28 @@
+<label>Area
+  <select name="domain" required
+          hx-get="/inbox/{{ entry.document.id }}/fields" hx-target="#fields-{{ entry.document.id }}"
+          hx-include="closest form" hx-trigger="change">
+    <option value="" {% if not selected_domain %}selected{% endif %}>Choose…</option>
+    {% for spec in domains %}
+      <option value="{{ spec.domain.value }}" {% if spec.domain.value == selected_domain %}selected{% endif %}>{{ spec.label }}</option>
+    {% endfor %}
+  </select>
+</label>
+{% if errors.domain %}<span class="needs-attention">{{ errors.domain }}</span>{% endif %}
+<label>Type
+  <select name="category" {% if not (selected_spec and selected_spec.infers_category) %}required{% endif %}
+          hx-get="/inbox/{{ entry.document.id }}/fields" hx-target="#fields-{{ entry.document.id }}"
+          hx-include="closest form" hx-trigger="change">
+    <option value="" {% if not selected_category %}selected{% endif %}>
+      {% if selected_spec and selected_spec.infers_category %}Let the Hub work it out{% else %}Choose…{% endif %}
+    </option>
+    {% if selected_spec %}
+      {% for category in selected_spec.categories %}
+        <option value="{{ category.value }}" {% if category.value == selected_category %}selected{% endif %}>{{ category.label }}</option>
+      {% endfor %}
+    {% endif %}
+  </select>
+</label>
+{% if errors.category %}<span class="needs-attention">{{ errors.category }}</span>{% endif %}
+{% if errors.file %}<span class="needs-attention">{{ errors.file }}</span>{% endif %}
+{% if form_fields %}{% with id_prefix = "doc-" ~ entry.document.id ~ "-" %}{% include "domains/_field_inputs.html" %}{% endwith %}{% endif %}

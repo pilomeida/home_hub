@@ -139,11 +139,23 @@
     .item-card ul { padding-left: 1rem; font-size: 0.85rem; }
     .item-meta, .item-links { font-size: 0.8rem; color: #777; margin: 0.2rem 0; }
     a.active { font-weight: bold; }
+    .inbox-card { border: 1px solid #e2e2e2; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+    .inbox-card.confident { border-left: 4px solid #1f8a4c; }
+    .inbox-card.done { background: #fafafa; color: #555; }
+    .inbox-meta { display: flex; gap: 14px; align-items: baseline; font-size: 14px; }
+    .inbox-meta span { color: #888; font-size: 12px; }
+    .inbox-context, .inbox-hint { font-size: 13px; color: #555; margin: 6px 0; }
+    .inbox-card form { margin-top: 8px; }
+    .inbox-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+    .inbox-approve { background: #1f8a4c; color: #fff; border: none; border-radius: 5px; padding: 5px 14px; cursor: pointer; }
+    .inbox-discard { background: none; border: 1px solid #ccc; border-radius: 5px; padding: 5px 12px; cursor: pointer; color: #777; }
+    .inbox-empty { color: #888; }
   </style>
 </head>
 <body>
   <nav>
     <a href="/">Overview</a>
+    <a href="/inbox">Inbox</a>
     {% for spec in domain_nav() %}
     <div class="nav-group">
       <span class="nav-group-label">{{ spec.label }}</span>

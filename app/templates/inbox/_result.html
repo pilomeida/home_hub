@@ -1,0 +1,11 @@
+<div class="inbox-card done" id="inbox-{{ document.id }}">
+  <strong>{{ document.filename }}</strong> —
+  {% if discarded %}
+    Discarded (kept on file).
+  {% elif document.status.value == "needs_attention" %}
+    filed as {{ label }}, but processing had a problem: <span class="needs-attention">{{ document.failure_reason }}</span>
+    {% if document_href %}<a href="{{ document_href }}">Open it</a>{% endif %}
+  {% else %}
+    filed as {{ label }}. {% if document_href %}<a href="{{ document_href }}">Open it</a>{% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Inbox{% endblock %}
+{% block content %}
+<h1>Inbox</h1>
+<p>Documents sent by email or Telegram. Check where each one belongs, then approve it to file it.</p>
+{% if cards %}
+  {% for card in cards %}{{ card | safe }}{% endfor %}
+{% else %}
+  <p class="inbox-empty">Nothing waiting — you're all caught up.</p>
+{% endif %}
+
+{% if recent %}
+<h2>Recently handled</h2>
+<table class="review-table">
+  <thead><tr><th>File</th><th>Outcome</th><th>By</th><th>When</th></tr></thead>
+  <tbody>
+  {% for row in recent %}
+    <tr>
+      <td>{{ row.document.filename }}</td>
+      <td>
+        {% if row.document.status.value == "discarded" %}Discarded
+        {% else %}{{ row.label or "Filed" }}{% if row.document.status.value == "needs_attention" %} <span class="needs-attention">(needs attention)</span>{% endif %}
+        {% endif %}
+      </td>
+      <td>{{ row.item.reviewed_by or "—" }}</td>
+      <td>{{ row.item.reviewed_at.strftime("%d %b %H:%M") }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -59,3 +59,14 @@ def test_registry_loads_spec_modules_in_order(monkeypatch):
     monkeypatch.setattr(registry, "_SPEC_MODULES", ("tests.domain_fakes",))
     monkeypatch.setattr(registry, "_specs_cache", None)
     assert [s.label for s in registry.implemented_domains()] == ["Fake"]
+
+
+def test_document_url_points_pending_review_documents_to_the_inbox(fake_domain):
+    from app.models.document import DocumentStatus
+
+    pending = Document(id=9, filename="a.pdf", file_path="/tmp/a.pdf", content_hash="h9",
+                       source=DocumentSource.EMAIL, status=DocumentStatus.PENDING_REVIEW)
+    discarded = Document(id=10, filename="b.pdf", file_path="/tmp/b.pdf", content_hash="h10",
+                         source=DocumentSource.EMAIL, status=DocumentStatus.DISCARDED)
+    assert registry.document_url(pending) == "/inbox#inbox-9"
+    assert registry.document_url(discarded) is None
