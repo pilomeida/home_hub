@@ -1,7 +1,8 @@
 import pytest
+from sqlmodel import select
 
 from app.domains.fields import InvalidClassification, load_fields
-from app.models.document import DocumentSource, DocumentStatus
+from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.services import ingestion
 from app.services.ingestion import (
@@ -162,3 +163,102 @@ async def test_ingest_validates_first_then_receives_and_finalizes(session, docum
     assert first.duplicate is False and first.document.status == DocumentStatus.PROCESSED
     assert again.duplicate is True and again.document.id == first.document.id
     assert fake_domain.handler.processed == [first.document.id]
+
+
+from app.domains.entries import record_for_document
+from app.models.record import Record
+from app.models.todo import Todo
+from app.models.wiki import WikiLogEntry, WikiOperation
+from app.services.ingestion import RecordInput, RefileRefusedError
+
+
+@pytest.mark.asyncio
+async def test_hand_entered_record_without_a_file(session, documents_dir, fake_domain):
+    record = await ingestion.create_record(session, RecordInput(
+        Domain.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}, entered_by="pedro@example.com",
+    ))
+    assert record.id and record.document_id is None and load_fields(record)["visit_date"] == "2026-03-01"
+    assert not documents_dir.exists()
+    entry = session.exec(select(WikiLogEntry).where(WikiLogEntry.record_id == record.id)).one()
+    assert entry.operation == WikiOperation.INGEST
+
+
+@pytest.mark.asyncio
+async def test_record_with_attachment_and_later_attachment(session, documents_dir, fake_domain):
+    with_file = await ingestion.create_record(session, RecordInput(
+        Domain.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}, attachment=_incoming("r.pdf", b"r"),
+    ))
+    attachment = session.get(Document, with_file.document_id)
+    assert attachment.domain == Domain.HOUSE and attachment.category == "visit"
+    assert attachment.fields_json == "{}" and attachment.status == DocumentStatus.PROCESSED
+
+    later = await ingestion.create_record(session, RecordInput(Domain.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-04-01"}))
+    await ingestion.attach_file(session, later, _incoming("later.pdf", b"l"))
+    assert later.document_id is not None
+
+
+@pytest.mark.asyncio
+async def test_record_categories_reject_document_only_use_and_vice_versa(session, documents_dir, fake_domain):
+    with pytest.raises(InvalidClassification) as needs_file:
+        await ingestion.create_record(session, RecordInput(Domain.HOUSE, "manual", {"item_name": "Boiler"}))
+    assert "category" in needs_file.value.errors
+
+
+@pytest.mark.asyncio
+async def test_finalizing_a_file_into_a_record_category_creates_the_record(session, documents_dir, fake_domain):
+    document = ingestion.receive_file(session, _incoming("service.pdf", b"s")).document
+    result = await ingestion.finalize_document(session, document, Classification(Domain.HOUSE, "visit",
+                                                                                  {"item_name": "Boiler", "visit_date": "2026-01-01"}))
+    record = record_for_document(session, result)
+    assert record is not None and load_fields(record)["item_name"] == "Boiler" and result.fields_json == "{}"
+    with pytest.raises(RefileRefusedError):
+        await ingestion.update_document_fields(session, result, {})
+
+
+@pytest.mark.asyncio
+async def test_refile_document_withdraws_then_refiles_and_logs_edit(session, documents_dir, fake_domain):
+    document = (await ingestion.ingest(session, _incoming(), Classification(Domain.HOUSE, "manual", {"item_name": "Boiler"}))).document
+    session.add(Todo(title="derived", document_id=document.id))
+    session.add(Todo(title="history", document_id=document.id, done=True))
+    session.commit()
+
+    result = await ingestion.refile_document(session, document, Classification(Domain.HOUSE, "clip", {"side": "in"}))
+
+    assert result.category == "clip" and load_fields(result) == {"side": "in"}
+    assert [t.title for t in session.exec(select(Todo)).all()] == ["history"]
+    edits = session.exec(select(WikiLogEntry).where(WikiLogEntry.operation == WikiOperation.EDIT)).all()
+    assert len(edits) == 1 and "re-filed" in edits[0].description
+
+
+@pytest.mark.asyncio
+async def test_refile_is_refused_when_the_old_handler_blocks_it(session, documents_dir, monkeypatch):
+    from app.domains import registry
+
+    class Blocking(RecordingHandler):
+        def refile_blocker(self, session, document):
+            return "linked to a commitment"
+
+    spec = make_fake_spec(handler=Blocking())
+    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    document = (await ingestion.ingest(session, _incoming(), Classification(Domain.HOUSE, "manual", {"item_name": "Boiler"}))).document
+
+    with pytest.raises(RefileRefusedError, match="commitment"):
+        await ingestion.refile_document(session, document, Classification(Domain.HOUSE, "clip", {"side": "in"}))
+    session.refresh(document)
+    assert document.category == "manual"
+
+
+@pytest.mark.asyncio
+async def test_refile_record_to_a_document_category_needs_its_file(session, documents_dir, fake_domain):
+    by_hand = await ingestion.create_record(session, RecordInput(Domain.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}))
+    with pytest.raises(RefileRefusedError):
+        await ingestion.refile_record(session, by_hand, Classification(Domain.HOUSE, "manual", {"item_name": "Boiler"}))
+
+    with_file = await ingestion.create_record(session, RecordInput(
+        Domain.HOUSE, "visit", {"item_name": "Oven", "visit_date": "2026-03-01"}, attachment=_incoming("o.pdf", b"o"),
+    ))
+    document = await ingestion.refile_record(session, with_file, Classification(Domain.HOUSE, "manual", {"item_name": "Oven"}))
+
+    session.refresh(with_file)
+    assert isinstance(document, Document) and document.category == "manual" and load_fields(document) == {"item_name": "Oven"}
+    assert with_file.retired_at is not None and record_for_document(session, document) is None
