@@ -14,6 +14,7 @@ from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentStatus
 from app.models.transaction import Category, Transaction, TransactionType
+from app.domains.registry import document_url
 from app.services.classification_engine import get_needs_review_queue
 from app.services.overview_charts import (  # noqa: F401 -- re-exported helper reused for month-end snapshots
     CashFlowChart,
@@ -436,7 +437,7 @@ def get_needs_attention(
         items.append(NeedsAttentionItem(
             kind="document",
             text=f"{doc.filename} — {doc.failure_reason or 'needs attention'}",
-            url=f"/financials/bills/{doc.id}",
+            url=document_url(doc) or "/",
         ))
 
     return items

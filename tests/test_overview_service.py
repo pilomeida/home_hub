@@ -482,3 +482,19 @@ def test_get_overview_data_end_to_end(session):
     assert data.cash_flow_chart.range_key == "12m"
     assert data.category_comparison == []
     assert isinstance(data.needs_attention, list)
+
+
+def test_needs_attention_document_links_go_through_the_registry(session):
+    house_doc = Document(filename="w.pdf", file_path="/tmp/w.pdf", content_hash="hn1", source=DocumentSource.MANUAL,
+                         status=DocumentStatus.NEEDS_ATTENTION, domain=Domain.HOUSE, failure_reason="x")
+    unfinalized = Document(filename="u.pdf", file_path="/tmp/u.pdf", content_hash="hn2", source=DocumentSource.MANUAL,
+                           status=DocumentStatus.PENDING)
+    session.add(house_doc)
+    session.add(unfinalized)
+    session.commit()
+    session.refresh(house_doc)
+
+    items = [i for i in get_needs_attention(session, today=date(2026, 8, 10), category_rows=[]) if i.kind == "document"]
+
+    urls = {i.text.split(" — ")[0]: i.url for i in items}
+    assert urls == {"w.pdf": f"/house/documents/{house_doc.id}", "u.pdf": "/"}

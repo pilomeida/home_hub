@@ -115,3 +115,13 @@ def test_cash_flow_range_pill_swap_changes_content(client, session):
     assert full_year.status_code == 200
     assert twelve_months.status_code == 200
     assert full_year.text != twelve_months.text
+
+
+def test_overview_shows_a_card_per_domain(client, session):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'class="domain-card"' in response.text
+    assert "Spent this month" in response.text
+    assert "documents on file" in response.text
+    assert 'href="/house"' in response.text

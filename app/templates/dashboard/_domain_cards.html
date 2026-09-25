@@ -1,0 +1,15 @@
+<div class="domain-cards">
+  {% for card in domain_cards %}
+  <div class="domain-card">
+    <a class="domain-card-title" href="{{ card.url }}">{{ card.label }}</a>
+    <ul>
+      {% for line in card.lines %}
+      <li class="{{ 'needs-attention' if line.attention else '' }}">
+        {% if line.url %}<a href="{{ line.url }}">{{ line.text }}</a>{% else %}{{ line.text }}{% endif %}
+      </li>
+      {% endfor %}
+      <li><a href="{{ card.url }}">{{ card.open_todos }} open to-do{{ '' if card.open_todos == 1 else 's' }}</a></li>
+    </ul>
+  </div>
+  {% endfor %}
+</div>
