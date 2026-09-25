@@ -13,12 +13,18 @@ class DocumentSource(str, Enum):
     MANUAL = "manual"
     EMAIL = "email"
     API = "api"
+    TELEGRAM = "telegram"
 
 
 class DocumentStatus(str, Enum):
     PENDING = "pending"
     PROCESSED = "processed"
     NEEDS_ATTENTION = "needs_attention"
+    # Channel intake (email/Telegram): waiting in the Inbox for a human to
+    # approve a domain + category. Always unfinalized (domain = NULL).
+    PENDING_REVIEW = "pending_review"
+    # Rejected in the Inbox. Row and file are kept (raw sources are immutable).
+    DISCARDED = "discarded"
 
 
 class Document(SQLModel, table=True):
