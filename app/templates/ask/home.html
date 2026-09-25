@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Ask — Home & Family{% endblock %}
+{% block content %}
+<h1>Ask</h1>
+<h2>New chat</h2>
+<p class="ask-hint">Ask anything about the household, e.g. “When was the boiler last serviced?” or “Which warranties expire this year?” You can ask follow-up questions in the same chat.</p>
+<form method="post" action="/ask" hx-post="/ask" class="ask-form" hx-disabled-elt="find button">
+  <textarea name="question" rows="2" maxlength="1000" required placeholder="Type your question…"></textarea>
+  <button type="submit">Ask</button>
+</form>
+<h2>Recent conversations</h2>
+<ul class="ask-recent">
+  {% for s in conversations %}
+  <li>
+    <a href="/ask/c/{{ s.conversation.id }}">{{ s.conversation.title }}</a>
+    <small>{{ s.turn_count }} question{{ "s" if s.turn_count != 1 }} · last active {{ s.conversation.updated_at.strftime('%Y-%m-%d %H:%M') }}{% if s.conversation.started_by %} · started by {{ s.conversation.started_by }}{% endif %}</small>
+  </li>
+  {% else %}
+  <li>No conversations yet.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

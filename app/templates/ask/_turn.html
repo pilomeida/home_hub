@@ -1,0 +1,27 @@
+<div class="ask-turn" id="turn-{{ turn.id }}"
+     {% if turn.status.value == "pending" %}hx-get="/ask/turns/{{ turn.id }}" hx-trigger="load delay:2s" hx-swap="outerHTML"{% endif %}>
+  <p class="ask-question"><strong>{{ turn.question }}</strong>{% if turn.asked_by %} <small>· {{ turn.asked_by }}</small>{% endif %}</p>
+  {% if turn.status.value == "pending" %}
+    <p class="ask-thinking">Looking through the wiki and documents…</p>
+  {% elif turn.status.value == "failed" %}
+    <p class="needs-attention">Sorry, I couldn't answer that: {{ turn.error }} Try asking again.</p>
+  {% else %}
+    {% for paragraph in rendered.paragraphs %}
+      <p class="ask-paragraph">{% for seg in paragraph %}{% if seg.source_number %}<sup><a href="#src-{{ turn.id }}-{{ seg.source_number }}">[{{ seg.source_number }}]</a></sup>{% else %}{{ seg.text }}{% endif %}{% endfor %}</p>
+    {% endfor %}
+    {% if rendered.sources %}
+      <ol class="ask-sources">
+        {% for number, c in rendered.sources %}<li id="src-{{ turn.id }}-{{ number }}"><a href="{{ c.url }}">{{ c.label }}</a></li>{% endfor %}
+      </ol>
+    {% endif %}
+    {% if turn.used_raw_sources %}<p class="ask-note">Part of this answer came from documents or records rather than the wiki.</p>{% endif %}
+    {% if turn.saved_wiki_page_id %}
+      <p class="ask-note">Saved to the wiki: <a href="/wiki/{{ turn.saved_wiki_page_id }}">view page</a></p>
+    {% elif rendered.sources %}
+      <form method="post" action="/ask/turns/{{ turn.id }}/save" class="ask-save">
+        <label>Save this answer to the wiki as <input name="title" value="{{ turn.question[:120] }}" maxlength="200"></label>
+        <button type="submit">Save to wiki</button>
+      </form>
+    {% endif %}
+  {% endif %}
+</div>

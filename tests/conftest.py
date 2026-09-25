@@ -38,6 +38,8 @@ def client(engine, tmp_path, monkeypatch):
             yield s
 
     app.dependency_overrides[get_session] = override_get_session
+    from app.db import get_session_factory
+    app.dependency_overrides[get_session_factory] = lambda: (lambda: Session(engine))
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

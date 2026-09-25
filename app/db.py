@@ -27,3 +27,9 @@ def get_session():
     """Yield a database session. Used as a FastAPI dependency."""
     with Session(engine) as session:
         yield session
+
+
+def get_session_factory():
+    """Zero-arg callable opening a new Session. Background tasks must not
+    reuse the request's session (closed after the response)."""
+    return lambda: Session(engine)

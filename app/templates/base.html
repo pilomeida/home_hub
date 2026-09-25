@@ -150,11 +150,19 @@
     .inbox-approve { background: #1f8a4c; color: #fff; border: none; border-radius: 5px; padding: 5px 14px; cursor: pointer; }
     .inbox-discard { background: none; border: 1px solid #ccc; border-radius: 5px; padding: 5px 12px; cursor: pointer; color: #777; }
     .inbox-empty { color: #888; }
+    .ask-form { display: flex; gap: 0.5rem; margin: 1rem 0; }
+    .ask-form textarea { flex: 1; font: inherit; padding: 0.5rem; }
+    .ask-turn { border: 1px solid #ececec; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .ask-paragraph { white-space: pre-line; line-height: 1.5; }
+    .ask-thinking, .ask-note, .ask-hint { color: #888; }
+    .ask-sources { font-size: 0.9rem; }
+    .ask-recent small { color: #888; display: block; }
   </style>
 </head>
 <body>
   <nav>
     <a href="/">Overview</a>
+    <a href="/ask">Ask</a>
     <a href="/inbox">Inbox</a>
     {% for spec in domain_nav() %}
     <div class="nav-group">
