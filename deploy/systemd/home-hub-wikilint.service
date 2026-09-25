@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - weekly wiki check (lint)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/home-hub/app
+EnvironmentFile=/srv/home-hub/app/.env
+ExecStart=/srv/home-hub/venv/bin/python -m app.jobs.wiki_lint
+TimeoutStartSec=30min

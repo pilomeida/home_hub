@@ -156,6 +156,18 @@ disturb the poller, and content-hash dedup makes reruns harmless):
   attachment (e.g. a link-only e-invoice).
 - Successfully filed mail moves to `Hub-Processed`.
 
+**Wiki Lint timer** (weekly, Sunday 03:30) — same systemd **user** units of `home-hub` as the
+ingestion channels above:
+
+```bash
+# As home-hub (after su -s /bin/bash home-hub, or sudo -u home-hub with XDG_RUNTIME_DIR set)
+systemctl --user list-timers home-hub-wikilint.timer
+journalctl --user -u home-hub-wikilint
+
+# Manual run, as the home-hub user
+cd /srv/home-hub/app && ../venv/bin/python -m app.jobs.wiki_lint
+```
+
 **Running a one-off script against production** (see §8 for the script inventory):
 
 ```bash
@@ -249,6 +261,12 @@ placeholder values only (`sk-ant-your_key_here`, etc.).
   cheap classifier model the existing document classifier uses. The sender/user allowlists
   (`HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS`) cap the exposure — mail from an
   unknown sender, or a Telegram message from an unknown user, is ignored before any LLM call.
+- **Ask and Lint use `claude-opus-5-5`** — the most expensive model in this app, chosen for
+  quality over the two knowledge-layer operations that talk directly to a person. Ask makes one
+  call per tool round-trip (usually 2–4 per question, bounded at 8); token counts per question are
+  stored on `ask_turns` (`input_tokens`/`output_tokens`). Lint makes one call per implemented
+  domain per weekly check (currently 2: Financials, House), plus the deterministic checks which
+  make no LLM calls at all.
 - **Hetzner VPS**: shared fixed cost across multiple of Pedro's apps — not itemized per-app.
 - **Cloudflare**: DNS + Access, on the free/included tier for this domain as far as this app is
   concerned (no paid Cloudflare feature is in use here).

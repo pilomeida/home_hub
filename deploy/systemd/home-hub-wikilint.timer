@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - run the wiki check weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

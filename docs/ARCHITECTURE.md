@@ -19,6 +19,8 @@ FastAPI  (app/main.py)
   ├── GET  /financials/utilities/{tab}    ── app/routers/utilities.py    (Electricity/Water/Telecom consumption + charts)
   ├── GET/POST /house/*                  ── app/routers/house.py        (House documents, items, backlog)
   ├── GET  /wiki/*                 ── app/routers/wiki.py         (auto-maintained standing-facts pages)
+  ├── GET  /wiki/lint*             ── app/routers/wiki_lint.py    (Wiki Lint review: dismiss/fixed/add-link; included before wiki.router)
+  ├── GET/POST /ask*                ── app/routers/ask.py          (cross-domain Ask chat: conversations, turns, save-to-wiki)
   ├── GET/POST /todos/*            ── app/routers/todos.py        (due-date-driven task list)
   ├── GET/POST /inbox/*            ── app/routers/inbox.py        (shared cross-domain Inbox — review, approve, discard)
   │
@@ -159,7 +161,8 @@ Home & Family/
 │   │   │                       document-or-record listing (see Documents vs Records)
 │   │   ├── financials/         categories.py, handler.py (FinancialsHandler — refile_blocker +
 │   │   │                       withdraw enforce the Financials re-filing rule), overview.py
-│   │   │                       (overview_card), spec.py (SPEC)
+│   │   │                       (overview_card), spec.py (SPEC), ask.py (FINANCIALS_ASK_TOOLS —
+│   │   │                       spending + find_transactions, the domain's Ask plug-in)
 │   │   └── house/              Same shape + items.py (item-card aggregation) and warranty.py
 │   │                           (extract_warranty_expiry, effective_warranty_expiry/derive_fields,
 │   │                           the −21-day renewal To-Do)
@@ -189,6 +192,12 @@ Home & Family/
 │   │   │                       tab (confirm/dismiss/create-commitment/link-debt actions)
 │   │   ├── utilities.py        `/financials/utilities/{tab}` — Electricity/Water/Telecom table + bar charts
 │   │   ├── wiki.py             `/wiki*` — page list + detail with change history, `/wiki/log`
+│   │   ├── wiki_lint.py         `/wiki/lint*` — Wiki Lint review: run now, dismiss/fixed/add-link;
+│   │   │                       included in main.py BEFORE wiki.router (`/wiki/{page_id}` would
+│   │   │                       otherwise 422 on the literal path `/wiki/lint`)
+│   │   ├── ask.py               `/ask*` — chat home (new chat + recent conversations), one
+│   │   │                       conversation, POST a follow-up turn, GET a turn partial (htmx
+│   │   │                       polling), POST save-to-wiki
 │   │   ├── todos.py            `/todos*` — open/done lists, mark-done (htmx partial swap)
 │   │   └── inbox.py            `/inbox*` — the shared, cross-domain Inbox: list pending items
 │   │                           (with domain field inputs pre-filled when confident), the fields
@@ -229,10 +238,37 @@ Home & Family/
 │   │   ├── domain_classifier.py suggest_domain_and_category — registry-driven domain+category
 │   │   │                       suggestion (Haiku); the prompt is built from each DomainSpec's own
 │   │   │                       description, so a new domain needs no classifier changes
-│   │   └── inbox_service.py     receive_document / pending_entries / approve / discard — the only
-│   │                           entry point any ingestion channel calls; approve is the only place
-│   │                           a channel document is finalized (validate_classification then
-│   │                           finalize_document, the same core a manual upload uses)
+│   │   ├── inbox_service.py     receive_document / pending_entries / approve / discard — the only
+│   │   │                       entry point any ingestion channel calls; approve is the only place
+│   │   │                       a channel document is finalized (validate_classification then
+│   │   │                       finalize_document, the same core a manual upload uses)
+│   │   ├── ask/                 Plan C's Ask (Query op), wiki-first agentic tool use — read-only
+│   │   │   ├── contracts.py     Citable, ToolOutput, AskTool(.to_api()) — the domain extension contract
+│   │   │   ├── refs.py          Citables for wiki pages / documents / records / todos; source_ref
+│   │   │   ├── tools.py         settled_entries()/is_settled()/is_settled_source() — the ONE place
+│   │   │   │                   visibility is decided (PROCESSED documents + non-retired records);
+│   │   │   │                   core tools (read_wiki_pages, find_sources, read_document_file,
+│   │   │   │                   list_todos) + domain_tools()/available_tools()
+│   │   │   ├── context.py       build_system_prompt() — rules + domains + wiki index + pending-review note
+│   │   │   ├── citations.py     [[ref]] marker parsing → RenderedAnswer, per turn
+│   │   │   ├── conversation.py  start_conversation, add_turn, build_history (bounded, last 6
+│   │   │   │                   answered turns), recent_conversations
+│   │   │   ├── engine.py        run_turn() — the bounded Claude tool-use loop for one turn
+│   │   │   └── save.py          save_answer_as_wiki_page() — one turn → an `answer` wiki page via
+│   │   │                       apply_claims + add_link
+│   │   └── wiki_lint/            Plan C's Wiki Lint — never edits facts
+│   │       ├── findings.py      FindingDraft (+ fingerprint()) — identity independent of wording/order
+│   │       ├── checks.py        Deterministic checks: orphan pages, unsourced claims, missing links,
+│   │       │                   stale links, uningested sources, stale saved answers
+│   │       ├── llm_checks.py    One Claude audit per domain (contradictions/stale claims/gaps),
+│   │       │                   guided by that domain's `spec.wiki`; a claim's NOTE marks a
+│   │       │                   deliberate assumption, never reported as a gap on its own
+│   │       └── runner.py        start_run/execute_run/run_lint, persist_findings — sticky
+│   │                           dismissals, deterministic findings auto-resolve, LLM findings don't
+│   │
+│   ├── jobs/
+│   │   └── wiki_lint.py         `python -m app.jobs.wiki_lint` — the weekly Wiki Lint pass, run by
+│   │                           `deploy/systemd/home-hub-wikilint.timer`
 │   │
 │   ├── templates/               Jinja2, server-rendered, htmx for partial-swap interactivity
 │   │   ├── base.html            Nav shell; loads htmx.min.js; shared CSS
@@ -250,8 +286,13 @@ Home & Family/
 │   │   │                                 (+ create-Commitment form), debt candidates (+ link-Debt
 │   │   │                                 form), unclassified transactions (read-only)
 │   │   ├── utilities/tab.html
-│   │   ├── wiki/{list,page,log}.html
-│   │   ├── todos/{list,_lists}.html + _backlog.html (shared per-domain backlog partial)
+│   │   ├── wiki/{list,page,log}.html + lint.html, _finding.html (Wiki Lint review page)
+│   │   ├── ask/home.html, conversation.html, _turn.html   home = new-chat box + 20 most recent
+│   │   │                                                  conversations; conversation = full chat +
+│   │   │                                                  follow-up box; _turn = one question/answer
+│   │   │                                                  (htmx-polled while pending; save-to-wiki form)
+│   │   ├── todos/{list,_lists}.html + _backlog.html (shared per-domain backlog partial, `id="todo-{id}"`
+│   │   │                                            anchors so Ask's to-do citations can link into it)
 │   │   └── inbox/{list,_entry,_fields,_result}.html   list = page shell + "Recently handled" table;
 │   │                                                  _entry = one pending card (form); _fields =
 │   │                                                  Area/Type selects + domains/_field_inputs.html;
@@ -475,6 +516,26 @@ append-only log of every `apply_claims` run, tagged with a `WikiOperation`
 existing `document_id`) so an entry can point at a hand-entered source; `/wiki/log` shows it.
 `wiki_changes` is the legacy WikiChange history table — still read-only, no longer written.
 
+### `ask_conversations`, `ask_turns`
+Plan C's Ask chat. `AskConversation` (id, title — the first question, truncated; started_by; created_at;
+updated_at, indexed) holds ordered `AskTurn`s (conversation_id + position, unique together; question;
+status `pending|answered|failed`; `answer_text` — raw model text incl. `[[ref]]` markers;
+`citations_json` — the refs THIS turn cited, `[{"ref","label","url"}]`; `used_raw_sources`; `asked_by`;
+`error`; `input_tokens`/`output_tokens`; `saved_wiki_page_id`, nullable FK → `wiki_pages.id`,
+set once the answer is saved; `created_at`/`answered_at`). A turn is also the handle for "Save to wiki".
+
+### `lint_runs`, `lint_findings`
+Plan C's Wiki Lint. `LintRun` (trigger `timer|manual`; status `running|succeeded|partial|failed`;
+started_at/finished_at; new_count/open_count/auto_resolved_count; errors — one line per domain whose
+LLM audit failed, joined). `LintFinding` rows persist across runs, keyed by `fingerprint` (indexed) —
+what a finding is about, not how it's worded, so identity survives a re-run with different phrasing:
+kind (contradiction/stale_claim/gap/orphan_page/missing_link/stale_link/unsourced_claim/
+uningested_sources/stale_saved_answer), domain, summary, suggested_action, `wiki_page_ids_json` (order
+kept — `[from, to]` for missing/stale link), `claim_ids_json`, `document_ids_json`, `record_ids_json`,
+status (`open|dismissed|fixed|auto_resolved`), `first_seen_run_id`/`last_seen_run_id` (FK → `lint_runs`),
+resolved_at/resolved_by. A dismissal sticks across runs; an OPEN deterministic finding not seen in a
+later run is auto-resolved; LLM findings are never auto-resolved (model output varies between runs).
+
 ### `alembic_version`
 Standard Alembic bookkeeping, single row, current head at time of writing: see `alembic/versions/` for the latest filename.
 
@@ -578,6 +639,23 @@ root (e.g. via `ExecStartPre=+…`), which would make the deploy SSH key root-eq
 avoid that risk entirely, at the one-time cost of `loginctl enable-linger home-hub` so those user
 units keep running without an interactive login session. `deploy/install_user_units.sh` installs
 and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy pipeline needs root.
+
+**Ask is the knowledge layer's Query operation, as a chat.**
+- Each turn is wiki-first, agentic tool use over live tables (no embeddings or search index), with
+  the last 6 answered turns replayed as plain text.
+- Domains extend it only via `DomainSpec.ask_tools`.
+- Only filed PROCESSED documents and non-retired records are visible (`settled_entries()`), and
+  withdrawn source links never support a claim (`claim_sources()`).
+- Claim notes (e.g. an assumed warranty date) are shown to the model and must be stated in the answer.
+- Citations are validated per turn.
+- Saved answers go through `apply_claims(..., operation=QUERY)` as `ANSWER_PAGE_TYPE` pages.
+
+**Lint never edits facts.**
+- Findings persist by fingerprint, dismissals stick, deterministic findings auto-resolve, LLM
+  findings wait for a human.
+- Stale links (append-only links whose target no longer matches the newest document) are flagged,
+  not removed.
+- The only fix it offers is a human-clicked Add link (logged as EDIT).
 
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 
