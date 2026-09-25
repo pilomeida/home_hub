@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - fetch new documents from the Hub mailbox into the Inbox
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/home-hub/app
+EnvironmentFile=/srv/home-hub/app/.env
+ExecStart=/srv/home-hub/venv/bin/python -m app.channels.email_poller
+TimeoutStartSec=15min

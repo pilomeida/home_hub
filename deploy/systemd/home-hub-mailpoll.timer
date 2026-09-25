@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - poll the Hub mailbox every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Home Hub - Telegram bot (files documents into the Inbox)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/home-hub/app
+EnvironmentFile=/srv/home-hub/app/.env
+ExecStart=/srv/home-hub/venv/bin/python -m app.channels.telegram_bot
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -24,3 +24,7 @@ jobs:
             sudo /bin/systemctl restart home-hub
             sleep 2
             sudo /bin/systemctl is-active home-hub
+            bash deploy/install_user_units.sh
+            sleep 3
+            export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+            ! systemctl --user is-failed --quiet home-hub-telegram

@@ -21,8 +21,11 @@ A single-tenant FastAPI web app that ingests bank statements/bills (PDF/image, v
 | Database | `/srv/home-hub/app/data/home_family.db` (SQLite, single file) |
 | Uploaded/imported documents | `/srv/home-hub/app/app/static/documents/` (~23 MB at last check) |
 | Systemd unit | `/etc/systemd/system/home-hub.service` |
+| Ingestion channel units | `~home-hub/.config/systemd/user/{home-hub-mailpoll.service,home-hub-mailpoll.timer,home-hub-telegram.service}` — systemd **user** units of the `home-hub` account (no sudo, no root system-unit dir); installed/refreshed from `deploy/systemd/` on every deploy by `deploy/install_user_units.sh` |
 | Nginx site | `/etc/nginx/sites-enabled/home-hub` |
-| Env file | `/srv/home-hub/app/.env` (loaded both by systemd's `EnvironmentFile=` and by `python-dotenv` at app startup) |
+| Env file | `/srv/home-hub/app/.env` (loaded both by systemd's `EnvironmentFile=` and by `python-dotenv` at app startup) — also holds the channel settings `HUB_IMAP_*` / `HUB_TELEGRAM_*` (see §6) |
+| Hub mailbox | A dedicated Gmail address (e.g. `cdafamily.hub@gmail.com`), created and handed over by Pedro (manual step M1) — never Pedro's personal Gmail |
+| Hub Telegram bot | A dedicated bot created via @BotFather (manual step M2), **not** the Recipes bot — its username and token are handed over by Pedro, never committed |
 | System user | `home-hub`, uid 995, gid 982, **no root**, no login shell for interactive use — GitHub Actions SSHes in as this user directly |
 
 **Local repo**: `/home/pedro/Desktop/Claude_Corner/Personal/Home & Family/` is a *subtree* of the larger `Claude_Corner/Personal` monorepo — see `git subtree` note in §7.
@@ -57,7 +60,20 @@ alembic upgrade head
 sudo /bin/systemctl restart home-hub    # home-hub has a narrow, passwordless sudo rule for exactly this
 sleep 2
 sudo /bin/systemctl is-active home-hub  # step (and this) fails the whole Action if the service didn't come back up
+bash deploy/install_user_units.sh       # installs/refreshes the ingestion-channel user units, no sudo
+sleep 3
+systemctl --user is-failed --quiet home-hub-telegram && exit 1  # fails the Action if the bot is crash-looping
 ```
+
+**One-time prerequisite, root, before the first deploy of the ingestion channels:**
+`ssh root@167.233.51.113 'loginctl enable-linger home-hub && ls -d /run/user/995'` — without this,
+`home-hub` has no `/run/user/995` and `install_user_units.sh` fails immediately with a clear message
+rather than half-installing anything.
+
+A Telegram bot with no token set (`HUB_TELEGRAM_BOT_TOKEN` unset) exits 0 immediately and shows as
+`inactive`, not `failed` — so the very first deploy of this feature passes before Pedro has done his
+manual setup (M1/M2/M4). Only a bot that's configured but crash-looping shows as `failed` and fails
+the Action.
 
 **This repo is a subtree**, not a standalone git repo — the working directory you edit in day-to-day
 (`Personal/Home & Family/`) lives inside the larger `Claude_Corner/Personal` monorepo. Pushing to
@@ -119,6 +135,27 @@ uvicorn app.main:app --host 127.0.0.1 --port 9001 --reload
 unexpected downtime to see why it died, since systemd will have already restarted it by the time
 you look.
 
+**Ingestion channels** (email poller, Telegram bot) — systemd **user** units of `home-hub`, so every
+command needs `XDG_RUNTIME_DIR` and runs as that user, not root directly:
+
+```bash
+# Channel status / logs (as root)
+sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user status home-hub-telegram home-hub-mailpoll.timer
+sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user list-units --failed
+journalctl _SYSTEMD_USER_UNIT=home-hub-telegram.service --since "1 hour ago"
+journalctl _SYSTEMD_USER_UNIT=home-hub-mailpoll.service --since today
+# Poll the mailbox right now
+sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user start home-hub-mailpoll.service
+```
+
+Mailbox folders the poller uses (never read/unread flags — a person browsing the mailbox can't
+disturb the poller, and content-hash dedup makes reruns harmless):
+- Mail that failed stays in the mailbox's `Hub-Failed` folder. To retry it, move it back to Inbox;
+  this is safe because duplicates are skipped.
+- `Hub-Ignored` holds mail from senders who aren't on the allowlist, and mail with no usable
+  attachment (e.g. a link-only e-invoice).
+- Successfully filed mail moves to `Hub-Processed`.
+
 **Running a one-off script against production** (see §8 for the script inventory):
 
 ```bash
@@ -179,6 +216,14 @@ exist). Lower priority than the database, but worth covering in the same future 
 | `ANTHROPIC_API_KEY` | `/srv/home-hub/app/.env` on the VPS (never committed — `.env.example` in the repo has placeholder values only) | All Claude calls: document classification, bill/statement extraction, merchant resolution, wiki-worthiness assessment |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | Same `.env` | Cloudflare Access JWT verification (`app/auth.py`) — team domain for the JWKS endpoint, AUD tag identifying this specific Access application |
 | `DEPLOY_SSH_KEY_HOMEHUB` | GitHub repo secret (`pilomeida/home_hub` → Settings → Secrets) | CI/CD SSH auth as the `home-hub` user, used only by `.github/workflows/deploy.yml` |
+| `HUB_IMAP_PASSWORD` | Same `.env` | A Gmail **app password** (16 letters) for the dedicated Hub mailbox — not the mailbox's real login password. Revoke or regenerate it from the Hub's own Google account (Security → App passwords), never Pedro's personal account |
+| `HUB_TELEGRAM_BOT_TOKEN` | Same `.env` | Auth token for the Hub's dedicated Telegram bot. Regenerated via @BotFather's `/revoke` command if it ever leaks — whoever holds it fully controls the bot |
+| `HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS` | Same `.env` | **Not secret** — plain allowlists (email addresses; Telegram numeric ids mapped to names) gating which senders' attachments reach the LLM classifier at all |
+
+All of the `HUB_*` channel settings live **only** in `/srv/home-hub/app/.env` — same place as
+`ANTHROPIC_API_KEY` — and are optional: every channel setting left unset simply keeps that channel
+switched off (`imap_configured` false, or an empty bot token), and the web app boots the same either
+way.
 
 **Cloudflare Access** gates every route except `/health`. `CloudflareAccessMiddleware`
 (`app/auth.py`) verifies the incoming JWT (from the `Cf-Access-Jwt-Assertion` header or
@@ -200,6 +245,10 @@ placeholder values only (`sk-ant-your_key_here`, etc.).
   API key hit its credit limit mid-ingestion (see the `account-statement_2022-08-01_...` entry in
   §9) — worth keeping an eye on usage if more large historical backfills are planned, since a
   multi-hundred-page statement import can burn through a lot of extraction calls in one run.
+- **Ingestion channels**: one Haiku 4.5 call per channel attachment (email or Telegram), the same
+  cheap classifier model the existing document classifier uses. The sender/user allowlists
+  (`HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS`) cap the exposure — mail from an
+  unknown sender, or a Telegram message from an unknown user, is ignored before any LLM call.
 - **Hetzner VPS**: shared fixed cost across multiple of Pedro's apps — not itemized per-app.
 - **Cloudflare**: DNS + Access, on the free/included tier for this domain as far as this app is
   concerned (no paid Cloudflare feature is in use here).

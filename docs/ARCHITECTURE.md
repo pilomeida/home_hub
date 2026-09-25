@@ -20,8 +20,24 @@ FastAPI  (app/main.py)
   ├── GET/POST /house/*                  ── app/routers/house.py        (House documents, items, backlog)
   ├── GET  /wiki/*                 ── app/routers/wiki.py         (auto-maintained standing-facts pages)
   ├── GET/POST /todos/*            ── app/routers/todos.py        (due-date-driven task list)
+  ├── GET/POST /inbox/*            ── app/routers/inbox.py        (shared cross-domain Inbox — review, approve, discard)
   │
   └── Static: /static/*  (htmx.min.js; app/static/documents/ — uploaded source PDFs)
+
+Ingestion channels (separate OS processes, systemd user units):
+  home-hub-mailpoll.timer → python -m app.channels.email_poller  (IMAP, every 10 min)
+  home-hub-telegram        → python -m app.channels.telegram_bot  (long-polling bot)
+        │  ingestion.IncomingFile + caption/subject
+        ▼
+  inbox_service.receive_document → ingestion.receive_file(initial_status=PENDING_REVIEW)  (domain NULL)
+                                 → domain_classifier.suggest_domain_and_category (Haiku, registry-driven)
+                                 → InboxItem (suggestion + provenance)
+  /inbox Approve → ingestion.validate_classification (errors shown in the form)
+                 → wiki log REVIEW "Approved …" → ingestion.finalize_document
+                   (domain handler + wiki Ingest — the same core a manual upload uses)
+  /inbox Discard → status DISCARDED (file kept) → wiki log REVIEW "Discarded …"
+  RECORD categories: finalize_document creates the Record and attaches the file (no Inbox-specific path).
+  Later corrections: Plan A's re-filing (/documents/{id}/edit, /records/{id}/edit), not the Inbox.
 
 Ingestion core (app/services/ingestion.py — the ONLY way a file becomes a Document):
 
@@ -70,9 +86,14 @@ Config: app/config.py ← reads .env at startup (ANTHROPIC_API_KEY required; DAT
 DOCUMENTS_DIR, CF_ACCESS_* optional).
 ```
 
-The system is **single-process, no queue/worker daemon**. All ingestion (including the multi-call
+The web app stays **single-process, no queue/worker daemon**. All ingestion (including the multi-call
 extraction + classification) runs synchronously inside the request handler for `POST /financials/bills/upload`,
-or inside a one-off script's own event loop for backfills.
+or inside a one-off script's own event loop for backfills. The background ingestion channels
+(email poller, Telegram bot) run as their own, separate, crash-isolated systemd **user**-unit
+processes and share the same SQLite file — short transactions and the default 5-second busy
+timeout are enough given how infrequent channel writes are. WAL is deliberately not enabled (see
+the backups section of SYSADMIN): it would silently break the documented `cp home_family.db`
+backup habit.
 
 ---
 
@@ -94,9 +115,10 @@ Home & Family/
 │   │
 │   ├── models/                 One file per entity; app/models/__init__.py imports every module so
 │   │   │                       SQLModel.metadata is fully populated (required for create_all/alembic)
-│   │   ├── document.py         Document: a source file (manual/email/api), status lifecycle
-│   │   │                       PENDING → PROCESSED | NEEDS_ATTENTION; account_id (which bank account
-│   │   │                       this statement belongs to)
+│   │   ├── document.py         Document: a source file (manual/email/api/telegram), status lifecycle
+│   │   │                       PENDING → PROCESSED | NEEDS_ATTENTION, plus channel intake's
+│   │   │                       PENDING_REVIEW → (finalized) | DISCARDED; account_id (which bank
+│   │   │                       account this statement belongs to)
 │   │   ├── transaction.py      Transaction: one line item. Category (16-value enum) + Nature
 │   │   │                       (essential/discretionary, orthogonal to Category) + TransactionType
 │   │   │                       (debit/credit/transfer) + account_id/commitment_id/debt_id/merchant_id
@@ -119,6 +141,9 @@ Home & Family/
 │   │   │                       document_id / record_id
 │   │   ├── record.py           Record: a hand-entered source (domain, category, fields_json,
 │   │   │                       optional attached document_id, entered_by, retired_at)
+│   │   ├── inbox_item.py       InboxItem: channel provenance + the classifier's suggestion + review
+│   │   │                       audit for a Document arriving through an ingestion channel — never
+│   │   │                       duplicates Document.status; suggested_domain is a plain string
 │   │   └── wiki.py             WikiPage (page_type + entity_key, facts_json = active-claims cache),
 │   │                           WikiClaim (+ note), WikiClaimSource (document OR record, +
 │   │                           withdrawn_at), WikiLogEntry (+ record_id), WikiLink, WikiChange (legacy)
@@ -139,6 +164,16 @@ Home & Family/
 │   │                           (extract_warranty_expiry, effective_warranty_expiry/derive_fields,
 │   │                           the −21-day renewal To-Do)
 │   │
+│   ├── channels/                Ingestion channel adapters — each turns an external message into
+│   │   │                       ingestion.IncomingFile and calls inbox_service.receive_document,
+│   │   │                       nothing else; each runs as its own OS process (see deploy/)
+│   │   ├── email_parsing.py     Pure parsing of one raw RFC822 email into its usable attachments
+│   │   ├── email_poller.py      Mailbox protocol + ImapMailbox; poll_once() — moves handled mail
+│   │   │                       into Hub-Processed / Hub-Ignored / Hub-Failed; run by
+│   │   │                       home-hub-mailpoll.timer
+│   │   └── telegram_bot.py      The Hub's own dedicated Telegram bot (long-polling); run by
+│   │                           home-hub-telegram.service
+│   │
 │   ├── routers/                One file per nav section; each owns its own Jinja2Templates instance
 │   │   ├── dashboard.py        `/` and `/health`
 │   │   ├── bills.py            `/financials/bills*` — upload form + POST (dedup by content_hash, then
@@ -154,7 +189,10 @@ Home & Family/
 │   │   │                       tab (confirm/dismiss/create-commitment/link-debt actions)
 │   │   ├── utilities.py        `/financials/utilities/{tab}` — Electricity/Water/Telecom table + bar charts
 │   │   ├── wiki.py             `/wiki*` — page list + detail with change history, `/wiki/log`
-│   │   └── todos.py            `/todos*` — open/done lists, mark-done (htmx partial swap)
+│   │   ├── todos.py            `/todos*` — open/done lists, mark-done (htmx partial swap)
+│   │   └── inbox.py            `/inbox*` — the shared, cross-domain Inbox: list pending items
+│   │                           (with domain field inputs pre-filled when confident), the fields
+│   │                           partial (Area/Type change), approve, discard
 │   │
 │   ├── services/                Business logic, no HTTP/template concerns
 │   │   ├── ingestion.py         receive_file / finalize_document — the ingestion core: the ONLY
@@ -184,9 +222,17 @@ Home & Family/
 │   │   │                       apply_claims (pages ← claims ← source documents; changed claims
 │   │   │                       superseded, never deleted; one wiki_log entry), active_claims,
 │   │   │                       sources_for_claims, recent_log, build_wiki_index
-│   │   ├── document_input.py    build_content_block — base64 PDF/image → Claude content block
+│   │   ├── document_input.py    build_content_block — base64 PDF/image → Claude content block;
+│   │   │                       is_model_readable — which files build_content_block can send Claude
 │   │   ├── json_utils.py        strip_json_fences — strips a ```json fence if Claude adds one
-│   │   └── storage.py           save_upload — writes to DOCUMENTS_DIR, returns (path, sha256 hash)
+│   │   ├── storage.py           save_upload — writes to DOCUMENTS_DIR, returns (path, sha256 hash)
+│   │   ├── domain_classifier.py suggest_domain_and_category — registry-driven domain+category
+│   │   │                       suggestion (Haiku); the prompt is built from each DomainSpec's own
+│   │   │                       description, so a new domain needs no classifier changes
+│   │   └── inbox_service.py     receive_document / pending_entries / approve / discard — the only
+│   │                           entry point any ingestion channel calls; approve is the only place
+│   │                           a channel document is finalized (validate_classification then
+│   │                           finalize_document, the same core a manual upload uses)
 │   │
 │   ├── templates/               Jinja2, server-rendered, htmx for partial-swap interactivity
 │   │   ├── base.html            Nav shell; loads htmx.min.js; shared CSS
@@ -205,7 +251,11 @@ Home & Family/
 │   │   │                                 form), unclassified transactions (read-only)
 │   │   ├── utilities/tab.html
 │   │   ├── wiki/{list,page,log}.html
-│   │   └── todos/{list,_lists}.html + _backlog.html (shared per-domain backlog partial)
+│   │   ├── todos/{list,_lists}.html + _backlog.html (shared per-domain backlog partial)
+│   │   └── inbox/{list,_entry,_fields,_result}.html   list = page shell + "Recently handled" table;
+│   │                                                  _entry = one pending card (form); _fields =
+│   │                                                  Area/Type selects + domains/_field_inputs.html;
+│   │                                                  _result = card replacement after approve/discard
 │   │
 │   └── static/
 │       ├── htmx.min.js          The app's only vendored JS dependency
@@ -248,6 +298,15 @@ Home & Family/
 │       │                       previous. Read these for the *why* behind a design.
 │       └── plans/                Task-by-task implementation plans generated from each spec
 │
+├── deploy/
+│   ├── systemd/                    Unit files installed as systemd USER units of the home-hub
+│   │                               account (no sudo) — the convention every future background job
+│   │                               (bank sync included) follows: *.timer -> enabled+started;
+│   │                               *.service with [Install] -> long-running, enabled+restarted on
+│   │                               every deploy; *.service without [Install] -> timer-driven
+│   │                               oneshot, installed only
+│   └── install_user_units.sh       Installs/refreshes the units above; run by deploy.yml
+│
 ├── .github/workflows/deploy.yml   CI/CD — see docs/SYSADMIN.md
 ├── alembic.ini
 ├── pyproject.toml                 pytest config only
@@ -272,8 +331,8 @@ A source file (uploaded, forwarded, or synced). `domain` set ⇔ finalized: a Do
 | `id` | PK | |
 | `filename`, `file_path` | TEXT | `file_path` is under `app/static/documents/`, content-hash-named |
 | `content_hash` | TEXT, indexed | SHA-256 of the file bytes — upload-time dedup key |
-| `source` | enum | MANUAL / EMAIL / API |
-| `status` | enum | PENDING → PROCESSED \| NEEDS_ATTENTION |
+| `source` | enum | MANUAL / EMAIL / API / TELEGRAM |
+| `status` | enum | PENDING → PROCESSED \| NEEDS_ATTENTION, or channel intake's PENDING_REVIEW → (finalized) \| DISCARDED |
 | `domain` | enum, nullable | FINANCIALS \| HOUSE — set at `finalize_document`; NULL ⇒ UNCLASSIFIED |
 | `category` | TEXT, nullable, indexed | The domain's category value (validated against the registry at finalize); Financials' former `doc_type` |
 | `fields_json` | TEXT | JSON object of string values — per-domain metadata, validated against the registry's `FieldSpec`s before write |
@@ -376,6 +435,24 @@ A hand-entered source — the Record counterpart to Document (see *Documents vs 
 | `entered_by` | TEXT, nullable | CF Access email, or a script name |
 | `created_at`, `updated_at` | | |
 | `retired_at` | TEXT/DATETIME, nullable | Set when the record is re-filed into a DOCUMENT category (see *Re-filing*); the row is kept, never deleted |
+
+### `inbox_items`
+Channel provenance + the classifier's suggestion + a review audit, one row per Document that
+arrived through an ingestion channel (email, Telegram). Review state itself lives on
+`Document.status` (PENDING_REVIEW → finalized, or DISCARDED); this row never duplicates it.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | PK | |
+| `document_id` | INT, FK → `documents.id`, **unique index** | One InboxItem per Document |
+| `context_text` | TEXT, nullable | Email subject + snippet, or the Telegram caption |
+| `external_ref` | TEXT, nullable | `"email:<Message-ID>#<n>"` / `"telegram:<chat>:<msg>"` |
+| `suggested_domain` | TEXT, nullable | **A plain string, not a DB enum** — a `Domain` value validated against the registry when written, so a new domain becomes suggestible just by registering, no migration needed |
+| `suggested_category` | TEXT, nullable | |
+| `confidence` | FLOAT, nullable | 0.0–1.0 as reported by the classifier |
+| `classifier_note` | TEXT, nullable | The classifier's one-line reason, or why it couldn't run |
+| `received_at` | DATETIME | |
+| `reviewed_by`, `reviewed_at` | TEXT / DATETIME, nullable | Set by `approve`/`discard`; NULL while the item is still pending |
 
 ### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_links`, `wiki_log`, `wiki_changes`
 The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique together) —
@@ -481,6 +558,26 @@ anywhere.
   DOCUMENT-kind category with no file — a coordinator ruling made during Task 22 (see the build log),
   since `validate_classification` itself is correct as written for the upload/Inbox path and was
   left unchanged.
+
+**The Inbox's suggestion lives in `inbox_items`, never on `Document.domain`.** The invariant
+`Document.domain IS NOT NULL ⇔ finalized` (see *Domain registry is the only extension point* above)
+has to hold for every document, channel-sourced ones included: a channel document arrives with
+`domain=NULL` and `status=PENDING_REVIEW`, and the classifier's best guess (`suggested_domain`,
+a plain string, not a DB enum — see the `inbox_items` schema note) is recorded on a separate
+`InboxItem` row instead of being written to `Document.domain`. This keeps "a suggestion" and "a
+finalized classification" from ever being confused, and means a stale suggestion (e.g. a domain
+later deregistered) simply fails to resolve rather than corrupting the Document itself. `approve()`
+is the only place a channel document is ever finalized — it calls the same `validate_classification`
+→ `finalize_document` core a manual upload uses.
+
+**Ingestion channels run as systemd *user* units, not a broader sudo rule.** The email poller and
+Telegram bot are separate, crash-isolated OS processes (per the 2026-09-14 rule that background
+work never runs inside the web request/response cycle), deployed as systemd units of the `home-hub`
+account rather than as root-managed system units. A unit file installed under sudo *could* run as
+root (e.g. via `ExecStartPre=+…`), which would make the deploy SSH key root-equivalent; user units
+avoid that risk entirely, at the one-time cost of `loginctl enable-linger home-hub` so those user
+units keep running without an interactive login session. `deploy/install_user_units.sh` installs
+and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy pipeline needs root.
 
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 
