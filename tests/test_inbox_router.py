@@ -1,4 +1,5 @@
 import pytest
+from sqlmodel import select
 
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
@@ -99,6 +100,35 @@ def test_discard(client, session, two_domains):
     session.expire_all()
     assert session.get(Document, document.id).status == DocumentStatus.DISCARDED
     assert two_domains["house"].handler.processed == []
+
+
+def test_inbox_list_shows_a_friendly_message_for_a_raw_classifier_note(client, session):
+    document = _pending(session, confident=False)
+    item = session.exec(select(InboxItem).where(InboxItem.document_id == document.id)).one()
+    item.classifier_note = "Automatic sorting failed: Error code: 401 - {'type': 'error'}"
+    session.add(item)
+    session.commit()
+
+    html = client.get("/inbox").text
+
+    assert "The AI service couldn't be reached." in html
+    assert "Technical details" in html
+    assert "Error code: 401" in html  # kept, inside the technical details
+
+
+def test_approve_result_shows_a_friendly_message_when_processing_fails(client, session, two_domains):
+    document = _pending(session)
+    two_domains["house"].handler.fail_with = RuntimeError(
+        "Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error'}}"
+    )
+
+    response = client.post(f"/inbox/{document.id}/approve",
+                           data={"domain": "house", "category": "manual", "item_name": "Boiler"})
+
+    assert response.status_code == 200
+    assert "The AI service couldn't be reached." in response.text
+    assert "Technical details" in response.text
+    assert "authentication_error" in response.text  # kept, inside the technical details
 
 
 def test_actions_on_missing_or_handled_document(client, session):

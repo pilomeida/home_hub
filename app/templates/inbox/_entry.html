@@ -8,7 +8,7 @@
   {% if not entry.confident %}
     <p class="inbox-hint">
       {% if entry.suggestion_label %}Best guess: {{ entry.suggestion_label }} — not sure.{% else %}Not sure where this belongs.{% endif %}
-      {% if entry.item.classifier_note %}<em>{{ entry.item.classifier_note }}</em>{% endif %}
+      {% if entry.item.classifier_note %}<em>{{ entry.item.classifier_note | friendly_reason }}</em>{% endif %}
     </p>
   {% endif %}
   <form hx-post="/inbox/{{ entry.document.id }}/approve" hx-target="#inbox-{{ entry.document.id }}" hx-swap="outerHTML">

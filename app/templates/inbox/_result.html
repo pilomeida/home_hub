@@ -3,7 +3,7 @@
   {% if discarded %}
     Discarded (kept on file).
   {% elif document.status.value == "needs_attention" %}
-    filed as {{ label }}, but processing had a problem: <span class="needs-attention">{{ document.failure_reason }}</span>
+    filed as {{ label }}, but processing had a problem: <span class="needs-attention">{{ document.failure_reason | friendly_reason }}</span>
     {% if document_href %}<a href="{{ document_href }}">Open it</a>{% endif %}
   {% else %}
     filed as {{ label }}. {% if document_href %}<a href="{{ document_href }}">Open it</a>{% endif %}

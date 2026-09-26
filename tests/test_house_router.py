@@ -108,6 +108,21 @@ def test_document_page_shows_fields_note_and_item_page_link(client, session):
     assert 'href="/wiki/' in page.text  # the Boiler item page
 
 
+def test_document_page_shows_a_friendly_message_for_an_extraction_error(client, session, monkeypatch):
+    async def fake_extract_raises(file_path, client=None):
+        raise RuntimeError("Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error'}}")
+
+    monkeypatch.setattr(house_handler, "extract_warranty_dates", fake_extract_raises)
+
+    response = _upload(client, {"category": "warranty_invoice", "item_name": "Boiler"})
+    page = client.get(response.headers["location"])
+
+    assert page.status_code == 200
+    assert "The AI service couldn't be reached." in page.text
+    assert "Technical details" in page.text
+    assert "authentication_error" in page.text  # kept, inside the technical details
+
+
 def test_editing_fields_sets_the_expiry_and_creates_the_reminder(client, session):
     location = _upload(client, {"category": "warranty_invoice", "item_name": "Boiler"}).headers["location"]
 

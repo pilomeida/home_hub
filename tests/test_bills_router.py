@@ -88,6 +88,24 @@ def test_upload_bill_sets_financials_domain_and_account(client, monkeypatch, ses
     assert document.category is None  # the handler infers it; the fake handler did not
 
 
+def test_bill_detail_shows_a_friendly_message_for_a_raw_failure_reason(client, session):
+    document = Document(
+        filename="statement.pdf", file_path="/tmp/statement.pdf", content_hash="hbadstmt",
+        source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION,
+        failure_reason="'atm_withdrawal' is not a valid TransactionType",
+    )
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+
+    response = client.get(f"/financials/bills/{document.id}")
+
+    assert response.status_code == 200
+    assert "Some details in this document couldn't be understood." in response.text
+    assert "<details>" in response.text and "Technical details" in response.text
+    assert "is not a valid TransactionType" in response.text  # kept, inside the technical details
+
+
 def test_upload_bill_duplicate_redirects_to_existing(client, monkeypatch):
     monkeypatch.setattr(financials_handler, "process_financials_document", _fake_process)
     files = {"file": ("bill.pdf", io.BytesIO(b"same-bytes"), "application/pdf")}

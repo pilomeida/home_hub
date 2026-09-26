@@ -4,7 +4,7 @@
 <p><a href="/house">← House</a></p>
 <h1>{{ document.filename }}</h1>
 <p><span class="badge">{{ description.category_label }}</span> · added {{ document.created_at.strftime('%d %b %Y') }} · <a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
-{% if document.failure_reason %}<p class="needs-attention">{{ document.failure_reason }}</p>{% endif %}
+{% if document.failure_reason %}<p class="needs-attention">{{ document.failure_reason | friendly_reason("Enter it manually below.") }}</p>{% endif %}
 
 <div class="doc-preview">
   {% if media_kind == "image" %}

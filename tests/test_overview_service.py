@@ -442,6 +442,22 @@ def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documen
     assert doc_item.url.startswith("/financials/bills/")
 
 
+def test_needs_attention_document_text_shows_a_friendly_reason_not_the_raw_error(session):
+    session.add(Document(
+        filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="hbad2",
+        source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION,
+        failure_reason="Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error'}}",
+        domain=Domain.FINANCIALS,
+    ))
+    session.commit()
+
+    items = get_needs_attention(session, today=date(2026, 8, 10), category_rows=[])
+    doc_item = next(i for i in items if i.kind == "document")
+
+    assert "The AI service couldn't be reached." in doc_item.text
+    assert "authentication_error" not in doc_item.text
+
+
 def test_needs_attention_skips_small_anomalies_below_floor():
     category_rows = [
         CategoryComparisonRow("shopping", current_value=10.0, rolling_avg_value=5.0, delta_pct=100.0, bar_pct=100.0, drill_down_url=""),
