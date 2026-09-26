@@ -53,7 +53,14 @@
 <h2>Earlier history</h2>
 <ul>
   {% for change in changes %}
-  <li>{{ change.changed_at }} — {{ change.fact_key }}: {{ change.old_value }} → {{ change.new_value }}</li>
+  <li>
+    {{ change.changed_at | display_datetime }} — {{ change.label }}
+    {% if change.is_initial %}
+      <ul>{% for label, value in change.facts %}<li>{{ label }}: {{ value }}</li>{% endfor %}</ul>
+    {% else %}
+      : {{ change.old_value }} → {{ change.new_value }}
+    {% endif %}
+  </li>
   {% endfor %}
 </ul>
 {% endif %}
