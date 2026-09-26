@@ -23,6 +23,7 @@ from app.models.wiki import (
     ANSWER_PAGE_TYPE, TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry,
     WikiOperation, WikiPage,
 )
+from app.services.presentation import humanize_key
 
 _SUMMARY_MAX = 160
 
@@ -228,7 +229,7 @@ def _refresh_page(session: Session, page: WikiPage, now: datetime) -> None:
     claims = active_claims(session, page.id)
     page.facts_json = json.dumps({c.key: c.value for c in claims}, ensure_ascii=False)
     if page.entity_key is not None or not page.summary:
-        page.summary = _derived_summary((c.label or c.key, c.value) for c in claims)
+        page.summary = _derived_summary((c.label or humanize_key(c.key), c.value) for c in claims)
     page.updated_at = now
     session.add(page)
 

@@ -60,6 +60,20 @@ def test_wiki_index_groups_and_summarises(client, session, fake_domain):
     assert 'href="/wiki/log"' in response.text
 
 
+def test_wiki_index_and_page_humanize_a_claim_missing_a_label(client, session, fake_domain):
+    ref = PageRef("fake.item", "Boiler", "boiler")
+    wiki_store.apply_claims(session, [ClaimInput(ref, "statement_period", "2026-08")], document=_house_document(session))
+    page = wiki_store.find_page(session, ref)
+
+    index_response = client.get("/wiki")
+    page_response = client.get(f"/wiki/{page.id}")
+
+    assert "Statement period: 2026-08" in index_response.text
+    assert "statement_period" not in index_response.text
+    assert "Statement period" in page_response.text
+    assert "<td>statement_period</td>" not in page_response.text
+
+
 def test_wiki_page_shows_claims_sources_and_superseded_history(client, session, fake_domain):
     ref = PageRef("fake.item", "Boiler", "boiler")
     first = _house_document(session)

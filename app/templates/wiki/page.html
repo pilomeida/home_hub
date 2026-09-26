@@ -12,7 +12,7 @@
   <tbody>
     {% for claim in active_claims %}
     <tr>
-      <td>{{ claim.label or claim.key }}</td>
+      <td>{{ claim.label or (claim.key | humanize_key) }}</td>
       <td>{{ claim.value }}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
     </tr>
@@ -21,7 +21,7 @@
 </table>
 {% else %}
 <dl>
-  {% for key, value in facts.items() %}<dt>{{ key }}</dt><dd>{{ value }}</dd>{% endfor %}
+  {% for key, value in facts.items() %}<dt>{{ key | humanize_key }}</dt><dd>{{ value }}</dd>{% endfor %}
 </dl>
 {% endif %}
 
@@ -39,7 +39,7 @@
   <tbody>
     {% for claim in history %}
     <tr>
-      <td>{{ claim.label or claim.key }}</td>
+      <td>{{ claim.label or (claim.key | humanize_key) }}</td>
       <td>{{ claim.value }}</td>
       <td>{{ claim.superseded_at.strftime('%d %b %Y') if claim.superseded_at else '—' }}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
