@@ -68,7 +68,10 @@ systemctl --user is-failed --quiet home-hub-telegram && exit 1  # fails the Acti
 **One-time prerequisite, root, before the first deploy of the ingestion channels:**
 `ssh root@167.233.51.113 'loginctl enable-linger home-hub && ls -d /run/user/995'` — without this,
 `home-hub` has no `/run/user/995` and `install_user_units.sh` fails immediately with a clear message
-rather than half-installing anything.
+rather than half-installing anything. Timing gotcha: `/run/user/995` can appear a few seconds after
+`enable-linger` returns (`user@995.service` is still starting), so the `ls` half of that one-liner
+can fail on first run even though linger was enabled correctly — re-check after a few seconds before
+concluding it didn't work. Done on 2026-09-26 (Linger=yes, user@995 active, /run/user/995 present).
 
 A Telegram bot with no token set (`HUB_TELEGRAM_BOT_TOKEN` unset) exits 0 immediately and shows as
 `inactive`, not `failed` — so the very first deploy of this feature passes before Pedro has done his
@@ -225,7 +228,7 @@ exist). Lower priority than the database, but worth covering in the same future 
 
 | Secret | Where it lives | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `/srv/home-hub/app/.env` on the VPS (never committed — `.env.example` in the repo has placeholder values only) | All Claude calls: document classification, bill/statement extraction, merchant resolution, wiki-worthiness assessment |
+| `ANTHROPIC_API_KEY` | `/srv/home-hub/app/.env` on the VPS (never committed — `.env.example` in the repo has placeholder values only) | All Claude calls: document classification, bill/statement extraction, merchant resolution, wiki-worthiness assessment. **Out of credit as of 2026-09-26** — every call returns 400 "credit balance is too low"; not being topped up. To be replaced by routing through the LLM Selector (backlog item, see build log) |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | Same `.env` | Cloudflare Access JWT verification (`app/auth.py`) — team domain for the JWKS endpoint, AUD tag identifying this specific Access application |
 | `DEPLOY_SSH_KEY_HOMEHUB` | GitHub repo secret (`pilomeida/home_hub` → Settings → Secrets) | CI/CD SSH auth as the `home-hub` user, used only by `.github/workflows/deploy.yml` |
 | `HUB_IMAP_PASSWORD` | Same `.env` | A Gmail **app password** (16 letters) for the dedicated Hub mailbox — not the mailbox's real login password. Revoke or regenerate it from the Hub's own Google account (Security → App passwords), never Pedro's personal account |
