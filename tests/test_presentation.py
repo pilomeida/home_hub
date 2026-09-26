@@ -8,6 +8,7 @@ from datetime import date, datetime
 from app.services.presentation import (
     display_date,
     display_datetime,
+    claim_label,
     friendly_reason,
     humanize_key,
     humanize_reason_text,
@@ -93,3 +94,18 @@ def test_display_date_formats_like_house_pages():
 def test_display_datetime_formats_day_month_year_comma_time():
     assert display_datetime(datetime(2026, 8, 18, 9, 5, 52, 222395)) == "18 Aug 2026, 09:05"
     assert display_datetime(None) == "—"
+
+
+def test_friendly_reason_invalid_pdf_api_error_is_a_file_problem_not_an_outage():
+    # The API rejects a broken PDF with a 400 whose message names the PDF:
+    # that's the file's fault, not an unreachable AI service.
+    raw = ("Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
+           "'message': 'messages.0.content.0.pdf.source.base64.data: The PDF specified was not valid.'}}")
+    assert humanize_reason_text(raw) == "The file couldn't be read."
+
+
+def test_claim_label_prefers_a_real_label_and_humanizes_missing_or_key_echo_labels():
+    assert claim_label("Warranty expires", "warranty_expiry") == "Warranty expires"
+    assert claim_label(None, "statement_period") == "Statement period"
+    # legacy claims were backfilled with label == key
+    assert claim_label("statement_period", "statement_period") == "Statement period"

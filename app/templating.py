@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.domains.registry import get_spec, implemented_domains, is_implemented
 from app.models.domain import Domain
-from app.services.presentation import display_date, display_datetime, friendly_reason, humanize_key
+from app.services.presentation import claim_label, display_date, display_datetime, friendly_reason, humanize_key
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -29,5 +29,6 @@ templates.env.globals["domain_label"] = domain_label
 # datetime is turned into something a person can read.
 templates.env.filters["friendly_reason"] = friendly_reason
 templates.env.filters["humanize_key"] = humanize_key
+templates.env.globals["claim_label"] = claim_label
 templates.env.filters["display_date"] = display_date
 templates.env.filters["display_datetime"] = display_datetime

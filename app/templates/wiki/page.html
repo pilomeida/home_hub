@@ -12,7 +12,7 @@
   <tbody>
     {% for claim in active_claims %}
     <tr>
-      <td>{{ claim.label or (claim.key | humanize_key) }}</td>
+      <td>{{ claim_label(claim.label, claim.key) }}</td>
       <td>{{ claim.value }}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
     </tr>
@@ -39,7 +39,7 @@
   <tbody>
     {% for claim in history %}
     <tr>
-      <td>{{ claim.label or (claim.key | humanize_key) }}</td>
+      <td>{{ claim_label(claim.label, claim.key) }}</td>
       <td>{{ claim.value }}</td>
       <td>{{ claim.superseded_at | display_date }}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>

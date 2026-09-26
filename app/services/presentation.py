@@ -45,10 +45,12 @@ def _friendly_sentence(reason: str) -> Optional[str]:
     """The mapped friendly sentence for a technical-looking reason, or
     None when the reason doesn't look like a raw technical error at all
     (in which case it's already plain English and shown unchanged)."""
-    if _API_PATTERN.search(reason):
-        return "The AI service couldn't be reached."
+    # File problems first: the API rejects a broken PDF with an "Error code:
+    # 400" that would otherwise read as an unreachable service.
     if _PDF_PATTERN.search(reason):
         return "The file couldn't be read."
+    if _API_PATTERN.search(reason):
+        return "The AI service couldn't be reached."
     if _VALUE_ERROR_PATTERN.search(reason):
         return "Some details in this document couldn't be understood."
     if _GENERIC_TECHNICAL_PATTERN.search(reason):
@@ -115,3 +117,12 @@ def display_datetime(value: Optional[datetime]) -> str:
     if not value:
         return "—"
     return value.strftime("%d %b %Y, %H:%M")
+
+
+def claim_label(label: Optional[str], key: Optional[str]) -> str:
+    """A claim's display label: its own label when it has a real one,
+    otherwise the humanized key (legacy claims were backfilled with
+    label == key, which is no label at all)."""
+    if label and label != key:
+        return label
+    return humanize_key(key)
