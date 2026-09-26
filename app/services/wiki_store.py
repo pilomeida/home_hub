@@ -16,6 +16,7 @@ from typing import Iterable, Optional, Sequence
 from sqlmodel import Session, select
 
 from app.domains.base import FactPolicy
+from app.domains.registry import get_spec, is_implemented
 from app.models.document import Document
 from app.models.domain import Domain
 from app.models.record import Record
@@ -218,6 +219,16 @@ def claim_sources(session: Session, claim_ids: Sequence[int]) -> dict[int, list[
     return result
 
 
+def _record_source_label(domain: Optional[Domain], record: Record) -> str:
+    """A hand-entered Record's default log-description source, e.g.
+    "Maintenance log (entered by hand) #1" -- the registry's category
+    label, not the raw internal category key."""
+    category_label = record.category
+    if domain is not None and is_implemented(domain):
+        category_label = get_spec(domain).category_label(record.category) or record.category
+    return f"{category_label} (entered by hand) #{record.id}"
+
+
 def _derived_summary(pairs: Iterable[tuple[str, str]]) -> Optional[str]:
     text = " · ".join(f"{label}: {value}" for label, value in pairs)
     if not text:
@@ -357,7 +368,7 @@ def apply_claims(
 
     report.page_ids = list(touched)
     if description is None:
-        source = document.filename if document else (f"{record.category} record #{record.id}" if record else "manual entry")
+        source = document.filename if document else (_record_source_label(domain, record) if record else "manual entry")
         titles = ", ".join(p.topic for p in touched.values()) or "no wiki pages"
         description = f"{source} → {titles}"
     entry = append_log(

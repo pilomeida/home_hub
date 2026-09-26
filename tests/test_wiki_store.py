@@ -214,6 +214,14 @@ def test_a_record_can_be_a_claim_source_and_is_logged(session):
     assert entry.record_id == record.id and entry.document_id is None and page.domain == Domain.HOUSE
 
 
+def test_a_record_source_default_description_uses_the_category_label_not_the_raw_key(session, fake_domain):
+    record = _record(session)
+    report = wiki_store.apply_claims(session, [ClaimInput(BOILER, "visited", "2026-02-01")], document=None, record=record)
+    entry = session.get(WikiLogEntry, report.log_entry_id)
+    assert entry.description.startswith(f"Visit (entered by hand) #{record.id} → ")
+    assert "visit record" not in entry.description
+
+
 def test_note_change_is_a_new_claim(session):
     document = _document(session)
     wiki_store.apply_claims(session, [ClaimInput(BOILER, "warranty_expires", "2029-03-01", note="assumed")], document=document)
