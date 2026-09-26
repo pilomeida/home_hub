@@ -102,12 +102,14 @@ has no sudo beyond restarting its own service).
 reachable for uptime checks without an Access session. The deploy workflow itself checks liveness via
 `systemctl is-active`, not an HTTP call.
 
-**Known issue / one-time step:** House floor plans accept **videos**. Nginx's
-`client_max_body_size` for the `home-hub` site must allow them — e.g.
-`client_max_body_size 200M;` in `/etc/nginx/sites-enabled/home-hub`, then
-`nginx -t && systemctl reload nginx`, as root. Until that is done, large video uploads fail
-**at Nginx** with HTTP 413 before ever reaching the app. Note also that uploads are read fully
-into memory by the app — keep videos short.
+**Known issue (resolved, no action needed):** House floor plans accept **videos**. Nginx's
+`client_max_body_size` for the `home-hub` site (`/etc/nginx/sites-enabled/home-hub`) already has
+`client_max_body_size 100m;` — verified 2026-09-26. Raising it further would not help: all traffic
+reaches the Hub through Cloudflare, which caps request bodies at 100 MB on this plan, so 100 MB is
+the real ceiling regardless of the Nginx setting. That's roughly 40s of 1080p phone video or 15s of
+4K. An oversized upload currently fails with a raw Cloudflare/Nginx 413 page — a friendly in-app
+size check and message is backlogged (see build log 2026-09-26). Note also that uploads are read
+fully into memory by the app — keep videos short.
 
 **Migrations run automatically as part of every deploy** (`alembic upgrade head`, no
 `DATABASE_PATH` override — it deploys against the real file, by design, using the env file's own
