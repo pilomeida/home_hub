@@ -2,7 +2,7 @@
   <div class="inbox-meta">
     <a href="{{ file_href }}" target="_blank"><strong>{{ entry.document.filename }}</strong></a>
     <span>from {{ entry.document.uploaded_by or "unknown sender" }}</span>
-    <span>{{ entry.item.received_at.strftime("%d %b %H:%M") }}</span>
+    <span>{{ entry.item.received_at | display_datetime }}</span>
   </div>
   {% if entry.item.context_text %}<p class="inbox-context">{{ entry.item.context_text }}</p>{% endif %}
   {% if not entry.confident %}

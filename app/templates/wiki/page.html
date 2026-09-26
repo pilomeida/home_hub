@@ -41,7 +41,7 @@
     <tr>
       <td>{{ claim.label or (claim.key | humanize_key) }}</td>
       <td>{{ claim.value }}</td>
-      <td>{{ claim.superseded_at.strftime('%d %b %Y') if claim.superseded_at else '—' }}</td>
+      <td>{{ claim.superseded_at | display_date }}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
     </tr>
     {% endfor %}

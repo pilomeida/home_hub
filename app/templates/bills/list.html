@@ -11,7 +11,7 @@
     <tr>
       <td><a href="/financials/bills/{{ document.id }}">{{ document.filename }}</a></td>
       <td class="{{ 'needs-attention' if document.status.value == 'needs_attention' else '' }}">{{ document.status.value }}</td>
-      <td>{{ document.created_at }}</td>
+      <td>{{ document.created_at | display_datetime }}</td>
     </tr>
     {% else %}
     <tr><td colspan="3">No documents yet.</td></tr>

@@ -13,7 +13,7 @@
   {% for s in conversations %}
   <li>
     <a href="/ask/c/{{ s.conversation.id }}">{{ s.conversation.title }}</a>
-    <small>{{ s.turn_count }} question{{ "s" if s.turn_count != 1 }} · last active {{ s.conversation.updated_at.strftime('%Y-%m-%d %H:%M') }}{% if s.conversation.started_by %} · started by {{ s.conversation.started_by }}{% endif %}</small>
+    <small>{{ s.turn_count }} question{{ "s" if s.turn_count != 1 }} · last active {{ s.conversation.updated_at | display_datetime }}{% if s.conversation.started_by %} · started by {{ s.conversation.started_by }}{% endif %}</small>
   </li>
   {% else %}
   <li>No conversations yet.</li>

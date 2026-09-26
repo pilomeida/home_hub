@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Wiki check</h1>
 <p>
-  {% if last_run %}Last checked {{ last_run.started_at.strftime('%Y-%m-%d %H:%M') }} ({{ last_run.status.value }}).{% else %}Not checked yet.{% endif %}
+  {% if last_run %}Last checked {{ last_run.started_at | display_datetime }} ({{ last_run.status.value }}).{% else %}Not checked yet.{% endif %}
   {{ open_count }} item(s) to review.
 </p>
 {% if message %}<p class="ask-note">{{ message }}</p>{% endif %}

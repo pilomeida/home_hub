@@ -23,7 +23,7 @@
         {% endif %}
       </td>
       <td>{{ row.item.reviewed_by or "—" }}</td>
-      <td>{{ row.item.reviewed_at.strftime("%d %b %H:%M") }}</td>
+      <td>{{ row.item.reviewed_at | display_datetime }}</td>
     </tr>
   {% endfor %}
   </tbody>

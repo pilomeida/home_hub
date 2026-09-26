@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from app.models.wiki import WikiChange, WikiPage
 
@@ -99,6 +100,18 @@ def test_wiki_log_lists_operations(client, session):
     assert response.status_code == 200
     assert "boiler-warranty.pdf → Boiler" in response.text
     assert "ingest" in response.text
+
+
+def test_wiki_log_shows_a_friendly_datetime_not_the_raw_one(client, session):
+    entry = wiki_store.append_log(session, WikiOperation.INGEST, "boiler-warranty.pdf → Boiler")
+    entry.occurred_at = datetime(2026, 8, 18, 9, 5, 52, 222395)
+    session.add(entry)
+    session.commit()
+
+    response = client.get("/wiki/log")
+
+    assert "18 Aug 2026, 09:05" in response.text
+    assert "09:05:52.222395" not in response.text
 
 
 def test_wiki_page_lists_links_both_ways(client, session, fake_domain):

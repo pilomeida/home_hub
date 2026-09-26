@@ -28,6 +28,23 @@ def test_lint_page_lists_open_findings_in_plain_language(client, session):
     assert "Links that may be out of date" in r.text and "Something to check" in r.text
 
 
+def test_lint_page_shows_a_friendly_datetime_for_the_last_run(client, session):
+    from datetime import datetime
+
+    run = LintRun(trigger="manual")
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    run.started_at = datetime(2026, 8, 18, 9, 5, 52, 222395)
+    session.add(run)
+    session.commit()
+
+    r = client.get("/wiki/lint")
+
+    assert "18 Aug 2026, 09:05" in r.text
+    assert "09:05:52.222395" not in r.text
+
+
 def test_wiki_index_shows_issue_count_link(client, session):
     _finding(session)
     assert "1 wiki issue" in client.get("/wiki").text

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from sqlmodel import select
 
@@ -129,6 +131,31 @@ def test_approve_result_shows_a_friendly_message_when_processing_fails(client, s
     assert "The AI service couldn't be reached." in response.text
     assert "Technical details" in response.text
     assert "authentication_error" in response.text  # kept, inside the technical details
+
+
+def test_inbox_list_shows_a_friendly_datetime_for_received_at(client, session):
+    document = _pending(session)
+    item = session.exec(select(InboxItem).where(InboxItem.document_id == document.id)).one()
+    item.received_at = datetime(2026, 8, 18, 9, 5, 52, 222395)
+    session.add(item)
+    session.commit()
+
+    html = client.get("/inbox").text
+
+    assert "18 Aug 2026, 09:05" in html
+
+
+def test_inbox_recently_handled_shows_a_friendly_datetime_for_reviewed_at(client, session, two_domains):
+    document = _pending(session)
+    client.post(f"/inbox/{document.id}/discard")
+    item = session.exec(select(InboxItem).where(InboxItem.document_id == document.id)).one()
+    item.reviewed_at = datetime(2026, 8, 18, 9, 5, 52, 222395)
+    session.add(item)
+    session.commit()
+
+    html = client.get("/inbox").text
+
+    assert "18 Aug 2026, 09:05" in html
 
 
 def test_actions_on_missing_or_handled_document(client, session):

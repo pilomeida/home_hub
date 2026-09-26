@@ -32,6 +32,25 @@ def test_list_bills_renders(client):
     assert "Bills" in response.text
 
 
+def test_list_bills_shows_a_friendly_datetime_not_the_raw_one(client, session):
+    from datetime import datetime
+
+    from app.models.domain import Domain
+
+    document = Document(
+        filename="statement.pdf", file_path="/tmp/statement.pdf", content_hash="hlistdt",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.FINANCIALS,
+        created_at=datetime(2026, 8, 18, 9, 5, 52, 222395),
+    )
+    session.add(document)
+    session.commit()
+
+    response = client.get("/financials/bills")
+
+    assert "18 Aug 2026, 09:05" in response.text
+    assert "09:05:52.222395" not in response.text
+
+
 def test_bill_detail_404_for_missing_document(client):
     response = client.get("/financials/bills/9999")
     assert response.status_code == 404

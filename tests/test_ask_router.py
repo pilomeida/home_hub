@@ -29,6 +29,21 @@ def test_home_shows_new_chat_and_recent_conversations(client, session):
     assert f'href="/ask/c/{conv.id}"' in r.text
 
 
+def test_home_shows_a_friendly_datetime_for_the_last_active_conversation(client, session):
+    from datetime import datetime
+
+    conv = make_conversation(session, "Boiler questions")
+    make_turn(session, conv, "q")
+    conv.updated_at = datetime(2026, 8, 18, 9, 5, 52, 222395)
+    session.add(conv)
+    session.commit()
+
+    r = client.get("/ask")
+
+    assert "18 Aug 2026, 09:05" in r.text
+    assert "09:05:52.222395" not in r.text
+
+
 def test_new_chat_answers_in_background_and_redirects_to_conversation(client, session, fake_client):
     page = make_page(session, "Boiler", summary="Vaillant")
     make_claim(session, page, "last_service", "2026-03-02")

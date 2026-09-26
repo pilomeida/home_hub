@@ -8,7 +8,7 @@
   <tbody>
     {% for entry, pages in rows %}
     <tr>
-      <td>{{ entry.occurred_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ entry.occurred_at | display_datetime }}</td>
       <td>{{ entry.operation.value }}</td>
       <td>{{ entry.description }}</td>
       <td>{% for page_id, title in pages %}<a href="/wiki/{{ page_id }}">{{ title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
