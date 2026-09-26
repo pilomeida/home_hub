@@ -43,3 +43,18 @@ def test_finds_attachments_inside_forwarded_message():
 
 def test_no_attachments():
     assert parse_email(_mail().as_bytes()).attachments == []
+
+
+def test_gmail_auto_forward_keeps_original_sender_and_records_forwarder():
+    # A Gmail forwarding rule keeps the bill's own From and stamps
+    # "X-Forwarded-For: <forwarding account> <destination>".
+    msg = _mail(sender="Faturas <Faturas@Coopernico.org>", subject="Fatura dezembro")
+    msg["X-Forwarded-For"] = "Rute@Example.com hub@example.com"
+    parsed = parse_email(msg.as_bytes())
+    assert parsed.sender == "faturas@coopernico.org"
+    assert parsed.forwarded_by == "rute@example.com"
+    assert "Originally from: faturas@coopernico.org" in parsed.context_text
+
+
+def test_not_forwarded_has_no_forwarder():
+    assert parse_email(_mail().as_bytes()).forwarded_by == ""

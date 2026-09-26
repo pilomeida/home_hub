@@ -235,7 +235,7 @@ exist). Lower priority than the database, but worth covering in the same future 
 | `DEPLOY_SSH_KEY_HOMEHUB` | GitHub repo secret (`pilomeida/home_hub` → Settings → Secrets) | CI/CD SSH auth as the `home-hub` user, used only by `.github/workflows/deploy.yml` |
 | `HUB_IMAP_PASSWORD` | Same `.env` | A Gmail **app password** (16 letters) for the dedicated Hub mailbox — not the mailbox's real login password. Revoke or regenerate it from the Hub's own Google account (Security → App passwords), never Pedro's personal account |
 | `HUB_TELEGRAM_BOT_TOKEN` | Same `.env` | Auth token for the Hub's dedicated Telegram bot. Regenerated via @BotFather's `/revoke` command if it ever leaks — whoever holds it fully controls the bot |
-| `HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS` | Same `.env` | **Not secret** — plain allowlists (email addresses; Telegram numeric ids mapped to names) gating which senders' attachments reach the LLM classifier at all |
+| `HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS` | Same `.env` | **Not secret** — plain allowlists (email addresses; Telegram numeric ids mapped to names) gating which senders' attachments reach the LLM classifier at all. An email passes if its `From` is listed **or** Gmail's `X-Forwarded-For` stamp names a listed account — family members use Gmail forwarding rules, which keep the bill's original `From`. Both headers are forgeable; acceptable because every document still waits in the Inbox for human approval |
 
 All of the `HUB_*` channel settings live **only** in `/srv/home-hub/app/.env` — same place as
 `ANTHROPIC_API_KEY` — and are optional: every channel setting left unset simply keeps that channel

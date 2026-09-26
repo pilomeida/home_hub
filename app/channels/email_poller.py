@@ -17,7 +17,7 @@ from typing import Callable, Iterable, Protocol
 
 from sqlmodel import Session
 
-from app.channels.email_parsing import parse_email
+from app.channels.email_parsing import ParsedEmail, parse_email
 from app.config import settings
 from app.models.document import DocumentSource
 from app.services.inbox_service import receive_document
@@ -84,6 +84,15 @@ class PollReport:
     documents_created: int = 0
 
 
+def _family_submitter(parsed: ParsedEmail, allowed_senders: frozenset[str]) -> str | None:
+    """The allow-listed account that sent this mail in: the sender itself, or
+    (for a Gmail auto-forward, which keeps the original From) the forwarder."""
+    for candidate in (parsed.sender, parsed.forwarded_by):
+        if candidate and candidate in allowed_senders:
+            return candidate
+    return None
+
+
 async def poll_once(
     mailbox: Mailbox,
     session_factory: Callable[[], Session],
@@ -102,8 +111,10 @@ async def poll_once(
             report.failed += 1
             continue
 
-        if parsed.sender not in allowed_senders:
-            logger.info("ignoring mail from non-allow-listed sender %s", parsed.sender)
+        submitter = _family_submitter(parsed, allowed_senders)
+        if submitter is None:
+            logger.info("ignoring mail from non-allow-listed sender %s (forwarded by %r)",
+                        parsed.sender, parsed.forwarded_by)
             mailbox.move(uid, IGNORED_FOLDER)
             report.ignored += 1
             continue
@@ -119,7 +130,7 @@ async def poll_once(
                     receipt = await receive(
                         session,
                         IncomingFile(filename=attachment.filename, content=attachment.content,
-                                     source=DocumentSource.EMAIL, uploaded_by=parsed.sender),
+                                     source=DocumentSource.EMAIL, uploaded_by=submitter),
                         context_text=parsed.context_text,
                         external_ref=f"email:{parsed.message_id}#{index}",
                     )

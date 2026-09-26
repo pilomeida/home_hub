@@ -28,6 +28,15 @@ class ParsedEmail:
     message_id: str
     context_text: str
     attachments: list[EmailAttachment] = field(default_factory=list)
+    # The Gmail account whose forwarding rule sent this mail on ("" if none).
+    # Auto-forwarding keeps the bill's own From, so the allowlist checks this too.
+    forwarded_by: str = ""
+
+
+def _forwarded_by(msg) -> str:
+    # Gmail stamps auto-forwarded mail "X-Forwarded-For: <forwarder> <destination>".
+    first = str(msg.get("X-Forwarded-For", "")).split()[:1]
+    return parseaddr(first[0])[1].strip().lower() if first else ""
 
 
 def parse_email(raw: bytes) -> ParsedEmail:
@@ -35,10 +44,13 @@ def parse_email(raw: bytes) -> ParsedEmail:
     sender = parseaddr(str(msg.get("From", "")))[1].strip().lower()
     subject = str(msg.get("Subject", "")).strip()
     message_id = str(msg.get("Message-ID", "")).strip()
+    forwarded_by = _forwarded_by(msg)
 
     body_part = msg.get_body(preferencelist=("plain",))
     body = body_part.get_content().strip() if body_part is not None else ""
     context_text = f"Email subject: {subject}\n{body[:_CONTEXT_BODY_CHARS]}".strip()
+    if forwarded_by:
+        context_text = f"Originally from: {sender}\n{context_text}"
 
     attachments: list[EmailAttachment] = []
     for part in msg.walk():  # also descends into forwarded message/rfc822 parts
@@ -58,4 +70,5 @@ def parse_email(raw: bytes) -> ParsedEmail:
         attachments.append(EmailAttachment(filename=filename, content=content))
 
     return ParsedEmail(sender=sender, subject=subject, message_id=message_id,
-                       context_text=context_text, attachments=attachments)
+                       context_text=context_text, attachments=attachments,
+                       forwarded_by=forwarded_by)

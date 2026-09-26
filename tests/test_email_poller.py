@@ -11,9 +11,11 @@ from app.services.inbox_service import InboxReceipt
 ALLOWED = frozenset({"rute@example.com"})
 
 
-def _raw(sender="rute@example.com", with_pdf=True):
+def _raw(sender="rute@example.com", with_pdf=True, forwarded_for=None):
     msg = EmailMessage()
     msg["From"] = sender
+    if forwarded_for:
+        msg["X-Forwarded-For"] = forwarded_for
     msg["Subject"] = "Docs"
     msg["Message-ID"] = "<m1@x>"
     msg.set_content("hello")
@@ -78,6 +80,25 @@ async def test_unknown_sender_is_ignored_without_llm(engine, recorder):
     mailbox = FakeMailbox({b"1": _raw(sender="spam@evil.test")})
     report = await poll_once(mailbox, lambda: Session(engine), ALLOWED, receive=fake_receive)
     assert calls == [] and mailbox.moves == [(b"1", IGNORED_FOLDER)] and report.ignored == 1
+
+
+@pytest.mark.asyncio
+async def test_auto_forwarded_by_allowed_account_is_received_as_that_account(engine, recorder):
+    calls, fake_receive = recorder
+    mailbox = FakeMailbox({b"1": _raw(sender="faturas@coopernico.org",
+                                      forwarded_for="rute@example.com hub@example.com")})
+    report = await poll_once(mailbox, lambda: Session(engine), ALLOWED, receive=fake_receive)
+    assert [c[0].uploaded_by for c in calls] == ["rute@example.com", "rute@example.com"]
+    assert mailbox.moves == [(b"1", PROCESSED_FOLDER)] and report.processed == 1
+
+
+@pytest.mark.asyncio
+async def test_auto_forwarded_by_unknown_account_is_ignored(engine, recorder):
+    calls, fake_receive = recorder
+    mailbox = FakeMailbox({b"1": _raw(sender="faturas@coopernico.org",
+                                      forwarded_for="stranger@example.com hub@example.com")})
+    await poll_once(mailbox, lambda: Session(engine), ALLOWED, receive=fake_receive)
+    assert calls == [] and mailbox.moves == [(b"1", IGNORED_FOLDER)]
 
 
 @pytest.mark.asyncio
