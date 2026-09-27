@@ -7,38 +7,25 @@ import app.services.wiki_engine as wiki_engine_module
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractedUtilityDetail
 
 
-class _FakeContent:
-    def __init__(self, text):
-        self.text = text
+from tests.fakes.fake_gateway import FakeGateway
 
 
-class _FakeMessage:
-    def __init__(self, text):
-        self.content = [_FakeContent(text)]
+def _fake_gateway(response_text: str):
+    return FakeGateway([{
+        "text": response_text, "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }])
 
 
-class _FakeMessages:
-    def __init__(self, response_text):
-        self._response_text = response_text
-
-    async def create(self, **kwargs):
-        return _FakeMessage(self._response_text)
-
-
-class _FakeAnthropicClient:
-    def __init__(self, response_text):
-        self.messages = _FakeMessages(response_text)
-
-
-async def _fake_classify_bill(file_path, client=None):
+async def _fake_classify_bill(file_path, gateway=None):
     return "bill"
 
 
-async def _fake_classify_statement(file_path, client=None):
+async def _fake_classify_statement(file_path, gateway=None):
     return "statement"
 
 
-async def _noop_classify_transaction(session, transaction, client=None):
+async def _noop_classify_transaction(session, transaction, gateway=None):
     return None
 
 
@@ -78,7 +65,7 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
     this_period = _this_month_period()
     due_date = _next_month_date()
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return ExtractedBill(
             provider="EDP", category_hint="electricity", amount=87.32, currency="EUR",
             due_date=due_date, paid_date=None, statement_period=this_period,
@@ -86,7 +73,7 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
 
     async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
         return await wiki_engine_module.ingest_into_wiki(
-            session, document, context=context, client=_FakeAnthropicClient(wiki_response)
+            session, document, context=context, gateway=_fake_gateway(wiki_response)
         )
 
     monkeypatch.setattr(pipeline_module, "classify_document", _fake_classify_bill)
@@ -118,7 +105,7 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
     # test never breaks on a calendar rollover.
     last_period, last_month_date = _last_month_period_and_date()
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return ExtractedStatement(
             statement_period=last_period,
             transactions=[
@@ -168,16 +155,16 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
 
 
 def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
-    async def fake_classify_bill(file_path, client=None):
+    async def fake_classify_bill(file_path, gateway=None):
         return "bill"
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return ExtractedBill(
             provider="EDP", category_hint="electricity", amount=85.0, currency="EUR",
             due_date=None, paid_date=None, statement_period="2026-07",
         )
 
-    async def fake_extract_utility_detail(file_path, utility_type, client=None):
+    async def fake_extract_utility_detail(file_path, utility_type, gateway=None):
         return ExtractedUtilityDetail(
             period_label="2026-07", billing_period_start=None, billing_period_end=None,
             invoice_number="FA CO26/42 105", consumption_value=401.0, consumption_unit="kWh",

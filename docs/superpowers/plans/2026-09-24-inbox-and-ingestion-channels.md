@@ -144,7 +144,9 @@ The agent puts them only in the server's private settings file, the same place t
 - **O1. Before the first push of this plan:** run `ssh root@167.233.51.113 'loginctl enable-linger home-hub && ls -d /run/user/995'`. This lets `home-hub` run its own background services; the deploy fails without it.
 - **O2. After M1, M2 and M4:**
   1. Back up `/srv/home-hub/app/.env`.
-  2. Append the `HUB_*` settings listed in Task 6.
+  2. Append the `HUB_*` settings listed in Task 6, **and the LLM-gateway settings**:
+     `LLMSEL_URL=http://127.0.0.1:8010`, `LLMSEL_WORKER=hub`, and `LLMSEL_TOKEN=<token issued by the
+     gateway admin>`. The Hub makes no direct provider calls and holds no provider key.
   3. Run `chown home-hub:home-hub` and `chmod 600` on the file.
   4. Restart the bot: `sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user restart home-hub-telegram`.
 - **O3. After M3:**

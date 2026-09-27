@@ -1,12 +1,11 @@
 """Ask: cross-domain natural-language chat (wiki-first)."""
 
-from anthropic import AsyncAnthropic
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlmodel import Session
 
-from app.config import settings
 from app.db import get_session, get_session_factory
+from app.llm_gateway import GatewayClient, get_gateway
 from app.models.ask import AskConversation, AskStatus, AskTurn
 from app.services.ask.citations import render_turn
 from app.services.ask.conversation import TurnInProgress, add_turn, recent_conversations, start_conversation, turns_of
@@ -19,8 +18,9 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 _MAX_QUESTION_CHARS = 1000
 
 
-def get_ask_client() -> AsyncAnthropic:
-    return AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+def get_ask_gateway() -> GatewayClient:
+    """The gateway client for Ask. Tests override this dependency."""
+    return get_gateway()
 
 
 def _clean(question: str) -> str:
@@ -34,9 +34,9 @@ def _turn_view(turn: AskTurn) -> dict:
     return {"turn": turn, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None}
 
 
-async def _answer_in_background(session_factory, turn_id: int, client: AsyncAnthropic) -> None:
+async def _answer_in_background(session_factory, turn_id: int, gateway) -> None:
     with session_factory() as session:
-        await run_turn(session, turn_id, client=client)
+        await run_turn(session, turn_id, gateway=gateway)
 
 
 @router.get("")
@@ -47,9 +47,9 @@ async def ask_home(request: Request, session: Session = Depends(get_session)):
 @router.post("")
 async def new_chat(request: Request, background_tasks: BackgroundTasks, question: str = Form(""),
                    session: Session = Depends(get_session), session_factory=Depends(get_session_factory),
-                   client: AsyncAnthropic = Depends(get_ask_client)):
+                   gateway=Depends(get_ask_gateway)):
     turn = start_conversation(session, _clean(question), started_by=getattr(request.state, "user_email", None))
-    background_tasks.add_task(_answer_in_background, session_factory, turn.id, client)
+    background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
     url = f"/ask/c/{turn.conversation_id}"
     if request.headers.get("HX-Request"):
         return Response(status_code=200, headers={"HX-Redirect": url})
@@ -68,7 +68,7 @@ async def conversation_page(request: Request, conversation_id: int, session: Ses
 @router.post("/c/{conversation_id}/turns")
 async def follow_up(request: Request, conversation_id: int, background_tasks: BackgroundTasks,
                     question: str = Form(""), session: Session = Depends(get_session),
-                    session_factory=Depends(get_session_factory), client: AsyncAnthropic = Depends(get_ask_client)):
+                    session_factory=Depends(get_session_factory), gateway=Depends(get_ask_gateway)):
     try:
         turn = add_turn(session, conversation_id, _clean(question),
                         asked_by=getattr(request.state, "user_email", None))
@@ -76,7 +76,7 @@ async def follow_up(request: Request, conversation_id: int, background_tasks: Ba
         raise HTTPException(status_code=404, detail="Conversation not found")
     except TurnInProgress as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    background_tasks.add_task(_answer_in_background, session_factory, turn.id, client)
+    background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(request, "ask/_turn.html", _turn_view(turn))
     return RedirectResponse(f"/ask/c/{conversation_id}", status_code=303)

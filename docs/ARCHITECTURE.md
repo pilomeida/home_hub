@@ -84,7 +84,7 @@ detection heuristics behind the Needs Review queue):
                                     + transactions where merchant_id IS NULL (classification failed)
 
 Data layer: SQLite (data/home_family.db) via SQLModel/SQLAlchemy, migrated with Alembic.
-Config: app/config.py ← reads .env at startup (ANTHROPIC_API_KEY required; DATABASE_PATH,
+Config: app/config.py ← reads .env at startup (LLMSEL_* gateway settings; DATABASE_PATH,
 DOCUMENTS_DIR, CF_ACCESS_* optional).
 ```
 
@@ -106,7 +106,7 @@ Home & Family/
 ├── app/
 │   ├── main.py                FastAPI app init; CORS-free (Cloudflare Access gates access);
 │   │                           registers CloudflareAccessMiddleware + all routers; mounts /static
-│   ├── config.py               Settings from .env (ANTHROPIC_API_KEY, DATABASE_PATH, DOCUMENTS_DIR,
+│   ├── config.py               Settings from .env (LLMSEL_URL/WORKER/TOKEN, DATABASE_PATH, DOCUMENTS_DIR,
 │   │                           CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD)
 │   ├── db.py                   SQLModel engine + get_session() FastAPI dependency; registers the
 │   │                           PRAGMA foreign_keys=ON connect-event listener

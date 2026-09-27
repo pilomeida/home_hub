@@ -14,7 +14,7 @@ Access.
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # then fill in ANTHROPIC_API_KEY at minimum
+cp .env.example .env   # then fill in LLMSEL_TOKEN (gateway token) at minimum
 alembic upgrade head
 uvicorn app.main:app --reload
 ```

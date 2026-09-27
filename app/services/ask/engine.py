@@ -1,30 +1,34 @@
-"""Ask engine: answers one AskTurn with a bounded Claude tool-use loop over
-the wiki (first) and raw sources (fallback), with the conversation's
-bounded history in front. Read-only except for the turn row itself."""
+"""Ask engine: answers one AskTurn with a bounded tool-use loop over the
+wiki (first) and raw sources (fallback), with the conversation's bounded
+history in front. Read-only except for the turn row itself.
+
+Runs through the LLM gateway (llmsel): one `job_id` (uuid4) per question,
+re-sent every turn; the same tools in the same order each turn;
+`assistant_content` is appended verbatim; usage accumulates from
+`result.usage`. Adaptive thinking is the gateway's business now.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import asdict
 from datetime import date, datetime
 from typing import Optional
 
-import anthropic
-from anthropic import AsyncAnthropic
 from sqlmodel import Session
 
-from app.config import settings
 from app.models.ask import AskConversation, AskStatus, AskTurn
 from app.services.ask.citations import cited_refs
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 from app.services.ask.context import build_system_prompt
 from app.services.ask.conversation import build_history
 from app.services.ask.tools import READ_FILE_TOOL, available_tools
+from app.llm_gateway import GatewayError, INTERACTIVE_RESEARCH, get_gateway
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "claude-opus-5-5"   # thinking can't be disabled; default effort (medium); tool_choice stays auto
 _MAX_TOKENS = 16000
 _MAX_TURNS = 8               # model round-trips per question
 _MAX_FILE_READS = 2
@@ -46,10 +50,10 @@ def _tool_result(block_id: str, output: ToolOutput) -> dict:
     return {"type": "tool_result", "tool_use_id": block_id, "content": content, "is_error": output.is_error}
 
 
-async def run_turn(session: Session, turn_id: int, client: Optional[AsyncAnthropic] = None,
+async def run_turn(session: Session, turn_id: int, gateway=None,
                    today: Optional[date] = None) -> AskTurn:
     turn = session.get(AskTurn, turn_id)
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    gw = gateway or get_gateway()
     system, index_citables = build_system_prompt(session, today or date.today())
     history, history_citables = build_history(session, turn)
     tools = available_tools()
@@ -57,44 +61,49 @@ async def run_turn(session: Session, turn_id: int, client: Optional[AsyncAnthrop
     known: dict[str, Citable] = {c.ref: c for c in index_citables}
     known.update(history_citables)
     messages: list[dict] = [*history, {"role": "user", "content": turn.question}]
+    tool_specs = [t.to_api() for t in tools]  # same tools, same order, every turn
+    job_id = str(uuid.uuid4())
     file_reads, used_raw, in_tokens, out_tokens = 0, False, 0, 0
     answer: Optional[str] = None
     error: Optional[str] = None
 
     try:
         for _ in range(_MAX_TURNS):
-            response = await anthropic_client.messages.create(
-                model=_MODEL, max_tokens=_MAX_TOKENS, thinking={"type": "adaptive"},
-                system=system, tools=[t.to_api() for t in tools], messages=messages,
+            result = await gw.run(
+                INTERACTIVE_RESEARCH, system,
+                messages=messages, tools=tool_specs, job_id=job_id,
+                max_tokens=_MAX_TOKENS,
             )
-            in_tokens += response.usage.input_tokens
-            out_tokens += response.usage.output_tokens
-            if response.stop_reason == "refusal":
+            in_tokens += result.usage.get("input_tokens", 0)
+            out_tokens += result.usage.get("output_tokens", 0)
+            if result.stop_reason == "refusal":
                 error = "The AI declined to answer this question."
                 break
-            if response.stop_reason != "tool_use":
-                answer = "".join(b.text for b in response.content if b.type == "text").strip() or None
+            if result.stop_reason != "tool_use":
+                answer = "".join(
+                    block.get("text", "") for block in result.assistant_content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                ).strip() or result.text.strip() or None
                 error = None if answer else "No answer was produced."
                 break
-            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "assistant", "content": result.assistant_content})
             results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-                if block.name == READ_FILE_TOOL and file_reads >= _MAX_FILE_READS:
+            for call in result.tool_calls:
+                name, block_id, call_input = call["name"], call["id"], call.get("input") or {}
+                if name == READ_FILE_TOOL and file_reads >= _MAX_FILE_READS:
                     output = ToolOutput(text="File-read limit reached for this question.", is_error=True)
                 else:
-                    output = _run_tool(session, by_name.get(block.name), block.name, block.input)
-                    if block.name == READ_FILE_TOOL and not output.is_error:
+                    output = _run_tool(session, by_name.get(name), name, call_input)
+                    if name == READ_FILE_TOOL and not output.is_error:
                         file_reads += 1
                 known.update({c.ref: c for c in output.citables})
                 used_raw = used_raw or output.used_raw_sources
-                results.append(_tool_result(block.id, output))
+                results.append(_tool_result(block_id, output))
             messages.append({"role": "user", "content": results})
         else:
             error = "Ran out of research steps before finding an answer."
-    except anthropic.APIError:
-        logger.exception("Ask: Claude API call failed")
+    except GatewayError:
+        logger.exception("Ask: gateway call failed")
         error = "The AI service is unavailable right now."
 
     turn = session.get(AskTurn, turn_id)

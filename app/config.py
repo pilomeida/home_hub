@@ -26,7 +26,9 @@ def parse_telegram_users(raw: str) -> dict[int, str]:
 
 
 class Settings:
-    ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
+    LLMSEL_URL: str = os.environ.get("LLMSEL_URL") or ""
+    LLMSEL_WORKER: str = os.environ.get("LLMSEL_WORKER") or "hub"
+    LLMSEL_TOKEN: str = os.environ.get("LLMSEL_TOKEN") or ""
     DATABASE_PATH: Path = Path(os.environ.get("DATABASE_PATH") or "data/home_family.db")
     DOCUMENTS_DIR: Path = Path(os.environ.get("DOCUMENTS_DIR") or "app/static/documents")
     CF_ACCESS_TEAM_DOMAIN: str = os.environ.get("CF_ACCESS_TEAM_DOMAIN") or ""

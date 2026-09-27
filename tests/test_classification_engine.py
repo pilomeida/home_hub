@@ -44,27 +44,14 @@ def test_normalize_provider_collapses_whitespace():
     assert normalize_provider("  MODELO   HIPER  ") == "modelo hiper"
 
 
-class _FakeContent:
-    def __init__(self, text):
-        self.text = text
+def _fake_merchant_gateway(response_text: str):
+    """A FakeGateway scripted with one merchant-resolution JSON result."""
+    from tests.fakes.fake_gateway import FakeGateway
 
-
-class _FakeMessage:
-    def __init__(self, text):
-        self.content = [_FakeContent(text)]
-
-
-class _FakeMessages:
-    def __init__(self, response_text):
-        self._response_text = response_text
-
-    async def create(self, **kwargs):
-        return _FakeMessage(self._response_text)
-
-
-class _FakeAnthropicClient:
-    def __init__(self, response_text):
-        self.messages = _FakeMessages(response_text)
+    return FakeGateway([{
+        "text": response_text, "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }])
 
 
 @pytest.mark.asyncio
@@ -74,9 +61,9 @@ async def test_resolve_merchant_via_llm_parses_valid_response():
         "category": "groceries",
         "nature": "essential",
     })
-    client = _FakeAnthropicClient(response)
+    client = _fake_merchant_gateway(response)
 
-    result = await resolve_merchant_via_llm("MODELO HIPER 2640-MAFR", client=client)
+    result = await resolve_merchant_via_llm("MODELO HIPER 2640-MAFR", gateway=client)
 
     assert isinstance(result, ResolvedMerchant)
     assert result.canonical_name == "Modelo Hiper"
@@ -86,10 +73,10 @@ async def test_resolve_merchant_via_llm_parses_valid_response():
 
 @pytest.mark.asyncio
 async def test_resolve_merchant_via_llm_raises_on_malformed_json():
-    client = _FakeAnthropicClient("not json")
+    client = _fake_merchant_gateway("not json")
 
     with pytest.raises(MerchantResolutionError):
-        await resolve_merchant_via_llm("SOME PROVIDER", client=client)
+        await resolve_merchant_via_llm("SOME PROVIDER", gateway=client)
 
 
 @pytest.mark.asyncio
@@ -97,10 +84,10 @@ async def test_resolve_merchant_via_llm_raises_on_invalid_category():
     response = json.dumps({
         "canonical_name": "Some Shop", "category": "not_a_real_category", "nature": "essential",
     })
-    client = _FakeAnthropicClient(response)
+    client = _fake_merchant_gateway(response)
 
     with pytest.raises(MerchantResolutionError):
-        await resolve_merchant_via_llm("SOME SHOP", client=client)
+        await resolve_merchant_via_llm("SOME SHOP", gateway=client)
 
 
 @pytest.mark.asyncio
@@ -133,7 +120,7 @@ async def test_classify_transaction_reuses_existing_merchant(session):
     session.commit()
     session.refresh(transaction)
 
-    result = await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway("{}"))
     session.commit()
 
     assert isinstance(result, ClassificationResult)
@@ -167,7 +154,7 @@ async def test_classify_transaction_creates_new_merchant_via_llm_fallback(sessio
     response = json.dumps({
         "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
     })
-    result = await classify_transaction(session, transaction, client=_FakeAnthropicClient(response))
+    result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway(response))
     session.commit()
 
     assert result.created_new_merchant is True
@@ -211,7 +198,7 @@ async def test_classify_transaction_inherits_account_id_from_document(session):
     session.commit()
     session.refresh(transaction)
 
-    await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    await classify_transaction(session, transaction, gateway=_fake_merchant_gateway("{}"))
     session.commit()
 
     assert transaction.account_id == account.id
@@ -255,7 +242,7 @@ async def test_classify_transaction_does_not_overwrite_existing_account_id(sessi
     session.commit()
     session.refresh(transaction)
 
-    await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    await classify_transaction(session, transaction, gateway=_fake_merchant_gateway("{}"))
     session.commit()
 
     assert transaction.account_id == account_b.id
@@ -292,7 +279,7 @@ async def test_classify_transaction_does_not_overwrite_existing_nature(session):
     session.commit()
     session.refresh(transaction)
 
-    await classify_transaction(session, transaction, client=_FakeAnthropicClient("{}"))
+    await classify_transaction(session, transaction, gateway=_fake_merchant_gateway("{}"))
     session.commit()
 
     assert transaction.nature == Nature.DISCRETIONARY
@@ -324,7 +311,7 @@ async def test_classify_transaction_does_not_commit_internally(session):
     response = json.dumps({
         "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
     })
-    result = await classify_transaction(session, transaction, client=_FakeAnthropicClient(response))
+    result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway(response))
     assert result.created_new_merchant is True
 
     session.rollback()

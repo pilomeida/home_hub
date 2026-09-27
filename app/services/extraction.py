@@ -1,4 +1,7 @@
-"""Claude-based structured extraction from bill/statement documents."""
+"""Structured extraction from bill/statement documents via the LLM gateway
+(llmsel). Every call sends `build_content_block(...)` output as gateway
+`attachments`; the document never names a model — the gateway picks one.
+"""
 
 from __future__ import annotations
 
@@ -7,13 +10,16 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
-from anthropic import AsyncAnthropic
-
-from app.config import settings
+from app.llm_gateway import (
+    CLASSIFICATION,
+    CRITIQUE_REVIEW,
+    INTERACTIVE_RESEARCH,
+    VISION_CLASSIFICATION,
+    VISION_EXTRACTION,
+    get_gateway,
+)
 from app.services.document_input import build_content_block
 from app.services.json_utils import strip_json_fences
-
-_MODEL = "claude-sonnet-5"
 
 _SYSTEM_PROMPT = """You extract structured billing data from a bill or bank \
 statement document. Respond with ONLY a JSON object, no prose, matching this \
@@ -31,6 +37,29 @@ insurance, subscriptions, groceries, health, home, or other",
 }
 
 If a field cannot be determined, use null (or 0.0 for amount as a last resort)."""
+
+# No stricter than the prompt ("If a field cannot be determined, use null")
+# and the parser (defaults: category_hint→other, amount→0.0, currency→EUR).
+# `provider` is required because the parser indexes it directly.
+_BILL_SCHEMA = {
+    "type": "object",
+    "required": ["provider"],
+    "properties": {
+        "provider": {"type": ["string", "null"]},
+        "category_hint": {
+            "type": ["string", "null"],
+            "enum": ["electricity", "water", "gas", "telecom", "insurance",
+                     "subscriptions", "groceries", "health", "home", "other", None],
+        },
+        "amount": {"type": ["number", "null"]},
+        "currency": {"type": ["string", "null"], "minLength": 3, "maxLength": 3},
+        "due_date": {"type": ["string", "null"], "format": "date"},
+        "paid_date": {"type": ["string", "null"], "format": "date"},
+        "statement_period": {"type": ["string", "null"]},
+    },
+}
+
+_EXTRACT_USER_PROMPT = "Extract the billing data as JSON."
 
 
 class ExtractionError(Exception):
@@ -54,31 +83,22 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
     return date.fromisoformat(value)
 
 
-async def extract_bill(file_path: str, client: Optional[AsyncAnthropic] = None) -> ExtractedBill:
+async def extract_bill(file_path: str, gateway=None) -> ExtractedBill:
     """Extract structured billing data from a bill/statement document (the
     whole PDF, all pages, or a single image)."""
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    gw = gateway or get_gateway()
     content_block = build_content_block(file_path)
 
-    message = await anthropic_client.messages.create(
-        model=_MODEL,
-        max_tokens=4096,
-        thinking={"type": "disabled"},
-        system=_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    content_block,
-                    {"type": "text", "text": "Extract the billing data as JSON."},
-                ],
-            }
-        ],
+    result = await gw.run(
+        VISION_EXTRACTION,
+        _SYSTEM_PROMPT,
+        _EXTRACT_USER_PROMPT,
+        attachments=[content_block],
+        response_schema=_BILL_SCHEMA,
     )
 
     try:
-        raw_text = strip_json_fences(message.content[0].text)
-        data = json.loads(raw_text)
+        data = json.loads(strip_json_fences(result.text))
         return ExtractedBill(
             provider=data["provider"],
             category_hint=data.get("category_hint", "other"),
@@ -92,8 +112,6 @@ async def extract_bill(file_path: str, client: Optional[AsyncAnthropic] = None) 
         raise ExtractionError(f"Could not parse extraction response: {exc}") from exc
 
 
-_CLASSIFICATION_MODEL = "claude-haiku-4-5-20251001"
-
 _CLASSIFICATION_SYSTEM_PROMPT = """You classify an uploaded financial \
 document as either a single bill/invoice or a bank account statement. \
 Respond with ONLY a JSON object:
@@ -104,35 +122,34 @@ A "bill" has one provider and one amount due (an invoice, receipt, or \
 premium notice). A "statement" lists multiple transactions across one or \
 more accounts (a monthly bank/account statement)."""
 
+_CLASSIFICATION_SCHEMA = {
+    "type": "object",
+    "required": ["document_type"],
+    "properties": {"document_type": {"type": "string", "enum": ["bill", "statement"]}},
+}
+
+_CLASSIFY_USER_PROMPT = "Classify this document as JSON."
+
 
 class ClassificationError(Exception):
     pass
 
 
-async def classify_document(file_path: str, client: Optional[AsyncAnthropic] = None) -> str:
+async def classify_document(file_path: str, gateway=None) -> str:
     """Classify an uploaded document as "bill" or "statement"."""
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    gw = gateway or get_gateway()
     content_block = build_content_block(file_path)
 
-    message = await anthropic_client.messages.create(
-        model=_CLASSIFICATION_MODEL,
-        max_tokens=128,
-        thinking={"type": "disabled"},
-        system=_CLASSIFICATION_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    content_block,
-                    {"type": "text", "text": "Classify this document as JSON."},
-                ],
-            }
-        ],
+    result = await gw.run(
+        VISION_CLASSIFICATION,
+        _CLASSIFICATION_SYSTEM_PROMPT,
+        _CLASSIFY_USER_PROMPT,
+        attachments=[content_block],
+        response_schema=_CLASSIFICATION_SCHEMA,
     )
 
     try:
-        raw_text = strip_json_fences(message.content[0].text)
-        data = json.loads(raw_text)
+        data = json.loads(strip_json_fences(result.text))
         document_type = data["document_type"]
         if document_type not in ("bill", "statement"):
             raise ValueError(f"Unexpected document_type: {document_type!r}")
@@ -140,8 +157,6 @@ async def classify_document(file_path: str, client: Optional[AsyncAnthropic] = N
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise ClassificationError(f"Could not classify document: {exc}") from exc
 
-
-_STATEMENT_MODEL = "claude-sonnet-5"
 
 _STATEMENT_SYSTEM_PROMPT = """You extract every transaction line item from a \
 bank account statement document (all pages). Respond with ONLY a JSON \
@@ -177,6 +192,47 @@ transfer, atm_withdrawal, restaurants, shopping, or other_expense"
 
 Include every transaction line item found across all pages of the statement."""
 
+_TRANSACTION_CATEGORIES = [
+    "electricity", "water", "gas", "telecom", "insurance", "subscriptions",
+    "groceries", "health", "home", "income", "transfer", "atm_withdrawal",
+    "restaurants", "shopping", "other_expense",
+]
+
+# Parser: data["transactions"] indexed directly (required); statement_period
+# via .get (not required). Inside items: date/description/amount/type are
+# indexed directly (required); currency/category_hint are .get-defaulted
+# (optional, but null still tolerated — no stricter than the parser).
+_STATEMENT_SCHEMA = {
+    "type": "object",
+    "required": ["transactions"],
+    "properties": {
+        "statement_period": {"type": ["string", "null"]},
+        "transactions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["date", "description", "amount", "type"],
+                "properties": {
+                    "date": {"type": ["string", "null"], "format": "date"},
+                    "description": {"type": ["string", "null"]},
+                    "amount": {"type": ["number", "null"]},
+                    "currency": {"type": ["string", "null"], "minLength": 3, "maxLength": 3},
+                    "type": {
+                        "type": ["string", "null"],
+                        "enum": ["debit", "credit", "transfer", None],
+                    },
+                    "category_hint": {
+                        "type": ["string", "null"],
+                        "enum": [*_TRANSACTION_CATEGORIES, None],
+                    },
+                },
+            },
+        },
+    },
+}
+
+_STATEMENT_USER_PROMPT = "Extract every transaction as JSON."
+
 
 class StatementExtractionError(Exception):
     pass
@@ -198,38 +254,27 @@ class ExtractedStatement:
     transactions: list[ExtractedTransaction]
 
 
-async def extract_statement_transactions(
-    file_path: str, client: Optional[AsyncAnthropic] = None
-) -> ExtractedStatement:
+async def extract_statement_transactions(file_path: str, gateway=None) -> ExtractedStatement:
     """Extract every transaction line item from a bank statement document."""
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    gw = gateway or get_gateway()
     content_block = build_content_block(file_path)
 
-    message = await anthropic_client.messages.create(
-        model=_STATEMENT_MODEL,
-        max_tokens=16384,
-        thinking={"type": "disabled"},
-        system=_STATEMENT_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    content_block,
-                    {"type": "text", "text": "Extract every transaction as JSON."},
-                ],
-            }
-        ],
+    result = await gw.run(
+        VISION_EXTRACTION,
+        _STATEMENT_SYSTEM_PROMPT,
+        _STATEMENT_USER_PROMPT,
+        attachments=[content_block],
+        response_schema=_STATEMENT_SCHEMA,
     )
 
-    if getattr(message, "stop_reason", None) == "max_tokens":
+    if result.stop_reason == "max_tokens":
         raise StatementExtractionError(
             "Statement response was truncated (max_tokens reached) — statement "
             "may have too many transactions for one call"
         )
 
     try:
-        raw_text = strip_json_fences(message.content[0].text)
-        data = json.loads(raw_text)
+        data = json.loads(strip_json_fences(result.text))
         transactions = [
             ExtractedTransaction(
                 transaction_date=date.fromisoformat(item["date"]),
@@ -273,6 +318,23 @@ period_label is required — always determine it even if other fields are \
 uncertain. Use null liberally for any other field the bill doesn't clearly \
 itemize; do not guess or approximate a value that isn't actually shown."""
 
+_UTILITY_SCHEMA = {
+    "type": "object",
+    "required": ["period_label"],
+    "properties": {
+        "period_label": {"type": "string"},
+        "billing_period_start": {"type": ["string", "null"], "format": "date"},
+        "billing_period_end": {"type": ["string", "null"], "format": "date"},
+        "invoice_number": {"type": ["string", "null"]},
+        "consumption_value": {"type": ["number", "null"]},
+        "consumption_unit": {"type": ["string", "null"]},
+        "energy_cost": {"type": ["number", "null"]},
+        "power_cost": {"type": ["number", "null"]},
+        "fees_taxes_cost": {"type": ["number", "null"]},
+        "vat_cost": {"type": ["number", "null"]},
+    },
+}
+
 
 class UtilityDetailExtractionError(Exception):
     pass
@@ -293,36 +355,24 @@ class ExtractedUtilityDetail:
 
 
 async def extract_utility_detail(
-    file_path: str, utility_type: str, client: Optional[AsyncAnthropic] = None
+    file_path: str, utility_type: str, gateway=None
 ) -> ExtractedUtilityDetail:
     """Extract consumption + cost-breakdown detail from a utility bill
     document. Enrichment only — callers must treat failure as non-fatal to
     the underlying bill's own processing."""
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    gw = gateway or get_gateway()
     content_block = build_content_block(file_path)
 
-    message = await anthropic_client.messages.create(
-        model=_MODEL,
-        max_tokens=1024,
-        thinking={"type": "disabled"},
-        system=_UTILITY_DETAIL_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    content_block,
-                    {
-                        "type": "text",
-                        "text": f"Extract the {utility_type} consumption/cost detail as JSON.",
-                    },
-                ],
-            }
-        ],
+    result = await gw.run(
+        VISION_EXTRACTION,
+        _UTILITY_DETAIL_SYSTEM_PROMPT,
+        f"Extract the {utility_type} consumption/cost detail as JSON.",
+        attachments=[content_block],
+        response_schema=_UTILITY_SCHEMA,
     )
 
     try:
-        raw_text = strip_json_fences(message.content[0].text)
-        data = json.loads(raw_text)
+        data = json.loads(strip_json_fences(result.text))
         return ExtractedUtilityDetail(
             period_label=data["period_label"],
             billing_period_start=_parse_date(data.get("billing_period_start")),

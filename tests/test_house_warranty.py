@@ -14,29 +14,14 @@ from app.models.domain import Domain
 from app.models.todo import Todo
 
 
-class _FakeContent:
-    def __init__(self, text):
-        self.text = text
+def _fake_gateway(text):
+    """A FakeGateway scripted with one warranty-dates JSON result."""
+    from tests.fakes.fake_gateway import FakeGateway
 
-
-class _FakeMessage:
-    def __init__(self, text):
-        self.content = [_FakeContent(text)]
-
-
-class _FakeMessages:
-    def __init__(self, text):
-        self._text = text
-        self.calls = []
-
-    async def create(self, **kwargs):
-        self.calls.append(kwargs)
-        return _FakeMessage(self._text)
-
-
-class _FakeClient:
-    def __init__(self, text):
-        self.messages = _FakeMessages(text)
+    return FakeGateway([{
+        "text": text, "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }])
 
 
 def _pdf(tmp_path):
@@ -52,28 +37,31 @@ def test_reminder_is_21_days_before_expiry():
 
 @pytest.mark.asyncio
 async def test_extracts_a_stated_expiry(tmp_path):
-    client = _FakeClient(json.dumps({"expiry_date": "2028-05-17", "purchase_date": None}))
-    assert await extract_warranty_dates(_pdf(tmp_path), client=client) == WarrantyDates(date(2028, 5, 17), None)
-    assert client.messages.calls[0]["model"] == "claude-haiku-4-5-20251001"
+    client = _fake_gateway(json.dumps({"expiry_date": "2028-05-17", "purchase_date": None}))
+    assert await extract_warranty_dates(_pdf(tmp_path), gateway=client) == WarrantyDates(date(2028, 5, 17), None)
+    req = client.requests[0]
+    assert req["workload_type"] == "vision_extraction"
+    assert "model" not in req and req["max_tokens"] is None
+    assert len(req["attachments"]) == 1 and req["attachments"][0]["type"] == "document"
 
 
 @pytest.mark.asyncio
 async def test_extracts_expiry_and_purchase_date(tmp_path):
-    client = _FakeClient(json.dumps({"expiry_date": None, "purchase_date": "2026-03-12"}))
-    assert await extract_warranty_dates(_pdf(tmp_path), client=client) == WarrantyDates(None, date(2026, 3, 12))
+    client = _fake_gateway(json.dumps({"expiry_date": None, "purchase_date": "2026-03-12"}))
+    assert await extract_warranty_dates(_pdf(tmp_path), gateway=client) == WarrantyDates(None, date(2026, 3, 12))
 
 
 @pytest.mark.asyncio
 async def test_unreadable_file_types_give_no_dates(tmp_path):
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"x")
-    assert await extract_warranty_dates(str(video), client=_FakeClient("unused")) == WarrantyDates(None, None)
+    assert await extract_warranty_dates(str(video), gateway=_fake_gateway("unused")) == WarrantyDates(None, None)
 
 
 @pytest.mark.asyncio
 async def test_unparseable_reply_raises(tmp_path):
     with pytest.raises(WarrantyExtractionError):
-        await extract_warranty_dates(_pdf(tmp_path), client=_FakeClient("two years"))
+        await extract_warranty_dates(_pdf(tmp_path), gateway=_fake_gateway("two years"))
 
 
 def test_effective_expiry_prefers_stated_then_assumes_legal_guarantee():

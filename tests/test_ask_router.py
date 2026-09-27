@@ -4,20 +4,35 @@ import pytest
 from sqlmodel import select
 
 from app.models.ask import AskConversation, AskStatus, AskTurn
-from app.routers.ask import get_ask_client
-from tests.fake_anthropic import FakeAnthropic, text_response, tool_response
+from app.routers.ask import get_ask_gateway
+from tests.fakes.fake_gateway import FakeGateway
 from tests.knowledge_factories import make_claim, make_conversation, make_page, make_turn
+
+
+def _body(text):
+    return {"text": text, "stop_reason": "end_turn", "usage": {"input_tokens": 10, "output_tokens": 5}}
+
+
+def _tool_body(*calls):
+    return {
+        "text": "", "stop_reason": "tool_use", "usage": {"input_tokens": 10, "output_tokens": 5},
+        "tool_calls": [{"id": f"tu_{i}", "name": n, "input": i} for i, (n, i) in enumerate(calls, 1)],
+        "assistant_content": [
+            {"type": "tool_use", "id": f"tu_{i}", "name": n, "input": i}
+            for i, (n, i) in enumerate(calls, 1)
+        ],
+    }
 
 
 @pytest.fixture()
 def fake_client(client):
     from app.main import app
-    def _set(responses):
-        fake = FakeAnthropic(responses)
-        app.dependency_overrides[get_ask_client] = lambda: fake
+    def _set(bodies):
+        fake = FakeGateway(bodies)
+        app.dependency_overrides[get_ask_gateway] = lambda: fake
         return fake
     yield _set
-    app.dependency_overrides.pop(get_ask_client, None)
+    app.dependency_overrides.pop(get_ask_gateway, None)
 
 
 def test_home_shows_new_chat_and_recent_conversations(client, session):
@@ -47,8 +62,8 @@ def test_home_shows_a_friendly_datetime_for_the_last_active_conversation(client,
 def test_new_chat_answers_in_background_and_redirects_to_conversation(client, session, fake_client):
     page = make_page(session, "Boiler", summary="Vaillant")
     make_claim(session, page, "last_service", "2026-03-02")
-    fake_client([tool_response(("read_wiki_pages", {"page_ids": [page.id]})),
-                 text_response(f"2 March 2026 [[wiki:{page.id}]].")])
+    fake_client([_tool_body(("read_wiki_pages", {"page_ids": [page.id]})),
+                 _body(f"2 March 2026 [[wiki:{page.id}]].")])
 
     r = client.post("/ask", data={"question": "When was the boiler serviced?"}, follow_redirects=False)
 
@@ -60,7 +75,7 @@ def test_new_chat_answers_in_background_and_redirects_to_conversation(client, se
 
 
 def test_htmx_new_chat_uses_hx_redirect(client, session, fake_client):
-    fake_client([text_response("I don't know.")])
+    fake_client([_body("I don't know.")])
     r = client.post("/ask", data={"question": "Anything?"}, headers={"HX-Request": "true"})
     conv = session.exec(select(AskConversation)).one()
     assert r.headers["HX-Redirect"] == f"/ask/c/{conv.id}"
@@ -71,7 +86,7 @@ def test_follow_up_appends_turn_and_uses_history(client, session, fake_client):
     conv = make_conversation(session, "Boiler")
     make_turn(session, conv, "When was the boiler serviced?", answer_text=f"March [[wiki:{page.id}]].",
               citations=[{"ref": f"wiki:{page.id}", "label": "Wiki: Boiler", "url": f"/wiki/{page.id}"}])
-    fake = fake_client([text_response(f"Same visit [[wiki:{page.id}]].")])
+    fake = fake_client([_body(f"Same visit [[wiki:{page.id}]].")])
 
     r = client.post(f"/ask/c/{conv.id}/turns", data={"question": "and the dishwasher?"},
                     headers={"HX-Request": "true"})
@@ -79,7 +94,7 @@ def test_follow_up_appends_turn_and_uses_history(client, session, fake_client):
     assert r.status_code == 200 and "and the dishwasher?" in r.text
     turns = session.exec(select(AskTurn).where(AskTurn.conversation_id == conv.id).order_by(AskTurn.position)).all()
     assert [t.position for t in turns] == [1, 2]
-    assert [m["role"] for m in fake.messages.calls[0]["messages"]] == ["user", "assistant", "user"]
+    assert [m["role"] for m in fake.requests[0]["messages"]] == ["user", "assistant", "user"]
 
 
 def test_follow_up_while_pending_is_409(client, session):

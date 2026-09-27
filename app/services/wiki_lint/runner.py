@@ -12,7 +12,6 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from anthropic import AsyncAnthropic
 from sqlmodel import Session, select
 
 from app.models.wiki import WikiOperation
@@ -77,11 +76,11 @@ def persist_findings(session: Session, run: LintRun, drafts: list[FindingDraft])
     return new, open_count, auto
 
 
-async def execute_run(session: Session, run_id: int, client: Optional[AsyncAnthropic] = None) -> LintRun:
+async def execute_run(session: Session, run_id: int, gateway=None) -> LintRun:
     run = session.get(LintRun, run_id)
     try:
         drafts = run_deterministic_checks(session)
-        llm_drafts, errors = await run_llm_checks(session, client)
+        llm_drafts, errors = await run_llm_checks(session, gateway=gateway)
         run.new_count, run.open_count, run.auto_resolved_count = persist_findings(session, run, drafts + llm_drafts)
         run.status = LintRunStatus.PARTIAL if errors else LintRunStatus.SUCCEEDED
         run.errors = "\n".join(errors) or None
@@ -99,6 +98,6 @@ async def execute_run(session: Session, run_id: int, client: Optional[AsyncAnthr
     return run
 
 
-async def run_lint(session: Session, trigger: str, client: Optional[AsyncAnthropic] = None) -> LintRun:
+async def run_lint(session: Session, trigger: str, gateway=None) -> LintRun:
     run = start_run(session, trigger)
-    return await execute_run(session, run.id, client)
+    return await execute_run(session, run.id, gateway)

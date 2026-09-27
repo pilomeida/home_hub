@@ -19,12 +19,21 @@ from typing import Optional
 from markupsafe import Markup, escape
 
 _GENERIC_REASON_MESSAGE = "Something went wrong processing this document."
+_READ_FAILURE_MESSAGE = "This document couldn't be read automatically."
 
-# Matches a raw failure_reason that came from an Anthropic API call failing
-# (auth, credit, rate limit, timeout, service unavailable, ...) -- these are
-# the "Error code: NNN - {...}"-shaped messages the Anthropic SDK raises,
-# plus the plainer "API timeout" / "credit balance too low" wording this
-# codebase also produces.
+# Matches a raw failure_reason that came from a gateway (llmsel) call
+# failing with a temporary outage: any "gateway returned 5xx" status, a
+# transport "gateway unreachable" message, or a timeout. 4xx refusals
+# (no model paired, request too large, bad token) are NOT outages — they
+# map to the read-failure message below, detail logged not shown.
+_GATEWAY_OUTAGE_PATTERN = re.compile(
+    r"gateway returned\s+5\d\d|gateway returned 408|gateway unreachable",
+    re.IGNORECASE,
+)
+# 4xx from the gateway: the request was refused, not the service down.
+_GATEWAY_CLIENT_ERROR_PATTERN = re.compile(r"gateway returned\s+4\d\d", re.IGNORECASE)
+# Kept for legacy stored reasons that predate the gateway retrofit (the
+# anthropic SDK's "Error code: NNN" messages and its error-type names).
 _API_PATTERN = re.compile(
     r"error code:\s*\d+|authentication_error|permission_error|rate_limit_error|"
     r"overloaded_error|insufficient_quota|credit balance|\bapi\b|\btimeout\b|"
@@ -45,12 +54,14 @@ def _friendly_sentence(reason: str) -> Optional[str]:
     """The mapped friendly sentence for a technical-looking reason, or
     None when the reason doesn't look like a raw technical error at all
     (in which case it's already plain English and shown unchanged)."""
-    # File problems first: the API rejects a broken PDF with an "Error code:
-    # 400" that would otherwise read as an unreachable service.
+    # File problems first: both the API (legacy) and the gateway reject a
+    # broken PDF with a 4xx that would otherwise read as an outage.
     if _PDF_PATTERN.search(reason):
         return "The file couldn't be read."
-    if _API_PATTERN.search(reason):
+    if _GATEWAY_OUTAGE_PATTERN.search(reason) or _API_PATTERN.search(reason):
         return "The AI service couldn't be reached."
+    if _GATEWAY_CLIENT_ERROR_PATTERN.search(reason):
+        return _READ_FAILURE_MESSAGE
     if _VALUE_ERROR_PATTERN.search(reason):
         return "Some details in this document couldn't be understood."
     if _GENERIC_TECHNICAL_PATTERN.search(reason):
