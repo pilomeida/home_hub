@@ -181,14 +181,20 @@ async def sync_now(connection_id: int, request: Request,
     ).all()
     created = already = 0
     errors = []
+    results = []
     for link in links:
         result = await sync_link(session, client, link, scheduled=False)
+        results.append(result)
         if result.error:
             errors.append(result.error)
         created += result.created
         already += result.already_synced + result.matched_existing
-    parts = [f"{created} new transaction{'s' if created != 1 else ''}",
-             f"{already} already there"]
+    parts = []
+    if any(r.skipped_quota for r in results):
+        parts.append("Daily limit reached for this bank — try again tomorrow.")
+    else:
+        parts.append(f"{created} new transaction{'s' if created != 1 else ''}")
+        parts.append(f"{already} already there")
     if errors:
         parts.append(errors[0])
     return RedirectResponse(f"/financials/bank/?msg={quote_plus('. '.join(parts))}", status_code=303)
@@ -211,6 +217,12 @@ def bank_notices(session: Session, now: Optional[datetime] = None) -> list[str]:
         elif days is not None and 0 < days <= 14:
             notices.append(f"{bank_name} access ends in {days} days — renew it")
     for link in links:
+        link_conn = latest.get(session.get(BankConnection, link.connection_id).bank_name)
+        # Only the current connection's links can be stale; after a renewal
+        # the superseded connection must stay silent.
+        if link_conn is None or link_conn.id != link.connection_id \
+                or link_conn.status != BankConnectionStatus.ACTIVE:
+            continue
         if link.last_error:
             notices.append(_stale_notice(session, link, latest, now))
         elif link.last_synced_at is not None and (now - link.last_synced_at) > timedelta(days=2):

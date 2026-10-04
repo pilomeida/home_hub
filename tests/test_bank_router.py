@@ -7,6 +7,9 @@ from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatu
 
 
 class FakeClient:
+    def __init__(self, rows=None):
+        self.rows = rows or []
+
     async def start_auth(self, **kwargs):
         from app.services.bankapi.client import AuthStart
         return AuthStart("https://bank/x", "a1")
@@ -124,12 +127,13 @@ def test_sync_now_creates_transactions_and_shows_summary(client, session, bank_c
 
     class SyncClient(FakeClient):
         async def list_transactions(self, account_uid, date_from, date_to):
-            return [{"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
-                     "transaction_amount": {"amount": "10.00", "currency": "EUR"},
-                     "booking_date": "2026-09-30", "creditor": {"name": "Cafe"}},
-                    {"entry_reference": "r2", "status": "BOOK", "credit_debit_indicator": "DBTR",
-                     "transaction_amount": {"amount": "20.00", "currency": "EUR"},
-                     "booking_date": "2026-09-30", "creditor": {"name": "Shop"}}]
+            return [
+                {"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
+                 "transaction_amount": {"amount": "10.00", "currency": "EUR"},
+                 "booking_date": "2026-09-30", "creditor": {"name": "Cafe"}},
+                {"entry_reference": "r2", "status": "BOOK", "credit_debit_indicator": "DBTR",
+                 "transaction_amount": {"amount": "20.00", "currency": "EUR"},
+                 "booking_date": "2026-09-30", "creditor": {"name": "Shop"}}]
 
     from app.main import app
     from app.routers.bank import get_bank_client
@@ -233,3 +237,69 @@ def test_map_post_redirects_to_connections_not_map(client, session, bank_client)
                     follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"] == "/financials/bank/"
+
+
+# --- Round 2: renewal carries mapping, supersedes old connections ---
+
+def test_renewal_carries_mapping_and_supersedes_old_connection(session, bank_client, client):
+    from datetime import timedelta
+    from app.models.account import Account
+    from app.models.bank import BankConnection, BankConnectionStatus
+    from app.services.bankapi.connect import complete_connection
+    from app.jobs.bank_sync import run_all
+
+    # First connection, authorized, mapped, synced at T.
+    first = BankConnection(bank_name="Santander", country="PT", state="old-state",
+                           status=BankConnectionStatus.ACTIVE)
+    session.add(first); session.commit(); session.refresh(first)
+    acct = Account(name="Conta Santander", institution="Santander", identifier="PT50123")
+    session.add(acct); session.commit(); session.refresh(acct)
+    old_link = BankAccountLink(connection_id=first.id, bank_account_uid="old-uid",
+                               iban="PT50123", display_name="Conta", account_id=acct.id)
+    T = datetime.utcnow() - timedelta(hours=5)
+    old_link.last_synced_at = T
+    session.add(old_link); session.commit(); session.refresh(old_link)
+
+    # Renewal: begin + complete a second authorization for the same bank/IBAN.
+    conn = BankConnection(bank_name="Santander", country="PT", state="st1",
+                          status=BankConnectionStatus.PENDING)
+    session.add(conn); session.commit(); session.refresh(conn)
+    renewed = _bank_connect_complete(session, FakeClient(), state=conn.state, code="code-1")
+    new_link = session.query(BankAccountLink).filter(
+        BankAccountLink.connection_id == renewed.id).one()
+    assert new_link.account_id == acct.id
+    assert new_link.last_synced_at == T
+    session.expire_all()
+    assert session.get(BankConnection, first.id).status == BankConnectionStatus.EXPIRED
+
+    # The job syncs exactly one link now.
+    results = _run(run_all(session, FakeClient([]), scheduled=True))
+    assert set(results) == {new_link.id}
+
+    # No false banners from the dead connection.
+    from app.routers.bank import bank_notices
+    assert bank_notices(session) == []
+
+
+def test_sync_now_daily_limit_message(client, session, bank_client):
+    conn, link = _sync_now_seed(session)
+    from app.models.bank import BankApiCall
+    now = datetime.utcnow()
+    for i in range(4):
+        session.add(BankApiCall(link_id=link.id, called_at=now - timedelta(hours=i),
+                                kind="transactions"))
+    session.commit()
+    r = client.post(f"/financials/bank/{conn.id}/sync", follow_redirects=True)
+    assert r.status_code == 200
+    assert "Daily limit reached for this bank — try again tomorrow." in r.text
+
+
+def _bank_connect_complete(session, client, *, state, code):
+    from app.services.bankapi.connect import complete_connection
+    import asyncio
+    return asyncio.run(complete_connection(session, client, state=state, code=code))
+
+
+def _run(coro):
+    import asyncio
+    return asyncio.run(coro)

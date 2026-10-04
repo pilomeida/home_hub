@@ -62,11 +62,39 @@ async def complete_connection(session: Session, client, *, state: str, code: str
         hub_account = session.exec(
             select(Account).where(Account.identifier == account.iban)
         ).first() if account.iban else None
+        carried_account_id = hub_account.id if hub_account else None
+        carried_synced_at = None
+        # Renewal: carry the mapping and sync history over from the most
+        # recent earlier link of the same bank with the same IBAN (or the
+        # same display name when the bank gives no IBAN).
+        prior = session.exec(
+            select(BankAccountLink, BankConnection)
+            .join(BankConnection, BankConnection.id == BankAccountLink.connection_id)  # type: ignore[call-arg]
+            .where(BankConnection.bank_name == connection.bank_name,
+                   BankConnection.id != connection.id,
+                   BankAccountLink.iban == account.iban if account.iban
+                   else BankAccountLink.display_name == account.name)  # type: ignore[arg-type]
+            .order_by(BankConnection.created_at.desc())  # type: ignore[attr-defined]
+        ).first()
+        if prior is not None:
+            prior_link = prior[0]
+            carried_account_id = prior_link.account_id if carried_account_id is None else carried_account_id
+            carried_synced_at = prior_link.last_synced_at
         session.add(BankAccountLink(
             connection_id=connection.id, bank_account_uid=account.uid,
             iban=account.iban, display_name=account.name,
-            account_id=hub_account.id if hub_account else None,
+            account_id=carried_account_id, last_synced_at=carried_synced_at,
         ))
+    # Supersede: the job must never sync the dead session after a renewal.
+    for other in session.exec(
+        select(BankConnection).where(
+            BankConnection.bank_name == connection.bank_name,
+            BankConnection.id != connection.id,
+            BankConnection.status == BankConnectionStatus.ACTIVE,
+        )
+    ).all():
+        other.status = BankConnectionStatus.EXPIRED
+        session.add(other)
     session.commit()
     session.refresh(connection)
     return connection
