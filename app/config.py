@@ -40,6 +40,14 @@ class Settings:
     HUB_TELEGRAM_BOT_TOKEN: str = os.environ.get("HUB_TELEGRAM_BOT_TOKEN") or ""
     PUBLIC_BASE_URL: str = os.environ.get("PUBLIC_BASE_URL") or "https://hub.cdafamily.casa"
 
+    # --- Bank auto-capture (Enable Banking) ---
+    ENABLE_BANKING_APP_ID: str = os.environ.get("ENABLE_BANKING_APP_ID") or ""
+    ENABLE_BANKING_KEY_PATH: str = os.environ.get("ENABLE_BANKING_KEY_PATH") or ""
+
+    @property
+    def bank_configured(self) -> bool:
+        return bool(self.ENABLE_BANKING_APP_ID and self.ENABLE_BANKING_KEY_PATH)
+
     @property
     def imap_configured(self) -> bool:
         return bool(self.HUB_IMAP_HOST and self.HUB_IMAP_USER and self.HUB_IMAP_PASSWORD)
