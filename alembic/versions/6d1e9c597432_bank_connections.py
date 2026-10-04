@@ -69,11 +69,6 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f('ix_transactions_external_id'), ['external_id'], unique=False)
         batch_op.create_unique_constraint('uq_transactions_account_external', ['account_id', 'external_id'])
 
-    with op.batch_alter_table('wiki_pages', schema=None) as batch_op:
-        batch_op.alter_column('page_type',
-               existing_type=sa.VARCHAR(),
-               nullable=False)
-
     # ### end Alembic commands ###
 
 
