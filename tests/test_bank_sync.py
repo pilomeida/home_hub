@@ -40,17 +40,20 @@ def make_link(session):
 def test_quota_skips_and_spends_on_real_fetch(session):
     link, _ = make_link(session)
     now = datetime.utcnow()
-    for i in range(SCHEDULED_CALL_LIMIT):
+    for i in range(DAILY_CALL_LIMIT):
         session.add(BankApiCall(link_id=link.id, called_at=now - timedelta(hours=i), kind="transactions"))
     session.commit()
     result = _run(sync_link(session, FakeClient([]), link, today=date(2026, 10, 4)))
     assert result.skipped_quota is True
     assert result.created == 0
 
-    # scheduled budget is 3, manual is 4: one more manual call is allowed
-    result = _run(sync_link(session, FakeClient([]), link, scheduled=False, today=date(2026, 10, 4)))
+    # 3 calls in the window still leaves room (the bank cap of 4 is the limit)
+    session.query(BankApiCall).delete()
+    for label, hours in (("now-24h+5s", 23.998), ("now-18h", 18), ("now-11h", 11)):
+        session.add(BankApiCall(link_id=link.id, called_at=now - timedelta(hours=hours), kind="transactions"))
+    session.commit()
+    result = _run(sync_link(session, FakeClient([]), link, today=date(2026, 10, 4)))
     assert result.skipped_quota is False
-    assert len(session.query(BankApiCall).all()) == SCHEDULED_CALL_LIMIT + 1
 
 
 def test_first_sync_window_looks_back_from_latest_transaction(session):
@@ -165,14 +168,62 @@ def test_session_error_expires_the_connection(session):
     assert session.get(BankConnection, link.connection_id).status == BankConnectionStatus.EXPIRED
 
 
-def test_quota_guard_uses_manual_limit_for_sync_now(session):
-    link, _ = make_link(session)
-    now = datetime.utcnow()
-    for i in range(DAILY_CALL_LIMIT):
-        session.add(BankApiCall(link_id=link.id, called_at=now - timedelta(hours=i), kind="transactions"))
+def test_row_without_date_is_skipped_and_counted(session):
+    link, account = make_link(session)
+    good = [{"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
+             "transaction_amount": {"amount": "23.40", "currency": "EUR"},
+             "booking_date": "2026-09-30", "creditor": {"name": "Continente"}}]
+    bad = {"status": "BOOK", "credit_debit_indicator": "DBTR",
+           "transaction_amount": {"amount": "5.00", "currency": "EUR"},
+           "creditor": {"name": "Mystery"}}  # no date at all
+    bad_amount = {"entry_reference": "r2", "status": "BOOK", "credit_debit_indicator": "DBTR",
+                  "transaction_amount": {"amount": "not-a-number", "currency": "EUR"},
+                  "booking_date": "2026-09-30", "creditor": {"name": "Odd"}}
+    result = _run(sync_link(session, FakeClient(good + [bad, bad_amount]), link,
+                            today=date(2026, 10, 4), classify=fake_classify))
+    assert result.skipped_rows == 2
+    assert result.created == 1
+    assert session.query(Transaction).count() == 1
+
+
+def test_classify_failure_keeps_the_transaction_as_other(session):
+    link, account = make_link(session)
+    rows = [{"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
+             "transaction_amount": {"amount": "23.40", "currency": "EUR"},
+             "booking_date": "2026-09-30", "creditor": {"name": "Continente"}}]
+
+    async def failing_classify(session, transaction, client=None):
+        raise RuntimeError("gateway down")
+
+    result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4),
+                            classify=failing_classify))
+    assert result.created == 1 and result.unclassified == 1
+    txn = session.query(Transaction).one()
+    assert txn.provider == "Continente"
+    assert txn.merchant_id is None
+    from app.models.transaction import Category
+    assert txn.category == Category.OTHER
+
+
+def test_identical_coffees_match_one_to_one(session):
+    link, account = make_link(session)
+    statement_doc = Document(filename="s.pdf", file_path="/x", content_hash="s2",
+                             source=DocumentSource.MANUAL, category="statement")
+    session.add(statement_doc); session.commit(); session.refresh(statement_doc)
+    session.add(Transaction(document_id=statement_doc.id, provider="CAFE", amount=1.50,
+                            account_id=account.id, transaction_type=TransactionType.DEBIT,
+                            paid_date=date(2026, 9, 29)))
     session.commit()
-    result = _run(sync_link(session, FakeClient([]), link, scheduled=False, today=date(2026, 10, 4)))
-    assert result.skipped_quota is True
+    coffee = {"credit_debit_indicator": "DBTR",
+              "transaction_amount": {"amount": "1.50", "currency": "EUR"}}
+    rows = [
+        {**coffee, "entry_reference": "c1", "status": "BOOK", "booking_date": "2026-09-29",
+         "creditor": {"name": "Cafe A"}},
+        {**coffee, "entry_reference": "c2", "status": "BOOK", "booking_date": "2026-09-30",
+         "creditor": {"name": "Cafe B"}},
+    ]
+    result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4), classify=fake_classify))
+    assert (result.created, result.matched_existing) == (1, 1)
 
 
 def _doc(session):
