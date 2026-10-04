@@ -5,6 +5,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -40,6 +41,7 @@ class Nature(str, Enum):
 
 class Transaction(SQLModel, table=True):
     __tablename__ = "transactions"
+    __table_args__ = (UniqueConstraint("account_id", "external_id", name="uq_transactions_account_external"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     document_id: int = Field(foreign_key="documents.id", index=True)
@@ -61,3 +63,4 @@ class Transaction(SQLModel, table=True):
     merchant_id: Optional[int] = Field(default=None, foreign_key="merchants.id")
     debt_candidate_reviewed: Optional[bool] = None
     linked_transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
+    external_id: Optional[str] = Field(default=None, index=True)

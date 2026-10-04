@@ -1,6 +1,7 @@
 """Imports every model module so SQLModel.metadata is fully populated."""
 
 from app.models.account import Account, AccountType  # noqa: F401
+from app.models.bank import BankAccountLink, BankApiCall, BankConnection, BankConnectionStatus  # noqa: F401
 from app.models.person import Person  # noqa: F401
 from app.models.commitment import Cadence, Commitment  # noqa: F401
 from app.models.debt import Debt, DebtDirection, DebtKind  # noqa: F401
