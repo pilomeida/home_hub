@@ -149,6 +149,8 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
 
     result.fetched = len(rows)
     document = sync_document(session, link.account_id, connection.bank_name)
+    if not dry_run:
+        session.commit()  # the rolling document must survive any later rollback
     loop_finished = True
     for raw in rows:
         try:
@@ -176,44 +178,58 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
         result.created += 1
         if dry_run:
             continue
-        txn = Transaction(
-            document_id=document.id, provider=_provider(raw, is_credit), category=Category.OTHER,
-            transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
-            paid_date=paid, statement_period=paid.strftime("%Y-%m"),
-            account_id=link.account_id, external_id=external_id,
-        )
-        session.add(txn)
-        session.flush()
         try:
-            await classify(session, txn)
-            if txn.merchant_id is not None:
-                merchant = session.get(Merchant, txn.merchant_id)
-                if merchant is not None and merchant.default_category != Category.OTHER:
-                    txn.category = merchant.default_category
-        except Exception:
-            session.rollback()
-            # Keep the transaction: the bank reference prevents duplicates on
-            # a re-run, so re-fetch it and store it plainly.
-            txn = session.exec(select(Transaction).where(
-                Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()
-            if txn is None:
-                document = sync_document(session, link.account_id, connection.bank_name)
-                txn = Transaction(
-                    document_id=document.id, provider=_provider(raw, is_credit), category=Category.OTHER,
-                    transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
-                    paid_date=paid, statement_period=paid.strftime("%Y-%m"),
-                    account_id=link.account_id, external_id=external_id,
-                )
-                session.add(txn)
-                session.flush()
-            txn.category = Category.OTHER
-            txn.merchant_id = None
+            txn = Transaction(
+                document_id=document.id, provider=_provider(raw, is_credit), category=Category.OTHER,
+                transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
+                paid_date=paid, statement_period=paid.strftime("%Y-%m"),
+                account_id=link.account_id, external_id=external_id,
+            )
             session.add(txn)
-            result.unclassified += 1
-        session.commit()  # commit after EACH transaction — never hold the DB open across classify calls
+            session.flush()
+            try:
+                await classify(session, txn)
+                if txn.merchant_id is not None:
+                    merchant = session.get(Merchant, txn.merchant_id)
+                    if merchant is not None and merchant.default_category != Category.OTHER:
+                        txn.category = merchant.default_category
+            except Exception:
+                session.rollback()
+                # Keep the transaction: the bank reference prevents duplicates on
+                # a re-run, so re-fetch it and store it plainly.
+                document = sync_document(session, link.account_id, connection.bank_name)
+                txn = session.exec(select(Transaction).where(
+                    Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()
+                if txn is None:
+                    txn = Transaction(
+                        document_id=document.id, provider=_provider(raw, is_credit), category=Category.OTHER,
+                        transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
+                        paid_date=paid, statement_period=paid.strftime("%Y-%m"),
+                        account_id=link.account_id, external_id=external_id,
+                    )
+                    session.add(txn)
+                    session.flush()
+                txn.category = Category.OTHER
+                txn.merchant_id = None
+                session.add(txn)
+                result.unclassified += 1
+            session.commit()  # commit after EACH transaction — never hold the DB open across classify calls
+        except Exception:
+            # Any unexpected failure on one row must not crash the whole job
+            # (three accounts, three times a day, unattended).
+            session.rollback()
+            logger.exception("bank sync: unexpected failure on a row for link %s", link.id)
+            result.error = "Something went wrong saving the bank transactions; some may be missing"
+            loop_finished = False
+            break
     if not dry_run and loop_finished:
         link.last_synced_at = now
         link.last_error = None
+        session.add(link)
+        session.commit()
+    elif not loop_finished:
+        link = session.get(BankAccountLink, link.id)
+        link.last_error = result.error
         session.add(link)
         session.commit()
     elif dry_run:

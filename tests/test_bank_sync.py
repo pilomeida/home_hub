@@ -205,6 +205,62 @@ def test_classify_failure_keeps_the_transaction_as_other(session):
     assert txn.category == Category.OTHER
 
 
+def test_classify_failure_on_first_row_does_not_break_the_batch(session):
+    link, account = make_link(session)
+    rows = [
+        {"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
+         "transaction_amount": {"amount": "10.00", "currency": "EUR"},
+         "booking_date": "2026-09-29", "creditor": {"name": "First"}},
+        {"entry_reference": "r2", "status": "BOOK", "credit_debit_indicator": "DBTR",
+         "transaction_amount": {"amount": "20.00", "currency": "EUR"},
+         "booking_date": "2026-09-30", "creditor": {"name": "Second"}},
+    ]
+    calls = {"n": 0}
+
+    async def flaky_classify(session, transaction, client=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("gateway down")
+        transaction.merchant_id = None
+
+    result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4),
+                            classify=flaky_classify))
+    assert result.created == 2 and result.unclassified == 1
+    txns = session.query(Transaction).all()
+    assert len(txns) == 2
+    assert {t.document_id for t in txns} and all(t.document_id for t in txns)
+
+
+def test_unexpected_row_error_stops_cleanly(session, monkeypatch):
+    link, _ = make_link(session)
+    rows = [
+        {"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
+         "transaction_amount": {"amount": "10.00", "currency": "EUR"},
+         "booking_date": "2026-09-29", "creditor": {"name": "Fine"}},
+        {"entry_reference": "r2", "status": "BOOK", "credit_debit_indicator": "DBTR",
+         "transaction_amount": {"amount": "20.00", "currency": "EUR"},
+         "booking_date": "2026-09-30", "creditor": {"name": "Boom"}},
+    ]
+    real_provider = None
+    import app.services.bankapi.sync as sync_mod
+    real_provider = sync_mod._provider
+
+    def exploding_provider(raw, is_credit):
+        if raw.get("entry_reference") == "r2":
+            raise RuntimeError("boom")
+        return real_provider(raw, is_credit)
+
+    monkeypatch.setattr(sync_mod, "_provider", exploding_provider)
+    result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4),
+                            classify=fake_classify))
+    assert result.error == "Something went wrong saving the bank transactions; some may be missing"
+    txns = session.query(Transaction).all()
+    assert len(txns) == 1 and txns[0].external_id == "r1"  # row 1 kept
+    assert link.last_synced_at is None  # window not advanced
+    session.expire_all()
+    assert session.get(BankAccountLink, link.id).last_error == result.error
+
+
 def test_identical_coffees_match_one_to_one(session):
     link, account = make_link(session)
     statement_doc = Document(filename="s.pdf", file_path="/x", content_hash="s2",
