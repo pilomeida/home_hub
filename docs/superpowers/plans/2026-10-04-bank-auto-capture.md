@@ -796,6 +796,22 @@ git commit -m "docs: bank connections runbook"
 
 _(executor appends entries here; reviewer marks each APPROVED / CHANGES REQUESTED)_
 
+**CHECKPOINT 1 — Task 1: Config and Enable Banking client — APPROVED (Claude, 2026-10-04; diff matches plan, 4/4 re-run green, no secret handling). Proceed to Task 2. Reminder for Task 2+: log entries go in this file and must be committed with the task's own commit or a docs commit — do not leave the plan file dirty.**
+
+**CHECKPOINT 2 — Task 2: Data model and migration — awaiting review**
+- Commit: `eb334c8` `feat(bank): connection, account-link and quota-ledger tables; transactions.external_id` (this plan-file entry follows as a separate docs commit, per reviewer instruction).
+- Full suite: `587 passed in 143.61s` (581 + 2 new tests, 0 failures). `tests/test_bank_models.py`: 2/2 pass.
+- Migration: `6d1e9c597432` (down_revision `e5a1c7f3b920` confirmed via `alembic heads` before generating). Verified on fresh scratch DB `/tmp/scratch_bank.db`: upgrade → downgrade −1 → upgrade, all clean; the three `bank_*` tables and `uq_transactions_account_external` exist after upgrade.
+- **Deviation 1 (controlled):** autogenerate also emitted two unrelated NOT NULL tweaks (`documents.fields_json` nullable=False, `wiki_pages.page_type` nullable=False) from model drift. Removed both from upgrade and downgrade — the migration is additive-only per Global Constraints; no existing table is altered beyond adding `transactions.external_id` + its index/constraint.
+- No other deviations; models follow repo conventions (`SQLModel, table=True`, enum-as-str, FK fields). No push, no `data/` access, explicit paths staged.
+
+- Commit: `a2e87ef` `feat(bank): Enable Banking API client with JWT auth` (on branch `feat/polish`; also pre-commit `2737df2` committed the untracked plan doc itself).
+- Full suite: `585 passed in 123.70s` (baseline 581 + 4 new tests, 0 failures).
+- Files: `app/config.py` (+8), `app/services/bankapi/__init__.py`, `app/services/bankapi/client.py`, `tests/test_bank_client.py`. Step order followed exactly (failing test → ModuleNotFoundError → implement → 4 pass).
+- **Deviation 1:** the plan's test code has bare `async def` tests; this repo runs pytest-asyncio 1.4.0 in **strict** mode (repo convention is `@pytest.mark.asyncio`, see `tests/test_house_warranty.py`). Added the marker to all 4 tests — exactly the fallback the plan's Step 3 note prescribes. No pytest config touched.
+- No deviations otherwise; code blocks copied verbatim from the plan. No secret touched, no network in tests, no push.
+
+
 ---
 
 ## Self-Review
