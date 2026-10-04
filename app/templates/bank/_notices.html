@@ -1,0 +1,7 @@
+{% if notices %}
+<div class="bank-banners">
+  {% for notice in notices %}
+  <p class="bank-banner">{{ notice }}</p>
+  {% endfor %}
+</div>
+{% endif %}

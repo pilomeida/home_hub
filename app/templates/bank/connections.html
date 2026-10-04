@@ -2,6 +2,10 @@
 {% block title %}Bank connections{% endblock %}
 {% block content %}
 <h1>Bank connections</h1>
+{% include "bank/_notices.html" %}
+{% if request.query_params.get("msg") %}
+<p class="bank-banner">{{ request.query_params.get("msg") }}</p>
+{% endif %}
 <p>Connect a bank once and its new transactions arrive in Financials by themselves, three times a day.</p>
 <table>
   <thead>
@@ -23,7 +27,20 @@
           <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
             <button type="submit">Renew</button>
           </form>
-        {% elif row.status != "Waiting for you to approve in the bank's app" %}
+          {% if row.connection %}
+          <form method="post" action="/financials/bank/{{ row.connection.id }}/sync" class="inline">
+            <button type="submit">Sync now</button>
+          </form>
+          {% endif %}
+        {% elif row.status == "Waiting for you to approve in the bank's app" %}
+          <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
+            <button type="submit">Try again</button>
+          </form>
+        {% elif row.status == "Access has ended" %}
+          <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
+            <button type="submit">Renew</button>
+          </form>
+        {% else %}
           <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
             <button type="submit">Connect {{ row.name }}</button>
           </form>

@@ -24,8 +24,11 @@ async def list_bills(request: Request, session: Session = Depends(get_session)):
     documents = session.exec(
         select(Document).where(Document.domain == Domain.FINANCIALS).order_by(Document.created_at.desc())
     ).all()
+    from app.routers.bank import bank_notices
     return templates.TemplateResponse(
-        request, "bills/list.html", {"documents": documents, **backlog_context(session, Domain.FINANCIALS)}
+        request, "bills/list.html",
+        {"documents": documents, "notices": bank_notices(session),
+         **backlog_context(session, Domain.FINANCIALS)},
     )
 
 @router.get("/upload")
