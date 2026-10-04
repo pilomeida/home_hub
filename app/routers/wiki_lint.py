@@ -4,12 +4,11 @@ is the explicit 'Add link' click (logged as WikiOperation.EDIT)."""
 import json
 from datetime import datetime
 
-from anthropic import AsyncAnthropic
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, func, select
 
-from app.config import settings
+from app.llm_gateway import GatewayClient, get_gateway
 from app.db import get_session, get_session_factory
 from app.models.wiki import WikiOperation, WikiPage
 from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus, LintRun
@@ -32,8 +31,9 @@ KIND_LABELS = {
 }
 
 
-def get_lint_client() -> AsyncAnthropic:
-    return AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+def get_lint_gateway() -> GatewayClient:
+    """The gateway client for wiki-lint LLM audits. Tests override this dependency."""
+    return get_gateway()
 
 
 def open_finding_count(session: Session) -> int:
@@ -60,9 +60,9 @@ def _close(session: Session, finding: LintFinding, status: LintFindingStatus, re
     return HTMLResponse("")  # htmx removes the row
 
 
-async def _execute_in_background(session_factory, run_id: int, client: AsyncAnthropic) -> None:
+async def _execute_in_background(session_factory, run_id: int, gateway) -> None:
     with session_factory() as session:
-        await execute_run(session, run_id, client)
+        await execute_run(session, run_id, gateway)
 
 
 @router.get("")
@@ -79,12 +79,12 @@ async def lint_page(request: Request, session: Session = Depends(get_session)):
 
 @router.post("/run")
 async def run_now(background_tasks: BackgroundTasks, session: Session = Depends(get_session),
-                  session_factory=Depends(get_session_factory), client: AsyncAnthropic = Depends(get_lint_client)):
+                  session_factory=Depends(get_session_factory), gateway=Depends(get_lint_gateway)):
     try:
         run = start_run(session, "manual")
     except LintAlreadyRunning:
         return RedirectResponse("/wiki/lint?message=A+check+is+already+running", status_code=303)
-    background_tasks.add_task(_execute_in_background, session_factory, run.id, client)
+    background_tasks.add_task(_execute_in_background, session_factory, run.id, gateway)
     return RedirectResponse("/wiki/lint?message=Check+started+-+refresh+in+a+minute", status_code=303)
 
 

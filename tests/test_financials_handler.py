@@ -15,27 +15,14 @@ from app.services.classification_engine import normalize_provider
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractionError
 
 
-class _FakeContent:
-    def __init__(self, text):
-        self.text = text
+from tests.fakes.fake_gateway import FakeGateway
 
 
-class _FakeMessage:
-    def __init__(self, text):
-        self.content = [_FakeContent(text)]
-
-
-class _FakeMessages:
-    def __init__(self, response_text):
-        self._response_text = response_text
-
-    async def create(self, **kwargs):
-        return _FakeMessage(self._response_text)
-
-
-class _FakeAnthropicClient:
-    def __init__(self, response_text):
-        self.messages = _FakeMessages(response_text)
+def _fake_gateway(response_text: str):
+    return FakeGateway([{
+        "text": response_text, "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }])
 
 
 @pytest.fixture(autouse=True)
@@ -45,7 +32,7 @@ def _stub_classify_transaction(monkeypatch):
     to a no-op by default; the two tests that actually verify
     classify_transaction gets called override this locally with their own
     monkeypatch.setattr call, which simply takes effect after this one."""
-    async def _noop_classify_transaction(session, transaction, client=None):
+    async def _noop_classify_transaction(session, transaction, gateway=None):
         return None
     monkeypatch.setattr(pipeline, "classify_transaction", _noop_classify_transaction)
 
@@ -61,11 +48,11 @@ def _make_document(session, tmp_path, filename="bill.pdf", content_hash="hash1")
     return document
 
 
-async def _fake_classify_bill(file_path, client=None):
+async def _fake_classify_bill(file_path, gateway=None):
     return "bill"
 
 
-async def _fake_classify_statement(file_path, client=None):
+async def _fake_classify_statement(file_path, gateway=None):
     return "statement"
 
 
@@ -78,7 +65,7 @@ async def test_process_financials_document_creates_transaction(session, monkeypa
         due_date=date(2026, 9, 5), paid_date=None, statement_period="2026-08",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
@@ -105,7 +92,7 @@ async def test_process_financials_document_creates_transaction(session, monkeypa
 async def test_process_financials_document_marks_needs_attention_on_classification_failure(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="mystery.pdf", content_hash="hash-classify")
 
-    async def failing_classify(file_path, client=None):
+    async def failing_classify(file_path, gateway=None):
         raise RuntimeError("classification API timeout")
 
     monkeypatch.setattr(pipeline, "classify_document", failing_classify)
@@ -120,7 +107,7 @@ async def test_process_financials_document_marks_needs_attention_on_classificati
 async def test_process_financials_document_marks_needs_attention_on_extraction_failure(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="bad.pdf", content_hash="hash2")
 
-    async def failing_extract_bill(file_path, client=None):
+    async def failing_extract_bill(file_path, gateway=None):
         raise ExtractionError("could not parse")
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
@@ -152,7 +139,7 @@ async def test_process_financials_document_skips_duplicate_transaction(session, 
         due_date=None, paid_date=None, statement_period="2026-08",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
@@ -172,7 +159,7 @@ async def test_process_financials_document_skips_duplicate_transaction(session, 
 async def test_process_financials_document_marks_needs_attention_on_unexpected_extraction_error(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="corrupt.pdf", content_hash="hash3")
 
-    async def failing_extract_bill(file_path, client=None):
+    async def failing_extract_bill(file_path, gateway=None):
         raise RuntimeError("API timeout")
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
@@ -193,7 +180,7 @@ async def test_process_financials_document_marks_needs_attention_on_enrichment_f
         due_date=date(2026, 9, 5), paid_date=None, statement_period="2026-08",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def failing_ingest_into_wiki(session, document, context=None, **kwargs):
@@ -239,7 +226,7 @@ async def test_ingest_statement_creates_one_transaction_per_line_item(session, m
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -276,7 +263,7 @@ async def test_ingest_statement_skips_dedup_todo_and_wiki_pages_but_logs_ingest(
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     def failing_generate_todo(session, transaction):
@@ -304,7 +291,7 @@ async def test_ingest_statement_skips_dedup_todo_and_wiki_pages_but_logs_ingest(
 async def test_ingest_statement_marks_needs_attention_on_extraction_failure(session, monkeypatch, tmp_path):
     document = _make_document(session, tmp_path, filename="bad-statement.pdf", content_hash="hash-stmt-3")
 
-    async def failing_extract_statement(file_path, client=None):
+    async def failing_extract_statement(file_path, gateway=None):
         raise RuntimeError("could not parse statement")
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -337,7 +324,7 @@ async def test_ingest_statement_marks_needs_attention_on_bad_transaction_type_va
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -375,7 +362,7 @@ async def test_ingest_statement_normalizes_mixed_case_and_whitespace_transaction
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -409,7 +396,7 @@ async def test_ingest_statement_stores_absolute_value_of_negative_amount(session
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -437,7 +424,7 @@ async def test_process_financials_document_sets_category_on_document(session, mo
         due_date=date(2026, 9, 5), paid_date=None, statement_period="2026-08",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
@@ -453,7 +440,7 @@ async def test_process_financials_document_sets_category_on_document(session, mo
     statement_document = _make_document(session, tmp_path, filename="statement.pdf", content_hash="hash-doctype-stmt")
     extracted_statement = ExtractedStatement(statement_period="2026-07", transactions=[])
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted_statement
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -483,7 +470,7 @@ async def test_process_financials_document_bill_not_falsely_deduped_by_statement
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted_statement
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -499,7 +486,7 @@ async def test_process_financials_document_bill_not_falsely_deduped_by_statement
         due_date=date(2026, 8, 5), paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted_bill
 
     async def fake_extract_utility_detail(file_path, utility_type, client=None):
@@ -541,7 +528,7 @@ async def test_process_financials_document_true_bill_duplicate_still_detected(se
         due_date=date(2026, 8, 5), paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted_bill
 
     async def fake_extract_utility_detail(file_path, utility_type, client=None):
@@ -602,7 +589,7 @@ async def test_process_financials_document_bill_dedup_still_works_when_prior_doc
         due_date=None, paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted_bill
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
@@ -632,7 +619,7 @@ async def test_ingest_bill_creates_utility_reading_for_electricity_category(sess
         due_date=None, paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def fake_extract_utility_detail(file_path, utility_type, client=None):
@@ -674,7 +661,7 @@ async def test_ingest_bill_creates_utility_reading_for_water_category(session, m
         due_date=None, paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def fake_extract_utility_detail(file_path, utility_type, client=None):
@@ -712,7 +699,7 @@ async def test_ingest_bill_utility_detail_failure_does_not_mark_needs_attention(
         due_date=None, paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def failing_extract_utility_detail(file_path, utility_type, client=None):
@@ -750,7 +737,7 @@ async def test_duplicate_bill_is_still_logged_as_ingested(session, monkeypatch, 
                               due_date=None, paid_date=None, statement_period="2026-08")
     wiki_calls = []
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def recording_ingest_into_wiki(session, document, context=None, **kwargs):
@@ -776,7 +763,7 @@ async def test_ingest_bill_skips_utility_reading_for_non_utility_category(sessio
         due_date=None, paid_date=None, statement_period="2026-07",
     )
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     calls = []
@@ -813,10 +800,10 @@ async def test_ingest_bill_calls_classify_transaction(session, monkeypatch, tmp_
 
     calls = []
 
-    async def spy_classify_transaction(session, transaction, client=None):
+    async def spy_classify_transaction(session, transaction, gateway=None):
         calls.append(transaction.id)
 
-    async def fake_extract_bill(file_path, client=None):
+    async def fake_extract_bill(file_path, gateway=None):
         return extracted
 
     async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
@@ -852,10 +839,10 @@ async def test_ingest_statement_calls_classify_transaction_per_line_item(session
 
     calls = []
 
-    async def spy_classify_transaction(session, transaction, client=None):
+    async def spy_classify_transaction(session, transaction, gateway=None):
         calls.append(transaction.id)
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
@@ -897,16 +884,16 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
         ],
     )
 
-    async def fake_extract_statement_transactions(file_path, client=None):
+    async def fake_extract_statement_transactions(file_path, gateway=None):
         return extracted
 
     merchant_response = json.dumps({
         "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
     })
 
-    async def real_classify_transaction_with_fake_client(session, transaction, client=None):
+    async def real_classify_transaction_with_fake_client(session, transaction, gateway=None):
         return await _real_classify_transaction(
-            session, transaction, client=_FakeAnthropicClient(merchant_response)
+            session, transaction, gateway=_fake_gateway(merchant_response)
         )
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)

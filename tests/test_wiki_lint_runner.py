@@ -49,7 +49,7 @@ def test_start_run_refuses_concurrent(session):
 @pytest.mark.asyncio
 async def test_run_lint_partial_on_llm_errors_and_logs(session, monkeypatch):
     monkeypatch.setattr(runner, "run_deterministic_checks", lambda s: [ORPHAN])
-    async def _llm(session, client=None):
+    async def _llm(session, gateway=None):
         return [], ["House: boom"]
     monkeypatch.setattr(runner, "run_llm_checks", _llm)
     run = await runner.run_lint(session, "manual")

@@ -5,6 +5,7 @@ concern, used everywhere the app currently prints raw technical text."""
 
 from datetime import date, datetime
 
+from app.llm_gateway import GatewayError
 from app.services.presentation import (
     display_date,
     display_datetime,
@@ -101,6 +102,38 @@ def test_friendly_reason_invalid_pdf_api_error_is_a_file_problem_not_an_outage()
     # that's the file's fault, not an unreachable AI service.
     raw = ("Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
            "'message': 'messages.0.content.0.pdf.source.base64.data: The PDF specified was not valid.'}}")
+    assert humanize_reason_text(raw) == "The file couldn't be read."
+
+
+def test_friendly_reason_maps_gateway_outage_errors():
+    # GatewayError detail from a 5xx / transport failure: temporary outage.
+    # Built from real GatewayError instances, exactly as ingestion stores
+    # str(exc) -- never hand-typed, so the test cannot drift from production.
+    for raw in (
+        str(GatewayError(503, "{'detail': 'all suppliers failing'}")),
+        str(GatewayError(0, "gateway unreachable at http://127.0.0.1:8010/run: connection refused")),
+        str(GatewayError(529, "overloaded")),
+        str(GatewayError(408, "request timeout")),
+    ):
+        assert humanize_reason_text(raw) == "The AI service couldn't be reached.", raw
+
+
+def test_friendly_reason_maps_gateway_refusal_errors_to_couldnt_be_read():
+    # 4xx from the gateway (no model paired, request too large, bad file):
+    # a plain "couldn't be read automatically" message, not an outage.
+    for raw in (
+        str(GatewayError(422, "{'detail': 'no model paired for (hub, vision_extraction)'}")),
+        str(GatewayError(413, "{'detail': 'request too large'}")),
+        str(GatewayError(400, "{'detail': 'invalid base64 in attachments'}")),
+        str(GatewayError(403, "{'detail': 'bad worker token'}")),
+    ):
+        assert humanize_reason_text(raw) == "This document couldn't be read automatically.", raw
+
+
+def test_friendly_reason_invalid_pdf_gateway_error_is_a_file_problem_not_an_outage():
+    # Same ordering rule as before: if the error text names the PDF, the
+    # file is at fault, even though the gateway wrapped it in a 4xx.
+    raw = str(GatewayError(400, "{'detail': 'The PDF specified was not valid.'}"))
     assert humanize_reason_text(raw) == "The file couldn't be read."
 
 

@@ -7,14 +7,13 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from anthropic import AsyncAnthropic
 from sqlmodel import Session, select
 
-from app.config import settings
 from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction
 from app.services.json_utils import strip_json_fences
+from app.llm_gateway import CLASSIFICATION, get_gateway
 
 _LOCATION_WORDS = ("mafra", "ericeira")
 
@@ -35,8 +34,6 @@ def normalize_provider(raw: str) -> str:
     return key
 
 
-_MERCHANT_MODEL = "claude-haiku-4-5-20251001"
-
 _MERCHANT_SYSTEM_PROMPT = """You resolve a raw bank statement provider \
 string to a canonical merchant identity. Respond with ONLY a JSON object, \
 no prose, matching this shape exactly:
@@ -51,6 +48,19 @@ restaurants, shopping, other_expense, other",
 }"""
 
 
+_CATEGORY_VALUES = [c.value for c in Category]
+
+_MERCHANT_SCHEMA = {
+    "type": "object",
+    "required": ["canonical_name", "category", "nature"],
+    "properties": {
+        "canonical_name": {"type": "string"},
+        "category": {"type": "string", "enum": _CATEGORY_VALUES},
+        "nature": {"type": "string", "enum": ["essential", "discretionary"]},
+    },
+}
+
+
 class MerchantResolutionError(Exception):
     pass
 
@@ -63,26 +73,22 @@ class ResolvedMerchant:
 
 
 async def resolve_merchant_via_llm(
-    raw_provider: str, client: Optional[AsyncAnthropic] = None
+    raw_provider: str, gateway=None
 ) -> ResolvedMerchant:
-    """Ask Claude to resolve a raw provider string to a canonical merchant
-    name, category, and nature. Called only when the rules tier
+    """Ask the gateway to resolve a raw provider string to a canonical
+    merchant name, category, and nature. Called only when the rules tier
     (normalize_provider + a Merchant lookup) finds no existing match."""
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    gw = gateway or get_gateway()
 
-    message = await anthropic_client.messages.create(
-        model=_MERCHANT_MODEL,
-        max_tokens=256,
-        thinking={"type": "disabled"},
-        system=_MERCHANT_SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": f"Resolve this provider string as JSON: {raw_provider!r}"}
-        ],
+    result = await gw.run(
+        CLASSIFICATION,
+        _MERCHANT_SYSTEM_PROMPT,
+        f"Resolve this provider string as JSON: {raw_provider!r}",
+        response_schema=_MERCHANT_SCHEMA,
     )
 
     try:
-        raw_text = strip_json_fences(message.content[0].text)
-        data = json.loads(raw_text)
+        data = json.loads(strip_json_fences(result.text))
         return ResolvedMerchant(
             canonical_name=data["canonical_name"],
             category=Category(data["category"]),
@@ -104,7 +110,7 @@ def _find_merchant_by_key(session: Session, normalized_key: str) -> Optional[Mer
 
 
 async def classify_transaction(
-    session: Session, transaction: Transaction, client: Optional[AsyncAnthropic] = None
+    session: Session, transaction: Transaction, gateway=None
 ) -> ClassificationResult:
     """Resolve transaction.provider to a Merchant (rules tier, then LLM
     fallback on a miss), and set transaction.merchant_id/account_id/nature
@@ -116,7 +122,7 @@ async def classify_transaction(
     created_new_merchant = False
 
     if merchant is None:
-        resolved = await resolve_merchant_via_llm(transaction.provider, client=client)
+        resolved = await resolve_merchant_via_llm(transaction.provider, gateway=gateway)
         merchant = Merchant(
             canonical_name=resolved.canonical_name,
             default_category=resolved.category,

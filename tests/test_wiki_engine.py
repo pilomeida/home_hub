@@ -15,36 +15,21 @@ from app.services.wiki_engine import (
 from tests.domain_fakes import make_fake_spec
 
 
-class _FakeContent:
-    def __init__(self, text):
-        self.text = text
+from tests.fakes.fake_gateway import FakeGateway
 
 
-class _FakeMessage:
-    def __init__(self, text):
-        self.content = [_FakeContent(text)]
+def _fake_gateway(response_text: str) -> FakeGateway:
+    return FakeGateway([{
+        "text": response_text, "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }])
 
 
-class _FakeMessages:
-    def __init__(self, response_text):
-        self._response_text = response_text
-        self.calls = []
+class _ExplodingGateway:
+    """A gateway stand-in that fails the test if it is ever called."""
 
-    async def create(self, **kwargs):
-        self.calls.append(kwargs)
-        return _FakeMessage(self._response_text)
-
-
-class _FakeAnthropicClient:
-    def __init__(self, response_text):
-        self.messages = _FakeMessages(response_text)
-
-
-class _ExplodingClient:
-    class messages:  # noqa: N801
-        @staticmethod
-        async def create(**kwargs):
-            raise AssertionError("the LLM must not be called")
+    async def run(self, *args, **kwargs):
+        raise AssertionError("the LLM must not be called")
 
 
 @pytest.fixture()
@@ -87,40 +72,42 @@ async def test_assess_returns_topic_claims_and_offers_existing_titles(session, g
     session.add(WikiPage(topic="Electricity — provider & contract", domain=Domain.HOUSE))
     session.commit()
     document = _document(session)
-    client = _FakeAnthropicClient(json.dumps({"pages": [
+    client = _fake_gateway(json.dumps({"pages": [
         {"title": "Electricity — provider & contract", "summary": "EDP, bi-hourly", "facts": {"provider": "EDP", "tariff": "Bi-horário"}},
     ]}))
 
-    claims = await assess_document_for_wiki(session, document, "Provider: EDP", client=client)
+    claims = await assess_document_for_wiki(session, document, "Provider: EDP", gateway=client)
 
     assert {(c.page.page_type, c.page.title, c.key, c.value) for c in claims} == {
         ("topic", "Electricity — provider & contract", "provider", "EDP"),
         ("topic", "Electricity — provider & contract", "tariff", "Bi-horário"),
     }
     assert claims[0].page.summary == "EDP, bi-hourly"
-    call = client.messages.calls[0]
+    call = client.requests[0]
+    assert call["workload_type"] == "classification"
+    assert "model" not in call and call["max_tokens"] is None
     assert "Record provider facts." in call["system"]
     assert "Electricity — provider & contract" in call["system"]
-    assert "Provider: EDP" in call["messages"][0]["content"]
+    assert "Provider: EDP" in call["user"]
 
 
 @pytest.mark.asyncio
 async def test_assess_is_a_no_op_without_guidance(session, fake_domain):
-    assert await assess_document_for_wiki(session, _document(session), "ctx", client=_ExplodingClient()) == []
+    assert await assess_document_for_wiki(session, _document(session), "ctx", gateway=_ExplodingGateway()) == []
 
 
 @pytest.mark.asyncio
 async def test_assess_raises_on_unparseable_reply(session, guided_domain):
     with pytest.raises(WikiAssessmentError):
-        await assess_document_for_wiki(session, _document(session), "ctx", client=_FakeAnthropicClient("not json"))
+        await assess_document_for_wiki(session, _document(session), "ctx", gateway=_fake_gateway("not json"))
 
 
 @pytest.mark.asyncio
 async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_domain):
     document = _document(session, fields={"item_name": "Boiler"})
-    client = _FakeAnthropicClient(json.dumps({"pages": [{"title": "Gas supply", "summary": "Galp", "facts": {"provider": "Galp"}}]}))
+    client = _fake_gateway(json.dumps({"pages": [{"title": "Gas supply", "summary": "Galp", "facts": {"provider": "Galp"}}]}))
 
-    report = await ingest_into_wiki(session, document, context="Provider: Galp", client=client)
+    report = await ingest_into_wiki(session, document, context="Provider: Galp", gateway=client)
 
     titles = {p.topic for p in session.exec(select(WikiPage)).all()}
     assert titles == {"Boiler", "Gas supply"}
@@ -132,7 +119,7 @@ async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_doma
 @pytest.mark.asyncio
 async def test_ingest_without_context_never_calls_the_llm(session, guided_domain):
     document = _document(session, fields={"item_name": "Boiler"})
-    report = await ingest_into_wiki(session, document, client=_ExplodingClient())
+    report = await ingest_into_wiki(session, document, gateway=_ExplodingGateway())
     assert report.added == 1  # the "type" fact from the category
 
 

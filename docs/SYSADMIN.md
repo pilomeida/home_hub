@@ -230,7 +230,7 @@ exist). Lower priority than the database, but worth covering in the same future 
 
 | Secret | Where it lives | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `/srv/home-hub/app/.env` on the VPS (never committed — `.env.example` in the repo has placeholder values only) | All Claude calls: document classification, bill/statement extraction, merchant resolution, wiki-worthiness assessment. **Out of credit as of 2026-09-26** — every call returns 400 "credit balance is too low"; not being topped up. To be replaced by routing through the LLM Selector (backlog item, see build log) |
+| `LLMSEL_URL`, `LLMSEL_WORKER`, `LLMSEL_TOKEN` | `/srv/home-hub/app/.env` on the VPS (never committed — `.env.example` in the repo has placeholder values only) | Connection to Pedro's LLM gateway (llmsel) on the same VPS at `127.0.0.1:8010`. Every LLM call (document classification, bill/statement extraction, merchant resolution, wiki assessment, Ask, wiki lint) routes through it; the gateway picks the supplier, so the Hub names no model and holds no provider key. The token is issued by the gateway admin — it is not a provider key. Replaces `ANTHROPIC_API_KEY` (out of credit as of 2026-09-26, retired with the 2026-09-27 gateway retrofit) |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | Same `.env` | Cloudflare Access JWT verification (`app/auth.py`) — team domain for the JWKS endpoint, AUD tag identifying this specific Access application |
 | `DEPLOY_SSH_KEY_HOMEHUB` | GitHub repo secret (`pilomeida/home_hub` → Settings → Secrets) | CI/CD SSH auth as the `home-hub` user, used only by `.github/workflows/deploy.yml` |
 | `HUB_IMAP_PASSWORD` | Same `.env` | A Gmail **app password** (16 letters) for the dedicated Hub mailbox — not the mailbox's real login password. Revoke or regenerate it from the Hub's own Google account (Security → App passwords), never Pedro's personal account |
@@ -240,7 +240,7 @@ exist). Lower priority than the database, but worth covering in the same future 
 | `HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS` | Same `.env` | **Not secret** — plain allowlists (email addresses; Telegram numeric ids mapped to names) gating which senders' attachments reach the LLM classifier at all. An email passes if its `From` is listed **or** Gmail's `X-Forwarded-For` stamp names a listed account — family members use Gmail forwarding rules, which keep the bill's original `From`. Both headers are forgeable; acceptable because every document still waits in the Inbox for human approval |
 
 All of the `HUB_*` channel settings live **only** in `/srv/home-hub/app/.env` — same place as
-`ANTHROPIC_API_KEY` — and are optional: every channel setting left unset simply keeps that channel
+`LLMSEL_TOKEN` (and the channel settings) — and are optional: every channel setting left unset simply keeps that channel
 switched off (`imap_configured` false, or an empty bot token), and the web app boots the same either
 way.
 

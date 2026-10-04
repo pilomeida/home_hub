@@ -1,6 +1,7 @@
 import os
 
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
+os.environ.setdefault("LLMSEL_URL", "http://gw.test:8010")
+os.environ.setdefault("LLMSEL_TOKEN", "test-token")
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine

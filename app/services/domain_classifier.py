@@ -11,15 +11,12 @@ import json
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from anthropic import AsyncAnthropic
-
-from app.config import settings
 from app.domains.registry import implemented_domains
 from app.models.domain import Domain
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
+from app.llm_gateway import VISION_CLASSIFICATION, get_gateway
 
-_MODEL = "claude-haiku-4-5-20251001"  # same cheap classifier model the Financials handler uses
 CONFIDENT_THRESHOLD = 0.8
 
 
@@ -58,6 +55,19 @@ def build_system_prompt(domains: Sequence) -> str:
     return "\n".join(lines)
 
 
+# No stricter than the prompt ("Use null for domain and category") and the
+# parser (.get with defaults for every field — nothing is indexed directly).
+_DOMAIN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "domain": {"type": ["string", "null"]},
+        "category": {"type": ["string", "null"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "reason": {"type": ["string", "null"]},
+    },
+}
+
+
 def _empty(note: str) -> DomainSuggestion:
     return DomainSuggestion(domain=None, category=None, confidence=0.0, note=note)
 
@@ -67,28 +77,28 @@ async def suggest_domain_and_category(
     context_text: Optional[str] = None,
     *,
     domains: Optional[Sequence] = None,
-    client: Optional[AsyncAnthropic] = None,
+    gateway=None,
 ) -> DomainSuggestion:
     specs = list(domains) if domains is not None else implemented_domains()
     if not is_model_readable(file_path):
         return _empty("This file type can't be read automatically — please choose where it goes.")
 
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    content: list[dict] = [build_content_block(file_path)]
+    gw = gateway or get_gateway()
+    content = [build_content_block(file_path)]
+    user_text = "Classify this document as JSON."
     if context_text:
-        content.append({"type": "text", "text": f"Context from the sender:\n{context_text}"})
-    content.append({"type": "text", "text": "Classify this document as JSON."})
+        user_text = f"Context from the sender:\n{context_text}\n\n{user_text}"
 
-    message = await anthropic_client.messages.create(
-        model=_MODEL,
-        max_tokens=256,
-        thinking={"type": "disabled"},
-        system=build_system_prompt(specs),
-        messages=[{"role": "user", "content": content}],
+    result = await gw.run(
+        VISION_CLASSIFICATION,
+        build_system_prompt(specs),
+        user_text,
+        attachments=content,
+        response_schema=_DOMAIN_SCHEMA,
     )
 
     try:
-        data = json.loads(strip_json_fences(message.content[0].text))
+        data = json.loads(strip_json_fences(result.text))
         domain_value = data.get("domain")
         category_value = data.get("category") or None
         confidence = min(max(float(data.get("confidence") or 0.0), 0.0), 1.0)

@@ -15,10 +15,8 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from anthropic import AsyncAnthropic
 from sqlmodel import Session, select
 
-from app.config import settings
 from app.domains.base import DomainSpec
 from app.domains.fields import effective_fields, load_fields
 from app.domains.registry import get_spec
@@ -27,8 +25,7 @@ from app.models.record import Record
 from app.models.wiki import TOPIC_PAGE_TYPE, WikiOperation, WikiPage
 from app.services.json_utils import strip_json_fences
 from app.services.wiki_store import ClaimInput, IngestReport, LinkInput, PageRef, apply_claims, normalize_entity_key
-
-_MODEL = "claude-haiku-4-5-20251001"
+from app.llm_gateway import CLASSIFICATION, get_gateway
 
 _SYSTEM_TEMPLATE = """You maintain the "{label}" section of a family's household wiki.
 {guidance}
@@ -43,6 +40,25 @@ Existing pages in this section (reuse a title exactly when the facts belong ther
 Respond with ONLY a JSON object:
 {{"pages": [{{"title": "short human title", "summary": "one line describing the page", "facts": {{"key": "value"}}}}]}}
 Return {{"pages": []}} when the document holds nothing worth recording."""
+
+_WIKI_SCHEMA = {
+    "type": "object",
+    "required": ["pages"],
+    "properties": {
+        "pages": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["title", "summary", "facts"],
+                "properties": {
+                    "title": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "facts": {"type": "object"},
+                },
+            },
+        },
+    },
+}
 
 
 class WikiAssessmentError(Exception):
@@ -99,7 +115,7 @@ async def assess_document_for_wiki(
     session: Session,
     document: Document,
     context: str,
-    client: Optional[AsyncAnthropic] = None,
+    gateway=None,
 ) -> list[ClaimInput]:
     spec = get_spec(document.domain)
     if not spec.wiki.guidance:
@@ -112,16 +128,10 @@ async def assess_document_for_wiki(
         label=spec.label, guidance=spec.wiki.guidance,
         existing="\n".join(f"- {title}" for title in existing) or "(none yet)",
     )
-    anthropic_client = client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    message = await anthropic_client.messages.create(
-        model=_MODEL,
-        max_tokens=1024,
-        thinking={"type": "disabled"},
-        system=system,
-        messages=[{"role": "user", "content": context}],
-    )
+    gw = gateway or get_gateway()
+    result = await gw.run(CLASSIFICATION, system, context, response_schema=_WIKI_SCHEMA)
     try:
-        data = json.loads(strip_json_fences(message.content[0].text))
+        data = json.loads(strip_json_fences(result.text))
         claims = []
         for page in data.get("pages", []):
             ref = PageRef(page_type=TOPIC_PAGE_TYPE, title=str(page["title"]).strip(), summary=page.get("summary"))
@@ -139,7 +149,7 @@ async def ingest_into_wiki(
     *,
     context: Optional[str] = None,
     operation: WikiOperation = WikiOperation.INGEST,
-    client: Optional[AsyncAnthropic] = None,
+    gateway=None,
 ) -> IngestReport:
     """Always writes exactly one wiki_log entry (`operation`, INGEST by default), even when nothing
     changes; Plan C's lint relies on it to find never-ingested documents. Accepts either a Document
@@ -148,7 +158,7 @@ async def ingest_into_wiki(
     is_record = isinstance(document, Record)
     claims = claims_from_fields(spec, document)
     if context is not None and spec.wiki.guidance and not is_record:
-        claims += await assess_document_for_wiki(session, document, context, client=client)
+        claims += await assess_document_for_wiki(session, document, context, gateway=gateway)
     return apply_claims(
         session, claims,
         document=None if is_record else document, record=document if is_record else None,
