@@ -50,6 +50,13 @@ def test_connections_page_lists_seeded_connection(client, session, bank_client):
     assert "Santander" in r.text
 
 
+def test_connections_page_works_without_bank_key(client, session):
+    _seed(session)
+    r = client.get("/financials/bank/")
+    assert r.status_code == 200
+    assert "Santander" in r.text
+
+
 def test_callback_with_unknown_state_is_friendly_400(client, session, bank_client):
     r = client.get("/financials/bank/callback", params={"state": "bad", "code": "x"},
                    follow_redirects=False)
@@ -66,3 +73,33 @@ def test_map_post_saves_account_id(client, session, bank_client):
     assert r.status_code == 303
     session.expire_all()  # the route wrote through its own Session
     assert session.get(BankAccountLink, link.id).account_id == acct.id
+
+
+def test_map_post_empty_choice_unmaps(client, session, bank_client):
+    conn, link = _seed(session)
+    from app.models.account import Account
+    acct = Account(name="Conta", institution="Santander"); session.add(acct); session.commit()
+    link.account_id = acct.id; session.commit()
+    r = client.post(f"/financials/bank/{conn.id}/map/{link.id}", data={"account_id": ""},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    session.expire_all()
+    assert session.get(BankAccountLink, link.id).account_id is None
+
+
+def test_map_post_unknown_account_is_friendly_400(client, session, bank_client):
+    conn, link = _seed(session)
+    r = client.post(f"/financials/bank/{conn.id}/map/{link.id}", data={"account_id": "9999"})
+    assert r.status_code == 400
+    assert "Pick one of the listed Hub accounts" in r.text
+
+
+def test_map_post_link_of_other_connection_is_404(client, session, bank_client):
+    other = BankConnection(bank_name="Revolut", country="LT", state="st2",
+                           status=BankConnectionStatus.ACTIVE)
+    session.add(other); session.commit(); session.refresh(other)
+    other_link = BankAccountLink(connection_id=other.id, bank_account_uid="u2")
+    session.add(other_link); session.commit(); session.refresh(other_link)
+    conn, _ = _seed(session)
+    r = client.post(f"/financials/bank/{conn.id}/map/{other_link.id}", data={"account_id": "1"})
+    assert r.status_code == 404

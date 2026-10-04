@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -14,9 +14,9 @@ from app.config import settings
 from app.db import get_session
 from app.models.account import Account
 from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatus
-from app.services.bankapi.client import EnableBankingClient
+from app.services.bankapi.client import BankApiError, EnableBankingClient
 from app.services.bankapi.connect import (
-    SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left, map_account,
+    SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left,
 )
 from app.templating import templates
 
@@ -34,8 +34,7 @@ def _utcnow() -> datetime:
 
 
 @router.get("/")
-def connections_page(request: Request, session: Session = Depends(get_session),
-                     client: EnableBankingClient = Depends(get_bank_client)):
+async def connections_page(request: Request, session: Session = Depends(get_session)):
     connections = session.exec(select(BankConnection)).all()
     by_bank: dict[str, BankConnection] = {}
     for conn in connections:
@@ -54,7 +53,7 @@ def connections_page(request: Request, session: Session = Depends(get_session),
             status_label = "Waiting for you to approve in the bank's app"
         elif conn.status == BankConnectionStatus.EXPIRED or (days is not None and days <= 0):
             status_label = "Access has ended"
-        elif mapped and len(mapped) < len(bank_links):
+        elif len(mapped) < len(bank_links):
             status_label = "Needs account mapping"
         else:
             status_label = "Connected"
@@ -71,28 +70,41 @@ def connections_page(request: Request, session: Session = Depends(get_session),
 
 
 @router.post("/connect/{bank_key}")
-def connect(bank_key: str, session: Session = Depends(get_session),
-            client: EnableBankingClient = Depends(get_bank_client)):
+async def connect(bank_key: str, request: Request,
+                  session: Session = Depends(get_session),
+                  client: EnableBankingClient = Depends(get_bank_client)):
     public_base = settings.PUBLIC_BASE_URL.rstrip("/")
-    url = _begin(session, client, bank_key, redirect_url=f"{public_base}/financials/bank/callback")
+    try:
+        url = await begin_connection(session, client, bank_key,
+                                     redirect_url=f"{public_base}/financials/bank/callback")
+    except BankApiError:
+        return _friendly_error_page(
+            request, "We couldn't start the bank connection.",
+            "The bank didn't accept our request. Please try again in a moment; if it keeps happening, tell Pedro.",
+        )
     return RedirectResponse(url, status_code=303)
 
 
-def _begin(session: Session, client, bank_key: str, *, redirect_url: str) -> str:
-    import asyncio
-    return asyncio.run(begin_connection(session, client, bank_key, redirect_url=redirect_url))
-
-
 @router.get("/callback")
-def callback(request: Request, state: str = "", code: str = "",
-             session: Session = Depends(get_session),
-             client: EnableBankingClient = Depends(get_bank_client)):
+async def callback(request: Request, state: str = "", code: str = "", error: str = "",
+                   session: Session = Depends(get_session),
+                   client: EnableBankingClient = Depends(get_bank_client)):
+    if error:
+        return _friendly_error_page(
+            request,
+            "The bank sent you back without finishing — nothing was connected. Try again when you're ready.",
+        )
     try:
-        connection = _complete(session, client, state=state, code=code)
+        connection = await complete_connection(session, client, state=state, code=code)
     except ValueError:
         raise HTTPException(
             status_code=400,
             detail="That bank link has expired or was already used — start again",
+        )
+    except BankApiError:
+        return _friendly_error_page(
+            request,
+            "The bank didn't finish the connection. Nothing was saved — try connecting again.",
         )
     unmapped = session.exec(
         select(BankAccountLink).where(
@@ -105,14 +117,15 @@ def callback(request: Request, state: str = "", code: str = "",
     return RedirectResponse("/financials/bank/", status_code=303)
 
 
-def _complete(session: Session, client, *, state: str, code: str):
-    import asyncio
-    return asyncio.run(complete_connection(session, client, state=state, code=code))
+def _friendly_error_page(request: Request, message: str, detail: str = ""):
+    return templates.TemplateResponse(request, "bank/error.html", {
+        "message": message, "detail": detail,
+    })
 
 
 @router.get("/{connection_id}/map")
-def map_page(request: Request, connection_id: int,
-             session: Session = Depends(get_session)):
+async def map_page(request: Request, connection_id: int,
+                   session: Session = Depends(get_session)):
     connection = session.get(BankConnection, connection_id)
     if connection is None:
         raise HTTPException(status_code=404, detail="No such bank connection")
@@ -126,32 +139,28 @@ def map_page(request: Request, connection_id: int,
 
 
 @router.post("/{connection_id}/map/{link_id}")
-def map_one(connection_id: int, link_id: int, request: Request,
-            session: Session = Depends(get_session)):
-    form = _form(request)
-    account_id = int(form.get("account_id") or 0)
-    try:
-        map_account(session, link_id, account_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    if _unmapped_left(session, connection_id):
-        return RedirectResponse(f"/financials/bank/{connection_id}/map", status_code=303)
-    return RedirectResponse("/financials/bank/", status_code=303)
-
-
-def _unmapped_left(session: Session, connection_id: int) -> bool:
-    return session.exec(
+async def map_one(connection_id: int, link_id: int, request: Request,
+                  session: Session = Depends(get_session)):
+    form = await request.form()
+    raw = form.get("account_id")
+    link = session.get(BankAccountLink, link_id)
+    if link is None or link.connection_id != connection_id:
+        raise HTTPException(status_code=404, detail="No such bank account on this connection")
+    if raw:
+        account = session.get(Account, int(raw))
+        if account is None:
+            raise HTTPException(status_code=400, detail="Pick one of the listed Hub accounts")
+        link.account_id = account.id
+    else:
+        link.account_id = None  # "— not tracked —"
+    session.add(link)
+    session.commit()
+    unmapped = session.exec(
         select(BankAccountLink).where(
             BankAccountLink.connection_id == connection_id,
             BankAccountLink.account_id.is_(None),
         )
-    ).first() is not None
-
-
-def _form(request: Request) -> dict:
-    import asyncio
-
-    async def _read():
-        return await request.form()
-
-    return asyncio.run(_read())
+    ).first()
+    if unmapped is not None:
+        return RedirectResponse(f"/financials/bank/{connection_id}/map", status_code=303)
+    return RedirectResponse("/financials/bank/", status_code=303)
