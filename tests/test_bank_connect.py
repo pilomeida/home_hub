@@ -36,7 +36,7 @@ def test_begin_connection_stores_pending_row(session):
     assert url == "https://bank/x"
     conn = session.query(BankConnection).one()
     assert conn.status == BankConnectionStatus.PENDING
-    assert conn.bank_name == "Santander" and conn.country == "PT"
+    assert conn.bank_name == "Santander Totta" and conn.country == "PT"
     assert client.start_auth_kwargs["state"] == conn.state
     assert client.start_auth_kwargs["redirect_url"] == "https://hub/cb"
 
@@ -91,7 +91,7 @@ def test_iban_without_matching_account_leaves_account_id_null(session):
 
 
 def test_connection_days_left(session):
-    conn = BankConnection(bank_name="Santander", country="PT", state="s",
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="s",
                           status=BankConnectionStatus.ACTIVE)
     session.add(conn); session.commit()
     now = datetime(2027, 2, 1, 12, 0, tzinfo=timezone.utc)

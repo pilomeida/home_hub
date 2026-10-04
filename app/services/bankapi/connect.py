@@ -11,9 +11,9 @@ from sqlmodel import Session, select
 from app.models.account import Account
 from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatus
 
-# aspsp.name strings must be confirmed against GET /aspsps (Task 7/8) and
+# aspsp.name strings must be confirmed against GET /aspsps (verified 2026-10-05: "Santander Totta"/PT, "Revolut"/LT) and
 # corrected here if they differ.
-SUPPORTED_BANKS = {"santander": ("Santander", "PT"), "revolut": ("Revolut", "LT")}
+SUPPORTED_BANKS = {"santander": ("Santander Totta", "PT"), "revolut": ("Revolut", "LT")}
 
 _MAX_CONSENT_DAYS = 180
 

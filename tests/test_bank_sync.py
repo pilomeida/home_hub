@@ -27,7 +27,7 @@ async def fake_classify(session, transaction, client=None):
 
 
 def make_link(session):
-    conn = BankConnection(bank_name="Santander", country="PT", state="st-sync",
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="st-sync",
                           status=BankConnectionStatus.ACTIVE)
     session.add(conn); session.commit(); session.refresh(conn)
     acct = Account(name="Conta Santander", institution="Santander")

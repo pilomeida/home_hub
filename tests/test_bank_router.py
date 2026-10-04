@@ -38,7 +38,7 @@ def bank_client(monkeypatch):
 
 
 def _seed(session, status=BankConnectionStatus.ACTIVE):
-    conn = BankConnection(bank_name="Santander", country="PT", state="st1", status=status)
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="st1", status=status)
     session.add(conn); session.commit(); session.refresh(conn)
     link = BankAccountLink(connection_id=conn.id, bank_account_uid="u1", iban="PT50123",
                            display_name="Conta")
@@ -112,7 +112,7 @@ def test_map_post_link_of_other_connection_is_404(client, session, bank_client):
 
 def _sync_now_seed(session):
     from app.models.account import Account
-    conn = BankConnection(bank_name="Santander", country="PT", state="st-sync",
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="st-sync",
                           status=BankConnectionStatus.ACTIVE)
     session.add(conn); session.commit(); session.refresh(conn)
     acct = Account(name="Conta Santander", institution="Santander")
@@ -154,7 +154,7 @@ def test_bank_notices_renewal_warning_at_14_days(session):
     conn.valid_until = now + timedelta(days=14)
     session.add(conn); session.commit()
     notices = bank_notices(session, now=now)
-    assert any("Santander access ends in 14 days" in n for n in notices)
+    assert any("Santander Totta access ends in 14 days" in n for n in notices)
 
 
 def test_bank_notices_silent_at_15_days(session):
@@ -172,7 +172,7 @@ def test_bank_notices_expired(session):
     conn.status = BankConnectionStatus.EXPIRED
     session.add(conn); session.commit()
     notices = bank_notices(session)
-    assert any("Santander access has ended" in n for n in notices)
+    assert any("Santander Totta access has ended" in n for n in notices)
 
 
 def test_bank_notices_stale_last_synced(session):
@@ -249,7 +249,7 @@ def test_renewal_carries_mapping_and_supersedes_old_connection(session, bank_cli
     from app.jobs.bank_sync import run_all
 
     # First connection, authorized, mapped, synced at T.
-    first = BankConnection(bank_name="Santander", country="PT", state="old-state",
+    first = BankConnection(bank_name="Santander Totta", country="PT", state="old-state",
                            status=BankConnectionStatus.ACTIVE)
     session.add(first); session.commit(); session.refresh(first)
     acct = Account(name="Conta Santander", institution="Santander", identifier="PT50123")
@@ -261,7 +261,7 @@ def test_renewal_carries_mapping_and_supersedes_old_connection(session, bank_cli
     session.add(old_link); session.commit(); session.refresh(old_link)
 
     # Renewal: begin + complete a second authorization for the same bank/IBAN.
-    conn = BankConnection(bank_name="Santander", country="PT", state="st1",
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="st1",
                           status=BankConnectionStatus.PENDING)
     session.add(conn); session.commit(); session.refresh(conn)
     renewed = _bank_connect_complete(session, FakeClient(), state=conn.state, code="code-1")

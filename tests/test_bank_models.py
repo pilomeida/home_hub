@@ -17,7 +17,7 @@ def _doc(session):
 
 
 def test_connection_and_link_roundtrip(session):
-    conn = BankConnection(bank_name="Santander", country="PT", state="abc",
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="abc",
                           status=BankConnectionStatus.PENDING)
     session.add(conn); session.commit()
     link = BankAccountLink(connection_id=conn.id, bank_account_uid="u1")

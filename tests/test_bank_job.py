@@ -24,7 +24,7 @@ async def fake_classify(session, transaction, client=None):
     return None
 
 
-def _active_connection(session, bank_name="Santander", state="st"):
+def _active_connection(session, bank_name="Santander Totta", state="st"):
     conn = BankConnection(bank_name=bank_name, country="PT", state=state,
                           status=BankConnectionStatus.ACTIVE)
     session.add(conn); session.commit(); session.refresh(conn)
