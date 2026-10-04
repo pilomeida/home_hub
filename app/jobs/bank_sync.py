@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from pathlib import Path
 
 from sqlmodel import Session, select
 
@@ -32,8 +33,16 @@ async def run_all(session: Session, client, *, dry_run: bool = False,
     ).all()
     for link in links:
         logger.info("Syncing bank account link %s (%s)", link.id, link.bank_account_uid)
-        result = await sync_link(session, client, link, dry_run=dry_run,
-                                 scheduled=scheduled)
+        try:
+            result = await sync_link(session, client, link, dry_run=dry_run,
+                                     scheduled=scheduled)
+        except Exception:
+            # One broken account must not stop the others in the same run.
+            logger.exception("Unexpected failure syncing link %s", link.id)
+            from app.services.bankapi.sync import SyncResult
+            result = SyncResult(error="Unexpected failure")
+            results[link.id] = result
+            continue
         if result.skipped_quota:
             logger.info("Link %s: skipped, daily call budget used", link.id)
         elif result.error:
@@ -53,7 +62,7 @@ async def _main(dry_run: bool) -> int:
         logger.info("bank sync not configured; nothing to do")
         return 0
     client = EnableBankingClient(settings.ENABLE_BANKING_APP_ID,
-                                 open(settings.ENABLE_BANKING_KEY_PATH, "rb").read())
+                                 Path(settings.ENABLE_BANKING_KEY_PATH).read_bytes())
     with Session(engine) as session:
         results = await run_all(session, client, dry_run=dry_run, scheduled=True)
     errored = [r for r in results.values() if r.error]

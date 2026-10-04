@@ -38,5 +38,11 @@ def test_every_timer_has_a_matching_oneshot_service():
         assert not service.has_section("Install")
 
 
+def test_banksync_timer_runs_on_lisbon_time():
+    text = (UNIT_DIR / "home-hub-banksync.timer").read_text()
+    for hour in ("07:30:00", "13:00:00", "18:30:00"):
+        assert f"OnCalendar=*-*-* {hour} Europe/Lisbon" in text
+
+
 def test_install_script_is_executable():
     assert os.access("deploy/install_user_units.sh", os.X_OK)

@@ -80,6 +80,30 @@ def test_main_exits_zero_when_not_configured(monkeypatch, tmp_path):
     assert job.main() == 0
 
 
+def test_one_broken_link_does_not_stop_the_others(session, monkeypatch):
+    conn = _active_connection(session)
+    acct = Account(name="Conta", institution="Santander"); session.add(acct); session.commit()
+    first = BankAccountLink(connection_id=conn.id, bank_account_uid="u1", account_id=acct.id)
+    second = BankAccountLink(connection_id=conn.id, bank_account_uid="u2", account_id=acct.id)
+    session.add(first); session.add(second); session.commit()
+
+    import app.jobs.bank_sync as job
+    from app.services.bankapi.sync import SyncResult
+
+    calls = {"n": 0}
+
+    async def flaky_sync_link(session, client, link, **kwargs):
+        calls["n"] += 1
+        if link.id == first.id:
+            raise RuntimeError("boom")
+        return SyncResult(created=1)
+
+    monkeypatch.setattr(job, "sync_link", flaky_sync_link)
+    results = _run(run_all(session, FakeClient([]), scheduled=True))
+    assert results[first.id].error == "Unexpected failure"
+    assert results[second.id].created == 1  # the other account still got its turn
+
+
 def _run(coro):
     import asyncio
     return asyncio.run(coro)
