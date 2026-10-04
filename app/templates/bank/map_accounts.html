@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Map bank accounts{% endblock %}
+{% block content %}
+<h1>Map {{ connection.bank_name }} accounts</h1>
+<p>Pick which Hub account each bank account belongs to. Only mapped accounts get their transactions pulled in.</p>
+<table>
+  <thead>
+    <tr><th>Bank account</th><th>IBAN</th><th>Hub account</th></tr>
+  </thead>
+  <tbody>
+    {% for link in links %}
+    <tr>
+      <td>{{ link.display_name or "Unnamed account" }}</td>
+      <td>{{ link.iban or "—" }}</td>
+      <td>
+        <form method="post" action="/financials/bank/{{ connection.id }}/map/{{ link.id }}">
+          <select name="account_id">
+            <option value="">— not tracked —</option>
+            {% for account in accounts %}
+            <option value="{{ account.id }}" {% if link.account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">Save</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
