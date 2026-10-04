@@ -805,7 +805,16 @@ _(executor appends entries here; reviewer marks each APPROVED / CHANGES REQUESTE
 - **Deviation 1 (controlled):** autogenerate also emitted two unrelated NOT NULL tweaks (`documents.fields_json` nullable=False, `wiki_pages.page_type` nullable=False) from model drift. Removed both from upgrade and downgrade — the migration is additive-only per Global Constraints; no existing table is altered beyond adding `transactions.external_id` + its index/constraint.
 - No other deviations; models follow repo conventions (`SQLModel, table=True`, enum-as-str, FK fields). No push, no `data/` access, explicit paths staged.
 
-**CHECKPOINT 2 (re-log after fix round 1) — awaiting review**
+**CHECKPOINT 2 (re-log after fix round 1) — APPROVED (Pedro, 2026-10-04). Proceed to Task 3.**
+
+**CHECKPOINT 3 — Task 3: Connect flow — awaiting review**
+- Commit: `384c827` `feat(bank): connect a bank through the Hub and map its accounts` (this plan-file entry follows as a docs commit).
+- Full suite: `597 passed in 228.72s` (587 + 10 new tests: 7 connect-service + 3 router, 0 failures).
+- Files: `app/services/bankapi/connect.py`, `app/routers/bank.py`, `app/templates/bank/connections.html`, `app/templates/bank/map_accounts.html`, `app/main.py` (router registered once), plus the two test files.
+- **Deviation 1 (test-fixtures only, intent preserved):** (a) service tests drive the async functions with a small `asyncio.run` helper — repo has no anyio async fixture for plain Session tests; (b) `conn.valid_until` asserted naive — SQLite drops tzinfo on round-trip; (c) the map POST test calls `session.expire_all()` before re-reading because the route writes through its own Session (same engine); (d) plan-sketch `start_auth` was used without `await` in three sketch fragments — fixed by wrapping in the helper (test intent unchanged).
+- Router notes: `get_bank_client` dependency raises 503 "Bank connections aren't set up on this server yet" when `not settings.bank_configured`; callback error is exactly the plan's copy; state single-use (PENDING-only) + 24-char urlsafe token; router sync wrappers use `asyncio.run` per request (matches repo's synchronous route style).
+- No `|safe`, autoescape on; no push; explicit paths staged.
+
 - Fix commit: `1b05ce8` `fix(bank): migration touches only bank tables and transactions.external_id` (new commit, no amend; changes only `6d1e9c597432_bank_connections.py`, −5 lines = the whole `wiki_pages` batch block in `upgrade()`).
 - Root cause of the miss: my earlier patch anchored on `# ### end Alembic commands ###`, which appears twice in the file (end of upgrade and end of downgrade); it removed the downgrade-side `page_type` and stray `documents` blocks but the wrong occurrence left the upgrade-side `wiki_pages` block. Verified the correct one is gone now.
 - Reviewer's check passes: `grep -n "wiki_pages\|documents" alembic/versions/6d1e9c597432_bank_connections.py` → no output (exit 1).
