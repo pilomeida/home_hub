@@ -866,7 +866,7 @@ Commit as a NEW commit, re-log (full-suite result), stop.**
 **CHECKPOINT 4 (re-log after fix round 2) — APPROVED (Claude, 2026-10-04). Proceed to Task 5. Cosmetic note: a row that fails to save still counts as "created" (off-by-one in a rare path) — accepted, ignore.**
 
 **CHECKPOINT 5 — Task 5: Scheduled job — awaiting review**
-- Commit: `2a4b5da` `feat(bank): scheduled bank sync job (07:30, 13:00, 18:30)` (includes this plan-file edit plus the pending Task-4 approval note, per Pedro).
+- Commit: `a2d3ba5` `feat(bank): scheduled bank sync job (07:30, 13:00, 18:30)` (includes this plan-file edit plus the pending Task-4 approval note, per Pedro).
 - Full suite: `618 passed in 155.37s` (615 + 3 new job tests, 0 failures). `tests/test_bank_job.py`: 3/3; `tests/test_deploy_units.py` extended (banksync units in the expected set) — 7 job+deploy tests pass.
 - `app/jobs/bank_sync.py` mirrors `app/jobs/wiki_lint.py`: `logging.basicConfig`, `asyncio.run`, argparse `--dry-run`; `main()` logs "bank sync not configured" and exits 0 when `not settings.bank_configured`; exits 1 only when every synced link errored.
 - `run_all(session, client, *, dry_run=False, scheduled=True)` selects links joined to ACTIVE connections with `account_id IS NOT NULL` (unmapped and EXPIRED skipped — tested); `--dry-run` writes no transactions (tested).
