@@ -102,3 +102,31 @@ def test_connection_days_left(session):
 def _run(coro):
     import asyncio
     return asyncio.run(coro)
+
+
+def test_renewal_does_not_map_an_ibanless_account_from_a_same_named_iban_account(session):
+    """Live bug 2026-10-04: a person's current account (with IBAN) and credit
+    card (no IBAN) share the holder's name; the card must NOT inherit the
+    current account's mapping on renewal."""
+    old = BankConnection(bank_name="Santander Totta", country="PT", state="old",
+                         status=BankConnectionStatus.EXPIRED)
+    session.add(old); session.commit(); session.refresh(old)
+    acct = Account(name="Conta Santander", institution="Santander"); session.add(acct); session.commit()
+    session.add(BankAccountLink(connection_id=old.id, bank_account_uid="o1", iban="PT50123",
+                                display_name="PEDRO", account_id=acct.id))
+    session.commit()
+
+    class TwoAccountsClient(FakeClient):
+        async def create_session(self, code):
+            return BankSession("sess2", [
+                BankSessionAccount("n1", None, "PEDRO", "EUR"),        # the card
+                BankSessionAccount("n2", "PT50123", "PEDRO", "EUR"),   # the current account
+            ], datetime(2027, 3, 1, tzinfo=timezone.utc))
+
+    client = TwoAccountsClient()
+    _run(begin_connection(session, client, "santander", redirect_url="https://hub/cb"))
+    new_state = session.query(BankConnection).filter(BankConnection.state != "old").one().state
+    _run(complete_connection(session, client, state=new_state, code="c"))
+    by_uid = {l.bank_account_uid: l for l in session.query(BankAccountLink)}
+    assert by_uid["n1"].account_id is None          # card stays unmapped
+    assert by_uid["n2"].account_id == acct.id       # IBAN account carries over

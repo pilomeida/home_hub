@@ -185,10 +185,12 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                 paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                 account_id=link.account_id, external_id=external_id,
             )
-            session.add(txn)
-            session.flush()
+            # No add/flush before classify: classify may await the LLM, and a
+            # flushed INSERT would hold SQLite's write lock for the whole call
+            # (blocking the family's own writes and any parallel sync).
             try:
                 await classify(session, txn)
+                session.add(txn)
                 if txn.merchant_id is not None:
                     merchant = session.get(Merchant, txn.merchant_id)
                     if merchant is not None and merchant.default_category != Category.OTHER:

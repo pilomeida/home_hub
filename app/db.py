@@ -18,7 +18,7 @@ def register_foreign_keys_pragma(target_engine):
 engine = create_engine(
     settings.database_url,
     echo=False,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30},
 )
 register_foreign_keys_pragma(engine)
 

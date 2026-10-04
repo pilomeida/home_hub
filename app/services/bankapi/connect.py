@@ -73,7 +73,10 @@ async def complete_connection(session: Session, client, *, state: str, code: str
             .where(BankConnection.bank_name == connection.bank_name,
                    BankConnection.id != connection.id,
                    BankAccountLink.iban == account.iban if account.iban
-                   else BankAccountLink.display_name == account.name)  # type: ignore[arg-type]
+                   # No IBAN: only match another IBAN-less link. Name alone is not
+                   # enough -- a person's current account and credit card share it.
+                   else (BankAccountLink.display_name == account.name)
+                   & BankAccountLink.iban.is_(None))  # type: ignore[arg-type,attr-defined]
             .order_by(BankConnection.created_at.desc())  # type: ignore[attr-defined]
         ).first()
         if prior is not None:

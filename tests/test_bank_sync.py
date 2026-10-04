@@ -292,3 +292,36 @@ def _doc(session):
 def _run(coro):
     import asyncio
     return asyncio.run(coro)
+
+
+@pytest.mark.asyncio
+async def test_sync_does_not_hold_the_database_write_lock_while_classifying(session, engine):
+    """Live bug 2026-10-04: a flushed INSERT before the (slow, LLM) classify call
+    held SQLite's write lock, so a parallel sync / family write failed with
+    'database is locked'. During classify another connection must be able to write."""
+    import sqlite3
+
+    link, acct = make_link(session)
+    db_path = engine.url.database
+    seen = {}
+
+    async def classify_that_probes(sess, transaction, client=None):
+        other = sqlite3.connect(db_path, timeout=0.2)
+        try:
+            other.execute("insert into accounts(name, institution, currency, account_type, created_at) "
+                          "values ('probe','x','EUR','CHECKING','2026-01-01')")
+            other.commit()
+            seen["wrote"] = True
+        except sqlite3.OperationalError as exc:
+            seen["error"] = str(exc)
+        finally:
+            other.close()
+        transaction.merchant_id = None
+
+    rows = [{"entry_reference": "r1", "status": "BOOK", "credit_debit_indicator": "DBTR",
+             "transaction_amount": {"amount": "5.00", "currency": "EUR"},
+             "booking_date": "2026-10-01", "creditor": {"name": "Cafe"}}]
+    result = await sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4),
+                             classify=classify_that_probes)
+    assert seen == {"wrote": True}, seen
+    assert result.created == 1

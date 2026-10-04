@@ -9,6 +9,7 @@ from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
 from app.config import settings
@@ -184,7 +185,14 @@ async def sync_now(connection_id: int, request: Request,
     errors = []
     results = []
     for link in links:
-        result = await sync_link(session, client, link, scheduled=False)
+        try:
+            result = await sync_link(session, client, link, scheduled=False)
+        except OperationalError:
+            session.rollback()
+            return RedirectResponse(
+                f"/financials/bank/?msg={quote_plus('The Hub is busy right now — try again in a minute.')}",
+                status_code=303,
+            )
         results.append(result)
         if result.error:
             errors.append(result.error)

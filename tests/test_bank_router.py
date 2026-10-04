@@ -313,3 +313,17 @@ def test_lisbon_datetime_converts_utc_summer_and_winter():
     assert lisbon_datetime(datetime(2026, 7, 1, 12, 0)) == "01 Jul 2026, 13:00"  # WEST = UTC+1
     assert lisbon_datetime(datetime(2026, 12, 1, 12, 0)) == "01 Dec 2026, 12:00"  # WET = UTC
     assert lisbon_datetime(None) == "—"
+
+
+def test_sync_now_says_busy_instead_of_crashing_when_the_database_is_locked(client, session, bank_client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    conn, link = _sync_now_seed(session)
+
+    async def locked(*args, **kwargs):
+        raise OperationalError("insert", {}, Exception("database is locked"))
+
+    monkeypatch.setattr("app.routers.bank.sync_link", locked)
+    r = client.post(f"/financials/bank/{conn.id}/sync", follow_redirects=True)
+    assert r.status_code == 200
+    assert "busy" in r.text.lower()
