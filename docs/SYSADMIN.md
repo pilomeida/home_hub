@@ -235,6 +235,8 @@ exist). Lower priority than the database, but worth covering in the same future 
 | `DEPLOY_SSH_KEY_HOMEHUB` | GitHub repo secret (`pilomeida/home_hub` → Settings → Secrets) | CI/CD SSH auth as the `home-hub` user, used only by `.github/workflows/deploy.yml` |
 | `HUB_IMAP_PASSWORD` | Same `.env` | A Gmail **app password** (16 letters) for the dedicated Hub mailbox — not the mailbox's real login password. Revoke or regenerate it from the Hub's own Google account (Security → App passwords), never Pedro's personal account |
 | `HUB_TELEGRAM_BOT_TOKEN` | Same `.env` | Auth token for the Hub's dedicated Telegram bot. Regenerated via @BotFather's `/revoke` command if it ever leaks — whoever holds it fully controls the bot |
+| `ENABLE_BANKING_KEY_PATH` → `/srv/home-hub/secrets/enable_banking.pem` | A private RSA key file, owner `home-hub`, mode 600, directory mode 700. **Secret.** Never in git, never in `.env` itself (only its path is) | Signs every request to Enable Banking (bank auto-capture). If it leaks: delete the app in the Enable Banking control panel and register a new one |
+| `ENABLE_BANKING_APP_ID` | Same `.env` | **Not secret** — the Enable Banking application id (`af59dffc-c66c-44d9-a7c6-c4bb1a708ea4`); also the key's identifier in each request |
 | `HUB_IMAP_ALLOWED_SENDERS`, `HUB_TELEGRAM_ALLOWED_USERS` | Same `.env` | **Not secret** — plain allowlists (email addresses; Telegram numeric ids mapped to names) gating which senders' attachments reach the LLM classifier at all. An email passes if its `From` is listed **or** Gmail's `X-Forwarded-For` stamp names a listed account — family members use Gmail forwarding rules, which keep the bill's original `From`. Both headers are forgeable; acceptable because every document still waits in the Inbox for human approval |
 
 All of the `HUB_*` channel settings live **only** in `/srv/home-hub/app/.env` — same place as
@@ -251,6 +253,20 @@ no session store, no password anywhere** — identity is entirely Cloudflare's p
 
 **No secret has ever been committed to the repo** — `.env` is gitignored; `.env.example` ships
 placeholder values only (`sk-ant-your_key_here`, etc.).
+
+---
+
+## 6b. Bank connections (automatic transaction capture)
+
+Santander Portugal and Revolut are read through **Enable Banking** (Restricted Production tier: free, only accounts Pedro linked himself in the Enable Banking control panel, application "CdA Home Hub - Financials"). Code: `app/services/bankapi/`, job `app/jobs/bank_sync.py`, screens under **Financials → `/financials/bank/`**. Design and review history: `docs/superpowers/plans/2026-10-04-bank-auto-capture.md`.
+
+- **Schedule:** a systemd user timer (`home-hub-banksync.timer`) runs at **07:30, 13:00 and 18:30 Lisbon time**. Each run asks every mapped account for new booked transactions and stores them like statement lines (one rolling "automatic bank sync" document per account).
+- **Budget:** banks allow **4 unattended requests per account per 24 h**. Scheduled runs use 3; the **Sync now** button uses the 4th. The Hub counts calls itself (`bank_api_calls`) and refuses a 5th.
+- **Renewal every ~180 days:** the bank access expires (limit set by each bank). A banner appears on the Bank connections page and Bills & Bank 14 days before; press **Renew**, approve in the bank's app. Mappings and sync history carry over automatically; the old connection is retired.
+- **No statement uploads for a synced account.** Once an account is live, stop uploading its PDF statements: the sync matches new bank lines against already-imported ones (same account, direction, amount to the cent, ±2 days) so history isn't doubled, but a statement uploaded *later* for the same period would double-count the API lines.
+- **Check it:** `systemctl --user list-timers | grep banksync`; `journalctl --user -u home-hub-banksync -n 50`; dry run (fetches, saves nothing, still uses one call): `cd /srv/home-hub/app && ../venv/bin/python -m app.jobs.bank_sync --dry-run`.
+- **Key install (one time):** copy the downloaded `<application id>.pem` to `/srv/home-hub/secrets/enable_banking.pem` (owner `home-hub`, mode 600), add `ENABLE_BANKING_APP_ID=` and `ENABLE_BANKING_KEY_PATH=` to `/srv/home-hub/app/.env`, then delete the downloaded copy.
+- **Redirect URL** registered in Enable Banking: `https://hub.cdafamily.casa/financials/bank/callback` (must match exactly).
 
 ---
 
