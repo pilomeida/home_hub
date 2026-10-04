@@ -84,3 +84,18 @@ async def test_create_session_parses_accounts(key_pair):
     assert session.session_id == "sess-1"
     assert session.accounts[0].uid == "u1" and session.accounts[0].iban == "PT50000"
     assert session.valid_until.year == 2027
+
+
+@pytest.mark.asyncio
+async def test_start_auth_always_sends_a_timezone_aware_valid_until(key_pair):
+    seen = {}
+
+    def handler(request: httpx.Request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"url": "https://bank/auth", "authorization_id": "a1"})
+
+    await _client(key_pair, handler).start_auth(
+        bank_name="Santander Totta", country="PT", valid_until=datetime(2027, 4, 2, 12, 0),  # naive
+        state="s1", redirect_url="https://hub/cb",
+    )
+    assert seen["body"]["access"]["valid_until"].endswith("+00:00")

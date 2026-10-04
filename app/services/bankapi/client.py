@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import httpx
@@ -80,6 +80,9 @@ class EnableBankingClient:
 
     async def start_auth(self, *, bank_name: str, country: str, valid_until: datetime,
                          state: str, redirect_url: str) -> AuthStart:
+        if valid_until.tzinfo is None:
+            # Enable Banking rejects a timestamp without a timezone (422).
+            valid_until = valid_until.replace(tzinfo=timezone.utc)
         body = await self._request("POST", "/auth", json={
             "access": {"valid_until": valid_until.isoformat()},
             "aspsp": {"name": bank_name, "country": country},
