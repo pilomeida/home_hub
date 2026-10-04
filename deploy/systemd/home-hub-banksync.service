@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - fetch new bank transactions
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/home-hub/app
+EnvironmentFile=/srv/home-hub/app/.env
+ExecStart=/srv/home-hub/venv/bin/python -m app.jobs.bank_sync
+TimeoutStartSec=10min

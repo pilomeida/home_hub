@@ -15,7 +15,8 @@ def _read(path):
 
 def test_expected_units_exist():
     names = {p.name for p in UNIT_DIR.iterdir()}
-    assert {"home-hub-mailpoll.service", "home-hub-mailpoll.timer", "home-hub-telegram.service"} <= names
+    assert {"home-hub-mailpoll.service", "home-hub-mailpoll.timer", "home-hub-telegram.service",
+            "home-hub-banksync.service", "home-hub-banksync.timer"} <= names
 
 
 def test_services_run_app_modules_from_the_checkout_without_privilege():

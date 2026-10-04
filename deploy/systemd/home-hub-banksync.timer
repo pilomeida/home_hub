@@ -1,0 +1,11 @@
+[Unit]
+Description=Home Hub - fetch bank transactions 3 times a day
+
+[Timer]
+OnCalendar=*-*-* 07:30:00
+OnCalendar=*-*-* 13:00:00
+OnCalendar=*-*-* 18:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
