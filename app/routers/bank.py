@@ -20,6 +20,7 @@ from app.services.bankapi.connect import (
     SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left,
 )
 from app.services.bankapi.sync import sync_link
+from app.services.presentation import lisbon_datetime
 from app.templating import templates
 
 router = APIRouter(prefix="/financials/bank", tags=["bank"])
@@ -242,7 +243,7 @@ def _stale_notice(session: Session, link: BankAccountLink, latest: dict, now: da
         if link.last_synced_at is None or link.last_error:
             return f"{conn.bank_name} hasn't updated — will retry later"
         return (f"{conn.bank_name} hasn't updated since "
-                f"{link.last_synced_at.strftime('%Y-%m-%d')} — will retry later")
+                f"{lisbon_datetime(link.last_synced_at)} — will retry later")
     return "The bank hasn't updated — will retry later"
 
 

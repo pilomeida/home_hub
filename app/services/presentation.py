@@ -130,6 +130,19 @@ def display_datetime(value: Optional[datetime]) -> str:
     return value.strftime("%d %b %Y, %H:%M")
 
 
+def lisbon_datetime(value: Optional[datetime]) -> str:
+    """A server (UTC, naive) timestamp as Lisbon wall-clock time, same format
+    as display_datetime. Used where the exact time matters to Pedro (bank
+    sync times)."""
+    if not value:
+        return "—"
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    aware = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return aware.astimezone(ZoneInfo("Europe/Lisbon")).strftime("%d %b %Y, %H:%M")
+
+
 def claim_label(label: Optional[str], key: Optional[str]) -> str:
     """A claim's display label: its own label when it has a real one,
     otherwise the humanized key (legacy claims were backfilled with

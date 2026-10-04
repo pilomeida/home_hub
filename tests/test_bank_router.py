@@ -303,3 +303,13 @@ def _bank_connect_complete(session, client, *, state, code):
 def _run(coro):
     import asyncio
     return asyncio.run(coro)
+
+
+def test_lisbon_datetime_converts_utc_summer_and_winter():
+    from datetime import datetime
+
+    from app.services.presentation import lisbon_datetime
+
+    assert lisbon_datetime(datetime(2026, 7, 1, 12, 0)) == "01 Jul 2026, 13:00"  # WEST = UTC+1
+    assert lisbon_datetime(datetime(2026, 12, 1, 12, 0)) == "01 Dec 2026, 12:00"  # WET = UTC
+    assert lisbon_datetime(None) == "—"

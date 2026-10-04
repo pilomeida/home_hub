@@ -21,7 +21,7 @@
           in {{ row.days_left }} day{{ "s" if row.days_left != 1 }}
         {% else %}—{% endif %}
       </td>
-      <td>{% if row.last_update %}{{ row.last_update.strftime("%Y-%m-%d %H:%M") }}{% else %}never{% endif %}</td>
+      <td>{% if row.last_update %}{{ row.last_update|lisbon }}{% else %}never{% endif %}</td>
       <td>
         {% if row.status == "Connected" %}
           <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
