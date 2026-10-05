@@ -71,7 +71,10 @@ def _window_start(session: Session, link: BankAccountLink, today: date) -> date:
         return link.last_synced_at.date() - timedelta(days=3)
     latest = session.exec(
         select(Transaction.paid_date)
-        .where(Transaction.account_id == link.account_id, Transaction.paid_date.is_not(None))  # type: ignore[attr-defined]
+        # Statement history only (external_id IS NULL): rows this sync wrote
+        # itself must not move the backfill start forward.
+        .where(Transaction.account_id == link.account_id, Transaction.paid_date.is_not(None),
+               Transaction.external_id.is_(None))  # type: ignore[attr-defined]
         .order_by(Transaction.paid_date.desc())  # type: ignore[attr-defined]
     ).first()
     return (latest - timedelta(days=3)) if latest else today - timedelta(days=85)

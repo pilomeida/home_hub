@@ -325,3 +325,24 @@ async def test_sync_does_not_hold_the_database_write_lock_while_classifying(sess
                              classify=classify_that_probes)
     assert seen == {"wrote": True}, seen
     assert result.created == 1
+
+
+def test_first_sync_window_ignores_rows_the_sync_itself_wrote(session):
+    """Live bug 2026-10-04: API-written rows (external_id set) dated Oct 4 moved the
+    backfill start to Oct 1, hiding six weeks of real history."""
+    link, account = make_link(session)
+    doc = _doc(session)
+    session.add(Transaction(document_id=doc.id, provider="stmt", amount=5.0,
+                            account_id=account.id, paid_date=date(2026, 8, 14)))
+    session.add(Transaction(document_id=doc.id, provider="api", amount=6.0, account_id=account.id,
+                            paid_date=date(2026, 10, 4), external_id="from-api"))
+    session.commit()
+    seen = {}
+
+    class RecordingClient(FakeClient):
+        async def list_transactions(self, account_uid, date_from, date_to):
+            seen["from"] = date_from
+            return []
+
+    _run(sync_link(session, RecordingClient([]), link, today=date(2026, 10, 5)))
+    assert seen["from"] == date(2026, 8, 11)
