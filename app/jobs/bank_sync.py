@@ -17,6 +17,7 @@ from app.db import engine
 from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatus
 from app.services.bankapi.client import EnableBankingClient
 from app.services.bankapi.sync import sync_link
+from app.services.bankapi.topups import link_revolut_topups
 
 logger = logging.getLogger("bank_sync")
 
@@ -65,6 +66,12 @@ async def _main(dry_run: bool) -> int:
                                  Path(settings.ENABLE_BANKING_KEY_PATH).read_bytes())
     with Session(engine) as session:
         results = await run_all(session, client, dry_run=dry_run, scheduled=True)
+        if not dry_run:
+            try:
+                link_revolut_topups(session)
+            except Exception:
+                logger.exception("Linking Revolut top-ups failed")
+                session.rollback()
     errored = [r for r in results.values() if r.error]
     if results and len(errored) == len(results):
         logger.warning("every bank link failed")
