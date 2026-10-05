@@ -19,7 +19,8 @@ def test_financials_is_registered():
     assert [c.value for c in spec.categories] == ["bill", "statement"]
     assert spec.infers_category is True
     assert [link.url for link in spec.nav_links] == [
-        "/financials/bills", "/financials/transactions", "/financials/utilities/electricity",
+        "/financials/bills", "/financials/transactions", "/financials/bank/",
+        "/financials/utilities/electricity",
     ]
 
 

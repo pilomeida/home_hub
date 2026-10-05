@@ -43,6 +43,7 @@ SPEC = DomainSpec(
     nav_links=(
         NavLink("Bills & Bank", "/financials/bills"),
         NavLink("Transactions", "/financials/transactions"),
+        NavLink("Bank connections", "/financials/bank/"),
         NavLink("Utilities", "/financials/utilities/electricity"),
     ),
     overview_card=financials_overview_card,
