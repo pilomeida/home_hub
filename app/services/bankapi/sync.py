@@ -69,14 +69,24 @@ def _calls_last_24h(session: Session, link_id: int, now: datetime) -> int:
 def _window_start(session: Session, link: BankAccountLink, today: date) -> date:
     if link.last_synced_at is not None:
         return link.last_synced_at.date() - timedelta(days=3)
+    # First sync. Start just before where the imported bank STATEMENTS end, so the
+    # overlap is matched against them and nothing after them is missed. Rows the
+    # sync itself wrote (external_id set) and bills (which can carry a later date
+    # than the last statement) must not move the start forward.
     latest = session.exec(
         select(Transaction.paid_date)
-        # Statement history only (external_id IS NULL): rows this sync wrote
-        # itself must not move the backfill start forward.
+        .join(Document, Transaction.document_id == Document.id)
         .where(Transaction.account_id == link.account_id, Transaction.paid_date.is_not(None),
-               Transaction.external_id.is_(None))  # type: ignore[attr-defined]
+               Transaction.external_id.is_(None), Document.category == "statement")  # type: ignore[attr-defined]
         .order_by(Transaction.paid_date.desc())  # type: ignore[attr-defined]
     ).first()
+    if latest is None:
+        latest = session.exec(
+            select(Transaction.paid_date)
+            .where(Transaction.account_id == link.account_id, Transaction.paid_date.is_not(None),
+                   Transaction.external_id.is_(None))  # type: ignore[attr-defined]
+            .order_by(Transaction.paid_date.desc())  # type: ignore[attr-defined]
+        ).first()
     return (latest - timedelta(days=3)) if latest else today - timedelta(days=85)
 
 

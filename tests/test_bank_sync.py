@@ -346,3 +346,29 @@ def test_first_sync_window_ignores_rows_the_sync_itself_wrote(session):
 
     _run(sync_link(session, RecordingClient([]), link, today=date(2026, 10, 5)))
     assert seen["from"] == date(2026, 8, 11)
+
+
+def test_first_sync_window_starts_from_the_last_statement_not_a_later_bill(session):
+    """Live finding 2026-10-05: statements ended Jul 31 but one bill row dated Aug 14
+    moved the start to Aug 11, hiding Aug 1-10."""
+    link, account = make_link(session)
+    statement = Document(filename="s.pdf", file_path="/x", content_hash="st-1",
+                         source=DocumentSource.MANUAL, category="statement", domain=Domain.FINANCIALS)
+    bill = Document(filename="b.pdf", file_path="/y", content_hash="bl-1",
+                    source=DocumentSource.MANUAL, category=None, domain=Domain.FINANCIALS)
+    session.add(statement); session.add(bill); session.commit()
+    session.refresh(statement); session.refresh(bill)
+    session.add(Transaction(document_id=statement.id, provider="stmt", amount=5.0,
+                            account_id=account.id, paid_date=date(2026, 7, 31)))
+    session.add(Transaction(document_id=bill.id, provider="bill", amount=109.64,
+                            account_id=account.id, paid_date=date(2026, 8, 14)))
+    session.commit()
+    seen = {}
+
+    class RecordingClient(FakeClient):
+        async def list_transactions(self, account_uid, date_from, date_to):
+            seen["from"] = date_from
+            return []
+
+    _run(sync_link(session, RecordingClient([]), link, today=date(2026, 10, 5)))
+    assert seen["from"] == date(2026, 7, 28)
