@@ -372,3 +372,25 @@ def test_first_sync_window_starts_from_the_last_statement_not_a_later_bill(sessi
 
     _run(sync_link(session, RecordingClient([]), link, today=date(2026, 10, 5)))
     assert seen["from"] == date(2026, 7, 28)
+
+
+def test_referenceless_rows_use_the_real_date_and_a_stable_id_across_fetch_days(session):
+    """Live finding 2026-10-05: Santander's credit-card feed has no reference and stamps
+    booking_date with the fetch day; the same line must get the same id and its real
+    date on every fetch, or it is re-saved daily."""
+    link, account = make_link(session)
+
+    def card_row(booking):
+        return {"status": "BOOK", "credit_debit_indicator": "DBIT",
+                "transaction_amount": {"amount": "10.00", "currency": "EUR"},
+                "booking_date": booking, "transaction_date": "2026-09-09",
+                "balance_after_transaction": {"amount": "-120.50"},
+                "remittance_information": ["COMPRA ESTRANG 1835 Revolut"]}
+
+    first = _run(sync_link(session, FakeClient([card_row("2026-10-05")]), link,
+                           today=date(2026, 10, 5), classify=fake_classify))
+    second = _run(sync_link(session, FakeClient([card_row("2026-10-06")]), link,
+                            today=date(2026, 10, 6), classify=fake_classify))
+    assert (first.created, second.created, second.already_synced) == (1, 0, 1)
+    txn = session.query(Transaction).one()
+    assert txn.paid_date == date(2026, 9, 9)

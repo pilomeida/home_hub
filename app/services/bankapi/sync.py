@@ -90,14 +90,31 @@ def _window_start(session: Session, link: BankAccountLink, today: date) -> date:
     return (latest - timedelta(days=3)) if latest else today - timedelta(days=85)
 
 
+def _has_reference(raw: dict) -> bool:
+    return bool(raw.get("entry_reference") or raw.get("transaction_id"))
+
+
+def _row_date(raw: dict) -> str:
+    """The transaction's date. Banks that give no reference number (Santander's
+    credit card, seen live 2026-10-05) stamp booking_date with the day we fetched
+    and carry the real date in transaction_date, so for those rows prefer it."""
+    if not _has_reference(raw) and raw.get("transaction_date"):
+        return raw["transaction_date"]
+    return raw.get("booking_date") or raw.get("value_date") or raw.get("transaction_date") or ""
+
+
 def _external_id(raw: dict) -> str:
     ref = raw.get("entry_reference") or raw.get("transaction_id")
     if ref:
         return str(ref)
     amount = raw.get("transaction_amount") or {}
+    balance = (raw.get("balance_after_transaction") or {}).get("amount")
+    # Stable across fetch days: real transaction date + running balance, never the
+    # fetch-day booking date.
     basis = "|".join([
-        str(raw.get("booking_date")), str(amount.get("amount")), str(amount.get("currency")),
+        _row_date(raw), str(amount.get("amount")), str(amount.get("currency")),
         str(raw.get("credit_debit_indicator")), " ".join(raw.get("remittance_information") or []),
+        str(balance),
     ])
     return hashlib.sha256(basis.encode()).hexdigest()
 
@@ -176,8 +193,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             amount_info = raw.get("transaction_amount") or {}
             is_credit = raw.get("credit_debit_indicator") == "CRDT"
             kind = TransactionType.CREDIT if is_credit else TransactionType.DEBIT
-            paid = date.fromisoformat(
-                raw.get("booking_date") or raw.get("value_date") or raw.get("transaction_date") or "")
+            paid = date.fromisoformat(_row_date(raw))
             amount = float(abs(Decimal(str(amount_info.get("amount")))))
         except (KeyError, ValueError, InvalidOperation, TypeError):
             logger.warning("bank sync: skipping unparsable row for link %s: %r", link.id, raw)
