@@ -14,6 +14,21 @@ from app.models.document import Document
 from app.services.taxonomy import ensure_taxonomy
 from tests.fakes.fake_gateway import FakeGateway
 
+
+@pytest.fixture(autouse=True)
+def _printouts_are_complete(monkeypatch):
+    """These tests are about storing/assigning printouts, not cropping: their LLM
+    replies stand for complete printouts (cropping: tests/test_loan_history_crop.py)."""
+    from app.services import position_store as _ps
+    original = _ps.extract_loan_history
+
+    async def complete(*args, **kwargs):
+        history = await original(*args, **kwargs)
+        history.complete = True
+        return history
+
+    monkeypatch.setattr(_ps, "extract_loan_history", complete)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import import_position_files as script  # noqa: E402
 

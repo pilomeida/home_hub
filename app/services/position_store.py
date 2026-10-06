@@ -382,6 +382,10 @@ def _conflict_note(counts: dict) -> Optional[str]:
     return None
 
 
+def _join_notes(*notes: Optional[str]) -> Optional[str]:
+    return "; ".join(n for n in notes if n) or None
+
+
 def _store(session: Session, document: Document, status: str, error: Optional[str] = None,
            payload: Optional[str] = None) -> PositionExtraction:
     row = session.exec(select(PositionExtraction).where(PositionExtraction.document_id == document.id)).first()
@@ -448,13 +452,20 @@ async def process_loan_history_document(session: Session, document: Document, ga
         history = await extract_loan_history(document.file_path, gateway=gateway)
         if not history.rows:
             return _fail(session, document, "no loan movements found in the document", mark_document)
-        problems = reconcile_loan(history.rows)
+        rows, crop_note = history.rows, None
+        numbers = {r.instalment_number for r in rows}
+        if not history.complete and len(numbers) > 1:
+            # printouts list newest first and may be cut mid-instalment at the bottom
+            oldest = min(numbers)
+            rows = [r for r in rows if r.instalment_number != oldest]
+            crop_note = f"oldest instalment nº {oldest} ignored: printout is cropped"
+        problems = reconcile_loan(rows)
         if problems:
             return _fail(session, document, "; ".join(problems), mark_document)
-        instalments = aggregate_components(history.rows)
+        instalments = aggregate_components(rows)
         debt = match_loan_for_history(session, instalments)
         if debt is None:
-            row = _store(session, document, "needs_loan", payload=_dump_instalments(instalments))
+            row = _store(session, document, "needs_loan", error=crop_note, payload=_dump_instalments(instalments))
             if mark_document:
                 _mark_processed(session, document)
             return row
@@ -462,7 +473,8 @@ async def process_loan_history_document(session: Session, document: Document, ga
     except Exception as exc:
         return _fail(session, document, str(exc), mark_document)
     _backlink(session)
-    row = _store(session, document, "ok", error=_conflict_note(counts), payload=_dump_history(debt, instalments))
+    row = _store(session, document, "ok", error=_join_notes(crop_note, _conflict_note(counts)),
+                 payload=_dump_history(debt, instalments))
     if mark_document:
         _mark_processed(session, document)
     return row
@@ -483,7 +495,9 @@ def assign_history_to_loan(session: Session, extraction: PositionExtraction, deb
                 f"{inst.number} already recorded for this loan - it looks like another loan"
             )
     counts = apply_loan_history(session, document, debt, instalments)
-    extraction.status, extraction.error = "ok", _conflict_note(counts)
+    crop = (extraction.error or "").split("; ")[0]
+    crop = crop if crop.startswith("oldest instalment") else None
+    extraction.status, extraction.error = "ok", _join_notes(crop, _conflict_note(counts))
     extraction.payload_json = _dump_history(debt, instalments)
     session.add(extraction)
     session.commit()

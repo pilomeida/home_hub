@@ -107,6 +107,9 @@ class ExtractedPositions:
 class ExtractedLoanHistory:
     rows: list[ComponentRow]
     warnings: list[str] = field(default_factory=list)
+    # True only when the printout provably starts at the loan's beginning (a
+    # formalisation line, or instalment 1); otherwise its oldest instalment may be cropped.
+    complete: bool = False
 
 
 # --- prompts -------------------------------------------------------------
@@ -449,16 +452,31 @@ _TEXT_ROW = re.compile(
 )
 
 
+_FORMALISATION = re.compile(r"^\d{2}-\d{2}-\d{4}\s+\d{2}-\d{2}-\d{4}\s+n/a\s+FORMALIZACAO\b", re.IGNORECASE)
+_ANNULMENT = re.compile(r"^\d{2}-\d{2}-\d{4}\s+\d{2}-\d{2}-\d{4}\s+\S+\s+PRESTACAO\s*\(ANUL\)", re.IGNORECASE)
+
+
 def parse_loan_history_text(text: str) -> tuple[list[ComponentRow], list[str]]:
-    """Rows of a loan-history printout from `pdftotext -raw` output, plus warnings.
+    rows, warnings, _ = _parse_history(text)
+    return rows, warnings
+
+
+def _parse_history(text: str) -> tuple[list[ComponentRow], list[str], bool]:
+    """(rows, warnings, formalisation line seen). Rows of a loan-history printout from `pdftotext -raw` output, plus warnings.
     Pure and deterministic; lines that are not table rows are ignored. A balance is
     kept only on capital rows (> 0, or 0.0 on the newest instalment's last capital row)."""
     rows: list[ComponentRow] = []
     warnings: list[str] = []
     skipped = 0
+    formalised = False
     for line in text.splitlines():
         line = line.strip()
         if not _CANDIDATE.match(line):
+            continue
+        if _FORMALISATION.match(line):
+            formalised = True
+            continue
+        if _ANNULMENT.match(line):  # reversal postings: the re-posted rows are authoritative
             continue
         m = _TEXT_ROW.match(line)
         if not m:
@@ -485,7 +503,7 @@ def parse_loan_history_text(text: str) -> tuple[list[ComponentRow], list[str]]:
                 r.balance_after = None
     if skipped:
         warnings.append(f"{skipped} line(s) starting with dates could not be read (skipped)")
-    return rows, warnings
+    return rows, warnings, formalised
 
 
 def _pdf_text(file_path: str) -> Optional[str]:
@@ -509,9 +527,10 @@ async def extract_loan_history(file_path: str, gateway=None, use_text_parser: bo
     if use_text_parser:
         text = await asyncio.to_thread(_pdf_text, file_path)
         if text:
-            rows, warnings = parse_loan_history_text(text)
+            rows, warnings, formalised = _parse_history(text)
             if rows:
-                return ExtractedLoanHistory(rows=rows, warnings=warnings + reconcile_loan(rows))
+                return ExtractedLoanHistory(rows=rows, warnings=warnings + reconcile_loan(rows),
+                                            complete=formalised or min(r.instalment_number for r in rows) == 1)
     gw = gateway or get_gateway()
     result = await _call(gw, _LOAN_HISTORY_SYSTEM_PROMPT, _LOAN_HISTORY_USER_PROMPT, _LOAN_HISTORY_SCHEMA, file_path)
     try:
@@ -527,7 +546,8 @@ async def extract_loan_history(file_path: str, gateway=None, use_text_parser: bo
             raise PositionExtractionError(f"row {i} has no instalment number") from None
         except _PARSE_ERRORS as exc:
             raise PositionExtractionError(f"Could not parse loan history response: {exc}") from exc
-    return ExtractedLoanHistory(rows=rows, warnings=reconcile_loan(rows))
+    return ExtractedLoanHistory(rows=rows, warnings=reconcile_loan(rows),
+                                complete=bool(rows) and min(r.instalment_number for r in rows) == 1)
 
 
 # --- deterministic aggregation and reconciliation ------------------------

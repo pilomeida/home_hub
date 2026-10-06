@@ -26,6 +26,21 @@ from app.services.position_store import (
 from tests.fakes.fake_gateway import FakeGateway
 
 
+@pytest.fixture(autouse=True)
+def _printouts_are_complete(monkeypatch):
+    """These tests are about storing/assigning printouts, not cropping: their LLM
+    replies stand for complete printouts (cropping: tests/test_loan_history_crop.py)."""
+    from app.services import position_store as _ps
+    original = _ps.extract_loan_history
+
+    async def complete(*args, **kwargs):
+        history = await original(*args, **kwargs)
+        history.complete = True
+        return history
+
+    monkeypatch.setattr(_ps, "extract_loan_history", complete)
+
+
 def _doc(session, tmp_path, name="d.pdf", category="statement_positions", h=None):
     path = tmp_path / name
     path.write_bytes(b"%PDF-1.4 fake")
