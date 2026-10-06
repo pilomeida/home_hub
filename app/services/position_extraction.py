@@ -7,8 +7,11 @@ aggregation and reconciliation is deterministic code in this module
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import shutil
+import subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
@@ -334,6 +337,8 @@ def _digits(value) -> str:
 
 def _parse_row(item: dict) -> ComponentRow:
     component = item["component"]
+    if item.get("instalment_number") is None:
+        raise PositionExtractionError("row has no instalment number")
     if component not in COMPONENTS:
         raise ValueError(f"unknown component: {component!r}")
     amount = _to_float(item["amount"])
@@ -436,15 +441,92 @@ async def extract_statement_positions(file_path: str, gateway=None) -> Extracted
     return positions
 
 
-async def extract_loan_history(file_path: str, gateway=None) -> ExtractedLoanHistory:
-    """Extract the table rows of an online-banking loan-movements printout."""
+_TEXT_COMPONENTS = {"CAPIT.": "capital", "JUROS": "interest", "SEGURO": "insurance_life", "SEG ED": "insurance_building"}
+_CANDIDATE = re.compile(r"^\d{2}-\d{2}-\d{4}\s+\d{2}-\d{2}-\d{4}\b")
+_TEXT_ROW = re.compile(
+    r"^(\d{2}-\d{2}-\d{4})\s+\d{2}-\d{2}-\d{4}\s+(\S+)\s+PRESTACAO\s*-\s*(.+?)\s+"
+    r"(-?[\d.,]+)\s*EUR(?:\s+(-?[\d.,]+)\s*EUR)?\s*$"
+)
+
+
+def parse_loan_history_text(text: str) -> tuple[list[ComponentRow], list[str]]:
+    """Rows of a loan-history printout from `pdftotext -raw` output, plus warnings.
+    Pure and deterministic; lines that are not table rows are ignored. A balance is
+    kept only on capital rows (> 0, or 0.0 on the newest instalment's last capital row)."""
+    rows: list[ComponentRow] = []
+    warnings: list[str] = []
+    skipped = 0
+    for line in text.splitlines():
+        line = line.strip()
+        if not _CANDIDATE.match(line):
+            continue
+        m = _TEXT_ROW.match(line)
+        if not m:
+            skipped += 1
+            continue
+        d, number, name, amount, balance = m.groups()
+        component = _TEXT_COMPONENTS.get(re.sub(r"\s+", " ", name.upper()))
+        if component is None:
+            warnings.append(f"unknown component {name!r} skipped")
+            continue
+        try:
+            when = date(int(d[6:]), int(d[3:5]), int(d[:2]))
+            n = int(number)
+            value = abs(_to_float(amount))
+            bal = abs(_to_float(balance)) if balance is not None else None
+        except (ValueError, TypeError):
+            skipped += 1
+            continue
+        rows.append(ComponentRow(when, n, component, value, bal if component == "capital" else None))
+    if rows:
+        newest = max(r.instalment_number for r in rows)
+        for r in rows:  # a 0,00 balance is the payoff only on the newest instalment
+            if r.component == "capital" and r.balance_after == 0 and r.instalment_number != newest:
+                r.balance_after = None
+    if skipped:
+        warnings.append(f"{skipped} line(s) starting with dates could not be read (skipped)")
+    return rows, warnings
+
+
+def _pdf_text(file_path: str) -> Optional[str]:
+    """`pdftotext -raw` output, or None when the tool is missing / fails."""
+    exe = shutil.which("pdftotext")
+    if exe is None:
+        return None
+    try:
+        done = subprocess.run([exe, "-raw", file_path, "-"], capture_output=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout.decode("utf-8", errors="replace")
+
+
+async def extract_loan_history(file_path: str, gateway=None, use_text_parser: bool = True) -> ExtractedLoanHistory:
+    """Extract the table rows of an online-banking loan-movements printout.
+    The text layer is parsed deterministically when possible (no LLM call);
+    otherwise the gateway transcribes the document."""
+    if use_text_parser:
+        text = await asyncio.to_thread(_pdf_text, file_path)
+        if text:
+            rows, warnings = parse_loan_history_text(text)
+            if rows:
+                return ExtractedLoanHistory(rows=rows, warnings=warnings + reconcile_loan(rows))
     gw = gateway or get_gateway()
     result = await _call(gw, _LOAN_HISTORY_SYSTEM_PROMPT, _LOAN_HISTORY_USER_PROMPT, _LOAN_HISTORY_SCHEMA, file_path)
     try:
         data = json.loads(strip_json_fences(result.text))
-        rows = [_parse_row(r) for r in data["rows"]]
+        items = data["rows"]
     except _PARSE_ERRORS as exc:
         raise PositionExtractionError(f"Could not parse loan history response: {exc}") from exc
+    rows = []
+    for i, item in enumerate(items, 1):
+        try:
+            rows.append(_parse_row(item))
+        except PositionExtractionError:
+            raise PositionExtractionError(f"row {i} has no instalment number") from None
+        except _PARSE_ERRORS as exc:
+            raise PositionExtractionError(f"Could not parse loan history response: {exc}") from exc
     return ExtractedLoanHistory(rows=rows, warnings=reconcile_loan(rows))
 
 
