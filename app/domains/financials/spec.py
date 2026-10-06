@@ -32,6 +32,16 @@ SPEC = DomainSpec(
             FinancialsCategory.STATEMENT.value, "Bank statement",
             "A bank or card account statement listing many transactions.",
         ),
+        CategorySpec(
+            FinancialsCategory.POSITIONS.value, "Statement – loans & savings positions only",
+            "A consolidated bank statement read only for loan, fund and balance positions (never for transactions).",
+            classifiable=False,
+        ),
+        CategorySpec(
+            FinancialsCategory.LOAN_HISTORY.value, "Online-banking loan movements printout",
+            "An online-banking printout of one loan's instalment movements.",
+            classifiable=False,
+        ),
     ),
     fields=(
         FieldSpec(
@@ -44,6 +54,7 @@ SPEC = DomainSpec(
         NavLink("Bills & Bank", "/financials/bills"),
         NavLink("Transactions", "/financials/transactions"),
         NavLink("Bank connections", "/financials/bank/"),
+        NavLink("Loans & Savings", "/financials/loans"),
         NavLink("Utilities", "/financials/utilities/electricity"),
     ),
     overview_card=financials_overview_card,

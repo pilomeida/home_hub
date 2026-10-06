@@ -1,0 +1,83 @@
+{% set est_label = "Month-end estimate" if budget_view == "month" else "Year-end estimate" %}
+{% macro eurs(v) %}{{ "−" if v < -0.5 else "" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
+{% set eur = "{:,.0f}" %}
+{% set loans_total = budget.loan_instalments + budget.loan_instalments_paid %}
+<div id="budget-panel">
+  <div class="bud-error" hidden style="color:#b3261e;font-size:13px;margin:6px 0"></div>
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>Budget</span>
+      <div class="fc-pills">
+        {% for key, label in [("month", "Month"), ("year", "Year")] %}
+        <a
+          class="{{ 'active' if budget_view == key else '' }}"
+          href="#"
+          hx-get="/overview/budget?view={{ key }}"
+          hx-target="#budget-panel"
+          hx-swap="outerHTML"
+        >{{ label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if budget_view == "month" %}
+    <p class="bud-hint" style="color:#888;font-size:12px;margin:0 0 8px">Yearly items without a due month show in the Year view</p>
+    {% endif %}
+    {% set nf_url = "/financials/transactions/needs-review" %}
+    <div class="bud-cards">
+      <div class="fc-card">
+        <div class="fc-card-label"><span>Income</span></div>
+        <div class="fc-card-val">€{{ eur.format(budget.income.low) }} – €{{ eur.format(budget.income.high) }}</div>
+        <div class="fc-card-caption">{{ est_label }}: €{{ eur.format(budget.income.expected) }} expected</div>
+        <div class="fc-card-caption">€{{ eur.format(budget.income_received) }} received so far</div>
+        {% if budget.unsorted_received > 0 %}
+        <div class="fc-card-caption"><a href="{{ nf_url }}">+ €{{ eur.format(budget.unsorted_received) }} income not filed yet</a></div>
+        {% endif %}
+      </div>
+      <div class="fc-card">
+        <div class="fc-card-label"><span>Spending</span></div>
+        <div class="fc-card-val">€{{ eur.format(budget.spend_spent) }} <span style="font-size:12px;font-weight:400;color:#888">so far</span></div>
+        <div class="fc-card-caption">{{ est_label }}: €{{ eur.format(budget.spend_expected) }}</div>
+        <div class="fc-card-caption">€{{ eur.format(budget.spend_if_budget_respected) }} if budgets are respected</div>
+        {% if budget.unsorted_spent > 0 %}
+        <div class="fc-card-caption"><a href="{{ nf_url }}">+ €{{ eur.format(budget.unsorted_spent) }} not filed yet</a></div>
+        {% endif %}
+        {% if loans_total > 0 %}
+        <div class="fc-card-caption"><a href="/financials/loans">+ €{{ eur.format(loans_total) }} loan instalments</a></div>
+        {% endif %}
+      </div>
+      <div class="fc-card">
+        <div class="fc-card-label"><span>Net</span></div>
+        <div class="fc-card-val">{{ eurs(budget.net.expected) }}</div>
+        <div class="fc-card-caption">{{ est_label }}</div>
+        <div class="fc-card-caption">range {{ eurs(budget.net.low) }} to {{ eurs(budget.net.high) }}</div>
+        <div class="fc-card-caption">{{ 'after loan instalments' if loans_total > 0 else 'before loan repayments' }}{% if budget.unsorted_received > 0 or budget.unsorted_spent > 0 %}; <a href="{{ nf_url }}">not filed yet: {% if budget.unsorted_received > 0 %}€{{ eur.format(budget.unsorted_received) }} income{% endif %}{% if budget.unsorted_received > 0 and budget.unsorted_spent > 0 %}, {% endif %}{% if budget.unsorted_spent > 0 %}€{{ eur.format(budget.unsorted_spent) }} spending{% endif %}</a>{% endif %}</div>
+      </div>
+    </div>
+
+    {% if not budget_has_lines %}
+      <p class="bud-hint">No spending recorded yet.</p>
+    {% else %}
+      {% if not budget_has_budgets %}
+      <p class="bud-hint">No budgets yet — click 'set budget' on a line to add one</p>
+      {% endif %}
+      {% include "dashboard/_budget_rows.html" %}
+    {% endif %}
+
+    {% if budget.unsorted_spent > 0 %}
+    <a class="bud-notfiled" href="/financials/transactions/needs-review">
+      <span>Not filed yet</span><span>€{{ eur.format(budget.unsorted_spent) }}</span>
+    </a>
+    {% endif %}
+  </div>
+  <script>
+    if (!window.__budErr) {
+      window.__budErr = true;
+      document.body.addEventListener('htmx:responseError', function (e) {
+        var panel = e.target.closest && e.target.closest('#budget-panel');
+        var box = panel && panel.querySelector('.bud-error');
+        if (box) { box.textContent = e.detail.xhr.responseText; box.hidden = false; }
+      });
+    }
+  </script>
+</div>

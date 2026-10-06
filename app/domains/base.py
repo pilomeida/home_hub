@@ -59,6 +59,7 @@ class CategorySpec:
     description: str      # one sentence; also fed to Plan B's classifier prompt
     accepted_media: frozenset[MediaKind] = DEFAULT_MEDIA
     kind: SourceKind = SourceKind.DOCUMENT
+    classifiable: bool = True  # False: chosen explicitly (e.g. an upload page), never offered to the automatic classifier
 
 
 @dataclass(frozen=True)

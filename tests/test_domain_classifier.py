@@ -104,3 +104,14 @@ async def test_garbage_response_raises(pdf, two_domains):
     garbage = FakeGateway([{"text": "not json", "stop_reason": "end_turn", "usage": {}}])
     with pytest.raises(DomainClassificationError):
         await suggest_domain_and_category(pdf, gateway=garbage)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("category", ["statement_positions", "loan_history"])
+async def test_non_classifiable_category_from_the_model_is_treated_as_unknown(pdf, category):
+    # real registry: these two categories are chosen on the loans upload page, never by the classifier
+    prompt = build_system_prompt(implemented_domains())
+    assert f'"{category}"' not in prompt
+    result = await suggest_domain_and_category(
+        pdf, gateway=_answer(domain="financials", category=category, confidence=0.99, reason="x"))
+    assert result.domain is None and result.confidence == 0.0

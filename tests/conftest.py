@@ -20,6 +20,23 @@ def engine(tmp_path):
 
 
 @pytest.fixture()
+def fk_session(tmp_path):
+    """A session whose engine ENFORCES foreign keys, like production (app/db.py).
+    Opt-in: only tests that ask for it run with FKs on."""
+    from app.db import register_foreign_keys_pragma
+
+    fk_engine = create_engine(
+        f"sqlite:///{tmp_path / 'fk.db'}", connect_args={"check_same_thread": False}
+    )
+    register_foreign_keys_pragma(fk_engine)
+    from app import models  # noqa: F401
+
+    SQLModel.metadata.create_all(fk_engine)
+    with Session(fk_engine) as s:
+        yield s
+
+
+@pytest.fixture()
 def session(engine):
     with Session(engine) as s:
         yield s

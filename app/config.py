@@ -40,6 +40,7 @@ class Settings:
     HUB_IMAP_USER: str = os.environ.get("HUB_IMAP_USER") or ""
     HUB_IMAP_PASSWORD: str = os.environ.get("HUB_IMAP_PASSWORD") or ""
     HUB_TELEGRAM_BOT_TOKEN: str = os.environ.get("HUB_TELEGRAM_BOT_TOKEN") or ""
+    HUB_REMINDER_TELEGRAM_NAME: str = os.environ.get("HUB_REMINDER_TELEGRAM_NAME") or "Pedro"
     PUBLIC_BASE_URL: str = os.environ.get("PUBLIC_BASE_URL") or "https://hub.cdafamily.casa"
 
     # --- Bank auto-capture (Enable Banking) ---

@@ -1,5 +1,5 @@
 {% for t in transactions %}
-<tr>
+<tr class="flow-{{ (row_flow or {}).get(t.id, 'out') }}">
   <td><input type="checkbox" name="transaction_ids" value="{{ t.id }}"></td>
   <td>{{ t.paid_date or "" }}</td>
   <td>{{ t.provider }}</td>
@@ -8,10 +8,11 @@
     <a href="/financials/transactions?merchant_id={{ t.merchant_id }}">{{ merchant_names[t.merchant_id] }}</a>
     {% endif %}
   </td>
-  <td>{{ t.category.value }}</td>
+  <td>{{ (node_labels or {}).get(t.id) or t.category.value }}</td>
   <td>{{ t.nature.value if t.nature else "" }}</td>
   <td>{{ account_names.get(t.account_id, "") if account_names else (t.account_id or "") }}</td>
-  <td>{{ "%.2f"|format(t.amount) }}</td>
+  {% set fl = (row_flow or {}).get(t.id, 'out') %}
+  <td class="amt">{{ "−" if fl == "out" else ("+" if fl == "in" else "") }}{{ "%.2f"|format(t.amount) }}</td>
   <td>
     {% if t.linked_transaction_id and linked_transactions and linked_transactions.get(t.linked_transaction_id) %}
     {% set lt = linked_transactions[t.linked_transaction_id] %}

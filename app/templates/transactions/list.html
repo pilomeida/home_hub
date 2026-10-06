@@ -10,10 +10,10 @@
 <p>Showing transactions for merchant: <strong>{{ merchant_filter_name }}</strong> — <a href="/financials/transactions">clear</a></p>
 {% endif %}
 <form method="get" action="/financials/transactions">
-  <select name="category">
+  <select name="category_node">
     <option value="">All categories</option>
-    {% for c in categories %}
-    <option value="{{ c.value }}" {% if filters.category == c.value %}selected{% endif %}>{{ c.value }}</option>
+    {% for o in node_options %}
+    <option value="{{ o.slug }}" {% if filters.category_node == o.slug %}selected{% endif %}>{{ "\u00a0\u00a0" * (o.level - 1) }}{{ o.name }}</option>
     {% endfor %}
   </select>
   <select name="nature">
@@ -39,6 +39,7 @@
   hx-swap="innerHTML"
 >
   <input type="hidden" name="category" value="{{ filters.category or '' }}">
+  <input type="hidden" name="category_node" value="{{ filters.category_node or '' }}">
   <input type="hidden" name="nature" value="{{ filters.nature or '' }}">
   <input type="hidden" name="account_id" value="{{ filters.account_id or '' }}">
   <input type="hidden" name="date_from" value="{{ filters.date_from or '' }}">
@@ -54,9 +55,9 @@
   </table>
   <fieldset>
     <legend>Apply to selected</legend>
-    <select name="new_category">
+    <select name="new_category_node">
       <option value="">(no change)</option>
-      {% for c in categories %}<option value="{{ c.value }}">{{ c.value }}</option>{% endfor %}
+      {% for o in node_options if o.level == 3 %}<option value="{{ o.slug }}">{{ o.label }}</option>{% endfor %}
     </select>
     <select name="new_nature">
       <option value="">(no change)</option>
@@ -70,7 +71,7 @@
   </fieldset>
 </form>
 <nav class="pagination">
-  {% set qs = "category=" ~ (filters.category or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") ~ "&merchant_id=" ~ (filters.merchant_id or "") %}
+  {% set qs = "category=" ~ (filters.category or "") ~ "&category_node=" ~ (filters.category_node or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") ~ "&merchant_id=" ~ (filters.merchant_id or "") %}
   {% if page > 1 %}
   <a href="/financials/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
   {% endif %}

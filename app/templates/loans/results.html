@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Upload results — Home & Family{% endblock %}
+{% block content %}
+<div class="fc-page">
+<div class="fc-frame">
+  <div class="fc-topbar">
+    <div class="fc-brand">UPLOAD RESULTS</div>
+    <div class="fc-period"><a href="/financials/loans">← Loans &amp; Savings</a></div>
+  </div>
+  <div class="fc-section">
+    {% if error %}<p class="loan-error" role="alert" style="color:#a8504a"><strong>{{ error }}</strong></p>{% endif %}
+    <table class="loan-results">
+      <thead><tr><th>File</th><th>Result</th></tr></thead>
+      <tbody>
+      {% for r in results %}
+      <tr class="loan-result loan-result-{{ r.outcome }}" style="vertical-align: top">
+        <td>{{ r.name }}<br><small>{{ r.slot }}</small></td>
+        <td>
+          {% if r.outcome == "read" %}read: {{ r.message }}
+          {% elif r.outcome == "already_read" %}already read{% if r.message %} — {{ r.message }}{% endif %}
+          {% elif r.outcome == "failed" %}failed: {{ r.message }}
+          {% elif r.outcome == "rejected" %}rejected: {{ r.message }}
+          {% elif r.outcome == "other" %}{{ r.message }}
+          {% elif r.outcome == "needs_loan" %}
+            <strong>needs a loan</strong> — {{ r.message }}
+            <form action="/financials/loans/assign" method="post" class="loan-assign">
+              <input type="hidden" name="extraction_id" value="{{ r.extraction_id }}">
+              <p><label>Loan
+                <select name="debt_id">
+                  <option value="new">New loan…</option>
+                  {% for d in loans %}<option value="{{ d.id }}">{{ d.name }} (…{{ d.external_number[-4:] }})</option>{% endfor %}
+                </select></label></p>
+              <p><small>For a new loan: the account number as it appears in the COB.REC.31.&lt;number&gt; text of its bank transactions.</small></p>
+              <p><label>Account number <input type="text" name="number" inputmode="numeric" placeholder="e.g. 000123456789"></label>
+                 <label>Name <input type="text" name="name" placeholder="e.g. Car loan"></label>
+                 <label>Type
+                  <select name="loan_type">
+                    <option value="mortgage">mortgage</option><option value="personal">personal</option><option value="other">other</option>
+                  </select></label></p>
+              <p><button type="submit">Assign</button></p>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p><a href="/financials/loans/upload">Upload more</a> · <a href="/financials/loans">Back to Loans &amp; Savings</a></p>
+  </div>
+</div>
+</div>
+{% endblock %}

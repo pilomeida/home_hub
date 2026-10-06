@@ -888,7 +888,7 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
         return extracted
 
     merchant_response = json.dumps({
-        "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
+        "canonical_name": "Loja Nova", "node_slug": "personal-lifestyle.personal.general-shopping", "nature": "discretionary",
     })
 
     async def real_classify_transaction_with_fake_client(session, transaction, gateway=None):
@@ -912,3 +912,53 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
         select(Merchant).where(Merchant.normalized_key == normalize_provider("LOJA NOVA DESCONHECIDA"))
     ).first()
     assert merchant is None
+
+
+
+@pytest.mark.asyncio
+async def test_failed_statement_cleanup_keeps_informal_ledger_entries(fk_session, monkeypatch, tmp_path):
+    """A line item auto-linked to an informal loan is deleted by the failed-statement
+    cleanup; its ledger entry must be detached (kept), not blocked by the foreign key."""
+    from datetime import date as _date
+    from decimal import Decimal
+    from app.models.position import DebtEntry, DebtMatchRule
+    from app.models.transaction import Nature
+    from app.models.debt import DebtDirection
+    from app.services import debt_ledger
+    from app.services.taxonomy import ensure_taxonomy
+
+    session = fk_session
+    ensure_taxonomy(session)
+    key = normalize_provider("TRF SEPA+ P/ TEST PERSON")
+    debt = debt_ledger.create_informal_debt(session, "Test Person", DebtDirection.OWED_TO_US, opening_amount=100.0)
+    session.add(DebtMatchRule(debt_id=debt.id, normalized_key=key))
+    session.add(Merchant(canonical_name="Test Person", default_category=Category.OTHER_EXPENSE,
+                         default_nature=Nature.ESSENTIAL, normalized_key=key))
+    session.commit()
+    document = _make_document(session, tmp_path, filename="fk-cleanup.pdf", content_hash="hash-fk-cleanup")
+    extracted = ExtractedStatement(statement_period="2026-07", transactions=[
+        ExtractedTransaction(transaction_date=_date(2026, 7, 5), description="TRF SEPA+ P/ TEST PERSON", amount=40.0,
+                             currency="EUR", transaction_type="debit", category_hint="other_expense"),
+        ExtractedTransaction(transaction_date=_date(2026, 7, 6), description="MYSTERY LINE", amount=10.0,
+                             currency="EUR", transaction_type="not-a-real-type", category_hint="other_expense"),
+    ])
+
+    async def fake_extract(file_path, gateway=None):
+        return extracted
+
+    async def real_classify(session, transaction, gateway=None):
+        return await _real_classify_transaction(session, transaction, gateway=_fake_gateway("{}"))
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
+    monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract)
+    monkeypatch.setattr(pipeline, "classify_transaction", real_classify)
+
+    result = await pipeline.process_financials_document(session, document)
+
+    assert result.status == DocumentStatus.NEEDS_ATTENTION
+    assert session.exec(select(Transaction).where(Transaction.document_id == document.id)).all() == []
+    session.expire_all()
+    entries = session.exec(select(DebtEntry).order_by(DebtEntry.id)).all()
+    assert len(entries) == 2 and all(e.transaction_id is None for e in entries)
+    assert debt_ledger.WITHDRAWN_NOTE in entries[1].note and entries[1].amount == 40.0
+    assert session.get(type(debt), debt.id).current_balance == Decimal("140.00")

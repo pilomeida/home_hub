@@ -3,6 +3,7 @@ import json
 import pytest
 
 from app.models.transaction import Category, Nature
+from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from app.services.classification_engine import (
     ClassificationResult,
     MerchantResolutionError,
@@ -55,39 +56,59 @@ def _fake_merchant_gateway(response_text: str):
 
 
 @pytest.mark.asyncio
-async def test_resolve_merchant_via_llm_parses_valid_response():
+async def test_resolve_merchant_via_llm_parses_valid_response(session):
+    ensure_taxonomy(session)
     response = json.dumps({
         "canonical_name": "Modelo Hiper",
-        "category": "groceries",
+        "node_slug": "food.groceries.supermarket",
         "nature": "essential",
     })
     client = _fake_merchant_gateway(response)
 
-    result = await resolve_merchant_via_llm("MODELO HIPER 2640-MAFR", gateway=client)
+    result = await resolve_merchant_via_llm("MODELO HIPER 2640-MAFR", session, gateway=client)
 
     assert isinstance(result, ResolvedMerchant)
     assert result.canonical_name == "Modelo Hiper"
+    assert result.node_slug == "food.groceries.supermarket"
     assert result.category == Category.GROCERIES
     assert result.nature == Nature.ESSENTIAL
+    # the prompt lists the leaf slugs and the schema enum is exactly that list,
+    # minus the nodes only the loan-insurance linker may use
+    from app.services.taxonomy import leaf_slugs
+    req = client.requests[0]
+    assert req["response_schema"]["properties"]["node_slug"]["enum"] == [
+        s for s in leaf_slugs(session) if not s.startswith("loans-debt.loan-insurance.")]
+    assert "food.groceries.supermarket" in req["system"]
+    assert UNSORTED_SLUG in req["system"]
 
 
 @pytest.mark.asyncio
-async def test_resolve_merchant_via_llm_raises_on_malformed_json():
+async def test_resolve_merchant_via_llm_raises_on_malformed_json(session):
+    ensure_taxonomy(session)
     client = _fake_merchant_gateway("not json")
 
     with pytest.raises(MerchantResolutionError):
-        await resolve_merchant_via_llm("SOME PROVIDER", gateway=client)
+        await resolve_merchant_via_llm("SOME PROVIDER", session, gateway=client)
 
 
 @pytest.mark.asyncio
-async def test_resolve_merchant_via_llm_raises_on_invalid_category():
+async def test_resolve_merchant_via_llm_raises_on_invalid_category(session):
+    ensure_taxonomy(session)
     response = json.dumps({
-        "canonical_name": "Some Shop", "category": "not_a_real_category", "nature": "essential",
+        "canonical_name": "Some Shop", "node_slug": "made.up.slug", "nature": "essential",
     })
     client = _fake_merchant_gateway(response)
 
     with pytest.raises(MerchantResolutionError):
-        await resolve_merchant_via_llm("SOME SHOP", gateway=client)
+        await resolve_merchant_via_llm("SOME SHOP", session, gateway=client)
+
+
+@pytest.mark.asyncio
+async def test_resolve_merchant_via_llm_raises_when_taxonomy_not_seeded(session):
+    client = _fake_merchant_gateway(json.dumps({
+        "canonical_name": "X", "node_slug": UNSORTED_SLUG, "nature": "essential"}))
+    with pytest.raises(MerchantResolutionError):
+        await resolve_merchant_via_llm("X", session, gateway=client)
 
 
 @pytest.mark.asyncio
@@ -135,6 +156,8 @@ async def test_classify_transaction_creates_new_merchant_via_llm_fallback(sessio
     from app.models.document import Document, DocumentSource
     from app.models.transaction import Transaction
 
+    ensure_taxonomy(session)
+
     document = Document(
         filename="s2.pdf", file_path="/tmp/s2.pdf", content_hash="hash-classify-2",
         source=DocumentSource.MANUAL,
@@ -152,7 +175,7 @@ async def test_classify_transaction_creates_new_merchant_via_llm_fallback(sessio
     session.refresh(transaction)
 
     response = json.dumps({
-        "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
+        "canonical_name": "Loja Nova", "node_slug": "personal-lifestyle.personal.general-shopping", "nature": "discretionary",
     })
     result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway(response))
     session.commit()
@@ -292,6 +315,8 @@ async def test_classify_transaction_does_not_commit_internally(session):
     from app.models.transaction import Transaction
     from sqlmodel import select
 
+    ensure_taxonomy(session)
+
     document = Document(
         filename="s5.pdf", file_path="/tmp/s5.pdf", content_hash="hash-classify-5",
         source=DocumentSource.MANUAL,
@@ -309,7 +334,7 @@ async def test_classify_transaction_does_not_commit_internally(session):
     session.refresh(transaction)
 
     response = json.dumps({
-        "canonical_name": "Loja Nova", "category": "shopping", "nature": "discretionary",
+        "canonical_name": "Loja Nova", "node_slug": "personal-lifestyle.personal.general-shopping", "nature": "discretionary",
     })
     result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway(response))
     assert result.created_new_merchant is True
@@ -678,3 +703,281 @@ def test_get_needs_review_queue_includes_unclassified_transactions(session):
     queue = get_needs_review_queue(session)
 
     assert unclassified_transaction.id in [t.id for t in queue.unclassified_transactions]
+
+
+def _txn(session, provider, ttype=None, amount=15.0, hash_=None):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction, TransactionType
+
+    document = Document(filename=f"{provider}.pdf", file_path=f"/tmp/{provider}.pdf",
+                        content_hash=hash_ or f"h5-{provider}", source=DocumentSource.MANUAL)
+    session.add(document)
+    session.commit()
+    t = Transaction(document_id=document.id, provider=provider, category=Category.OTHER,
+                    transaction_type=ttype or TransactionType.DEBIT, amount=amount, currency="EUR")
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+    return t
+
+
+def _reply(slug, name="Galp", nature="essential"):
+    return _fake_merchant_gateway(json.dumps(
+        {"canonical_name": name, "node_slug": slug, "nature": nature}))
+
+
+@pytest.mark.asyncio
+async def test_classify_files_new_merchant_under_tree_leaf(session):
+    ensure_taxonomy(session)
+    t = _txn(session, "GALP LISBOA")
+    result = await classify_transaction(
+        session, t, gateway=_reply("transport.car-running.fuel"))
+    fuel = get_node(session, "transport.car-running.fuel")
+    assert result.merchant.default_category_id == fuel.id
+    assert t.category_id == fuel.id
+    assert t.category == Category.OTHER_EXPENSE  # dual-write via kind default (fuel has no legacy value)
+
+
+@pytest.mark.asyncio
+async def test_classify_dual_writes_legacy_on_merchant_and_transaction(session):
+    ensure_taxonomy(session)
+    t = _txn(session, "MODELO")
+    result = await classify_transaction(
+        session, t, gateway=_reply("food.groceries.supermarket", "Modelo"))
+    assert t.category == Category.GROCERIES
+    assert result.merchant.default_category == Category.GROCERIES
+
+
+@pytest.mark.asyncio
+async def test_classify_unsorted_merchant_leaves_transaction_in_review_queue(session):
+    from app.services.classification_engine import get_needs_review_queue
+
+    ensure_taxonomy(session)
+    t = _txn(session, "MYSTERY CO")
+    result = await classify_transaction(session, t, gateway=_reply(UNSORTED_SLUG, "Mystery Co"))
+    unsorted = get_node(session, UNSORTED_SLUG)
+    assert result.merchant.default_category_id == unsorted.id
+    assert t.category_id == unsorted.id  # production files it explicitly under Unsorted
+    session.commit()
+    queue = get_needs_review_queue(session)
+    assert t.id in [x.id for x in queue.unsorted_transactions]
+
+
+@pytest.mark.asyncio
+async def test_classify_existing_merchant_with_node_files_new_transaction(session):
+    from app.models.merchant import Merchant
+
+    ensure_taxonomy(session)
+    fuel = get_node(session, "transport.car-running.fuel")
+    session.add(Merchant(canonical_name="Galp", normalized_key="galp", default_category_id=fuel.id,
+                         default_nature=Nature.ESSENTIAL))
+    session.commit()
+    t = _txn(session, "GALP")
+    await classify_transaction(session, t, gateway=_fake_merchant_gateway("{}"))  # no LLM needed
+    assert t.category_id == fuel.id
+
+
+@pytest.mark.asyncio
+async def test_classify_existing_merchant_without_node_is_not_filed(session):
+    from app.models.merchant import Merchant
+
+    ensure_taxonomy(session)
+    session.add(Merchant(canonical_name="Old", normalized_key="old", default_category=Category.GROCERIES))
+    session.commit()
+    t = _txn(session, "OLD")
+    await classify_transaction(session, t, gateway=_fake_merchant_gateway("{}"))
+    assert t.category_id is None
+
+
+def test_get_needs_review_queue_groups_unfiled_and_unsorted_by_merchant(session):
+    from app.models.merchant import Merchant
+    from app.services.classification_engine import get_needs_review_queue
+    from app.services.taxonomy import file_transaction
+
+    ensure_taxonomy(session)
+    unsorted = get_node(session, UNSORTED_SLUG)
+    fuel = get_node(session, "transport.car-running.fuel")
+    m = Merchant(canonical_name="Shop", normalized_key="shop")
+    session.add(m)
+    session.commit()
+    a, b, c = _txn(session, "SHOP A"), _txn(session, "SHOP B"), _txn(session, "SHOP C")
+    a.merchant_id = b.merchant_id = c.merchant_id = m.id
+    file_transaction(session, b, unsorted)
+    file_transaction(session, c, fuel)
+    session.commit()
+
+    queue = get_needs_review_queue(session)
+    ids = [t.id for t in queue.unsorted_transactions]
+    assert a.id in ids and b.id in ids and c.id not in ids
+    group = queue.unsorted_by_merchant[m.id]
+    assert sorted(t.id for t in group) == sorted([a.id, b.id])
+
+
+@pytest.mark.asyncio
+async def test_merchant_memory_does_not_file_a_credit_under_an_out_node(session):
+    from app.models.merchant import Merchant
+    from app.models.transaction import TransactionType
+    from app.services.classification_engine import get_needs_review_queue
+
+    ensure_taxonomy(session)
+    sm = get_node(session, "food.groceries.supermarket")
+    session.add(Merchant(canonical_name="Modelo", normalized_key="modelo", default_category_id=sm.id))
+    session.commit()
+    refund = _txn(session, "MODELO", ttype=TransactionType.CREDIT, hash_="h-refund")
+    debit = _txn(session, "MODELO", ttype=TransactionType.DEBIT, hash_="h-debit")
+    await classify_transaction(session, refund, gateway=_fake_merchant_gateway("{}"))
+    await classify_transaction(session, debit, gateway=_fake_merchant_gateway("{}"))
+    session.commit()
+    assert debit.category_id == sm.id
+    assert refund.category_id is None
+    assert refund.id in [t.id for t in get_needs_review_queue(session).unsorted_transactions]
+
+
+@pytest.mark.asyncio
+async def test_new_merchant_credit_with_out_node_is_not_filed(session):
+    from app.models.transaction import TransactionType
+
+    ensure_taxonomy(session)
+    t = _txn(session, "ODD CREDIT", ttype=TransactionType.CREDIT)
+    await classify_transaction(session, t, gateway=_reply("food.groceries.supermarket", "Odd"))
+    assert t.category_id is None
+
+
+def test_direction_matches_rules(session):
+    from app.models.transaction import Transaction, TransactionType
+    from app.services.taxonomy import direction_matches
+
+    ensure_taxonomy(session)
+    out = get_node(session, "food.groceries.supermarket")
+    unsorted = get_node(session, UNSORTED_SLUG)
+    refunds = get_node(session, "refunds-reimbursements.refunds.purchase-refunds")
+    def tx(k): return Transaction(document_id=1, provider="x", amount=1, transaction_type=k)
+    assert direction_matches(tx(TransactionType.DEBIT), out)
+    assert not direction_matches(tx(TransactionType.TRANSFER), out)
+    assert not direction_matches(tx(TransactionType.TRANSFER), refunds)
+    internal = get_node(session, "internal-transfers.between-my-accounts.santander-revolut")
+    assert direction_matches(tx(TransactionType.TRANSFER), internal)
+    assert direction_matches(tx(TransactionType.TRANSFER), unsorted)
+    assert not direction_matches(tx(TransactionType.CREDIT), out)
+    assert direction_matches(tx(TransactionType.CREDIT), refunds)
+    assert not direction_matches(tx(TransactionType.DEBIT), refunds)
+    assert direction_matches(tx(TransactionType.CREDIT), unsorted)
+    assert direction_matches(tx(TransactionType.DEBIT), unsorted)
+
+
+def test_prompt_names_the_credit_only_prefixes_and_not_loan_repayments(session):
+    import asyncio
+    from app.services.taxonomy import leaf_slugs
+
+    ensure_taxonomy(session)
+    gw = _reply(UNSORTED_SLUG)
+    asyncio.run(resolve_merchant_via_llm("X", session, gateway=gw))
+    system = gw.requests[0]["system"]
+    for prefix in ("income.", "refunds-reimbursements.", "loans-debt-in."):
+        assert prefix in system
+        assert any(sl.startswith(prefix) for sl in leaf_slugs(session))
+    assert any(sl.startswith("loans-debt.") for sl in leaf_slugs(session))
+    credit_line = next(l for l in system.splitlines() if l.startswith("Credit-only"))
+    debit_line = next(l for l in system.splitlines() if l.startswith("Debit-only"))
+    assert "loans-debt." not in credit_line.replace("loans-debt-in.", "")
+    assert "loans-debt." in debit_line
+
+
+# ---- loan-insurance nodes are reachable only through insurance linking ----
+
+INSURANCE_SLUGS = ("loans-debt.loan-insurance.life-insurance-loan", "loans-debt.loan-insurance.building-insurance-loan")
+
+
+@pytest.mark.asyncio
+async def test_prompt_and_schema_hide_loan_insurance_but_keep_other_loan_slugs(session):
+    ensure_taxonomy(session)
+    gw = _reply(UNSORTED_SLUG)
+    await resolve_merchant_via_llm("X", session, gateway=gw)
+    request = gw.requests[0]
+    enum = request["response_schema"]["properties"]["node_slug"]["enum"]
+    for slug in INSURANCE_SLUGS:
+        assert slug not in enum and slug not in request["system"]
+    assert "loans-debt.loan-repayments.mortgage" in enum and "loans-debt.interest-fees.loan-interest" in enum
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug", INSURANCE_SLUGS)
+async def test_llm_reply_with_a_loan_insurance_slug_is_rejected(session, slug):
+    ensure_taxonomy(session)
+    with pytest.raises(MerchantResolutionError):
+        await resolve_merchant_via_llm("GENERIC INSURER", session, gateway=_reply(slug))
+
+
+# --- informal loans: DebtMatchRule auto-link creates ledger entries -------
+
+async def _classify_with_rule(session, direction, ttype, amount=100.0):
+    from datetime import date
+    from decimal import Decimal  # noqa: F401
+    from app.models.document import Document, DocumentSource
+    from app.models.merchant import Merchant
+    from app.models.position import DebtMatchRule
+    from app.models.transaction import Transaction
+    from app.services.debt_ledger import create_informal_debt
+
+    ensure_taxonomy(session)
+    provider = "TRF SEPA+ P/ TEST PERSON"
+    debt = create_informal_debt(session, "Test Person", direction, opening_amount=1000.0)
+    session.add(DebtMatchRule(debt_id=debt.id, normalized_key=normalize_provider(provider)))
+    session.add(Merchant(canonical_name="Test Person", default_category=Category.OTHER_EXPENSE,
+                         default_nature=Nature.ESSENTIAL, normalized_key=normalize_provider(provider),
+                         default_category_id=get_node(session, UNSORTED_SLUG).id))
+    doc = Document(filename="ac.pdf", file_path="/tmp/ac.pdf", content_hash=f"ac-{direction}-{ttype}", source=DocumentSource.MANUAL)
+    session.add(doc)
+    session.commit()
+    txn = Transaction(document_id=doc.id, provider=provider, amount=amount, transaction_type=ttype,
+                      category=Category.OTHER_EXPENSE, paid_date=date(2026, 2, 1))
+    session.add(txn)
+    session.commit()
+    await classify_transaction(session, txn, gateway=_fake_merchant_gateway("{}"))
+    session.commit()
+    session.refresh(txn)
+    session.refresh(debt)
+    return debt, txn
+
+
+@pytest.mark.asyncio
+async def test_match_rule_auto_link_creates_a_repayment_entry_and_files_it(session):
+    from decimal import Decimal
+    from sqlmodel import select
+    from app.models.category_node import CategoryNode
+    from app.models.debt import DebtDirection
+    from app.models.position import DebtEntry
+    from app.models.transaction import TransactionType
+
+    debt, txn = await _classify_with_rule(session, DebtDirection.OWED_TO_US, TransactionType.CREDIT)
+    assert txn.debt_id == debt.id and txn.debt_candidate_reviewed is True
+    entry = session.exec(select(DebtEntry).where(DebtEntry.transaction_id == txn.id)).one()
+    assert entry.kind == "repayment" and entry.amount == 100.0
+    assert debt.current_balance == Decimal("900.00")
+    # loan filing wins over the merchant's Unsorted memory
+    assert session.get(CategoryNode, txn.category_id).slug == "loans-debt-in.repayments-received.from-friends"
+
+
+@pytest.mark.asyncio
+async def test_match_rule_auto_link_borrowed_debit_is_a_repayment(session):
+    from decimal import Decimal
+    from app.models.debt import DebtDirection
+    from app.models.transaction import TransactionType
+
+    debt, txn = await _classify_with_rule(session, DebtDirection.OWED_BY_US, TransactionType.DEBIT, 250.0)
+    assert txn.debt_id == debt.id
+    assert debt.current_balance == Decimal("750.00")
+
+
+@pytest.mark.asyncio
+async def test_match_rule_skips_transfer_type_transactions(session):
+    from decimal import Decimal
+    from sqlmodel import select
+    from app.models.debt import DebtDirection
+    from app.models.position import DebtEntry
+    from app.models.transaction import TransactionType
+
+    debt, txn = await _classify_with_rule(session, DebtDirection.OWED_TO_US, TransactionType.TRANSFER)
+    assert txn.debt_id is None and not txn.debt_candidate_reviewed  # stays in Needs Review
+    assert len(session.exec(select(DebtEntry)).all()) == 1  # only the opening entry
+    assert debt.current_balance == Decimal("1000.00")

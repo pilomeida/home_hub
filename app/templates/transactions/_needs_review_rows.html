@@ -1,3 +1,21 @@
+{% macro pager(key, label) %}
+{% set sec = sections[key] %}
+{% if sec.total > sec.shown or sec.offset > 0 %}
+<p class="loan-sub review-pager">Showing {% if sec.offset == 0 %}{{ sec.shown }}{% else %}{{ "{:,}".format(sec.first) }}–{{ "{:,}".format(sec.last) }}{% endif %} of {{ "{:,}".format(sec.total) }}
+  {% if sec.prev_offset is not none %}<a href="#" hx-get="/financials/transactions/needs-review/rows" hx-vals='{"{{ key }}_off": {{ sec.prev_offset }}}' hx-target="#needs-review-body" hx-swap="innerHTML">Show previous 50</a>{% endif %}
+  {% if sec.prev_offset is not none and sec.next_offset is not none %}&middot;{% endif %}
+  {% if sec.next_offset is not none %}<a href="#" hx-get="/financials/transactions/needs-review/rows" hx-vals='{"{{ key }}_off": {{ sec.next_offset }}}' hx-target="#needs-review-body" hx-swap="innerHTML">Show next 50</a>{% endif %}
+</p>
+{% endif %}
+{% endmacro %}
+{% macro node_select(m) %}
+{% set node = node_by_id.get(m.default_category_id) if m.default_category_id else none %}
+<select name="category_node" data-selected="{{ node.slug if node else '' }}" hx-get="/financials/transactions/node-options" hx-params="none" hx-trigger="intersect once, focus once" hx-swap="innerHTML" hx-sync="this:drop" hx-on::after-swap="this.value=this.dataset.selected">
+  <option value=""{% if not node %} selected{% endif %}>(choose)</option>
+  {% if node %}<option value="{{ node.slug }}" selected>{{ node.label }}</option>{% endif %}
+</select>
+{% endmacro %}
+<div id="needs-review-pages" hx-vals='{{ offsets_json|safe }}'>
 <section id="unconfirmed-merchants">
   <h2>New merchants</h2>
   {% if queue.unconfirmed_merchants %}
@@ -10,11 +28,7 @@
       <tr>
         <td><a href="/financials/transactions?merchant_id={{ m.id }}" target="_blank">{{ m.canonical_name }}</a></td>
         <td>
-          <select name="category">
-            {% for c in categories %}
-            <option value="{{ c.value }}" {% if c == m.default_category %}selected{% endif %}>{{ c.value }}</option>
-            {% endfor %}
-          </select>
+          {{ node_select(m) }}
         </td>
         <td>
           <select name="nature">
@@ -39,6 +53,7 @@
   {% else %}
   <p>Nothing to confirm.</p>
   {% endif %}
+  {{ pager('m', 'merchants') }}
 </section>
 <section id="recurring-candidates">
   <h2>Looks recurring</h2>
@@ -60,19 +75,46 @@
   {% else %}
   <p>Nothing recurring detected.</p>
   {% endfor %}
+  {{ pager('r', 'recurring') }}
 </section>
 <section id="debt-candidates">
   <h2>Possible debt transfers</h2>
   {% for t in queue.debt_candidates %}
+  {% set opt = debt_options[t.id] %}
+  {% set is_transfer = t.transaction_type.value == "transfer" %}
   <div class="needs-attention">
-    <p>{{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR</p>
+    <p>{{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR <span class="loan-sub">{{ t.transaction_type.value }}{% if t.paid_date %} · {{ t.paid_date }}{% endif %}</span></p>
     <form hx-post="/financials/transactions/{{ t.id }}/link-debt" hx-target="#needs-review-body" hx-swap="innerHTML">
-      <input type="text" name="person_name" placeholder="person name (new informal debt)">
-      <select name="direction">
-        <option value="owed_to_us">owed to us</option>
-        <option value="owed_by_us">owed by us</option>
-      </select>
-      <input type="number" name="existing_debt_id" placeholder="or existing debt id">
+      <fieldset class="loan-link">
+        <legend>New informal loan</legend>
+        <input type="text" name="person_name" placeholder="person name" maxlength="80">
+        <select name="direction">
+          {% if is_transfer %}<option value="">(choose direction)</option>{% endif %}
+          <option value="owed_to_us" {% if opt.direction == "owed_to_us" %}selected{% endif %}>we lent (owed to us)</option>
+          <option value="owed_by_us" {% if opt.direction == "owed_by_us" %}selected{% endif %}>we borrowed (owed by us)</option>
+        </select>
+        <span class="loan-sub">This transaction becomes the loan's first advance.</span>
+      </fieldset>
+      <fieldset class="loan-link">
+        <legend>Or add to an existing loan</legend>
+        <select name="existing_debt_id">
+          <option value="">(none — new loan above)</option>
+          {% for d in opt.debts %}
+          <option value="{{ d.id }}">{{ d.person }} — {{ "they owe us" if d.lent else "we owe them" }} — €{{ "{:,.2f}".format(d.balance) }}{% if d.role %} → {{ d.role }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        <select name="role"{% if is_transfer %} required{% endif %}>
+          {% if is_transfer %}
+          <option value="advance">advance (more lent / borrowed)</option>
+          <option value="repayment">repayment</option>
+          {% else %}
+          <option value="">role: automatic (shown beside each loan)</option>
+          <option value="advance">override: advance</option>
+          <option value="repayment">override: repayment</option>
+          {% endif %}
+        </select>
+        {% if is_transfer %}<span class="loan-sub">A transfer has no direction: choose advance or repayment (used when adding to an existing loan).</span>{% endif %}
+      </fieldset>
       <button type="submit">Link Debt</button>
     </form>
     <button hx-post="/financials/transactions/{{ t.id }}/dismiss-debt-candidate" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
@@ -80,6 +122,7 @@
   {% else %}
   <p>No debt candidates detected.</p>
   {% endfor %}
+  {{ pager('d', 'debt') }}
 </section>
 <section id="unclassified-transactions">
   <h2>Could not classify</h2>
@@ -90,4 +133,33 @@
   {% else %}
   <p>Nothing unclassified.</p>
   {% endfor %}
+  {{ pager('c', 'unclassified') }}
 </section>
+<section id="unsorted-transactions">
+  <h2>Needs a category</h2>
+  {% for mid, txns in queue.unsorted_by_merchant.items() %}
+  {% set m = queue.unsorted_merchants.get(mid) %}
+  {% if m is none %}
+  <div class="needs-attention">
+    <p>{{ txns|length }} transaction{{ "s" if txns|length != 1 }} from a merchant that no longer exists ({{ txns[0].provider }})</p>
+  </div>
+  {% else %}
+  <div class="needs-attention">
+    <p><a href="/financials/transactions?merchant_id={{ m.id }}" target="_blank">{{ m.canonical_name }}</a> — {{ txns|length }} transaction{{ "s" if txns|length != 1 }}</p>
+    <div>
+      {{ node_select(m) }}
+      <button
+        hx-post="/financials/transactions/merchants/{{ m.id }}/confirm"
+        hx-include="closest div"
+        hx-target="#needs-review-body"
+        hx-swap="innerHTML"
+      >File all</button>
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <p>Nothing waiting for a category.</p>
+  {% endfor %}
+  {{ pager('u', 'groups') }}
+</section>
+</div>

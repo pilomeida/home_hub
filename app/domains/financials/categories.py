@@ -7,3 +7,5 @@ from enum import Enum
 class FinancialsCategory(str, Enum):
     BILL = "bill"
     STATEMENT = "statement"
+    POSITIONS = "statement_positions"
+    LOAN_HISTORY = "loan_history"

@@ -16,7 +16,10 @@ from app.models.document import Document, DocumentStatus
 from app.models.transaction import Category, Transaction, TransactionType
 from app.domains.registry import document_url
 from app.services.classification_engine import get_needs_review_queue
+from app.services.loan_alerts import unacknowledged_groups
+from app.services.loan_math import informal_debt_rows, legacy_debt_total, newest_balances, summarize_all
 from app.services.presentation import humanize_reason_text
+from app.services.statement_reminder import REMINDER_TEXT, UPLOAD_URL as LOANS_UPLOAD_URL, get_statement_reminder
 from app.services.overview_charts import (  # noqa: F401 -- re-exported helper reused for month-end snapshots
     CashFlowChart,
     TrendChart,
@@ -174,30 +177,35 @@ def get_cash_kpi(session: Session, today: date) -> KpiCard:
     )
 
 
-def _debt_net_position(session: Session) -> float:
+def _debt_position(session: Session, today: date) -> tuple[float, bool, int]:
+    """(value, has_position_data, loans_with_unknown_balance). Without any loan
+    statement/printout or card snapshot this is exactly the old behaviour."""
     debts = session.exec(select(Debt)).all()
-    total = 0.0
-    for d in debts:
-        balance = float(d.current_balance)
-        # An INFORMAL debt with direction=None is a real, constructible
-        # state (Debt.direction is Optional). Treat a None direction as
-        # OWED_BY_US -- the common-case assumption for an informal debt
-        # someone forgot to set a direction on -- rather than letting it
-        # silently fall through both branches and contribute nothing.
-        if d.kind == DebtKind.FORMAL or d.direction != DebtDirection.OWED_TO_US:
-            total += balance
-        elif d.direction == DebtDirection.OWED_TO_US:
-            total -= balance
-    return max(0.0, total)  # Ruling R10
+    loans = summarize_all(session, today)
+    cards = newest_balances(session, "card")
+    if not loans and not cards:
+        return max(0.0, legacy_debt_total(informal_debt_rows(session))), False, 0  # Ruling R10
+    active_ids = {d.id for d in debts if d.status == "active"}
+    known = [l for l in loans if l.debt_id in active_ids and l.balance_known]
+    unknown = sum(1 for l in loans if l.debt_id in active_ids and not l.balance_known)
+    total = sum(l.capital_remaining for l in known) + legacy_debt_total(informal_debt_rows(session))
+    total += sum(b.amount for b in cards)
+    return max(0.0, round(total, 2)), True, unknown
+
+
+def _debt_net_position(session: Session, today: Optional[date] = None) -> float:
+    return _debt_position(session, today or date.today())[0]
 
 
 def get_debt_kpi(session: Session, today: date) -> KpiCard:
-    value = _debt_net_position(session)
+    value, has_position, unknown = _debt_position(session, today)
     # No balance-history tracking exists for Debt yet (Ruling R2) -- an
     # empty monthly dict makes build_trend_chart render its already-tested
     # "no history yet" empty state, no special-casing needed here.
     chart = build_trend_chart({}, today, value)
-    return KpiCard(label="Debt", value=value, color="red", drill_down_url="/financials/transactions/needs-review", chart=chart)
+    caption = f"excludes {unknown} loan(s) with unknown balance" if unknown else None
+    url = "/financials/loans" if has_position else "/financials/transactions/needs-review"
+    return KpiCard(label="Debt", value=value, color="red", drill_down_url=url, chart=chart, caption=caption)
 
 
 @dataclass
@@ -379,6 +387,9 @@ class NeedsAttentionItem:
     kind: str
     text: str
     url: str
+    action_url: Optional[str] = None  # a "+" link shown instead of making the whole row a link
+    overdue: bool = False
+    alert: bool = False  # a loan red flag: red row with an "Open loan" link
 
 
 def get_needs_attention(
@@ -439,6 +450,19 @@ def get_needs_attention(
             kind="document",
             text=f"{doc.filename} — {humanize_reason_text(doc.failure_reason) or 'needs attention'}",
             url=document_url(doc) or "/",
+        ))
+
+    for group in unacknowledged_groups(session):  # one red item per (loan, kind)
+        items.append(NeedsAttentionItem(
+            kind="loan_alert", text=f"{group.debt.name or 'Loan'}: {group.text}",
+            url=f"/financials/loans/{group.debt.id}", alert=True,
+        ))
+
+    reminder = get_statement_reminder(session, today)
+    if reminder.due:
+        items.append(NeedsAttentionItem(
+            kind="statement_reminder", text=REMINDER_TEXT, url=LOANS_UPLOAD_URL,
+            action_url=LOANS_UPLOAD_URL, overdue=reminder.overdue,
         ))
 
     return items

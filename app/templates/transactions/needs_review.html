@@ -6,7 +6,25 @@
   <a href="/financials/transactions">All</a>
   <a href="/financials/transactions/needs-review" class="active">Needs Review</a>
 </nav>
+<p id="needs-review-error" class="loan-flags" role="alert" hidden></p>
 <div id="needs-review-body">
   {% include "transactions/_needs_review_rows.html" %}
 </div>
+<script>
+  if (!window.__nrErr) {
+    window.__nrErr = true;
+    document.body.addEventListener('htmx:responseError', function (e) {
+      var box = document.getElementById('needs-review-error');
+      if (!box) { return; }
+      var text = e.detail.xhr.responseText;
+      try { var d = JSON.parse(text); if (d && typeof d.detail === 'string') { text = d.detail; } } catch (x) {}
+      box.textContent = text;
+      box.hidden = false;
+    });
+    document.body.addEventListener('htmx:beforeRequest', function () {
+      var box = document.getElementById('needs-review-error');
+      if (box) { box.hidden = true; }
+    });
+  }
+</script>
 {% endblock %}

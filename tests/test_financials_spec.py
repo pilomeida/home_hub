@@ -4,6 +4,7 @@ import pytest
 
 from app.domains import registry
 from app.domains.financials import handler as financials_handler
+from app.domains.financials.categories import FinancialsCategory
 from app.domains.financials.overview import financials_overview_card
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource, DocumentStatus
@@ -16,10 +17,14 @@ from app.services.ingestion import Classification, IncomingFile, ingest
 def test_financials_is_registered():
     spec = registry.get_spec(Domain.FINANCIALS)
     assert spec.label == "Financials"
-    assert [c.value for c in spec.categories] == ["bill", "statement"]
+    assert [c.value for c in spec.categories] == [c.value for c in FinancialsCategory]
+    explicit_only = {FinancialsCategory.POSITIONS.value, FinancialsCategory.LOAN_HISTORY.value}
+    assert {c.value for c in spec.categories if not c.classifiable} == explicit_only
+    assert all(c.classifiable for c in spec.categories if c.value not in explicit_only)
     assert spec.infers_category is True
     assert [link.url for link in spec.nav_links] == [
         "/financials/bills", "/financials/transactions", "/financials/bank/",
+        "/financials/loans",
         "/financials/utilities/electricity",
     ]
 

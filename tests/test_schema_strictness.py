@@ -120,10 +120,17 @@ def test_domain_schema_allows_null_and_missing_fields():
 # --- _WIKI_SCHEMA / _MERCHANT_SCHEMA: parser indexes these directly ------
 
 
-def test_wiki_and_merchant_schemas_stay_strict_where_the_parser_indexes():
+def test_wiki_and_merchant_schemas_stay_strict_where_the_parser_indexes(session):
     _validate(wiki_engine._WIKI_SCHEMA, {"pages": [{"title": "T", "summary": "S", "facts": {}}]})
-    _validate(classification_engine._MERCHANT_SCHEMA, {
-        "canonical_name": "Modelo Hiper", "category": "groceries", "nature": "essential",
+    from app.services.taxonomy import ensure_taxonomy, leaf_slugs
+
+    ensure_taxonomy(session)
+    slugs = leaf_slugs(session)
+    schema = classification_engine._merchant_schema(slugs)
+    assert set(schema["required"]) == {"canonical_name", "node_slug", "nature"}
+    assert schema["properties"]["node_slug"]["enum"] == slugs
+    _validate(schema, {
+        "canonical_name": "Modelo Hiper", "node_slug": slugs[0], "nature": "essential",
     })
 
 
@@ -150,3 +157,34 @@ def test_null_heavy_bill_response_parses_with_parser_defaults(tmp_path):
     # category_hint: `data.get("category_hint", "other")` returns the null
     # that IS present; normalize_category(None) downstream maps to OTHER.
     assert bill.category_hint is None
+
+# --- position extraction schemas: parser indexes only as_of / rows --------
+
+
+def test_positions_schema_accepts_null_heavy_reply():
+    from app.services import position_extraction
+
+    _validate(position_extraction._POSITIONS_SCHEMA, {
+        "as_of": "2026-07-31",
+        "loans": [{"number": "1", "capital_remaining": 1.0}],
+        "funds": None,
+        "balances": None,
+    })
+    _validate(position_extraction._POSITIONS_SCHEMA, {"as_of": "2026-07-31"})
+
+
+def test_loan_history_schema_accepts_minimal_rows():
+    from app.services import position_extraction
+
+    _validate(position_extraction._LOAN_HISTORY_SCHEMA, {
+        "rows": [{"date": "2026-10-02", "instalment_number": 38, "component": "capital", "amount": 1.0}],
+    })
+
+
+def test_positions_schema_accepts_null_indexante_and_spread():
+    from app.services import position_extraction
+
+    loan = {"number": "1", "capital_remaining": 1.0, "next_indexante_percent": None, "next_spread_percent": None}
+    _validate(position_extraction._POSITIONS_SCHEMA, {"as_of": "2026-07-31", "loans": [loan]})
+    loan.update(next_indexante_percent=1.8, next_spread_percent="1,2")
+    _validate(position_extraction._POSITIONS_SCHEMA, {"as_of": "2026-07-31", "loans": [loan]})

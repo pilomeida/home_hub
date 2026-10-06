@@ -1,0 +1,52 @@
+{% set months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] %}
+{% set cls = {"ok": "bud-ok", "at_risk": "bud-at_risk", "over": "bud-over", "no_budget": "bud-none"} %}
+{% macro head(name, spent, bud, expected, status) %}
+<div class="bud-head {{ cls[status] }}">
+  <span class="bud-name">{{ name }}</span>
+  <span></span>
+  <span class="bud-num">€{{ eur.format(spent) }}</span>
+  <span class="bud-num">{% if bud %}€{{ eur.format(bud) }}{% endif %}</span>
+  <span class="bud-num bud-est">€{{ eur.format(expected) }}</span>
+</div>
+{% endmacro %}
+{% for group in budget.groups %}
+<details class="bud-group" open>
+  <summary>{{ head(group.name, group.spent, group.budget, group.expected, group.status) }}</summary>
+  {% for cat in group.categories %}
+  <details class="bud-cat" open>
+    <summary>{{ head(cat.name, cat.spent, cat.budget, cat.expected, cat.status) }}</summary>
+    {% for line in cat.lines %}
+    {% set pct = ([100, line.spent / line.budget_in_period * 100] | min) if line.budget_in_period else 0 %}
+    <div class="bud-line {{ cls[line.status] }}">
+      <span class="bud-name">{{ line.name }}{% if line.inherited %} <span class="bud-carried" style="color:#888;font-size:11px">carried over</span>{% endif %}</span>
+      <span class="bud-track" title="{{ line.status.replace('_', ' ') }}">
+        {% if line.budget_in_period %}<span class="bud-fill" style="display:block;width: {{ '%.0f'|format([pct, 0]|max) }}%;"></span>
+        {% else %}<span class="bud-fill thin" style="display:block;width: 6%;"></span>{% endif %}
+      </span>
+      <span class="bud-num">€{{ eur.format(line.spent) }}</span>
+      <input type="checkbox" class="bud-toggle" id="bud-toggle-{{ line.node_id }}" aria-label="Edit budget for {{ line.name }}">
+      <label class="bud-num bud-set {{ '' if line.budget is not none else 'unset' }}" for="bud-toggle-{{ line.node_id }}">
+        {% if line.budget is not none %}€{{ eur.format(line.budget) }}{% else %}set budget{% endif %}
+      </label>
+      <span class="bud-num bud-est" title="{{ est_label }}">€{{ eur.format(line.expected) }}</span>
+      <form class="bud-form" hx-post="/overview/budget/{{ line.node_id }}" hx-target="#budget-panel" hx-swap="outerHTML">
+        <input type="hidden" name="view" value="{{ budget_view }}">
+        <label>€ <input type="number" name="amount" step="0.01" min="0" required
+               value="{% if line.cadence == 'monthly' and line.budget is not none %}{{ '%.2f'|format(line.budget / 12 if budget_view == 'year' else line.budget) }}{% elif line.cadence == 'yearly' and line.budget is not none %}{{ '%.2f'|format(line.budget) }}{% endif %}">
+          {{ "per month" if line.cadence == "monthly" else "per year" }}</label>
+        {% if line.cadence == "yearly" %}
+        <label>due in
+          <select name="expected_month">
+            <option value="">any month</option>
+            {% for m in months %}<option value="{{ loop.index }}" {{ 'selected' if line.expected_month == loop.index else '' }}>{{ m }}</option>{% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <button type="submit">Save</button>
+      </form>
+    </div>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</details>
+{% endfor %}

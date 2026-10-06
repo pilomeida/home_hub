@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% import "loans/_macros.html" as m %}
+{% set s = row.summary %}
+{% block title %}{{ s.name }} — Home & Family{% endblock %}
+{% block content %}
+<div class="fc-page">
+<div class="fc-frame">
+  <div class="fc-topbar">
+    <div class="fc-brand">{{ s.name }}</div>
+    <div class="fc-period"><a href="/financials/loans">← Loans &amp; Savings</a></div>
+  </div>
+  <div class="fc-section">
+    <div class="loan-head"><span class="loan-big">{% if s.balance_known %}{{ m.eur0(s.capital_remaining) }}{% else %}balance unknown{% endif %}</span><span class="loan-rate">{{ m.rate(row) }}</span></div>
+    <div class="loan-sub">{% if row.from_statements %}from statements{% else %}from loan history (online banking){% endif %}{% if s.as_of %} · as of {{ m.date(s.as_of) }}{% endif %}</div>
+    {% if row.payoff_text %}<div class="loan-sub">Payoff {{ row.payoff_text }}</div>{% endif %}
+    {{ m.insurance_line(row) }}
+  </div>
+  {% if row.alerts or row.acked_alerts %}<div class="fc-section">{{ m.flags(row, "/financials/loans/" ~ s.debt_id) }}</div>{% endif %}
+  {% if strip %}
+  <div class="fc-section">
+    <div class="fc-section-title"><span>Remaining capital by instalment</span></div>
+    <div class="loan-strip">{% for b in strip %}<div class="loan-strip-bar" style="height: {{ b.pct }}%" title="{{ m.eur0(b.value) }}"></div>{% endfor %}</div>
+  </div>
+  {% endif %}
+  {% if rate_history %}
+  <div class="fc-section">
+    <div class="fc-section-title"><span>Rate history</span></div>
+    <table class="loan-table">
+      <thead><tr><th>As of</th><th>Indexante</th><th>Spread</th><th>TAN</th></tr></thead>
+      <tbody>
+      {% for h in rate_history %}
+      <tr class="loan-rate-row"><td>{{ m.date(h.as_of) }}</td><td>{{ m.pct(h.indexante) }}</td><td{% if h.spread_changed %} class="loan-spread-bad" title="differs from the baseline spread {{ '%.3f'|format(baseline_spread) }}%"{% endif %}>{{ m.pct(h.spread) }}</td><td>{{ m.pct(h.tan) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if baseline_spread is not none %}<div class="loan-sub">Baseline spread {{ '%.3f'|format(baseline_spread) }}% — it should never change; TAN = indexante + spread.</div>{% endif %}
+  </div>
+  {% endif %}
+  <div class="fc-section">
+    <div class="fc-section-title"><span>Instalments</span></div>
+    {% if movements %}
+    <table class="loan-table">
+      <thead><tr><th>Nº</th><th>Date</th><th>Capital</th><th>Interest</th><th>Insurance</th><th>Balance after</th></tr></thead>
+      <tbody>
+      {% for mv in movements %}
+      <tr class="loan-inst"><td>{{ mv.instalment_number }}</td><td>{{ m.date(mv.movement_date) }}</td><td>{{ "{:,.2f}".format(mv.capital) }}</td><td>{{ "{:,.2f}".format(mv.interest) }}</td><td>{{ "{:,.2f}".format(mv.insurance) }}</td><td>{% if mv.balance_after is not none %}{{ "{:,.2f}".format(mv.balance_after) }}{% else %}—{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="loan-empty">No instalments recorded yet — upload the loan history from <a href="{{ upload_url }}">+</a>.</p>
+    {% endif %}
+  </div>
+</div>
+</div>
+{% endblock %}

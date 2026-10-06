@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Upload statements — Home & Family{% endblock %}
+{% block content %}
+<div class="fc-page">
+<div class="fc-frame">
+  <div class="fc-topbar">
+    <div class="fc-brand">UPLOAD LOAN &amp; SAVINGS DATA</div>
+    <div class="fc-period"><a href="/financials/loans">← Loans &amp; Savings</a></div>
+  </div>
+  <div class="fc-section">
+    <p><strong>Upload statements, loan printouts, or both</strong> — each box is optional, but choose at least one file.</p>
+    <p>Download from Santander the <strong>monthly statements</strong>, and — for loans that have no block in the statements — the <strong>loan-history printout</strong> from Netbanco (Consulta Movimentos Empréstimo). You can add several PDFs at once (up to 12 per upload). Statements are read first, then the printouts.</p>
+    <form action="/financials/loans/upload" method="post" enctype="multipart/form-data" class="loan-upload">
+      <p><label><strong>Monthly statements</strong><br>
+        <input type="file" name="statements" accept=".pdf" multiple></label></p>
+      <p><label><strong>Loan history printouts (Netbanco: Consulta Movimentos Empréstimo)</strong><br>
+        <input type="file" name="histories" accept=".pdf" multiple></label></p>
+      <p><button type="submit">Upload and read</button></p>
+    </form>
+  </div>
+</div>
+</div>
+{% endblock %}

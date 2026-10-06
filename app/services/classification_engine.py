@@ -3,17 +3,28 @@ provider string to a canonical Merchant (rules first, LLM fallback), and
 detects recurring-commitment and debt candidates for human review."""
 
 import json
+import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models.document import Document
+from app.models.debt import Debt
+from app.models.position import DebtMatchRule
+from app.services.debt_ledger import default_kind, link_transaction_as_entry
+from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Nature, Transaction
+from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.services.taxonomy import UNSORTED_SLUG, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
+from app.services.loan_insurance import link_insurance_transaction
+from app.services.loan_linking import link_transaction_to_loan
 from app.services.json_utils import strip_json_fences
 from app.llm_gateway import CLASSIFICATION, get_gateway
+
+log = logging.getLogger(__name__)
 
 _LOCATION_WORDS = ("mafra", "ericeira")
 
@@ -35,30 +46,45 @@ def normalize_provider(raw: str) -> str:
 
 
 _MERCHANT_SYSTEM_PROMPT = """You resolve a raw bank statement provider \
-string to a canonical merchant identity. Respond with ONLY a JSON object, \
-no prose, matching this shape exactly:
+string to a canonical merchant identity and file it in the household's \
+category tree. Respond with ONLY a JSON object, no prose, matching this \
+shape exactly:
 
 {
   "canonical_name": "string, a clean human-readable merchant name, e.g. \
 'Modelo Hiper'",
-  "category": "one of: electricity, water, gas, telecom, insurance, \
-subscriptions, groceries, health, home, income, transfer, atm_withdrawal, \
-restaurants, shopping, other_expense, other",
+  "node_slug": "the single best category slug from the list below",
   "nature": "essential or discretionary"
-}"""
-
-
-_CATEGORY_VALUES = [c.value for c in Category]
-
-_MERCHANT_SCHEMA = {
-    "type": "object",
-    "required": ["canonical_name", "category", "nature"],
-    "properties": {
-        "canonical_name": {"type": "string"},
-        "category": {"type": "string", "enum": _CATEGORY_VALUES},
-        "nature": {"type": "string", "enum": ["essential", "discretionary"]},
-    },
 }
+
+Choose the single best node_slug from this list (and nothing else):
+{slugs}
+
+Use "{unsorted}" if you are unsure.
+Credit-only slugs (money coming in; never for a debit): those starting with \
+income., refunds-reimbursements. or loans-debt-in.
+Debit-only slugs (money going out; never for a credit): every other slug, \
+including all loans-debt. slugs (loan repayments, loan interest and fees, \
+money lent out)."""
+
+
+def _merchant_schema(slugs: list[str]) -> dict:
+    """Response schema for merchant resolution; the parser indexes all three
+    fields directly, so they stay required. node_slug is limited to `slugs`."""
+    return {
+        "type": "object",
+        "required": ["canonical_name", "node_slug", "nature"],
+        "properties": {
+            "canonical_name": {"type": "string"},
+            "node_slug": {"type": "string", "enum": slugs},
+            "nature": {"type": "string", "enum": ["essential", "discretionary"]},
+        },
+    }
+
+
+# Nodes only the loan-insurance linker may file under (rule / amount match); the
+# LLM never sees or may choose them, or a generic insurer would count as loan insurance.
+LLM_EXCLUDED_PREFIXES = ("loans-debt.loan-insurance.",)
 
 
 class MerchantResolutionError(Exception):
@@ -68,30 +94,42 @@ class MerchantResolutionError(Exception):
 @dataclass
 class ResolvedMerchant:
     canonical_name: str
-    category: Category
+    node_slug: str
+    category: Category  # legacy value of the node, for consumers still on the old column
     nature: Nature
 
 
 async def resolve_merchant_via_llm(
-    raw_provider: str, gateway=None
+    raw_provider: str, session: Session, gateway=None, is_credit: Optional[bool] = None
 ) -> ResolvedMerchant:
     """Ask the gateway to resolve a raw provider string to a canonical
-    merchant name, category, and nature. Called only when the rules tier
-    (normalize_provider + a Merchant lookup) finds no existing match."""
+    merchant name, category-tree leaf, and nature. Called only when the rules
+    tier (normalize_provider + a Merchant lookup) finds no existing match.
+    The session supplies the leaf slugs the model may choose from."""
+    slugs = [s for s in leaf_slugs(session) if not s.startswith(LLM_EXCLUDED_PREFIXES)]
+    if not slugs:
+        raise MerchantResolutionError("Category tree is not seeded (no leaf nodes)")
     gw = gateway or get_gateway()
+    schema = _merchant_schema(slugs)
+    system = _MERCHANT_SYSTEM_PROMPT.replace("{slugs}", "\n".join(slugs)).replace("{unsorted}", UNSORTED_SLUG)
+    direction = "" if is_credit is None else (" (a credit)" if is_credit else " (a debit)")
 
     result = await gw.run(
         CLASSIFICATION,
-        _MERCHANT_SYSTEM_PROMPT,
-        f"Resolve this provider string as JSON: {raw_provider!r}",
-        response_schema=_MERCHANT_SCHEMA,
+        system,
+        f"Resolve this provider string{direction} as JSON: {raw_provider!r}",
+        response_schema=schema,
     )
 
     try:
         data = json.loads(strip_json_fences(result.text))
+        node_slug = data["node_slug"]
+        if node_slug not in slugs:
+            raise ValueError(f"unknown node_slug {node_slug!r}")
         return ResolvedMerchant(
             canonical_name=data["canonical_name"],
-            category=Category(data["category"]),
+            node_slug=node_slug,
+            category=legacy_category_for(session, get_node(session, node_slug)),
             nature=Nature(data["nature"]),
         )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
@@ -122,10 +160,14 @@ async def classify_transaction(
     created_new_merchant = False
 
     if merchant is None:
-        resolved = await resolve_merchant_via_llm(transaction.provider, gateway=gateway)
+        resolved = await resolve_merchant_via_llm(
+            transaction.provider, session, gateway=gateway,
+            is_credit=transaction.transaction_type == TransactionType.CREDIT,
+        )
         merchant = Merchant(
             canonical_name=resolved.canonical_name,
             default_category=resolved.category,
+            default_category_id=get_node(session, resolved.node_slug).id,
             default_nature=resolved.nature,
             normalized_key=normalized_key,
         )
@@ -136,6 +178,45 @@ async def classify_transaction(
     transaction.merchant_id = merchant.id
     if transaction.nature is None:
         transaction.nature = merchant.default_nature
+
+    # A loan instalment links to its loan and is filed under Loans; that
+    # filing wins over merchant memory (also on re-classification).
+    loan_filed = False
+    if transaction.debt_id is None:
+        loan_filed = link_transaction_to_loan(session, transaction)
+        if not loan_filed:  # insurance debits (SEG...) carry no loan number: rule or amount match
+            try:
+                loan_filed = link_insurance_transaction(session, transaction)
+            except Exception:
+                log.exception("loan insurance linking failed for transaction %s", transaction.id)
+    elif transaction.category_id is not None:
+        current = session.get(CategoryNode, transaction.category_id)
+        loan_filed = current is not None and current.slug.startswith("loans-debt.")
+
+    # Informal-loan rules (counterparty key -> debt) run after loan linking. The
+    # transaction becomes a ledger entry with the role its direction gives; a
+    # TRANSFER-type one has no reliable direction and stays in Needs Review.
+    if transaction.debt_id is None:
+        rule = session.exec(
+            select(DebtMatchRule).where(DebtMatchRule.normalized_key == normalized_key)
+        ).first()
+        debt = session.get(Debt, rule.debt_id) if rule is not None else None
+        if debt is not None and debt.external_number is None:
+            kind = default_kind(debt.direction, transaction.transaction_type)
+            if kind is not None:
+                session.add(transaction)
+                session.flush()
+                link_transaction_as_entry(session, debt, transaction, kind)
+                current = session.get(CategoryNode, transaction.category_id) if transaction.category_id else None
+                loan_filed = loan_filed or (current is not None and current.slug.startswith("loans-debt"))
+
+    # Merchant memory: a merchant with a tree node files every new transaction
+    # under it (Unsorted included, so it lands in the Needs Review queue).
+    # A merchant with no node (legacy rows) leaves the transaction unfiled.
+    if not loan_filed and merchant.default_category_id is not None:
+        node = session.get(CategoryNode, merchant.default_category_id)
+        if node is not None and direction_matches(transaction, node):
+            file_transaction(session, transaction, node)
 
     if transaction.account_id is None:
         document = session.get(Document, transaction.document_id)
@@ -223,22 +304,140 @@ class NeedsReviewQueue:
     recurring_candidates: list[Merchant]
     debt_candidates: list[Transaction]
     unclassified_transactions: list[Transaction]
+    # Transactions with no tree node, or filed in Unsorted; grouped by merchant
+    # (merchant_id -> transactions; transactions with no merchant are only listed flat).
+    unsorted_transactions: list[Transaction] = field(default_factory=list)
+    unsorted_by_merchant: dict[int, list[Transaction]] = field(default_factory=dict)
+    unsorted_merchants: dict[int, Merchant] = field(default_factory=dict)
+
+
+def unsorted_transactions_query():
+    """Transactions with no node yet, or filed under the Unsorted group."""
+    unsorted_ids = select(CategoryNode.id).where(CategoryNode.slug.like("unsorted%"))
+    return select(Transaction).where(
+        Transaction.category_id.is_(None) | Transaction.category_id.in_(unsorted_ids)
+    )
 
 
 def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
     """Everything currently needing a human decision: brand-new merchants
-    not yet confirmed, recurring-payment candidates, debt candidates, and
+    not yet confirmed, recurring-payment candidates, debt candidates,
     transactions classify_transaction never managed to resolve to a
-    Merchant at all (merchant_id left NULL)."""
+    Merchant at all (merchant_id left NULL), and transactions still unfiled
+    or in Unsorted (grouped by merchant)."""
     unconfirmed = session.exec(
         select(Merchant).where(Merchant.confirmed == False)  # noqa: E712
     ).all()
     unclassified = session.exec(
         select(Transaction).where(Transaction.merchant_id.is_(None))
     ).all()
+    unsorted = session.exec(unsorted_transactions_query().order_by(Transaction.id)).all()
+    by_merchant: dict[int, list[Transaction]] = {}
+    for t in unsorted:
+        if t.merchant_id is not None:
+            by_merchant.setdefault(t.merchant_id, []).append(t)
+    merchants = {
+        m.id: m for m in session.exec(select(Merchant).where(Merchant.id.in_(list(by_merchant)))).all()
+    } if by_merchant else {}
     return NeedsReviewQueue(
         unconfirmed_merchants=unconfirmed,
         recurring_candidates=detect_recurring_candidates(session),
         debt_candidates=detect_debt_candidates(session),
         unclassified_transactions=unclassified,
+        unsorted_transactions=unsorted,
+        unsorted_by_merchant=by_merchant,
+        unsorted_merchants=merchants,
+    )
+
+
+REVIEW_PAGE_SIZE = 50
+REVIEW_SECTIONS = ("m", "r", "d", "c", "u")  # new merchants, recurring, debt, unclassified, unsorted
+
+
+@dataclass
+class ReviewSection:
+    """Where one Needs Review list stands: which slice is shown out of how many."""
+    total: int = 0
+    offset: int = 0
+    shown: int = 0
+
+    @property
+    def first(self) -> int:
+        return self.offset + 1 if self.shown else 0
+
+    @property
+    def last(self) -> int:
+        return self.offset + self.shown
+
+    @property
+    def next_offset(self) -> Optional[int]:
+        return self.offset + REVIEW_PAGE_SIZE if self.offset + REVIEW_PAGE_SIZE < self.total else None
+
+    @property
+    def prev_offset(self) -> Optional[int]:
+        return max(self.offset - REVIEW_PAGE_SIZE, 0) if self.offset > 0 else None
+
+
+@dataclass
+class NeedsReviewPage:
+    queue: NeedsReviewQueue
+    sections: dict[str, ReviewSection]
+
+
+def _clamp_offset(offset: int, total: int) -> int:
+    """A request past the end (rows were confirmed meanwhile) lands on the last page."""
+    offset = max(int(offset or 0), 0)
+    if offset >= total:
+        offset = ((total - 1) // REVIEW_PAGE_SIZE) * REVIEW_PAGE_SIZE if total else 0
+    return offset
+
+
+def get_needs_review_page(
+    session: Session, offsets: Optional[dict[str, int]] = None, limit: int = REVIEW_PAGE_SIZE
+) -> NeedsReviewPage:
+    """The Needs Review queue cut into pages of at most `limit` rows per list.
+    Merchants and groups come busiest first (most transactions, then name).
+    `offsets` is keyed by section: m, r, d, c, u. Same contents as
+    get_needs_review_queue, just sliced."""
+    offsets = offsets or {}
+    queue = get_needs_review_queue(session)
+    counts: dict[int, int] = {}
+    for mid, n in session.exec(
+        select(Transaction.merchant_id, func.count(Transaction.id)).group_by(Transaction.merchant_id)
+    ).all():
+        if mid is not None:
+            counts[mid] = n
+
+    def cut(key: str, items: list) -> tuple[list, ReviewSection]:
+        off = _clamp_offset(offsets.get(key, 0), len(items))
+        page = items[off:off + limit]
+        return page, ReviewSection(total=len(items), offset=off, shown=len(page))
+
+    new_merchants = sorted(queue.unconfirmed_merchants,
+                           key=lambda m: (-counts.get(m.id, 0), m.canonical_name.lower(), m.id))
+    new_page, m_sec = cut("m", new_merchants)
+    rec_page, r_sec = cut("r", queue.recurring_candidates)
+    debt_page, d_sec = cut("d", queue.debt_candidates)
+    unc_page, c_sec = cut("c", queue.unclassified_transactions)
+
+    def group_key(item):
+        mid, txns = item
+        m = queue.unsorted_merchants.get(mid)
+        return (-len(txns), (m.canonical_name.lower() if m else ""), mid)
+
+    groups = sorted(queue.unsorted_by_merchant.items(), key=group_key)
+    group_page, u_sec = cut("u", groups)
+    page_ids = {mid for mid, _ in group_page}
+
+    return NeedsReviewPage(
+        queue=NeedsReviewQueue(
+            unconfirmed_merchants=new_page,
+            recurring_candidates=rec_page,
+            debt_candidates=debt_page,
+            unclassified_transactions=unc_page,
+            unsorted_transactions=queue.unsorted_transactions,
+            unsorted_by_merchant=dict(group_page),
+            unsorted_merchants={k: v for k, v in queue.unsorted_merchants.items() if k in page_ids},
+        ),
+        sections={"m": m_sec, "r": r_sec, "d": d_sec, "c": c_sec, "u": u_sec},
     )

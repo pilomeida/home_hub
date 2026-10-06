@@ -47,6 +47,7 @@ class Transaction(SQLModel, table=True):
     document_id: int = Field(foreign_key="documents.id", index=True)
     provider: str
     category: Category = Field(default=Category.OTHER)
+    category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id", index=True)
     transaction_type: TransactionType = Field(
         default=TransactionType.DEBIT, sa_column_kwargs={"server_default": "DEBIT"}
     )

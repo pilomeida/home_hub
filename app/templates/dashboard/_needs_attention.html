@@ -1,6 +1,6 @@
 {% set icons = {
   "review_queue": "⚠", "upcoming_bill": "€", "recurring_candidate": "↑",
-  "category_anomaly": "!", "document": "⚠",
+  "category_anomaly": "!", "document": "⚠", "statement_reminder": "⏰",
 } %}
 {% set go_labels = {
   "review_queue": "Review →", "upcoming_bill": "Open commitment →", "recurring_candidate": "Confirm / dismiss →",
@@ -8,11 +8,25 @@
 } %}
 <div class="fc-attn">
   {% for item in items %}
+  {% if item.alert %}
+  <div class="fc-attn-row fc-attn-alert">
+    <span class="ic">⚠</span>
+    <span class="txt">{{ item.text }}</span>
+    <a class="fc-attn-open" href="{{ item.url }}">Open loan</a>
+  </div>
+  {% elif item.action_url %}
+  <div class="fc-attn-row fc-attn-reminder{% if item.overdue %} fc-attn-overdue{% endif %}">
+    <span class="ic">{{ icons.get(item.kind, "!") }}</span>
+    <span class="txt">{{ item.text }}</span>
+    <a class="fc-attn-plus" href="{{ item.action_url }}" title="Upload statements" aria-label="Upload statements">+</a>
+  </div>
+  {% else %}
   <a class="fc-attn-row" href="{{ item.url }}">
     <span class="ic">{{ icons.get(item.kind, "!") }}</span>
     <span class="txt">{{ item.text }}</span>
     <span class="go">{{ go_labels.get(item.kind, "See more →") }}</span>
   </a>
+  {% endif %}
   {% else %}
   <p>All clear.</p>
   {% endfor %}

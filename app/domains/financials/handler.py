@@ -15,9 +15,11 @@ from app.domains.fields import dump_fields, load_fields
 from app.domains.financials.categories import FinancialsCategory
 from app.models.document import Document, DocumentStatus
 from app.models.merchant import Merchant
+from app.models.position import PositionExtraction
 from app.models.todo import Todo
 from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
+from app.services.debt_ledger import detach_entries_for_transactions
 from app.services.categorization import normalize_category
 from app.services.classification_engine import classify_transaction
 from app.services.dedup import find_duplicate_transaction
@@ -29,6 +31,9 @@ from app.services.extraction import (
     extract_utility_detail,
 )
 from app.services.ingestion import mark_needs_attention
+from app.services.position_store import (
+    detach_positions, process_loan_history_document, process_positions_document,
+)
 from app.services.todo_engine import generate_todo_for_transaction
 from app.services.wiki_engine import ingest_into_wiki
 
@@ -68,6 +73,8 @@ async def process_financials_document(session: Session, document: Document) -> D
 
     if document.category == FinancialsCategory.STATEMENT.value:
         return await _ingest_statement(session, document)
+    if document.category in (FinancialsCategory.POSITIONS.value, FinancialsCategory.LOAN_HISTORY.value):
+        return await _ingest_positions(session, document)
     return await _ingest_bill(session, document)
 
 
@@ -92,7 +99,8 @@ class FinancialsHandler(DomainHandler):
 
     async def withdraw(self, session: Session, document: Document) -> None:
         """Reverse Financials' automated derivations for this document.
-        Merchants are shared across documents and are kept."""
+        Merchants are shared across documents and are kept; loan/savings
+        position rows are detached, never deleted."""
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
         ids = [t.id for t in transactions]
         for reading in session.exec(select(UtilityReading).where(UtilityReading.document_id == document.id)).all():
@@ -105,9 +113,17 @@ class FinancialsHandler(DomainHandler):
                     session.add(todo)
                 else:
                     session.delete(todo)
+            # Informal-loan ledger entries made from these transactions are kept.
+            detach_entries_for_transactions(session, ids)
             session.flush()
             for transaction in transactions:
                 session.delete(transaction)
+        # Registered data is never discarded: loan/savings rows read from this
+        # document keep living, detached (document_id NULL); only the extraction
+        # bookkeeping row goes. Re-uploading the file re-attaches them.
+        detach_positions(session, document.id)
+        for row in session.exec(select(PositionExtraction).where(PositionExtraction.document_id == document.id)).all():
+            session.delete(row)
         document.account_id = None
         session.add(document)
         session.commit()
@@ -226,6 +242,31 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     return document
 
 
+async def _ingest_positions(session: Session, document: Document) -> Document:
+    """Loans/savings documents: never transaction extraction. A failed
+    extraction is already marked needs_attention by the processor; success
+    (including a history awaiting a loan assignment) ends PROCESSED."""
+    processor = (
+        process_positions_document
+        if document.category == FinancialsCategory.POSITIONS.value
+        else process_loan_history_document
+    )
+    try:
+        extraction = await processor(session, document)
+    except Exception as exc:
+        session.rollback()
+        return mark_needs_attention(session, document, str(exc))
+    if extraction.status == "failed":
+        return document
+    await _log_ingest_without_assessment(session, document)
+    document.status = DocumentStatus.PROCESSED
+    document.failure_reason = None
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+    return document
+
+
 async def _ingest_statement(session: Session, document: Document) -> Document:
     # Transactions (and any brand-new Merchants) committed so far in this
     # attempt — tracked so that if a later line item fails (e.g. a bad
@@ -279,6 +320,9 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
         # referencing it, and every Transaction created during this same
         # attempt is being deleted right alongside it.
         session.rollback()
+        # A line item auto-linked to an informal loan keeps its ledger entry (detached).
+        detach_entries_for_transactions(session, [t.id for t in created_transactions])
+        session.flush()
         for transaction in created_transactions:
             db_transaction = session.get(Transaction, transaction.id)
             if db_transaction is not None:

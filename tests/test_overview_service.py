@@ -514,3 +514,77 @@ def test_needs_attention_document_links_go_through_the_registry(session):
 
     urls = {i.text.split(" — ")[0]: i.url for i in items}
     assert urls == {"w.pdf": f"/house/documents/{house_doc.id}", "u.pdf": "/"}
+
+
+# ---- Task 7: Debt KPI from statement/printout positions (synthetic data) ----
+
+def _stmt_loan(session, number, remaining, name="Loan A", status="active", snapshot=True):
+    from app.models.position import LoanSnapshot
+    doc = _doc(session, f"pos-{number}")
+    debt = Debt(kind=DebtKind.FORMAL, direction=DebtDirection.OWED_BY_US, original_amount=100000.0,
+                current_balance=Decimal("0"), name=name, external_number=number, status=status)
+    session.add(debt)
+    session.commit()
+    session.refresh(debt)
+    if snapshot:
+        session.add(LoanSnapshot(debt_id=debt.id, as_of=date(2026, 9, 5), capital_remaining=remaining,
+                                 rate_percent=3.0, next_due_date=date(2026, 10, 1), next_instalment=500.0,
+                                 document_id=doc.id))
+        session.commit()
+    return debt
+
+
+def test_debt_kpi_uses_loan_balances_cards_and_links_to_loans(session):
+    from app.models.position import BalanceSnapshot
+    _stmt_loan(session, "9000001", 80000.0)
+    session.add(Debt(kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_BY_US, original_amount=300.0,
+                     current_balance=Decimal("300.00")))
+    session.add(Debt(kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_TO_US, original_amount=100.0,
+                     current_balance=Decimal("100.00")))
+    doc = _doc(session, "card")
+    session.add(BalanceSnapshot(kind="card", label="Visa", amount=250.0, as_of=date(2026, 10, 1), document_id=doc.id))
+    session.commit()
+
+    kpi = get_debt_kpi(session, today=date(2026, 10, 6))
+
+    assert kpi.value == 80000.0 + 300.0 - 100.0 + 250.0
+    assert kpi.drill_down_url == "/financials/loans"
+    assert kpi.caption is None
+
+
+def test_debt_kpi_caption_when_a_loan_has_unknown_balance(session):
+    _stmt_loan(session, "9000001", 80000.0)
+    _stmt_loan(session, "9000002", 0.0, name="Loan B", snapshot=False)
+
+    kpi = get_debt_kpi(session, today=date(2026, 10, 6))
+
+    assert kpi.value == 80000.0
+    assert kpi.caption == "excludes 1 loan(s) with unknown balance"
+    assert kpi.drill_down_url == "/financials/loans"
+
+
+def test_debt_kpi_without_position_data_keeps_old_url(session):
+    session.add(Debt(kind=DebtKind.FORMAL, original_amount=1000.0, current_balance=Decimal("900.00")))
+    session.commit()
+    kpi = get_debt_kpi(session, today=date(2026, 10, 6))
+    assert kpi.value == 900.0
+    assert kpi.drill_down_url == "/financials/transactions/needs-review"
+
+
+def test_overview_debt_and_loans_page_use_the_same_informal_and_legacy_rules(session):
+    from app.services.loan_math import position_totals
+    _stmt_loan(session, "9000001", 80000.0)
+    # informal debt whose direction was never set: owed by us, like before
+    session.add(Debt(kind=DebtKind.INFORMAL, direction=None, original_amount=300.0, current_balance=Decimal("300.00")))
+    # legacy formal debt without an external number
+    session.add(Debt(kind=DebtKind.FORMAL, original_amount=1000.0, current_balance=Decimal("700.00")))
+    session.add(Debt(kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_TO_US, original_amount=100.0,
+                     current_balance=Decimal("100.00")))
+    # a closed informal debt counts on neither page
+    session.add(Debt(kind=DebtKind.INFORMAL, direction=DebtDirection.OWED_BY_US, original_amount=50.0,
+                     current_balance=Decimal("50.00"), status="closed"))
+    session.commit()
+    today = date(2026, 10, 6)
+    expected = 80000.0 + 300.0 + 700.0 - 100.0
+    assert get_debt_kpi(session, today=today).value == expected
+    assert position_totals(session, today).debt_total == expected

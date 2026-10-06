@@ -5,6 +5,10 @@
   <title>{% block title %}Home & Family{% endblock %}</title>
   <script src="/static/htmx.min.js"></script>
   <style>
+    tr.flow-out { background: #f7ebe9; } tr.flow-out td.amt { color: #a8504a; }
+    tr.flow-in { background: #e9f2ea; } tr.flow-in td.amt { color: #4d7a56; }
+    tr.flow-neutral { color: #76716a; }
+    @media (prefers-color-scheme: dark) { tr.flow-out { background: #3a2523; } tr.flow-in { background: #22332a; } }
     body { font-family: system-ui, sans-serif; margin: 0; display: flex; }
     nav { width: 180px; padding: 1rem; border-right: 1px solid #ddd; }
     nav a { display: block; margin-bottom: 0.5rem; color: #333; text-decoration: none; }
@@ -35,6 +39,44 @@
        mockup, .superpowers/brainstorm/1227663-1787308748/content/
        overview-v13.html -- class names (fc-*) match that file exactly so
        this stays a literal reproduction, not a reinterpretation. ---- */
+    /* ---- Overview Budget section ---- */
+    :root { --bud-ok: #4d7a56; --bud-at_risk: #a2792f; --bud-over: #a8504a; --bud-none: #76716a; --bud-track: #f2f2f2; }
+    /* The Overview frame is a fixed white card in both colour schemes, so the status colours stay the light-scheme values. */
+    .bud-ok { --bud: var(--bud-ok); } .bud-at_risk { --bud: var(--bud-at_risk); } .bud-over { --bud: var(--bud-over); } .bud-none { --bud: var(--bud-none); }
+    .bud-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .bud-cards .fc-card { cursor: default; }
+    .bud-cards .fc-card:hover { background: inherit; }
+    .bud-hint { font-size: 12px; color: #888; margin: 0 0 10px; }
+    .bud-group { border-top: 1px solid #ececec; }
+    .bud-group > summary, .bud-cat > summary { cursor: pointer; list-style: none; }
+    .bud-group > summary::-webkit-details-marker, .bud-cat > summary::-webkit-details-marker { display: none; }
+    .bud-head { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(60px, 1.4fr) 76px 86px 76px; gap: 10px; align-items: center; padding: 8px 0; font-size: 13px; }
+    .bud-group > summary .bud-head { font-weight: 700; }
+    .bud-cat > summary .bud-head { padding-left: 14px; font-weight: 600; }
+    .bud-line { position: relative; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(60px, 1.4fr) 76px 86px 76px; gap: 6px 10px; align-items: center; padding: 7px 0 7px 28px; font-size: 13px; border-top: 1px solid #f4f4f4; }
+    .bud-name { overflow-wrap: anywhere; }
+    .bud-track { background: var(--bud-track); height: 10px; border-radius: 3px; overflow: hidden; }
+    .bud-fill { height: 100%; background: var(--bud, var(--bud-none)); border-radius: 3px; }
+    .bud-fill.thin { background: var(--bud-none); opacity: 0.5; }
+    .bud-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bud-est { color: #888; }
+    .bud-status { color: var(--bud, var(--bud-none)); font-weight: 600; }
+    .bud-line label.bud-set { cursor: pointer; color: var(--bud, var(--bud-none)); text-decoration: underline dotted; }
+    .bud-line label.bud-set.unset { color: #888; font-size: 12px; }
+    .bud-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; left: 0; }
+    .bud-toggle:focus-visible + label { outline: 2px solid #4a6fa5; }
+    .bud-form { display: none; grid-column: 1 / -1; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; }
+    .bud-toggle:checked ~ .bud-form { display: flex; }
+    .bud-form input[type=number] { width: 90px; }
+    .bud-notfiled { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #ececec; font-size: 13px; color: var(--bud-none); text-decoration: none; }
+    @media (max-width: 640px) {
+      .bud-head, .bud-line { grid-template-columns: minmax(0, 1fr) auto auto; }
+      .bud-line { padding-left: 14px; }
+      .bud-head .bud-track, .bud-head .bud-est { display: none; }
+      .bud-line .bud-track { grid-column: 1 / -1; grid-row: 2; }
+      .bud-line .bud-est { grid-column: 1 / -1; text-align: left; }
+      .bud-head > :nth-child(4) { display: none; }
+    }
     .fc-page { width: 80%; margin: 0 auto; }
     .domain-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 12px; margin-bottom: 16px; }
     .domain-card { border: 1px solid #e2e2e2; border-radius: 10px; padding: 14px 16px; background: #fff; }
@@ -129,6 +171,15 @@
     .fc-attn-row .ic { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
     .fc-attn-row .txt { flex: 1; }
     .fc-attn-row .go { color: #999; font-size: 13px; }
+    .fc-attn-reminder { cursor: default; background: #fff6e0; }
+    .fc-attn-reminder.fc-attn-overdue { background: #fde8e8; }
+    .fc-attn-reminder:hover { background: #fff6e0; }
+    .fc-attn-reminder.fc-attn-overdue:hover { background: #fde8e8; }
+    .fc-attn-plus { flex-shrink: 0; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; font-weight: 600; text-decoration: none; color: #fff; background: #d98a00; }
+    .fc-attn-overdue .fc-attn-plus { background: #c62828; }
+    .fc-attn-alert { cursor: default; background: #fde8e8; color: #7a1f1f; }
+    .fc-attn-alert:hover { background: #fde8e8; }
+    .fc-attn-open { flex-shrink: 0; font-size: 12px; font-weight: 600; text-decoration: none; color: #fff; background: #c62828; border-radius: 4px; padding: 3px 9px; }
   .badge { display: inline-block; font-size: 0.7rem; padding: 0 0.4rem; border-radius: 4px; background: #eef1f5; color: #555; }
     .backlog { border: 1px solid #ececec; border-radius: 8px; padding: 0.75rem 1rem; margin: 1rem 0; }
     .backlog h2 { font-size: 1rem; margin: 0 0 0.5rem; }
@@ -157,6 +208,68 @@
     .ask-thinking, .ask-note, .ask-hint { color: #888; }
     .ask-sources { font-size: 0.9rem; }
     .ask-recent small { color: #888; display: block; }
+    .loan-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .loan-card { cursor: default; }
+    .loan-card:hover { background: inherit; }
+    .loan-savings { background: #f1f6f2; } .loan-savings .fc-card-val { color: #4d7a56; }
+    .loan-debt { background: #f9f1f0; } .loan-debt .fc-card-val { color: #a8504a; }
+    .loan-fresh { font-size: 12px; color: #888; margin: 10px 0 2px; }
+    .loan-fresh.loan-stale { color: #a2792f; font-weight: 600; }
+    .loan-note { font-size: 12px; color: #a2792f; margin-top: 4px; }
+    .loan-empty { font-size: 13px; color: #888; }
+    .loan-row { display: block; text-decoration: none; color: #1a1a1a; padding: 12px 0; border-top: 1px solid #ececec; }
+    .loan-row:hover { background: #fafafa; }
+    .loan-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+    .loan-name { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+    .loan-rate { font-size: 12px; color: #666; font-variant-numeric: tabular-nums; }
+    .loan-big { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .loan-sub { display: block; font-size: 11px; color: #888; margin-top: 2px; }
+    .loan-remaining { margin-top: 6px; }
+    .loan-warn { color: #a2792f; font-size: 12px; }
+    .loan-track { background: #f2f2f2; height: 6px; border-radius: 3px; overflow: hidden; margin: 6px 0 8px; }
+    .loan-fill { height: 100%; background: #a8504a; opacity: 0.7; }
+    .loan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 16px; font-size: 13px; margin: 8px 0 4px; }
+    .loan-k { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #999; }
+    .loan-holder { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin: 12px 0 4px; }
+    .loan-fund { padding: 10px 0; border-top: 1px solid #f0f0f0; }
+    .loan-pos { color: #4d7a56; font-weight: 600; } .loan-neg { color: #a8504a; font-weight: 600; }
+    .loan-bal { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid #f0f0f0; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .loan-closed { margin-top: 10px; font-size: 13px; color: #777; }
+    .loan-strip { display: flex; align-items: flex-end; gap: 2px; height: 70px; }
+    .loan-strip-bar { flex: 1 1 0; min-width: 2px; background: #4a6fa5; border-radius: 1px 1px 0 0; }
+    .loan-table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .loan-table th { text-align: right; font-size: 11px; text-transform: uppercase; color: #999; padding: 6px 8px; border-bottom: 1px solid #ececec; }
+    .loan-table td { text-align: right; padding: 7px 8px; border-bottom: 1px solid #f4f4f4; }
+    .loan-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: #c62828; border-radius: 10px; padding: 2px 10px; margin-left: 10px; vertical-align: middle; }
+    .loan-flags { background: #fde8e8; border: 1px solid #e8b4b4; border-radius: 6px; padding: 10px 12px; margin: 10px 0; color: #7a1f1f; }
+    .loan-flags-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #c62828; margin-bottom: 6px; }
+    .loan-flag { padding: 6px 0; border-top: 1px solid #f0c8c8; font-size: 13px; }
+    .loan-flag:first-of-type { border-top: none; }
+    .loan-flag form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .loan-flag input[type=text] { flex: 1 1 160px; font: inherit; font-size: 12px; padding: 3px 6px; }
+    .loan-flag button { font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
+    .loan-flag-done { font-size: 12px; color: #777; padding: 4px 0; border-top: 1px solid #f0f0f0; }
+    .loan-spread-bad { color: #c62828; font-weight: 700; }
+    @media (prefers-color-scheme: dark) {
+      .fc-attn-alert { background: #3a2523; color: #f2c4c0; } .fc-attn-alert:hover { background: #3a2523; }
+      .fc-attn-open, .loan-badge { background: #b03a35; }
+      .loan-flags { background: #3a2523; border-color: #6b3b38; color: #f2c4c0; }
+      .loan-flags-title { color: #ff8a80; } .loan-flag { border-top-color: #6b3b38; }
+      .loan-spread-bad { color: #ff8a80; } .loan-flag-done { color: #aaa; border-top-color: #333; }
+    }
+    .loan-informal { border-top: 1px solid rgba(128,128,128,0.25); padding: 12px 0; }
+    .loan-informal .loan-ledger th:nth-child(n+3), .loan-informal .loan-ledger td:nth-child(n+3) { text-align: right; }
+    .loan-informal .loan-ledger td:nth-child(4) { text-align: left; }
+    .loan-informal details { margin-top: 8px; font-size: 13px; }
+    .loan-informal summary { cursor: pointer; color: #777; }
+    .loan-ledger-note { color: #888; font-size: 12px; }
+    .loan-entry-form, .loan-new-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; margin: 10px 0 4px; }
+    .loan-entry-form label, .loan-new-form label { display: flex; flex-direction: column; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #999; gap: 2px; }
+    .loan-entry-form input, .loan-entry-form select, .loan-new-form input, .loan-new-form select, .loan-entry-form button, .loan-new-form button, .loan-del { font: inherit; font-size: 13px; padding: 3px 6px; }
+    .loan-del { cursor: pointer; padding: 0 6px; }
+    .loan-link { border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; margin: 6px 0; padding: 6px 10px; }
+    .loan-link legend { font-size: 11px; color: #888; padding: 0 4px; }
+    .loan-table th:first-child, .loan-table td:first-child, .loan-table th:nth-child(2), .loan-table td:nth-child(2) { text-align: left; }
   </style>
 </head>
 <body>

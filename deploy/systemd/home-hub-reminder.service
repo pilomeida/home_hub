@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - statement reminder push
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/home-hub/app
+EnvironmentFile=/srv/home-hub/app/.env
+ExecStart=/srv/home-hub/venv/bin/python -m app.jobs.statement_reminder
+TimeoutStartSec=2min

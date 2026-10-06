@@ -220,9 +220,13 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             try:
                 await classify(session, txn)
                 session.add(txn)
+                # classify already filed the transaction under the merchant's tree
+                # node (dual-writing the legacy category). Only a merchant with no
+                # node yet (legacy row) still hands over its legacy category.
                 if txn.merchant_id is not None:
                     merchant = session.get(Merchant, txn.merchant_id)
-                    if merchant is not None and merchant.default_category != Category.OTHER:
+                    if (merchant is not None and merchant.default_category_id is None
+                            and merchant.default_category != Category.OTHER):
                         txn.category = merchant.default_category
             except Exception:
                 session.rollback()
@@ -241,6 +245,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                     session.add(txn)
                     session.flush()
                 txn.category = Category.OTHER
+                txn.category_id = None  # unfiled: surfaces in Needs Review
                 txn.merchant_id = None
                 session.add(txn)
                 result.unclassified += 1

@@ -1,0 +1,62 @@
+{% macro date(d) %}{{ d.day }} {{ d.strftime('%b %Y') }}{% endmacro %}
+{% macro eur0(v) %}{{ "−" if v < 0 else "" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
+{% macro eur2(v) %}{{ "−" if v < 0 else "" }}€{{ "{:,.2f}".format(v|abs) }}{% endmacro %}
+{% macro signed0(v) %}{{ "+" if v >= 0 else "−" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
+{% macro freshness(as_of, stale_days, stale_after=150) %}
+{%- if as_of -%}
+<div class="loan-fresh{{ ' loan-stale' if stale_days is not none and stale_days > stale_after else '' }}">Data as of {{ date(as_of) }}{% if stale_days is not none and stale_days > stale_after %} — {{ stale_days }} days old, upload newer statements{% endif %}</div>
+{%- endif -%}
+{% endmacro %}
+{% macro rate(r) %}{% if r.summary.rate_percent is none %}rate unknown{% elif r.rate_derived %}≈ {{ "%.1f"|format(r.summary.rate_percent) }}% (derived){% else %}{{ "%.3f"|format(r.summary.rate_percent) }}%{% if r.summary.applied_rate_percent is not none %} <span class="loan-sub">(applied last instalment: {{ "%.3f"|format(r.summary.applied_rate_percent) }}%)</span>{% endif %}{% endif %}{% endmacro %}
+{% macro flags(r, back) %}
+{%- if r.groups or r.acked_alerts -%}
+<div class="loan-flags-wrap">
+{%- if r.groups %}
+<div class="loan-flags">
+  <div class="loan-flags-title">Red flags</div>
+  {% for g in r.groups %}
+  <div class="loan-flag">
+    {% if g.alerts|length == 1 %}
+    {% set a = g.alerts[0] %}
+    <div>{{ a.message }} <span class="loan-sub">detected {{ date(a.detected_on) }}</span></div>
+    <form method="post" action="/financials/loans/alerts/{{ a.id }}/ack">
+      <input type="hidden" name="next" value="{{ back }}">
+      <input type="text" name="note" placeholder="Note (optional), e.g. bank error, known" maxlength="300">
+      <button type="submit">Acknowledge</button>
+    </form>
+    {% else %}
+    <div>{{ g.text }}</div>
+    <form method="post" action="/financials/loans/alerts/ack-group">
+      <input type="hidden" name="next" value="{{ back }}">
+      <input type="hidden" name="debt_id" value="{{ g.debt.id }}">
+      <input type="hidden" name="kind" value="{{ g.kind }}">
+      <input type="text" name="note" placeholder="Note (optional), e.g. bank error, known" maxlength="300">
+      <button type="submit">Acknowledge all ({{ g.alerts|length }})</button>
+    </form>
+    <details class="loan-closed"><summary>Show the {{ g.alerts|length }} individual flags</summary>
+      {% for a in g.alerts %}
+      <div class="loan-flag">
+        <div>{{ a.message }} <span class="loan-sub">detected {{ date(a.detected_on) }}</span></div>
+        <form method="post" action="/financials/loans/alerts/{{ a.id }}/ack">
+          <input type="hidden" name="next" value="{{ back }}">
+          <input type="text" name="note" placeholder="Note (optional)" maxlength="300">
+          <button type="submit">Acknowledge</button>
+        </form>
+      </div>
+      {% endfor %}
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{%- endif %}
+{%- if r.acked_alerts %}
+<details class="loan-closed"><summary>Acknowledged ({{ r.acked_alerts|length }})</summary>
+  {% for a in r.acked_alerts %}<div class="loan-flag-done">{{ a.message }}{% if a.ack_note %} — <em>{{ a.ack_note }}</em>{% endif %}</div>{% endfor %}
+</details>
+{%- endif %}
+</div>
+{%- endif -%}
+{% endmacro %}
+{% macro pct(v) %}{% if v is none %}—{% else %}{{ "%.3f"|format(v) }}%{% endif %}{% endmacro %}
+{% macro insurance_line(r) %}{% if r.insurance_paid %}<div><span class="loan-k">Insurance paid (linked debits)</span>{{ eur2(r.insurance_paid) }}{% if r.last_premium is not none %} <span class="loan-sub">· last premium {{ eur2(r.last_premium) }}{% if r.last_premium_date %} on {{ date(r.last_premium_date) }}{% endif %}</span>{% endif %}</div>{% endif %}{% endmacro %}

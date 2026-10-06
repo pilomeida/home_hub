@@ -15,6 +15,7 @@ class Merchant(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     canonical_name: str
     default_category: Category = Field(default=Category.OTHER)
+    default_category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id")
     default_nature: Optional[Nature] = None
     normalized_key: str = Field(index=True, unique=True)
     confirmed: bool = Field(default=False)

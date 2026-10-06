@@ -16,7 +16,8 @@ def _read(path):
 def test_expected_units_exist():
     names = {p.name for p in UNIT_DIR.iterdir()}
     assert {"home-hub-mailpoll.service", "home-hub-mailpoll.timer", "home-hub-telegram.service",
-            "home-hub-banksync.service", "home-hub-banksync.timer"} <= names
+            "home-hub-banksync.service", "home-hub-banksync.timer",
+            "home-hub-reminder.service", "home-hub-reminder.timer"} <= names
 
 
 def test_services_run_app_modules_from_the_checkout_without_privilege():
@@ -42,6 +43,12 @@ def test_banksync_timer_runs_on_lisbon_time():
     text = (UNIT_DIR / "home-hub-banksync.timer").read_text()
     for hour in ("07:30:00", "13:00:00", "18:30:00"):
         assert f"OnCalendar=*-*-* {hour} Europe/Lisbon" in text
+
+
+def test_reminder_timer_runs_daily_at_nine_lisbon_time_and_catches_up():
+    text = (UNIT_DIR / "home-hub-reminder.timer").read_text()
+    assert "OnCalendar=*-*-* 09:00:00 Europe/Lisbon" in text
+    assert "Persistent=true" in text
 
 
 def test_install_script_is_executable():

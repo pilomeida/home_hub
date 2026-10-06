@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% import "loans/_macros.html" as m %}
+{% block title %}Loans & Savings — Home & Family{% endblock %}
+{% block content %}
+<div class="fc-page">
+<div class="fc-frame">
+  <div class="fc-topbar">
+    <div class="fc-brand">LOANS &amp; SAVINGS{% if alert_count %}<span class="loan-badge">{{ alert_count }} red flag{{ '' if alert_count == 1 else 's' }}</span>{% endif %}</div>
+    <div class="fc-period"><a href="{{ upload_url }}" title="Upload statements">+</a></div>
+  </div>
+
+  {% if empty %}
+  <div class="fc-section">
+    <p class="loan-empty">No loan or savings data yet — upload your latest Santander statements with the <a href="{{ upload_url }}">+</a> button</p>
+  </div>
+  {% else %}
+  <div class="fc-kpi-group">
+    <div class="loan-cards">
+      <div class="fc-card loan-card loan-savings">
+        <div class="fc-card-label"><span>Savings &amp; investments</span></div>
+        <div class="fc-card-val">{{ m.eur0(totals.savings_total + totals.deposits_total) }}</div>
+        <div class="fc-card-caption">funds {{ m.eur0(totals.savings_total) }} · deposits {{ m.eur0(totals.deposits_total) }}</div>
+      </div>
+      <div class="fc-card loan-card loan-debt">
+        <div class="fc-card-label"><span>Debt</span></div>
+        <div class="fc-card-val">{{ m.eur0(totals.debt_total + totals.cards_total) }}</div>
+        <div class="fc-card-caption">loans {{ m.eur0(totals.debt_total) }} · cards {{ m.eur0(totals.cards_total) }}</div>
+      </div>
+      <div class="fc-card loan-card position">
+        <div class="fc-card-label"><span>Net position</span></div>
+        <div class="fc-card-val">{{ m.eur0(totals.net_position) }}</div>
+        <div class="fc-card-caption">savings and deposits minus loans and cards</div>
+      </div>
+    </div>
+    {{ m.freshness(totals.as_of, totals.stale_days, stale_after) }}
+    {% if unknown_count %}<div class="loan-note">totals exclude {{ unknown_count }} loan(s) with unknown balance</div>{% endif %}
+  </div>
+
+  <div class="fc-section">
+    <div class="fc-section-title"><span>Loans</span></div>
+    {% for r in active_loans %}{% set s = r.summary %}
+    <a class="loan-row" href="/financials/loans/{{ s.debt_id }}">
+      <div class="loan-head">
+        <span class="loan-name">{{ s.name }}</span>
+        <span class="loan-rate">{{ m.rate(r) }}</span>
+      </div>
+      {% if s.balance_known %}
+      <div class="loan-remaining">
+        <span class="loan-big">{{ m.eur0(s.capital_remaining) }}</span>
+        <span class="loan-sub">capital remaining{% if s.capital_granted %} of {{ m.eur0(s.capital_granted) }}{% endif %}</span>
+      </div>
+      {% if r.remaining_pct is not none %}<div class="loan-track"><div class="loan-fill" style="width: {{ '%.1f'|format(r.remaining_pct) }}%"></div></div>{% endif %}
+      {% else %}
+      <div class="loan-sub loan-warn">balance unknown — upload a statement or a longer loan history</div>
+      {% endif %}
+      <div class="loan-grid">
+        {% if s.next_instalment is not none and s.next_due_date %}
+        <div><span class="loan-k">Next instalment</span>
+          {{ m.date(s.next_due_date) }} · {{ m.eur2(s.next_instalment) }}
+          {% if s.projected %}<span class="loan-sub">(estimated from last payment)</span>{% endif %}
+          {% if s.last_insurance %}<span class="loan-sub">+ {{ m.eur2(s.last_insurance) }} insurance debited separately</span>{% endif %}
+        </div>
+        {% endif %}
+        {{ m.insurance_line(r) }}
+        <div><span class="loan-k">Paid in recorded instalments{% if s.recorded_since %} (since {{ m.date(s.recorded_since) }}){% endif %}</span>
+          capital {{ m.eur0(s.paid_capital_total) }} · interest {{ m.eur0(s.paid_interest_total) }} · insurance {{ m.eur0(s.paid_insurance_total) }}</div>
+        {% if s.capital_repaid is not none %}<div><span class="loan-k">Capital repaid so far</span>{{ m.eur0(s.capital_repaid) }} (granted − remaining)</div>{% endif %}
+        {% if r.payoff_text %}<div><span class="loan-k">Payoff</span>{{ r.payoff_text }}</div>{% endif %}
+      </div>
+      <div class="loan-sub">{% if r.from_statements %}from statements{% else %}from loan history (online banking) — update from the online loan history{% endif %}{% if s.as_of %} · as of {{ m.date(s.as_of) }}{% endif %}</div>
+    </a>
+    {{ m.flags(r, "/financials/loans") }}
+    {% else %}
+    <p class="loan-empty">No open loans.</p>
+    {% endfor %}
+    {% if closed_loans %}
+    <details class="loan-closed"><summary>Closed loans ({{ closed_loans|length }})</summary>
+      {% for r in closed_loans %}
+      <a class="loan-row" href="/financials/loans/{{ r.summary.debt_id }}"><div class="loan-head"><span class="loan-name">{{ r.summary.name }}</span><span class="loan-sub">paid off</span></div></a>
+      {{ m.flags(r, "/financials/loans") }}
+      {% endfor %}
+    </details>
+    {% endif %}
+  </div>
+
+  <div class="fc-section">
+    <div class="fc-section-title"><span>Savings &amp; investments</span></div>
+    {% for holder, lines in holders.items() %}
+    <div class="loan-holder">{{ holder }}</div>
+    {% for l in lines %}
+    <div class="loan-fund">
+      <div class="loan-head"><span class="loan-name">{{ l.label }}</span><span class="loan-big">{{ m.eur0(l.value) }}</span></div>
+      <div class="loan-grid">
+        {% if l.invested is not none %}<div><span class="loan-k">Invested</span>{{ m.eur0(l.invested) }}</div>{% endif %}
+        {% if l.gain is not none %}<div><span class="loan-k">Gain</span><span class="{{ 'loan-pos' if l.gain >= 0 else 'loan-neg' }}">{{ m.signed0(l.gain) }}{% if l.invested %} ({{ "%+.1f"|format(l.gain / l.invested * 100) }}%){% endif %}</span></div>{% endif %}
+        {% if l.periodic_amount %}<div><span class="loan-k">Monthly</span>{{ m.eur0(l.periodic_amount) }}{% if l.next_periodic_date %} · next {{ m.date(l.next_periodic_date) }}{% endif %}</div>{% endif %}
+      </div>
+      <div class="loan-sub">as of {{ m.date(l.as_of) }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="loan-empty">No funds recorded.</p>
+    {% endfor %}
+  </div>
+
+  <div class="fc-section">
+    <div class="fc-section-title"><span>Deposits &amp; cards</span></div>
+    {% for b in deposits %}<div class="loan-bal"><span>{{ b.label }}</span><span>{{ m.eur2(b.amount) }}</span></div>{% endfor %}
+    {% for b in cards %}<div class="loan-bal"><span>{{ b.label }} <span class="loan-sub">card</span></span><span>{{ m.eur2(b.amount) }}</span></div>{% endfor %}
+    {% if not deposits and not cards %}<p class="loan-empty">No deposits or cards recorded.</p>{% endif %}
+  </div>
+
+  {% endif %}
+  <div class="fc-section" id="informal-loans">
+    <div class="fc-section-title"><span>Informal loans</span></div>
+    {% for i in informal %}{% set sm = i.summary %}{% set lent = i.debt.direction is not none and i.debt.direction.value == "owed_to_us" %}
+    <div class="loan-informal">
+      <div class="loan-head">
+        <span class="loan-name">{{ i.person or "Unnamed" }}</span>
+        <span class="loan-rate">{{ "they owe us" if lent else "we owe them" }}</span>
+      </div>
+      <div class="loan-remaining">
+        {% if sm.overpaid_by > 0 %}
+        <span class="loan-big loan-pos">overpaid by {{ m.eur2(sm.overpaid_by) }}</span>
+        {% else %}
+        <span class="loan-big">{{ m.eur2(i.balance) }}</span> <span class="loan-sub">balance</span>
+        {% endif %}
+      </div>
+      <div class="loan-grid">
+        <div><span class="loan-k">Advances</span>{{ m.eur2(sm.advances_total) }}</div>
+        <div><span class="loan-k">Repayments</span>{{ m.eur2(sm.repayments_total) }}</div>
+        {% if sm.adjustments_net != 0 %}<div><span class="loan-k">Adjustments</span>{{ m.eur2(sm.adjustments_net) }}</div>{% endif %}
+        <div><span class="loan-k">Last activity</span>{% if sm.last_activity %}{{ m.date(sm.last_activity) }}{% else %}—{% endif %}</div>
+      </div>
+      <details>
+        <summary>Ledger ({{ sm.entries|length }} entr{{ "y" if sm.entries|length == 1 else "ies" }}) · <a href="/financials/transactions?debt_id={{ i.debt.id }}">transactions</a></summary>
+        {% if sm.entries %}
+        <table class="loan-table loan-ledger">
+          <thead><tr><th>Date</th><th>Kind</th><th>Amount</th><th>Transaction / note</th><th>Running balance</th><th></th></tr></thead>
+          <tbody>
+          {% for e, running in sm.entries %}
+          <tr class="loan-entry">
+            <td>{{ m.date(e.entry_date) }}</td>
+            <td>{{ {"advance": "Advance", "repayment": "Repayment", "adjust_up": "Adjustment +", "adjust_down": "Adjustment −"}[e.kind] }}</td>
+            <td>{{ m.eur2(e.amount) }}</td>
+            <td>{% if e.transaction_id %}<a href="/financials/transactions?transaction_id={{ e.transaction_id }}">bank transaction</a>{% endif %}{% if e.note %}{% if e.transaction_id %} · {% endif %}<span class="loan-ledger-note">{{ e.note }}</span>{% endif %}</td>
+            <td>{{ m.eur2(running) }}</td>
+            <td>{% if not e.transaction_id %}<form method="post" action="/financials/loans/debts/{{ i.debt.id }}/entries/{{ e.id }}/delete"><button type="submit" class="loan-del" title="Delete this manual entry">×</button></form>{% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="loan-empty">No entries yet.</p>
+        {% endif %}
+        <form method="post" action="/financials/loans/debts/{{ i.debt.id }}/entries" class="loan-entry-form">
+          <label>Kind
+            <select name="kind">
+              <option value="advance">advance</option>
+              <option value="repayment">repayment</option>
+              <option value="adjust_up">adjustment up</option>
+              <option value="adjust_down">adjustment down</option>
+            </select>
+          </label>
+          <label>Amount <input type="number" name="amount" step="0.01" min="0.01" required></label>
+          <label>Date <input type="date" name="entry_date" value="{{ today_iso }}" required></label>
+          <label>Note <input type="text" name="note" maxlength="300"></label>
+          <button type="submit">Add entry</button>
+        </form>
+      </details>
+    </div>
+    {% else %}
+    <p class="loan-empty">No informal loans yet.</p>
+    {% endfor %}
+    <details>
+      <summary>New informal loan</summary>
+      <form method="post" action="/financials/loans/debts/new" class="loan-new-form">
+        <label>Person <input type="text" name="person_name" maxlength="80" required></label>
+        <label>Direction
+          <select name="direction">
+            <option value="owed_to_us">we lent (they owe us)</option>
+            <option value="owed_by_us">we borrowed (we owe them)</option>
+          </select>
+        </label>
+        <label>Opening amount <input type="number" name="opening_amount" step="0.01" min="0.01"></label>
+        <label>Date <input type="date" name="entry_date" value="{{ today_iso }}"></label>
+        <label>Note <input type="text" name="note" maxlength="300"></label>
+        <button type="submit">Create loan</button>
+      </form>
+    </details>
+  </div>
+</div>
+</div>
+{% endblock %}

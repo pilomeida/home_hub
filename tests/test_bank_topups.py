@@ -5,6 +5,7 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.transaction import Category, Transaction, TransactionType
 from app.services.bankapi.sync import _provider
+from app.services.taxonomy import ensure_taxonomy, get_node
 from app.services.bankapi.topups import link_revolut_topups
 
 
@@ -36,6 +37,7 @@ def _revolut_credit(session, rev, doc, amount, paid):
 
 
 def test_pair_is_linked_and_typed_as_transfer(session):
+    ensure_taxonomy(session)
     san, rev, doc = _accounts(session)
     credit = _revolut_credit(session, rev, doc, 540.0, date(2026, 9, 3))
     debit = _santander_debit(session, san, doc, 540.0, date(2026, 9, 7))
@@ -46,6 +48,8 @@ def test_pair_is_linked_and_typed_as_transfer(session):
     assert debit.linked_transaction_id == credit.id and credit.linked_transaction_id == debit.id
     assert debit.transaction_type == credit.transaction_type == TransactionType.TRANSFER
     assert debit.category == credit.category == Category.TRANSFER
+    node = get_node(session, "internal-transfers.between-my-accounts.santander-revolut")
+    assert debit.category_id == credit.category_id == node.id
 
 
 def test_rerun_is_a_noop(session):

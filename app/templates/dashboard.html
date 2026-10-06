@@ -36,6 +36,8 @@
   </div>
   {% endif %}
 
+  {% include "dashboard/_budget_panel.html" %}
+
   {% with chart = overview.cash_flow_chart, rows = overview.category_comparison %}
     {% include "dashboard/_period_panel.html" %}
   {% endwith %}
