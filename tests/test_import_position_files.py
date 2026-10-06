@@ -199,3 +199,53 @@ def test_bad_new_loan_format_exits_2(factory, tmp_path, bad, capsys):
 
 def test_no_files_is_a_usage_error(factory):
     assert _run(factory, FakeGateway([]), "--dry-run") == 2
+
+
+# ---- wrapped (Java-serialized) downloads -----------------------------------
+HEAD = b"\xac\xed\x00\x05ur\x00\x02[B"
+HEAD = HEAD + b"\x00" * (27 - len(HEAD))
+CLEAN = b"%PDF-1.7 synthetic body %%EOF\n"
+
+
+def _put(tmp_path, name, data):
+    p = tmp_path / name
+    p.write_bytes(data)
+    return str(p)
+
+
+def test_normalize_rules():
+    from app.services.pdf_bytes import normalize_pdf_bytes
+    assert len(HEAD) == 27
+    assert normalize_pdf_bytes(CLEAN) == CLEAN
+    assert normalize_pdf_bytes(HEAD + CLEAN) == CLEAN
+    assert normalize_pdf_bytes(HEAD + b"%PDF-1.7 no end") is None
+    assert normalize_pdf_bytes(b"\x01" * 300) is None
+    assert normalize_pdf_bytes(b"\x00" * 200 + CLEAN) is None
+
+
+def test_script_accepts_wrapped_stores_clean_and_clean_copy_is_duplicate(factory, session, tmp_path, capsys):
+    fake = FakeGateway([STMT_A])
+    w = _put(tmp_path, "wrapped.pdf", HEAD + CLEAN)
+    assert _run(factory, fake, "--statements", w) == 0
+    assert _lines(capsys)[0].startswith("OK")
+    session.expire_all()
+    doc = session.exec(select(Document)).one()
+    assert Path(doc.file_path).read_bytes() == CLEAN
+    c = _put(tmp_path, "clean.pdf", CLEAN)
+    assert _run(factory, fake, "--statements", c) == 0
+    assert _lines(capsys)[0].startswith("ALREADY") and len(fake.requests) == 1
+
+
+def test_script_rejects_truncated_garbage_and_long_header(factory, tmp_path, capsys):
+    fake = FakeGateway([])
+    files = [_put(tmp_path, "t.pdf", HEAD + b"%PDF-1.7 cut"), _put(tmp_path, "g.pdf", b"\x07" * 400),
+             _put(tmp_path, "l.pdf", b"\x00" * 200 + CLEAN)]
+    assert _run(factory, fake, "--statements", *files) == 0
+    out = _lines(capsys)
+    assert all(l.startswith("REJECTED") for l in out) and "truncated" in out[0] and fake.requests == []
+
+
+def test_dry_run_reports_wrapped(factory, tmp_path, capsys):
+    assert _run(factory, FakeGateway([]), "--dry-run", "--statements", _put(tmp_path, "w.pdf", HEAD + CLEAN)) == 0
+    assert "OK (wrapped, 27 bytes stripped)" in capsys.readouterr().out
+

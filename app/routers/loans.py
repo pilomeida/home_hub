@@ -34,6 +34,7 @@ from app.services.position_store import (
     assign_history_to_loan, create_loan_from_assignment, extraction_summary, loan_number_conflict,
     process_loan_history_document, process_positions_document,
 )
+from app.services.pdf_bytes import NOT_PDF, inspect_pdf
 from app.services.statement_reminder import UPLOAD_URL
 from app.templating import templates
 
@@ -194,8 +195,10 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
     if len(content) > MAX_FILE_BYTES:
         return FileResult(name, slot["label"], "rejected",
                           f"file too large (the limit is {MAX_FILE_BYTES // (1024 * 1024)} MB per file)")
-    if not name.lower().endswith(".pdf") or not content.startswith(b"%PDF"):
-        return FileResult(name, slot["label"], "rejected", "only PDF files are accepted")
+    clean, _, problem = inspect_pdf(content)
+    if not name.lower().endswith(".pdf") or clean is None:
+        return FileResult(name, slot["label"], "rejected", problem or NOT_PDF)
+    content = clean  # a wrapped bank download is stored (and hashed) as the clean PDF
     label = slot["label"]
     try:
         received = await ingest(

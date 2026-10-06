@@ -898,3 +898,29 @@ def test_single_ack_rejects_a_note_over_300_characters(client, session):
     session.expire_all()
     assert not session.get(LoanAlert, a.id).acknowledged
     assert client.post(f"/financials/loans/alerts/{a.id}/ack", data={"note": "x" * 300}, follow_redirects=False).status_code == 303
+
+
+# ---- wrapped (Java-serialized) downloads -----------------------------------
+_HEAD = (b"\xac\xed\x00\x05ur\x00\x02[B").ljust(27, b"\x00")
+_CLEAN = b"%PDF-1.7 synthetic body %%EOF\n"
+
+
+def test_wrapped_download_is_stored_clean_and_clean_copy_is_duplicate(client, session, gateway):
+    fake = gateway([STMT_A])
+    r = client.post("/financials/loans/upload", files=[("statements", ("w.pdf", _HEAD + _CLEAN, "application/pdf"))])
+    assert r.status_code == 200 and "only PDF" not in r.text
+    session.expire_all()
+    doc = session.exec(select(Document)).one()
+    from pathlib import Path
+    assert Path(doc.file_path).read_bytes() == _CLEAN
+    r = client.post("/financials/loans/upload", files=[("statements", ("c.pdf", _CLEAN, "application/pdf"))])
+    assert len(fake.requests) == 1 and len(session.exec(select(Document)).all()) == 1
+
+
+def test_wrapped_truncated_garbage_and_long_header_are_rejected(client, session, gateway):
+    fake = gateway([])
+    for name, data, msg in (("t.pdf", _HEAD + b"%PDF-1.7 cut", "truncated"), ("g.pdf", b"\x07" * 400, "only PDF"),
+                            ("l.pdf", b"\x00" * 200 + _CLEAN, "only PDF")):
+        r = client.post("/financials/loans/upload", files=[("statements", (name, data, "application/pdf"))])
+        assert msg in r.text
+    assert fake.requests == []

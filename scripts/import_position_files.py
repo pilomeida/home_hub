@@ -31,6 +31,7 @@ from app.models.document import Document  # noqa: E402
 from app.models.position import PositionExtraction  # noqa: E402
 from app.routers.loans import HISTORIES, LOAN_TYPES, STATEMENTS, _SLOT, _from_extraction, _handle_file  # noqa: E402
 from app.services import position_extraction  # noqa: E402
+from app.services.pdf_bytes import NOT_PDF, inspect_pdf  # noqa: E402
 from app.services.position_store import (  # noqa: E402
     assign_history_to_loan, create_loan_from_assignment, loan_number_conflict,
 )
@@ -73,10 +74,13 @@ def _gateway_override(gateway):
 def _dry_run(plan: list[tuple[str, Path]]) -> int:
     for slot, path in plan:
         data = path.read_bytes()
-        if not data.startswith(b"%PDF") or not path.name.lower().endswith(".pdf"):
-            _line("REJECTED", path.name, f"{slot}, {len(data)} bytes: not a PDF")
+        clean, stripped, problem = inspect_pdf(data)
+        if clean is None or not path.name.lower().endswith(".pdf"):
+            _line("REJECTED", path.name, f"{slot}, {len(data)} bytes: {problem or NOT_PDF}")
+        elif stripped:
+            _line("OK (wrapped, %d bytes stripped)" % stripped, path.name, f"{slot}, {len(data)} bytes")
         else:
-            _line("DRY-RUN", path.name, f"{slot}, {len(data)} bytes")
+            _line("OK", path.name, f"{slot}, {len(data)} bytes")
     return 0
 
 
