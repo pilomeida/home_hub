@@ -60,12 +60,20 @@ shape exactly:
 Choose the single best node_slug from this list (and nothing else):
 {slugs}
 
-Use "{unsorted}" if you are unsure.
+{unsure_rule}
 Credit-only slugs (money coming in; never for a debit): those starting with \
 income., refunds-reimbursements. or loans-debt-in.
 Debit-only slugs (money going out; never for a credit): every other slug, \
 including all loans-debt. slugs (loan repayments, loan interest and fees, \
 money lent out)."""
+
+
+_UNSURE_RULE = 'Use "{unsorted}" if you are unsure.'
+_BEST_GUESS_RULE = """You must always choose the best-fitting slug; there is no "unsure" \
+option. For a person-to-person transfer (a name after TRF, MBWay, "Transfer to"): \
+a payment for work or services goes to the matching income (credit) or spending \
+(debit) slug; money lent or borrowed goes to a loans-debt slug; otherwise pick \
+the closest direction-valid slug."""
 
 
 def _merchant_schema(slugs: list[str]) -> dict:
@@ -99,19 +107,28 @@ class ResolvedMerchant:
     nature: Nature
 
 
-async def resolve_merchant_via_llm(
-    raw_provider: str, session: Session, gateway=None, is_credit: Optional[bool] = None
-) -> ResolvedMerchant:
-    """Ask the gateway to resolve a raw provider string to a canonical
-    merchant name, category-tree leaf, and nature. Called only when the rules
-    tier (normalize_provider + a Merchant lookup) finds no existing match.
-    The session supplies the leaf slugs the model may choose from."""
-    slugs = [s for s in leaf_slugs(session) if not s.startswith(LLM_EXCLUDED_PREFIXES)]
+def candidate_slugs(session: Session) -> list[str]:
+    """Leaf slugs the LLM may choose from (loan-insurance leaves excluded)."""
+    return [s for s in leaf_slugs(session) if not s.startswith(LLM_EXCLUDED_PREFIXES)]
+
+
+async def ask_merchant_llm(
+    raw_provider: str, slugs: list[str], gateway=None, is_credit: Optional[bool] = None,
+    best_guess: bool = False,
+) -> tuple[str, str, Nature]:
+    """The gateway half of merchant resolution: NO database access, so callers may
+    run many of these concurrently. Returns (canonical_name, node_slug, nature)."""
     if not slugs:
         raise MerchantResolutionError("Category tree is not seeded (no leaf nodes)")
     gw = gateway or get_gateway()
+    if best_guess:  # "unsure" is not an answer: the node is removed from the choices
+        slugs = [s for s in slugs if s != UNSORTED_SLUG]
+        if not slugs:
+            raise MerchantResolutionError("No category nodes to choose from")
     schema = _merchant_schema(slugs)
-    system = _MERCHANT_SYSTEM_PROMPT.replace("{slugs}", "\n".join(slugs)).replace("{unsorted}", UNSORTED_SLUG)
+    rule = _BEST_GUESS_RULE if best_guess else _UNSURE_RULE
+    system = (_MERCHANT_SYSTEM_PROMPT.replace("{unsure_rule}", rule)
+              .replace("{slugs}", "\n".join(slugs)).replace("{unsorted}", UNSORTED_SLUG))
     direction = "" if is_credit is None else (" (a credit)" if is_credit else " (a debit)")
 
     result = await gw.run(
@@ -126,14 +143,26 @@ async def resolve_merchant_via_llm(
         node_slug = data["node_slug"]
         if node_slug not in slugs:
             raise ValueError(f"unknown node_slug {node_slug!r}")
-        return ResolvedMerchant(
-            canonical_name=data["canonical_name"],
-            node_slug=node_slug,
-            category=legacy_category_for(session, get_node(session, node_slug)),
-            nature=Nature(data["nature"]),
-        )
+        return data["canonical_name"], node_slug, Nature(data["nature"])
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise MerchantResolutionError(f"Could not resolve merchant: {exc}") from exc
+
+
+async def resolve_merchant_via_llm(
+    raw_provider: str, session: Session, gateway=None, is_credit: Optional[bool] = None
+) -> ResolvedMerchant:
+    """Ask the gateway to resolve a raw provider string to a canonical
+    merchant name, category-tree leaf, and nature. Called only when the rules
+    tier (normalize_provider + a Merchant lookup) finds no existing match.
+    The session supplies the leaf slugs the model may choose from."""
+    name, node_slug, nature = await ask_merchant_llm(
+        raw_provider, candidate_slugs(session), gateway=gateway, is_credit=is_credit)
+    return ResolvedMerchant(
+        canonical_name=name,
+        node_slug=node_slug,
+        category=legacy_category_for(session, get_node(session, node_slug)),
+        nature=nature,
+    )
 
 
 @dataclass
