@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Insurance{% endblock %}
+{% block content %}
+<h1>Insurance</h1>
+<p><a href="/insurance/upload">+ Add a document</a></p>
+{% for title, cards in sections %}
+<section>
+  <h2>{{ title }}</h2>
+  {% for card in cards %}{% include "insurance/_policy_card.html" %}{% else %}<p>No policy yet.</p>{% endfor %}
+</section>
+{% endfor %}
+{% endblock %}

@@ -10,7 +10,6 @@ class HouseCategory(str, Enum):
     MAINTENANCE_LOG = "maintenance_log"
     FLOOR_PLAN = "floor_plan"
     OWNERSHIP_DOCUMENT = "ownership_document"
-    INSURANCE_POLICY = "insurance_policy"
 
 
 # Categories whose documents belong to one item (grouped by item_name).
@@ -21,8 +20,7 @@ ITEM_CATEGORIES = frozenset({
 # Categories that say what KIND of item it is (drives the landing-page section).
 ITEM_KIND_CATEGORIES = (HouseCategory.HOUSE_APPLIANCE.value, HouseCategory.OUTDOOR_GEAR.value)
 # Non-item documents, shown in the Reference section.
-REFERENCE_CATEGORIES = (HouseCategory.FLOOR_PLAN.value, HouseCategory.OWNERSHIP_DOCUMENT.value,
-                        HouseCategory.INSURANCE_POLICY.value)
+REFERENCE_CATEGORIES = (HouseCategory.FLOOR_PLAN.value, HouseCategory.OWNERSHIP_DOCUMENT.value)
 
 ITEM_PAGE_TYPE = "house.item"
 ROOM_PAGE_TYPE = "house.room"

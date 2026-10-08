@@ -659,7 +659,7 @@ and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy 
 
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 
-1. Add the `Domain` member + a migration altering `domain` on `documents`, `todos`, and `wiki_pages` (copy `3b7e9c1d2f40`'s pattern).
+1. Add the `Domain` member. `documents`, `todos` and `wiki_pages` store `domain` as `VARCHAR(10)` with no CHECK constraint, so a member whose name fits in 10 characters (`INSURANCE` was added this way) needs **no** migration; a longer name, or a database that has gained a CHECK, needs one (copy `3b7e9c1d2f40`'s pattern).
 2. Create `app/domains/<domain>/` with `categories.py`, `handler.py` (a `DomainHandler`), `overview.py` (`overview_card`), and `spec.py` (`SPEC`, including its `fields` and `wiki` schema).
 3. Append `"app.domains.<domain>.spec"` to `_SPEC_MODULES` in `app/domains/registry.py`.
 4. Create `app/routers/<domain>.py` (+ `app/templates/<domain>/`) using `app.templating.templates`, the ingestion core (`receive_file` / `finalize_document`) for uploads, `domains/_field_inputs.html` for metadata, and `todos/_backlog.html` for the backlog; include the router in `app/main.py`.

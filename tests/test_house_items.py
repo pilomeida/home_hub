@@ -70,11 +70,9 @@ def test_type_view_always_shows_both_main_sections(session):
 def test_reference_sections(session):
     _doc(session, "floor_plan", {"system_type": "Pipes", "indoor_outdoor": "outdoor"}, filename="pipes.pdf")
     _doc(session, "ownership_document", {}, filename="deed.pdf")
-    _doc(session, "insurance_policy", {"insurer": "Zurich", "policy_number": "009886609",
-                                       "document_kind": "general_conditions"}, filename="zurich.pdf")
     sections = reference_sections(session)
     assert [(t, [h.title for h in docs]) for t, docs in sections] == [
-        ("Floor plans", ["pipes.pdf"]), ("Ownership documents", ["deed.pdf"]), ("Insurance policies", ["zurich.pdf"]),
+        ("Floor plans", ["pipes.pdf"]), ("Ownership documents", ["deed.pdf"]),
     ]
     assert sections[0][1][0].fields["system_type"] == "Pipes"
 

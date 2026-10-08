@@ -33,7 +33,6 @@ NO_ROOM_TITLE = "No room set"
 REFERENCE_TITLES = {
     HouseCategory.FLOOR_PLAN.value: "Floor plans",
     HouseCategory.OWNERSHIP_DOCUMENT.value: "Ownership documents",
-    HouseCategory.INSURANCE_POLICY.value: "Insurance policies",
 }
 
 

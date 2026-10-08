@@ -10,3 +10,4 @@ from enum import Enum
 class Domain(str, Enum):
     FINANCIALS = "financials"
     HOUSE = "house"
+    INSURANCE = "insurance"  # stored as VARCHAR(10) without a CHECK: a new member needs no migration

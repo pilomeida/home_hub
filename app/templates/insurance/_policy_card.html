@@ -1,0 +1,9 @@
+<article class="item-card" id="{{ card.anchor }}">
+  <h3>{{ card.insurer }}{% if card.product %} — {{ card.product }}{% endif %}</h3>
+  <p>Policy {{ card.policy_number }}{% if card.insured %} · {{ card.insured }}{% endif %}</p>
+  <ul>
+    {% for d in card.documents %}
+    <li><a href="{{ d.url }}">{{ d.title }}</a>{% if d.fields.get("document_kind") %} <small>— {{ d.fields["document_kind"].replace("_", " ") }}{% if d.fields.get("edition") %}, {{ d.fields["edition"] }}{% endif %}</small>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</article>

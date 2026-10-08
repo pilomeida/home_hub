@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ document.filename }} — Insurance{% endblock %}
+{% block content %}
+<p><a href="/insurance">← Insurance</a></p>
+<h1>{{ document.filename }}</h1>
+<p><span class="badge">{{ description.category_label }}</span> · added {{ document.created_at.strftime('%d %b %Y') }} · <a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
+<div class="doc-preview">
+  {% if media_kind == "image" %}<img src="{{ description.file_url }}" alt="{{ document.filename }}">{% endif %}
+  <p><a href="{{ description.file_url }}" target="_blank" rel="noopener">Open the file</a></p>
+</div>
+{% if policy_page %}<p>Policy page: <a href="/wiki/{{ policy_page.id }}">{{ policy_page.topic }}</a></p>{% endif %}
+<h2>Details</h2>
+<form action="/insurance/documents/{{ document.id }}/fields" method="post">
+  {% include "domains/_field_inputs.html" %}
+  <button type="submit">Save</button>
+</form>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Add a document — Insurance{% endblock %}
+{% block content %}
+<p><a href="/insurance">← Insurance</a></p>
+<h1>Add an insurance document</h1>
+<form action="/insurance/upload" method="post" enctype="multipart/form-data">
+  <div class="field">
+    <label for="f-category">What it insures *</label>
+    <select id="f-category" name="category" hx-get="/insurance/upload/fields" hx-target="#insurance-fields" hx-trigger="change">
+      <option value="">— choose —</option>
+      {% for c in categories %}
+      <option value="{{ c.value }}"{% if c.value == category %} selected{% endif %}>{{ c.label }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
+  </div>
+  <div id="insurance-fields">
+    {% include "domains/_field_inputs.html" %}
+  </div>
+  <div class="field">
+    <label for="f-file">File *</label>
+    <input type="file" id="f-file" name="file" accept="application/pdf,image/*">
+    {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
+  </div>
+  <button type="submit">Upload</button>
+</form>
+{% endblock %}

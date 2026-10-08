@@ -206,19 +206,3 @@ def test_a_file_can_be_attached_to_a_record_later(client, session):
 
     assert response.status_code == 303
     assert "r.pdf" in client.get(location).text
-
-
-def test_an_insurance_policy_uploads_shows_on_the_landing_and_has_a_detail_page(client, session):
-    data = {"category": "insurance_policy", "insurer": "Zurich", "policy_number": "009886609",
-            "document_kind": "general_conditions", "product": "Zurich Lar Seguro", "broker": "EXS"}
-    response = _upload(client, data, filename="009886609_CondicoesGerais.pdf")
-    assert response.status_code == 303
-    document = session.exec(select(Document).where(Document.category == "insurance_policy")).one()
-    assert document.domain == Domain.HOUSE and json.loads(document.fields_json)["policy_number"] == "009886609"
-    landing = client.get("/house").text
-    assert "Insurance policies" in landing and "009886609_CondicoesGerais.pdf" in landing
-    detail = client.get(f"/house/documents/{document.id}")
-    assert detail.status_code == 200 and "Zurich Lar Seguro" in detail.text
-    missing = client.post("/house/upload", data={"category": "insurance_policy", "broker": "EXS"},
-                          files={"file": ("p.pdf", io.BytesIO(b"x"), "application/pdf")})
-    assert missing.status_code == 400  # insurer, policy number and kind are required
