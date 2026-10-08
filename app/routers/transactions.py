@@ -1,6 +1,7 @@
 """Routes for browsing and filtering transactions."""
 
 from typing import Optional
+from urllib.parse import urlencode
 
 import json
 from markupsafe import escape
@@ -46,7 +47,13 @@ def _apply_transaction_filters(
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
     tag: Optional[str] = None,
+    q: Optional[str] = None,
 ):
+    if q:
+        like = f"%{q}%"
+        statement = statement.where(
+            Transaction.provider.ilike(like)
+            | Transaction.merchant_id.in_(select(Merchant.id).where(Merchant.canonical_name.ilike(like))))
     if tag:
         from app.services.tag_service import tag_node_ids
         node_ids = tag_node_ids(session, tag)
@@ -93,13 +100,14 @@ def _filtered_transactions(
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
     tag: Optional[str] = None,
+    q: Optional[str] = None,
 ):
     statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
-        merchant_id=merchant_id, category_node=category_node, tag=tag,
+        merchant_id=merchant_id, category_node=category_node, tag=tag, q=q,
     )
     statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
@@ -142,13 +150,14 @@ def _count_filtered_transactions(
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
     tag: Optional[str] = None,
+    q: Optional[str] = None,
 ) -> int:
     statement = select(Transaction)
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
-        merchant_id=merchant_id, category_node=category_node, tag=tag,
+        merchant_id=merchant_id, category_node=category_node, tag=tag, q=q,
     )
     return len(session.exec(statement).all())
 
@@ -185,35 +194,48 @@ def _node_options(session: Session) -> list[dict]:
         options.append({"id": n.id, "slug": n.slug, "label": " › ".join(reversed(parts)), "name": n.name, "level": n.level})
     return options
 
+def _int(value, default=None):
+    """A blank or malformed query number (a form sends `account_id=`) means 'not set', not a 422."""
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
 @router.get("")
 async def list_transactions(
     request: Request,
     category: Optional[str] = None,
     nature: Optional[str] = None,
-    account_id: Optional[int] = None,
+    account_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    commitment_id: Optional[int] = None,
-    debt_id: Optional[int] = None,
+    commitment_id: Optional[str] = None,
+    debt_id: Optional[str] = None,
     transaction_type: Optional[str] = None,
-    page: int = 1,
-    transaction_id: Optional[int] = None,
-    merchant_id: Optional[int] = None,
+    page: Optional[str] = "1",
+    transaction_id: Optional[str] = None,
+    merchant_id: Optional[str] = None,
     category_node: Optional[str] = None,
     tag: Optional[str] = None,
+    q: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
+    account_id, commitment_id, debt_id = _int(account_id), _int(commitment_id), _int(debt_id)
+    transaction_id, merchant_id, page = _int(transaction_id), _int(merchant_id), max(1, _int(page, 1))
+    category, nature, date_from, date_to = (category or None), (nature or None), (date_from or None), (date_to or None)
+    transaction_type, category_node, tag, q = (transaction_type or None), (category_node or None), (tag or None), ((q or "").strip() or None)
     transactions = _filtered_transactions(
         session, category, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         page=page, transaction_id=transaction_id, merchant_id=merchant_id,
-        category_node=category_node, tag=tag,
+        category_node=category_node, tag=tag, q=q,
     )
     total_count = _count_filtered_transactions(
         session, category, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         transaction_id=transaction_id, merchant_id=merchant_id,
-        category_node=category_node, tag=tag,
+        category_node=category_node, tag=tag, q=q,
     )
     total_pages = max(1, -(-total_count // _PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
@@ -241,8 +263,13 @@ async def list_transactions(
                 "date_from": date_from, "date_to": date_to,
                 "commitment_id": commitment_id, "debt_id": debt_id,
                 "transaction_type": transaction_type, "merchant_id": merchant_id,
-                "category_node": category_node, "tag": tag,
+                "category_node": category_node, "tag": tag, "q": q,
             },
+            "filters_qs": urlencode({k: v for k, v in {
+                "category": category, "category_node": category_node, "tag": tag, "nature": nature,
+                "account_id": account_id, "date_from": date_from, "date_to": date_to, "commitment_id": commitment_id,
+                "debt_id": debt_id, "transaction_type": transaction_type, "merchant_id": merchant_id, "q": q,
+            }.items() if v not in (None, "")}),
             "merchant_filter_name": merchant_filter_name,
             "page": page,
             "total_pages": total_pages,
@@ -268,6 +295,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     filter_category = form.get("category") or None
     filter_category_node = form.get("category_node") or None
     filter_tag = form.get("tag") or None
+    filter_q = form.get("q") or None
     filter_nature = form.get("nature") or None
     filter_account_id = form.get("account_id") or None
     filter_date_from = form.get("date_from") or None
@@ -308,6 +336,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         category=filter_category,
         category_node=filter_category_node,
         tag=filter_tag,
+        q=filter_q,
         nature=filter_nature,
         account_id=int(filter_account_id) if filter_account_id else None,
         date_from=filter_date_from,
@@ -563,57 +592,109 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
     return _review_rows(request, session, form)
 
 
-# ---- Bulk classification: pick many merchants, give them one category ----
+# ---- Bulk classification: pick many merchants (or provider texts), give them one category ----
 
 def _leaf_groups(session: Session) -> list[tuple[str, list[dict]]]:
     groups: dict[str, list[dict]] = {}
     for o in _node_options(session):
         if o["level"] == 3 and not o["slug"].startswith("unsorted"):
-            groups.setdefault(o["label"].split(" › ")[0], []).append(o)
+            groups.setdefault(o["label"].split(" \u203a ")[0], []).append(o)
     return list(groups.items())
 
 
-def _bulk_view(q: str, scope: str, sort: str, page: int) -> dict:
-    return {"q": q, "scope": scope if scope in ("all", "undecided") else "all", "sort": sort, "page": page}
+def _date(value):
+    from datetime import date as _d
+    try:
+        return _d.fromisoformat(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _bulk_view(params) -> dict:
+    """The page's filters, read leniently from a query string or a posted form (blank = not set)."""
+    get = lambda k, d="": (params.get(k) or d)  # noqa: E731
+    scope = get("scope", "undecided")
+    return {
+        "by": "provider" if get("by") == "provider" else "merchant",
+        "q": get("q").strip(), "scope": scope if scope in ("all", "undecided") else "undecided",
+        "cat": get("cat"), "min": max(1, _int(get("min"), 1)),
+        "date_from": get("date_from"), "date_to": get("date_to"),
+        "sort": get("sort", "entries"), "page": max(1, _int(get("page"), 1)),
+    }
+
+
+def _view_qs(view: dict, **extra) -> str:
+    return urlencode({k: v for k, v in {**view, **extra}.items() if v not in ("", None)})
 
 
 @router.get("/bulk")
-async def bulk_page(request: Request, q: str = "", scope: str = "undecided", sort: str = "entries",
-                    page: int = 1, applied: Optional[int] = None, moved: Optional[int] = None,
-                    filed: Optional[int] = None, session: Session = Depends(get_session)):
-    result = list_merchants(session, q=q, scope=scope, sort=sort, page=page)
+async def bulk_page(request: Request, session: Session = Depends(get_session)):
+    from app.services.provider_rules import list_provider_groups
+    params = request.query_params
+    view = _bulk_view(params)
+    common = dict(q=view["q"], sort=view["sort"], page=view["page"], node_slug=view["cat"],
+                  date_from=_date(view["date_from"]), date_to=_date(view["date_to"]), min_entries=view["min"])
+    if view["by"] == "provider":
+        result = list_provider_groups(session, **common)
+    else:
+        result = list_merchants(session, scope=view["scope"], **common)
+    view["page"] = result.page
+    applied = _int(params.get("applied"))
     return templates.TemplateResponse(request, "transactions/bulk.html", {
-        "result": result, "view": _bulk_view(q, scope, sort, result.page), "leaf_groups": _leaf_groups(session),
-        "banner": None if applied is None else {"merchants": applied, "moved": moved or 0, "filed": filed or 0},
+        "result": result, "view": view, "view_qs": _view_qs({k: v for k, v in view.items() if k != "page"}),
+        "qs_nb": _view_qs({k: v for k, v in view.items() if k not in ("page", "by")}),
+        "leaf_groups": _leaf_groups(session), "node_options": _node_options(session),
+        "banner": None if applied is None else {"n": applied, "moved": _int(params.get("moved"), 0),
+                                                "filed": _int(params.get("filed"), 0), "rules": _int(params.get("rules"), 0),
+                                                "by": view["by"]},
     })
 
 
 @router.post("/bulk")
 async def bulk_apply(request: Request, session: Session = Depends(get_session)):
     from fastapi.responses import RedirectResponse
+    from app.services.provider_rules import apply_to_providers
     form = await request.form()
-    ids = sorted({int(v) for v in form.getlist("merchant_ids") if str(v).isdigit()})
+    view = _bulk_view(form)
     slug = form.get("category_node") or ""
     refile = form.get("refile_existing") in ("1", "on", "true")
-    view = _bulk_view(form.get("q") or "", form.get("scope") or "undecided", form.get("sort") or "entries",
-                      int(form.get("page") or 1))
-    if not ids:
-        raise HTTPException(status_code=400, detail="Tick at least one merchant")
+    apply_now = form.get("step") == "apply"
     try:
         node = get_node(session, slug)
-        report = assign_category(session, ids, node, refile_existing=refile, dry_run=form.get("step") != "apply")
-    except (NoResultFound, ValueError):
+    except NoResultFound:
         raise HTTPException(status_code=400, detail="Pick a sub-category to apply")
-    if form.get("step") != "apply":
-        names = {m.id: m.canonical_name for m in session.exec(select(Merchant).where(Merchant.id.in_(ids))).all()}
+    try:
+        if view["by"] == "provider":
+            keys = sorted({v for v in form.getlist("group_keys") if v})
+            if not keys:
+                raise HTTPException(status_code=400, detail="Tick at least one provider text")
+            report = apply_to_providers(
+                session, keys, node, q=view["q"], node_slug=view["cat"], date_from=_date(view["date_from"]),
+                date_to=_date(view["date_to"]), refile_existing=refile,
+                remember=form.get("remember") in ("1", "on", "true"),
+                per_entry_merchants=form.get("per_entry") in ("1", "on", "true"), dry_run=not apply_now)
+            n, labels, ids = report.groups, keys, []
+        else:
+            ids = sorted({int(v) for v in form.getlist("merchant_ids") if str(v).isdigit()})
+            if not ids:
+                raise HTTPException(status_code=400, detail="Tick at least one merchant")
+            report = assign_category(session, ids, node, refile_existing=refile, dry_run=not apply_now)
+            n = report.merchants
+            names = {m.id: m.canonical_name for m in session.exec(select(Merchant).where(Merchant.id.in_(ids))).all()}
+            labels = [names[i] for i in ids if i in names]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Pick a sub-category to apply")
+    if not apply_now:
         return templates.TemplateResponse(request, "transactions/bulk_preview.html", {
-            "report": report, "ids": ids, "names": [names[i] for i in ids if i in names],
-            "node_label": " › ".join(reversed(_path_names(session, node))), "slug": slug,
-            "refile": refile, "view": view,
+            "report": report, "n": n, "labels": labels, "ids": ids, "keys": labels if view["by"] == "provider" else [],
+            "node_label": " \u203a ".join(reversed(_path_names(session, node))), "slug": slug, "refile": refile,
+            "remember": form.get("remember") in ("1", "on", "true"), "per_entry": form.get("per_entry") in ("1", "on", "true"),
+            "view": view, "view_qs": _view_qs({k: v for k, v in view.items() if k != "page"}),
         })
-    from urllib.parse import urlencode
-    query = urlencode({**view, "applied": report.merchants, "moved": report.moved_from_elsewhere,
-                       "filed": report.filed_from_unsorted})
+    moved = getattr(report, "moved_from_elsewhere", 0)
+    filed = getattr(report, "filed_from_unsorted", 0)
+    query = urlencode({**{k: v for k, v in view.items() if v not in ("", None)}, "applied": n, "moved": moved,
+                       "filed": filed, "rules": getattr(report, "rules_saved", 0)})
     return RedirectResponse(f"/financials/transactions/bulk?{query}", status_code=303)
 
 

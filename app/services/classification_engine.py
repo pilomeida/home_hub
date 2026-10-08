@@ -20,6 +20,9 @@ from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
 from app.services.merchant_rules import keyword_node_slug
+from app.services.provider_rules import find_rule_node, provider_fits
+from app.services.merchant_relabel import ensure_structured_merchant
+from app.services.structured_providers import structured_merchant
 from app.services.taxonomy import UNSORTED_SLUG, auto_fits, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
 from app.services.loan_insurance import link_insurance_transaction
 from app.services.loan_linking import link_transaction_to_loan
@@ -187,9 +190,14 @@ async def classify_transaction(
     from the result. Does not commit — the caller controls the
     transaction boundary. This is the single entry point both the live
     ingestion pipeline and the historical backfill script use."""
-    normalized_key = normalize_provider(transaction.provider)
-    merchant = _find_merchant_by_key(session, normalized_key)
-    created_new_merchant = False
+    structured = structured_merchant(transaction.provider)
+    if structured is not None:  # a loan instalment / loan insurance debit: one fixed merchant, no model call
+        merchant, created_new_merchant = ensure_structured_merchant(session, structured)
+        normalized_key = structured.key
+    else:
+        normalized_key = normalize_provider(transaction.provider)
+        merchant = _find_merchant_by_key(session, normalized_key)
+        created_new_merchant = False
 
     if merchant is None:
         keyword_slug = keyword_node_slug(transaction.provider)
@@ -252,7 +260,15 @@ async def classify_transaction(
     # Merchant memory: a merchant with a tree node files every new transaction
     # under it (Unsorted included, so it lands in the Needs Review queue).
     # A merchant with no node (legacy rows) leaves the transaction unfiled.
-    if not loan_filed and merchant.default_category_id is not None:
+    # A provider rule (Pedro: "transfers to Matias are family") beats the merchant's default, and a
+    # channel merchant (by_provider) has no default to apply: its entries wait for a rule or for review.
+    rule_filed = False
+    if not loan_filed:
+        rule_node = find_rule_node(session, transaction.provider)
+        if rule_node is not None and provider_fits(session, transaction, rule_node):
+            file_transaction(session, transaction, rule_node)
+            rule_filed = True
+    if not loan_filed and not rule_filed and not merchant.by_provider and merchant.default_category_id is not None:
         node = session.get(CategoryNode, merchant.default_category_id)
         if node is not None and auto_fits(session, transaction, node):
             file_transaction(session, transaction, node)

@@ -11,6 +11,7 @@
 <p>Showing transactions for merchant: <strong>{{ merchant_filter_name }}</strong> — <a href="/financials/transactions">clear</a></p>
 {% endif %}
 <form method="get" action="/financials/transactions">
+  <input type="search" name="q" value="{{ filters.q or '' }}" placeholder="Search merchant or provider text" size="28">
   <select name="category_node">
     <option value="">All categories</option>
     {% for o in node_options %}
@@ -48,6 +49,7 @@
   <input type="hidden" name="category" value="{{ filters.category or '' }}">
   <input type="hidden" name="category_node" value="{{ filters.category_node or '' }}">
   <input type="hidden" name="tag" value="{{ filters.tag or '' }}">
+  <input type="hidden" name="q" value="{{ filters.q or '' }}">
   <input type="hidden" name="nature" value="{{ filters.nature or '' }}">
   <input type="hidden" name="account_id" value="{{ filters.account_id or '' }}">
   <input type="hidden" name="date_from" value="{{ filters.date_from or '' }}">
@@ -79,13 +81,13 @@
   </fieldset>
 </form>
 <nav class="pagination">
-  {% set qs = "category=" ~ (filters.category or "") ~ "&category_node=" ~ (filters.category_node or "") ~ "&tag=" ~ (filters.tag or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") ~ "&merchant_id=" ~ (filters.merchant_id or "") %}
+  {% set qs = filters_qs %}
   {% if page > 1 %}
-  <a href="/financials/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
+  <a href="/financials/transactions?{{ qs }}{{ "&" if qs else "" }}page={{ page - 1 }}">Previous</a>
   {% endif %}
   <span>page {{ page }} of {{ total_pages }}</span>
   {% if page < total_pages %}
-  <a href="/financials/transactions?{{ qs }}&page={{ page + 1 }}">Next</a>
+  <a href="/financials/transactions?{{ qs }}{{ "&" if qs else "" }}page={{ page + 1 }}">Next</a>
   {% endif %}
 </nav>
 {% endblock %}

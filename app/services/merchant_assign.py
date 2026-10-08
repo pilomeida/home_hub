@@ -81,14 +81,30 @@ class MerchantPage:
 
 
 def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str = "entries",
-                   page: int = 1) -> MerchantPage:
-    """Merchants with at least one entry. scope: all | undecided (no category yet or not confirmed)."""
+                   page: int = 1, node_slug: str = "", date_from=None, date_to=None,
+                   min_entries: int = 1) -> MerchantPage:
+    """Merchants with at least one entry. scope: all | undecided (no category yet or not confirmed).
+    q matches the merchant name or any provider text; date_from/date_to restrict the entries counted;
+    node_slug filters on the merchant's category ("unsorted" = none yet); min_entries on the count."""
+    from app.services.taxonomy import descendant_ids
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
     stmt = (select(Merchant.id, Merchant.canonical_name, Merchant.default_category_id, Merchant.confirmed,
                    func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount), 0.0))
             .join(Transaction, Transaction.merchant_id == Merchant.id).group_by(Merchant.id))
     if q.strip():
-        stmt = stmt.where(Merchant.canonical_name.ilike(f"%{q.strip()}%"))
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(Merchant.canonical_name.ilike(like) | Transaction.provider.ilike(like))
+    if date_from:
+        stmt = stmt.where(Transaction.paid_date >= date_from)
+    if date_to:
+        stmt = stmt.where(Transaction.paid_date <= date_to)
+    if node_slug == "unsorted":
+        stmt = stmt.where(Merchant.default_category_id.is_(None))
+    elif node_slug:
+        node = next((n for n in nodes.values() if n.slug == node_slug), None)
+        stmt = stmt.where(Merchant.default_category_id.in_(descendant_ids(session, node.id) if node else [-1]))
+    if min_entries > 1:
+        stmt = stmt.having(func.count(Transaction.id) >= min_entries)
     if scope == "undecided":
         stmt = stmt.where(Merchant.default_category_id.is_(None) | (Merchant.confirmed == False))  # noqa: E712
     key = SORTS.get(sort, "entries")

@@ -19,6 +19,7 @@ from app.models.ask import AskConversation, AskStatus, AskTurn  # noqa: F401
 from app.models.wiki_lint import LintFinding, LintRun  # noqa: F401
 from app.models.category_node import CategoryNode  # noqa: F401
 from app.models.budget import Budget  # noqa: F401
+from app.models.provider_rule import ProviderRule  # noqa: F401
 from app.models.position import (  # noqa: F401
     BalanceSnapshot, DebtEntry, DebtMatchRule, LoanAlert, LoanMovement, LoanSnapshot, PositionExtraction, ReminderLog, SavingsSnapshot,
 )

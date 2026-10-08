@@ -3,8 +3,8 @@
 {% block content %}
 <h1>Review before applying</h1>
 <p>
-  <strong>{{ report.merchants }}</strong> merchant{{ "s" if report.merchants != 1 }} will be filed under
-  <strong>{{ node_label }}</strong>, and it becomes their category for every future entry.
+  <strong>{{ n }}</strong> {{ "provider text" if view.by == "provider" else "merchant" }}{{ "s" if n != 1 }} will be filed under
+  <strong>{{ node_label }}</strong>{% if view.by == "merchant" %}, and it becomes their category for every future entry{% endif %}.
 </p>
 <ul>
   <li>{{ report.filed_from_unsorted }} unsorted entr{{ "ies" if report.filed_from_unsorted != 1 else "y" }} will be filed.</li>
@@ -14,17 +14,27 @@
   <li>Entries already filed elsewhere stay where they are (you did not tick &ldquo;also move&rdquo;).</li>
   {% endif %}
   {% if report.left_alone %}<li>{{ report.left_alone }} entr{{ "ies" if report.left_alone != 1 else "y" }} cannot take this category (e.g. a credit from a merchant you never paid) and stay as they are.</li>{% endif %}
-  <li>Loan-linked entries and transfers are never moved.</li>
+  {% if view.by == "provider" %}
+  <li>{% if remember %}{{ report.rules_saved }} rule{{ "s" if report.rules_saved != 1 }} saved: future entries with the same text are filed here automatically.{% else %}No rule saved: only the entries that exist now are filed.{% endif %}</li>
+  {% if per_entry %}<li>The merchants of these entries become &ldquo;decide entry by entry&rdquo;: their own category stops applying to new entries.</li>{% endif %}
+  {% endif %}
+  <li>Loan-linked entries are never moved.</li>
 </ul>
-<details><summary>Merchants ({{ names|length }})</summary><ul>{% for n in names %}<li>{{ n }}</li>{% endfor %}</ul></details>
+<details><summary>{{ "Provider texts" if view.by == "provider" else "Merchants" }} ({{ labels|length }})</summary><ul>{% for l in labels %}<li>{{ l }}</li>{% endfor %}</ul></details>
 <form method="post" action="/financials/transactions/bulk">
   <input type="hidden" name="step" value="apply">
   <input type="hidden" name="category_node" value="{{ slug }}">
+  <input type="hidden" name="by" value="{{ view.by }}">
   {% if refile %}<input type="hidden" name="refile_existing" value="1">{% endif %}
+  {% if remember %}<input type="hidden" name="remember" value="1">{% endif %}
+  {% if per_entry %}<input type="hidden" name="per_entry" value="1">{% endif %}
   {% for i in ids %}<input type="hidden" name="merchant_ids" value="{{ i }}">{% endfor %}
+  {% for k in keys %}<input type="hidden" name="group_keys" value="{{ k }}">{% endfor %}
   <input type="hidden" name="q" value="{{ view.q }}"><input type="hidden" name="scope" value="{{ view.scope }}">
+  <input type="hidden" name="cat" value="{{ view.cat }}"><input type="hidden" name="min" value="{{ view.min }}">
+  <input type="hidden" name="date_from" value="{{ view.date_from }}"><input type="hidden" name="date_to" value="{{ view.date_to }}">
   <input type="hidden" name="sort" value="{{ view.sort }}"><input type="hidden" name="page" value="{{ view.page }}">
   <button type="submit">Apply</button>
-  <a href="/financials/transactions/bulk?q={{ view.q }}&scope={{ view.scope }}&sort={{ view.sort }}&page={{ view.page }}">Back</a>
+  <a href="/financials/transactions/bulk?{{ view_qs }}">Back</a>
 </form>
 {% endblock %}

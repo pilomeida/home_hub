@@ -8,30 +8,57 @@
   <a href="/financials/transactions/bulk" class="active">Bulk classify</a>
 </nav>
 {% if banner %}
-<p class="loan-flags" role="status">Done: {{ banner.merchants }} merchant{{ "s" if banner.merchants != 1 }} updated &mdash; {{ banner.filed }} unsorted entr{{ "ies" if banner.filed != 1 else "y" }} filed, {{ banner.moved }} moved from another category.</p>
+<p class="loan-flags" role="status">Done: {{ banner.n }} {{ "provider text" if banner.by == "provider" else "merchant" }}{{ "s" if banner.n != 1 }} &mdash;
+  {{ banner.filed }} unsorted entr{{ "ies" if banner.filed != 1 else "y" }} filed, {{ banner.moved }} moved from another category{% if banner.rules %}, {{ banner.rules }} rule{{ "s" if banner.rules != 1 }} saved for future entries{% endif %}.</p>
 {% endif %}
+
+<p>
+  <a href="?{{ qs_nb }}{{ '&' if qs_nb else '' }}by=merchant"
+     {% if view.by == "merchant" %}style="font-weight:700"{% endif %}>By merchant</a> &middot;
+  <a href="?{{ qs_nb }}{{ '&' if qs_nb else '' }}by=provider"
+     {% if view.by == "provider" %}style="font-weight:700"{% endif %}>By provider text</a>
+  <small style="color:#777">&mdash;
+    {% if view.by == "merchant" %}one category for everything a merchant does.{% else %}one category per kind of payment text (numbers ignored), for channels like MB Way or Pag Serviços where the merchant says nothing.{% endif %}</small>
+</p>
+
 <form method="get" action="/financials/transactions/bulk">
-  <input type="text" name="q" value="{{ view.q }}" placeholder="Search merchant name">
+  <input type="hidden" name="by" value="{{ view.by }}">
+  <input type="search" name="q" value="{{ view.q }}" placeholder="Search merchant or provider text" size="28">
+  <select name="cat">
+    <option value="">Any category</option>
+    <option value="unsorted" {% if view.cat == "unsorted" %}selected{% endif %}>Needs review / none yet</option>
+    {% for o in node_options %}{% if not o.slug.startswith("unsorted") %}
+    <option value="{{ o.slug }}" {% if view.cat == o.slug %}selected{% endif %}>{{ "  " * (o.level - 1) }}{{ o.name }}</option>
+    {% endif %}{% endfor %}
+  </select>
+  {% if view.by == "merchant" %}
   <select name="scope">
     <option value="undecided" {% if view.scope == "undecided" %}selected{% endif %}>Not yet decided</option>
     <option value="all" {% if view.scope == "all" %}selected{% endif %}>All merchants</option>
   </select>
+  {% endif %}
+  <label>at least <input type="number" name="min" value="{{ view.min }}" min="1" style="width:4.5em"> entries</label>
+  <label>from <input type="date" name="date_from" value="{{ view.date_from }}"></label>
+  <label>to <input type="date" name="date_to" value="{{ view.date_to }}"></label>
   <select name="sort">
     <option value="entries" {% if view.sort == "entries" %}selected{% endif %}>Most entries</option>
     <option value="amount" {% if view.sort == "amount" %}selected{% endif %}>Largest total</option>
     <option value="name" {% if view.sort == "name" %}selected{% endif %}>Name</option>
   </select>
   <button type="submit">Filter</button>
-  <span>{{ result.total_count }} merchant{{ "s" if result.total_count != 1 }}</span>
+  <span>{{ result.total_count }} {{ "provider text" if view.by == "provider" else "merchant" }}{{ "s" if result.total_count != 1 }}</span>
 </form>
 
 <form method="post" action="/financials/transactions/bulk">
   <input type="hidden" name="step" value="preview">
+  <input type="hidden" name="by" value="{{ view.by }}">
   <input type="hidden" name="q" value="{{ view.q }}"><input type="hidden" name="scope" value="{{ view.scope }}">
+  <input type="hidden" name="cat" value="{{ view.cat }}"><input type="hidden" name="min" value="{{ view.min }}">
+  <input type="hidden" name="date_from" value="{{ view.date_from }}"><input type="hidden" name="date_to" value="{{ view.date_to }}">
   <input type="hidden" name="sort" value="{{ view.sort }}"><input type="hidden" name="page" value="{{ view.page }}">
   <div style="position:sticky; top:0; background:var(--bg, #fff); padding:8px 0; z-index:2; border-bottom:1px solid #ececec;">
     <select name="category_node" required>
-      <option value="">Apply this category to the ticked merchants&hellip;</option>
+      <option value="">Apply this category to the ticked rows&hellip;</option>
       {% for group, options in leaf_groups %}
       <optgroup label="{{ group }}">
         {% for o in options %}<option value="{{ o.slug }}">{{ o.label }}</option>{% endfor %}
@@ -39,8 +66,14 @@
       {% endfor %}
     </select>
     <label><input type="checkbox" name="refile_existing" value="1" checked> also move entries already filed elsewhere</label>
+    {% if view.by == "provider" %}
+    <label><input type="checkbox" name="remember" value="1" checked> remember for future entries with this text</label>
+    <label title="Stop applying these merchants' own category to new entries; only rules and review decide"><input type="checkbox" name="per_entry" value="1"> these merchants are channels (decide entry by entry)</label>
+    {% endif %}
     <button type="submit">Review &amp; apply</button>
   </div>
+
+  {% if view.by == "merchant" %}
   <table>
     <thead><tr>
       <th><input type="checkbox" aria-label="Tick all on this page" onclick="document.querySelectorAll('input[name=merchant_ids]').forEach(function (c) { c.checked = this.checked; }, this)"></th>
@@ -61,12 +94,35 @@
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <table>
+    <thead><tr>
+      <th><input type="checkbox" aria-label="Tick all on this page" onclick="document.querySelectorAll('input[name=group_keys]').forEach(function (c) { c.checked = this.checked; }, this)"></th>
+      <th>Provider text (example)</th><th>Merchant</th><th>Category now</th><th>Entries</th><th>Total €</th><th>Rule</th>
+    </tr></thead>
+    <tbody>
+      {% for g in result.rows %}
+      <tr>
+        <td><input type="checkbox" name="group_keys" value="{{ g.key }}"></td>
+        <td><a href="/financials/transactions?q={{ g.example|urlencode }}" target="_blank">{{ g.example }}</a></td>
+        <td>{{ g.merchants|join(", ") }}</td>
+        <td>{{ g.category_label }}{% if g.unsorted and g.unsorted != g.entries %} <small>({{ g.unsorted }} unsorted)</small>{% endif %}</td>
+        <td>{{ g.entries }}</td>
+        <td class="amt">{{ "{:,.0f}".format(g.total) }}</td>
+        <td>{{ "saved" if g.rule else "" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No provider texts match.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </form>
 {% if result.pages > 1 %}
 <p>
-  {% if result.page > 1 %}<a href="?q={{ view.q }}&scope={{ view.scope }}&sort={{ view.sort }}&page={{ result.page - 1 }}">&larr; Previous</a>{% endif %}
+  {% if result.page > 1 %}<a href="?{{ view_qs }}{{ '&' if view_qs else '' }}page={{ result.page - 1 }}">&larr; Previous</a>{% endif %}
   Page {{ result.page }} of {{ result.pages }}
-  {% if result.page < result.pages %}<a href="?q={{ view.q }}&scope={{ view.scope }}&sort={{ view.sort }}&page={{ result.page + 1 }}">Next &rarr;</a>{% endif %}
+  {% if result.page < result.pages %}<a href="?{{ view_qs }}{{ '&' if view_qs else '' }}page={{ result.page + 1 }}">Next &rarr;</a>{% endif %}
 </p>
 {% endif %}
 {% endblock %}

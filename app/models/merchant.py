@@ -19,5 +19,8 @@ class Merchant(SQLModel, table=True):
     default_nature: Optional[Nature] = None
     normalized_key: str = Field(index=True, unique=True)
     confirmed: bool = Field(default=False)
+    # A channel (MB Way Transfer, Pag Serviços, ATM): the merchant says nothing about what an entry is,
+    # so its default category is not applied to new entries and bulk merging skips it.
+    by_provider: bool = Field(default=False, sa_column_kwargs={"server_default": "0"})
     recurring_reviewed: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
