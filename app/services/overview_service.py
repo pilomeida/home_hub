@@ -55,7 +55,7 @@ def _monthly_flow_totals(session: Session, today: date) -> tuple[dict[str, float
     """
     cutoff = _month_start(today) - timedelta(days=31 * (_TREND_MONTHS_BACK + 1))
     statement = select(Transaction).where(
-        Transaction.paid_date >= cutoff, Transaction.paid_date <= today,
+        Transaction.paid_date >= cutoff, Transaction.paid_date <= today, Transaction.settled_by_id.is_(None),
     )
     income: dict[str, float] = {}
     expense: dict[str, float] = {}
@@ -133,7 +133,8 @@ def _cash_account_ids(session: Session) -> list[int]:
 def _cash_transactions(session: Session, account_ids: list[int]) -> list[Transaction]:
     if not account_ids:
         return []
-    return session.exec(select(Transaction).where(Transaction.account_id.in_(account_ids))).all()
+    return session.exec(select(Transaction).where(
+        Transaction.account_id.in_(account_ids), Transaction.settled_by_id.is_(None))).all()
 
 
 def _cash_balance_as_of(transactions: list[Transaction], as_of: date) -> float:
@@ -231,7 +232,8 @@ def get_yearly_commitments_card(session: Session, today: date) -> YearlyCommitme
     commitment_ids = [c.id for c in commitments]
     actual_total = 0.0
     if commitment_ids:
-        linked = session.exec(select(Transaction).where(Transaction.commitment_id.in_(commitment_ids))).all()
+        linked = session.exec(select(Transaction).where(
+            Transaction.commitment_id.in_(commitment_ids), Transaction.settled_by_id.is_(None))).all()
         actual_total = sum(t.amount for t in linked)
 
     day_of_year = (today - date(year, 1, 1)).days + 1
@@ -294,6 +296,7 @@ def get_category_comparison(
     statement = select(Transaction).where(
         Transaction.transaction_type == TransactionType.DEBIT,
         Transaction.category.notin_(_COMPARISON_EXCLUDED_CATEGORIES),
+        Transaction.settled_by_id.is_(None),
         Transaction.paid_date >= cutoff,
         Transaction.paid_date <= today,
     )

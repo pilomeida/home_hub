@@ -962,3 +962,71 @@ async def test_failed_statement_cleanup_keeps_informal_ledger_entries(fk_session
     assert len(entries) == 2 and all(e.transaction_id is None for e in entries)
     assert debt_ledger.WITHDRAWN_NOTE in entries[1].note and entries[1].amount == 40.0
     assert session.get(type(debt), debt.id).current_balance == Decimal("140.00")
+
+
+# --- documents are reconciled to the bank as they arrive ------------------------------------------
+
+async def _noop_wiki(session, document, context=None, **kwargs):
+    return None
+
+
+@pytest.mark.asyncio
+async def test_a_statement_arriving_after_the_bill_settles_the_bill(session, monkeypatch, tmp_path):
+    bill_doc = _make_document(session, tmp_path, filename="coopernico.pdf", content_hash="hash-rec-bill")
+
+    async def fake_extract_bill(file_path, gateway=None):
+        return ExtractedBill(provider="Coopérnico", category_hint="electricity", amount=77.1, currency="EUR",
+                             due_date=None, paid_date=date(2026, 6, 25), statement_period="2026-06")
+
+    async def fake_utility(file_path, utility_type, client=None):
+        raise RuntimeError("not needed")
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
+    monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "extract_utility_detail", fake_utility)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", _noop_wiki)
+    await pipeline.process_financials_document(session, bill_doc)
+    bill_txn = session.exec(select(Transaction).where(Transaction.document_id == bill_doc.id)).one()
+    assert bill_txn.settled_by_id is None  # no bank row yet: the bill stands in for the payment
+
+    stmt_doc = _make_document(session, tmp_path, filename="stmt.pdf", content_hash="hash-rec-stmt")
+
+    async def fake_stmt(file_path, gateway=None):
+        return ExtractedStatement(statement_period="2026-08", transactions=[ExtractedTransaction(
+            transaction_date=date(2026, 8, 3), description="DEBITO DIRETO-Coopernico-COOPERN", amount=77.1,
+            currency="EUR", transaction_type="debit", category_hint="electricity")])
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
+    monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_stmt)
+    await pipeline.process_financials_document(session, stmt_doc)
+    session.refresh(bill_txn)
+    bank_txn = session.exec(select(Transaction).where(Transaction.document_id == stmt_doc.id)).one()
+    assert bill_txn.settled_by_id == bank_txn.id
+
+
+@pytest.mark.asyncio
+async def test_a_bill_arriving_after_the_debit_is_settled_on_arrival(session, monkeypatch, tmp_path):
+    stmt_doc = _make_document(session, tmp_path, filename="stmt2.pdf", content_hash="hash-rec-stmt2")
+
+    async def fake_stmt(file_path, gateway=None):
+        return ExtractedStatement(statement_period="2026-08", transactions=[ExtractedTransaction(
+            transaction_date=date(2026, 8, 11), description="DEBITO DIRETO-METLIFE EUROPE D-00154572953", amount=109.64,
+            currency="EUR", transaction_type="debit", category_hint="insurance")])
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
+    monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_stmt)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", _noop_wiki)
+    await pipeline.process_financials_document(session, stmt_doc)
+
+    bill_doc = _make_document(session, tmp_path, filename="metlife.pdf", content_hash="hash-rec-bill2")
+
+    async def fake_extract_bill(file_path, gateway=None):
+        return ExtractedBill(provider="MetLife", category_hint="insurance", amount=109.64, currency="EUR",
+                             due_date=None, paid_date=date(2026, 8, 14), statement_period="2026-08")
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
+    monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    await pipeline.process_financials_document(session, bill_doc)
+    bill_txn = session.exec(select(Transaction).where(Transaction.document_id == bill_doc.id)).one()
+    bank_txn = session.exec(select(Transaction).where(Transaction.document_id == stmt_doc.id)).one()
+    assert bill_txn.settled_by_id == bank_txn.id

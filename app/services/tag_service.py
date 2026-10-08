@@ -133,6 +133,7 @@ def tag_totals(session: Session, today: date) -> list[TagTotal]:
     # Fetch all outgoing transactions with paid_date
     statement = select(Transaction).where(
         Transaction.paid_date.isnot(None),
+        Transaction.settled_by_id.is_(None),
         Transaction.transaction_type != TransactionType.TRANSFER,
     )
     transactions = session.exec(statement).all()

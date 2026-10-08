@@ -370,7 +370,8 @@ def unsorted_transactions_query():
     """Transactions with no node yet, or filed under the Unsorted group."""
     unsorted_ids = select(CategoryNode.id).where(CategoryNode.slug.like("unsorted%"))
     return select(Transaction).where(
-        Transaction.category_id.is_(None) | Transaction.category_id.in_(unsorted_ids)
+        Transaction.category_id.is_(None) | Transaction.category_id.in_(unsorted_ids),
+        Transaction.settled_by_id.is_(None),  # a document's record of a payment the bank already shows
     )
 
 
@@ -384,7 +385,7 @@ def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
         select(Merchant).where(Merchant.confirmed == False)  # noqa: E712
     ).all()
     unclassified = session.exec(
-        select(Transaction).where(Transaction.merchant_id.is_(None))
+        select(Transaction).where(Transaction.merchant_id.is_(None), Transaction.settled_by_id.is_(None))
     ).all()
     unsorted = session.exec(unsorted_transactions_query().order_by(Transaction.id)).all()
     by_merchant: dict[int, list[Transaction]] = {}

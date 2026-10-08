@@ -17,6 +17,7 @@ from app.models.domain import Domain
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
 from app.services.bankapi.client import BankApiError
+from app.services.document_reconcile import reconcile_quietly
 from app.services.classification_engine import classify_transaction
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
         link.last_error = None
         session.add(link)
         session.commit()
+        reconcile_quietly(session)  # bills filed before these debits arrived are now settled by them
     elif not loop_finished:
         link = session.get(BankAccountLink, link.id)
         link.last_error = result.error

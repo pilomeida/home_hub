@@ -18,6 +18,7 @@ from app.models.debt import Debt, DebtDirection
 from app.models.person import Person
 from app.models.position import DebtMatchRule
 from app.services import debt_ledger as ledger
+from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.taxonomy_seed import LEGACY_TO_SLUG
@@ -177,10 +178,24 @@ def _node_context(session: Session, transactions: list[Transaction]) -> tuple[di
     node_labels, row_flow = {}, {}
     for t in transactions:
         node = nodes.get(t.category_id) if t.category_id else None
-        row_flow[t.id] = "refund" if is_refund(t, node) else flow_of(t, node)
+        row_flow[t.id] = ("settled" if t.settled_by_id is not None
+                          else "refund" if is_refund(t, node) else flow_of(t, node))
         if node is not None:
             node_labels[t.id] = label(node)
     return node_labels, row_flow
+
+def _attached_documents(session: Session, transactions: list[Transaction]) -> dict[int, list[tuple[int, str]]]:
+    """{bank transaction id: [(document id, filename)]} of the bills and receipts settled by these rows."""
+    ids = [t.id for t in transactions]
+    if not ids:
+        return {}
+    out: dict[int, list[tuple[int, str]]] = {}
+    for settled, document in session.exec(
+            select(Transaction, Document).join(Document, Document.id == Transaction.document_id)
+            .where(Transaction.settled_by_id.in_(ids))).all():
+        out.setdefault(settled.settled_by_id, []).append((document.id, document.filename))
+    return out
+
 
 def _node_options(session: Session) -> list[dict]:
     nodes = session.exec(select(CategoryNode).order_by(CategoryNode.sort_order)).all()
@@ -277,7 +292,7 @@ async def list_transactions(
             "account_names": account_names,
             "linked_transactions": linked_transactions,
             "node_options": _node_options(session),
-            "node_labels": node_labels,
+            "node_labels": node_labels, "attached": _attached_documents(session, transactions),
             "row_flow": row_flow,
             "tags": tags,
         },
@@ -351,6 +366,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         {
             "transactions": transactions, "merchant_names": merchant_names, "account_names": account_names,
             "linked_transactions": linked_transactions, "node_labels": node_labels, "row_flow": row_flow,
+            "attached": _attached_documents(session, transactions),
         },
     )
 

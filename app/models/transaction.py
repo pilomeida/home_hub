@@ -64,4 +64,8 @@ class Transaction(SQLModel, table=True):
     merchant_id: Optional[int] = Field(default=None, foreign_key="merchants.id")
     debt_candidate_reviewed: Optional[bool] = None
     linked_transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
+    # A row made from a bill, invoice or receipt is the DOCUMENT's record of a payment. Once the bank
+    # statements show that payment, this points at the bank row, which is the transaction; a settled row
+    # counts in no total (see services/document_reconcile.py).
+    settled_by_id: Optional[int] = Field(default=None, foreign_key="transactions.id", index=True)
     external_id: Optional[str] = Field(default=None, index=True)

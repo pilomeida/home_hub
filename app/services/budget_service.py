@@ -171,7 +171,7 @@ def _load_buckets(session: Session, today: date, nodes: dict[int, CategoryNode])
     ({node_id: {"YYYY-MM": signed amount}}, {"YYYY-MM": unsorted outflow},
     {"YYYY-MM": unsorted inflow})."""
     rows = session.exec(select(Transaction).where(
-        Transaction.paid_date.is_not(None),
+        Transaction.paid_date.is_not(None), Transaction.settled_by_id.is_(None),
         Transaction.paid_date >= _window_start(today),
         Transaction.paid_date <= today,
     )).all()
@@ -270,7 +270,7 @@ def _loan_instalments(session: Session, today: date, view: str) -> tuple[float, 
     start = date(today.year, today.month, 1) if view == "month" else date(today.year, 1, 1)
     paid_rows = session.exec(select(Transaction).where(
         Transaction.debt_id.in_(loan_ids), Transaction.transaction_type == TransactionType.DEBIT,
-        Transaction.paid_date.is_not(None), Transaction.paid_date >= start, Transaction.paid_date <= today,
+        Transaction.settled_by_id.is_(None), Transaction.paid_date.is_not(None), Transaction.paid_date >= start, Transaction.paid_date <= today,
     )).all()
     # Loan insurance debits are linked to their loan but are ordinary spend (their
     # nodes are monthly budget lines), not instalments: never count them here.

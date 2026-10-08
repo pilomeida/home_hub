@@ -2,13 +2,13 @@
 <tr class="flow-{{ (row_flow or {}).get(t.id, 'out') }}">
   <td><input type="checkbox" name="transaction_ids" value="{{ t.id }}"></td>
   <td>{{ t.paid_date or "" }}</td>
-  <td>{{ t.provider }}</td>
+  <td>{{ t.provider }}{% for did, fname in (attached or {}).get(t.id, []) %} <a href="/financials/bills/{{ did }}" title="{{ fname }}" class="tag-doc">&#128206; document</a>{% endfor %}</td>
   <td>
     {% if t.merchant_id and merchant_names and merchant_names.get(t.merchant_id) %}
     <a href="/financials/transactions?merchant_id={{ t.merchant_id }}">{{ merchant_names[t.merchant_id] }}</a>
     {% endif %}
   </td>
-  <td>{{ (node_labels or {}).get(t.id) or t.category.value }}{% if (row_flow or {}).get(t.id) == 'refund' %} <span class="tag-refund">&#8617; refund</span>{% endif %}</td>
+  <td>{{ (node_labels or {}).get(t.id) or t.category.value }}{% if t.settled_by_id %} <a href="/financials/transactions?transaction_id={{ t.settled_by_id }}" class="tag-refund" title="This is the document's record; the bank entry is the transaction">&#8644; settled by bank entry</a>{% endif %}{% if (row_flow or {}).get(t.id) == 'refund' %} <span class="tag-refund">&#8617; refund</span>{% endif %}</td>
   <td>{{ t.nature.value if t.nature else "" }}</td>
   <td>{{ account_names.get(t.account_id, "") if account_names else (t.account_id or "") }}</td>
   {% set fl = (row_flow or {}).get(t.id, 'out') %}

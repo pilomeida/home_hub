@@ -657,6 +657,8 @@ and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy 
   not removed.
 - The only fix it offers is a human-clicked Add link (logged as EDIT).
 
+**Documents are reconciled to the bank.** The bank statements (uploaded statements and the automatic bank sync) are the source of truth for money that moved. A bill, invoice or receipt makes a Transaction row that is only the *document's* record of a payment; its date is the bill's, not the day the money left. `services/document_reconcile.py` matches each such row to the bank row that paid it (same amount, a payee word in common, a bounded date window, one bank row per document, oldest document first) and sets `Transaction.settled_by_id` to it. A settled row is shown dimmed with a link to the bank entry, the bank entry shows the document as an attachment, and **every money aggregate filters `settled_by_id IS NULL`** (Overview flows and cash balance, budgets and forecast, tags, Ask, the Needs Review queues). It runs automatically after a bill, a statement or a bank sync is ingested (`reconcile_quietly`), and `scripts/reconcile_documents.py` handles a backlog. Anything that does not match stays counted and is listed for a human. Withdrawing a bank document reopens the bills it had settled. New money aggregates must add the same filter.
+
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 
 1. Add the `Domain` member. `documents`, `todos` and `wiki_pages` store `domain` as `VARCHAR(10)` with no CHECK constraint, so a member whose name fits in 10 characters (`INSURANCE` was added this way) needs **no** migration; a longer name, or a database that has gained a CHECK, needs one (copy `3b7e9c1d2f40`'s pattern).

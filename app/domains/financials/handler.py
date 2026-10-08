@@ -23,6 +23,7 @@ from app.services.debt_ledger import detach_entries_for_transactions
 from app.services.categorization import normalize_category
 from app.services.classification_engine import classify_transaction
 from app.services.dedup import find_duplicate_transaction
+from app.services.document_reconcile import reconcile_quietly
 from app.services.extraction import (
     ExtractedBill,
     classify_document,
@@ -113,6 +114,10 @@ class FinancialsHandler(DomainHandler):
                     session.add(todo)
                 else:
                     session.delete(todo)
+            # A bill settled by one of these bank rows becomes the open record of its payment again.
+            for settled in session.exec(select(Transaction).where(Transaction.settled_by_id.in_(ids))).all():
+                settled.settled_by_id = None
+                session.add(settled)
             # Informal-loan ledger entries made from these transactions are kept.
             detach_entries_for_transactions(session, ids)
             session.flush()
@@ -238,6 +243,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     document.failure_reason = utility_detail_failure_reason
     session.add(document)
     session.commit()
+    reconcile_quietly(session)  # the bank may already show this bill's payment
     session.refresh(document)
     return document
 
@@ -346,5 +352,6 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
     document.failure_reason = None
     session.add(document)
     session.commit()
+    reconcile_quietly(session)  # bills already filed may now match these bank rows
     session.refresh(document)
     return document

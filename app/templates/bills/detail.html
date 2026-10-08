@@ -10,7 +10,7 @@
 {% if transactions %}
 <table>
   <thead>
-    <tr><th>Provider</th><th>Category</th><th>Type</th><th>Amount</th><th>Date</th><th>Statement period</th></tr>
+    <tr><th>Provider</th><th>Category</th><th>Type</th><th>Amount</th><th>Date</th><th>Statement period</th><th>Bank</th></tr>
   </thead>
   <tbody>
     {% for transaction in transactions %}
@@ -21,6 +21,7 @@
       <td>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</td>
       <td>{{ transaction.due_date or transaction.paid_date or "—" }}</td>
       <td>{{ transaction.statement_period or "—" }}</td>
+      <td>{% if transaction.settled_by_id %}<a href="/financials/transactions?transaction_id={{ transaction.settled_by_id }}">paid &mdash; see the bank entry</a>{% else %}not matched to a bank entry yet{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
