@@ -16,6 +16,12 @@
     <option value="{{ o.slug }}" {% if filters.category_node == o.slug %}selected{% endif %}>{{ "\u00a0\u00a0" * (o.level - 1) }}{{ o.name }}</option>
     {% endfor %}
   </select>
+  <select name="tag">
+    <option value="">All tags</option>
+    {% for tg in tags %}
+    <option value="{{ tg.name }}" {% if filters.tag == tg.name %}selected{% endif %}>{{ tg.label }}</option>
+    {% endfor %}
+  </select>
   <select name="nature">
     <option value="">All natures</option>
     {% for n in natures %}
@@ -40,6 +46,7 @@
 >
   <input type="hidden" name="category" value="{{ filters.category or '' }}">
   <input type="hidden" name="category_node" value="{{ filters.category_node or '' }}">
+  <input type="hidden" name="tag" value="{{ filters.tag or '' }}">
   <input type="hidden" name="nature" value="{{ filters.nature or '' }}">
   <input type="hidden" name="account_id" value="{{ filters.account_id or '' }}">
   <input type="hidden" name="date_from" value="{{ filters.date_from or '' }}">
@@ -71,7 +78,7 @@
   </fieldset>
 </form>
 <nav class="pagination">
-  {% set qs = "category=" ~ (filters.category or "") ~ "&category_node=" ~ (filters.category_node or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") ~ "&merchant_id=" ~ (filters.merchant_id or "") %}
+  {% set qs = "category=" ~ (filters.category or "") ~ "&category_node=" ~ (filters.category_node or "") ~ "&tag=" ~ (filters.tag or "") ~ "&nature=" ~ (filters.nature or "") ~ "&account_id=" ~ (filters.account_id or "") ~ "&date_from=" ~ (filters.date_from or "") ~ "&date_to=" ~ (filters.date_to or "") ~ "&commitment_id=" ~ (filters.commitment_id or "") ~ "&debt_id=" ~ (filters.debt_id or "") ~ "&transaction_type=" ~ (filters.transaction_type or "") ~ "&merchant_id=" ~ (filters.merchant_id or "") %}
   {% if page > 1 %}
   <a href="/financials/transactions?{{ qs }}&page={{ page - 1 }}">Previous</a>
   {% endif %}

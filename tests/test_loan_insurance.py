@@ -15,8 +15,8 @@ from app.services.loan_insurance import insurance_key, link_insurance_transactio
 from app.services.loan_linking import link_all_unlinked
 from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node, legacy_category_for
 
-LIFE_SLUG = "loans-debt.loan-insurance.life-insurance-loan"
-BUILDING_SLUG = "loans-debt.loan-insurance.building-insurance-loan"
+LIFE_SLUG = "insurances.home.life-insurance-house-loan"
+BUILDING_SLUG = "insurances.home.building-insurance-house-loan"
 
 
 @pytest.fixture()
@@ -250,7 +250,6 @@ def test_node_slugs_and_cadence(session, tree):
     for slug in (LIFE_SLUG, BUILDING_SLUG):
         node = get_node(session, slug)
         assert node.kind == "out" and node.cadence == "monthly" and node.level == 3
-    assert get_node(session, "loans-debt.loan-insurance").cadence == "monthly"
 
 
 # --- fix wave: key families and component fit -------------------------------

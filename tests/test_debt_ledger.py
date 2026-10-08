@@ -229,9 +229,9 @@ def test_linking_marks_the_candidate_reviewed(session):
 # --- filing --------------------------------------------------------------
 
 @pytest.mark.parametrize("direction,ttype,role,slug", [
-    (LENT, TransactionType.DEBIT, None, "loans-debt.money-lent-out.loan-to-friends"),
-    (LENT, TransactionType.CREDIT, None, "loans-debt-in.repayments-received.from-friends"),
-    (BORROWED, TransactionType.CREDIT, None, "loans-debt-in.money-borrowed.personal-loan-received"),
+    (LENT, TransactionType.DEBIT, None, "loans-debt.money-lent-out.to-friends"),
+    (LENT, TransactionType.CREDIT, None, "loans-debt.money-lent-out.from-friends"),
+    (BORROWED, TransactionType.CREDIT, None, "loans-debt.money-borrowed.personal-loan-received"),
     (BORROWED, TransactionType.DEBIT, None, "loans-debt.loan-repayments.personal-loans"),
 ])
 def test_linked_transaction_is_filed_under_the_matching_node(session, direction, ttype, role, slug):

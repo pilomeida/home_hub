@@ -275,7 +275,7 @@ async def test_classify_links_an_insurance_debit_and_files_it_under_the_insuranc
     session.commit()
     session.refresh(t)
     assert t.debt_id == debt.id
-    assert t.category_id == get_node(session, "loans-debt.loan-insurance.building-insurance-loan").id
+    assert t.category_id == get_node(session, "insurances.home.building-insurance-house-loan").id
 
 
 @pytest.mark.asyncio
@@ -320,4 +320,4 @@ async def test_positions_document_back_links_insurance_debits(session, tmp_path)
     assert ext.status == "ok", ext.error
     session.refresh(t)
     debt = session.exec(select(Debt).where(Debt.external_number == "900100200")).one()
-    assert t.debt_id == debt.id and t.category_id == get_node(session, "loans-debt.loan-insurance.life-insurance-loan").id
+    assert t.debt_id == debt.id and t.category_id == get_node(session, "insurances.home.life-insurance-house-loan").id

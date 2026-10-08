@@ -74,10 +74,11 @@ async def test_resolve_merchant_via_llm_parses_valid_response(session):
     assert result.nature == Nature.ESSENTIAL
     # the prompt lists the leaf slugs and the schema enum is exactly that list,
     # minus the nodes only the loan-insurance linker may use
+    from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
     from app.services.taxonomy import leaf_slugs
     req = client.requests[0]
     assert req["response_schema"]["properties"]["node_slug"]["enum"] == [
-        s for s in leaf_slugs(session) if not s.startswith("loans-debt.loan-insurance.")]
+        s for s in leaf_slugs(session) if s not in LOAN_INSURANCE_SLUGS]
     assert "food.groceries.supermarket" in req["system"]
     assert UNSORTED_SLUG in req["system"]
 
@@ -175,7 +176,7 @@ async def test_classify_transaction_creates_new_merchant_via_llm_fallback(sessio
     session.refresh(transaction)
 
     response = json.dumps({
-        "canonical_name": "Loja Nova", "node_slug": "personal-lifestyle.personal.general-shopping", "nature": "discretionary",
+        "canonical_name": "Loja Nova", "node_slug": "family.personal.general-shopping", "nature": "discretionary",
     })
     result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway(response))
     session.commit()
@@ -334,7 +335,7 @@ async def test_classify_transaction_does_not_commit_internally(session):
     session.refresh(transaction)
 
     response = json.dumps({
-        "canonical_name": "Loja Nova", "node_slug": "personal-lifestyle.personal.general-shopping", "nature": "discretionary",
+        "canonical_name": "Loja Nova", "node_slug": "family.personal.general-shopping", "nature": "discretionary",
     })
     result = await classify_transaction(session, transaction, gateway=_fake_merchant_gateway(response))
     assert result.created_new_merchant is True
@@ -731,8 +732,8 @@ async def test_classify_files_new_merchant_under_tree_leaf(session):
     ensure_taxonomy(session)
     t = _txn(session, "GALP LISBOA")
     result = await classify_transaction(
-        session, t, gateway=_reply("transport.car-running.fuel"))
-    fuel = get_node(session, "transport.car-running.fuel")
+        session, t, gateway=_reply("transport.car-running-costs.fuel"))
+    fuel = get_node(session, "transport.car-running-costs.fuel")
     assert result.merchant.default_category_id == fuel.id
     assert t.category_id == fuel.id
     assert t.category == Category.OTHER_EXPENSE  # dual-write via kind default (fuel has no legacy value)
@@ -768,7 +769,7 @@ async def test_classify_existing_merchant_with_node_files_new_transaction(sessio
     from app.models.merchant import Merchant
 
     ensure_taxonomy(session)
-    fuel = get_node(session, "transport.car-running.fuel")
+    fuel = get_node(session, "transport.car-running-costs.fuel")
     session.add(Merchant(canonical_name="Galp", normalized_key="galp", default_category_id=fuel.id,
                          default_nature=Nature.ESSENTIAL))
     session.commit()
@@ -796,7 +797,7 @@ def test_get_needs_review_queue_groups_unfiled_and_unsorted_by_merchant(session)
 
     ensure_taxonomy(session)
     unsorted = get_node(session, UNSORTED_SLUG)
-    fuel = get_node(session, "transport.car-running.fuel")
+    fuel = get_node(session, "transport.car-running-costs.fuel")
     m = Merchant(canonical_name="Shop", normalized_key="shop")
     session.add(m)
     session.commit()
@@ -814,7 +815,7 @@ def test_get_needs_review_queue_groups_unfiled_and_unsorted_by_merchant(session)
 
 
 @pytest.mark.asyncio
-async def test_merchant_memory_does_not_file_a_credit_under_an_out_node(session):
+async def test_merchant_memory_files_a_credit_under_the_spending_node_as_a_refund(session):
     from app.models.merchant import Merchant
     from app.models.transaction import TransactionType
     from app.services.classification_engine import get_needs_review_queue
@@ -825,21 +826,35 @@ async def test_merchant_memory_does_not_file_a_credit_under_an_out_node(session)
     session.commit()
     refund = _txn(session, "MODELO", ttype=TransactionType.CREDIT, hash_="h-refund")
     debit = _txn(session, "MODELO", ttype=TransactionType.DEBIT, hash_="h-debit")
-    await classify_transaction(session, refund, gateway=_fake_merchant_gateway("{}"))
     await classify_transaction(session, debit, gateway=_fake_merchant_gateway("{}"))
+    await classify_transaction(session, refund, gateway=_fake_merchant_gateway("{}"))
     session.commit()
     assert debit.category_id == sm.id
-    assert refund.category_id is None
-    assert refund.id in [t.id for t in get_needs_review_queue(session).unsorted_transactions]
+    assert refund.category_id == sm.id  # a refund: same node as the purchases
+    assert refund.id not in [t.id for t in get_needs_review_queue(session).unsorted_transactions]
 
 
 @pytest.mark.asyncio
-async def test_new_merchant_credit_with_out_node_is_not_filed(session):
+async def test_merchant_memory_does_not_file_a_credit_under_a_loan_cash_or_savings_node(session):
+    from app.models.merchant import Merchant
+    from app.models.transaction import TransactionType
+
+    ensure_taxonomy(session)
+    atm = get_node(session, "cash-giving.cash.atm-withdrawals")
+    session.add(Merchant(canonical_name="Person", normalized_key="person", default_category_id=atm.id))
+    session.commit()
+    incoming = _txn(session, "PERSON", ttype=TransactionType.CREDIT, hash_="h-in")
+    await classify_transaction(session, incoming, gateway=_fake_merchant_gateway("{}"))
+    assert incoming.category_id is None
+
+
+@pytest.mark.asyncio
+async def test_new_merchant_credit_with_excluded_out_node_is_not_filed(session):
     from app.models.transaction import TransactionType
 
     ensure_taxonomy(session)
     t = _txn(session, "ODD CREDIT", ttype=TransactionType.CREDIT)
-    await classify_transaction(session, t, gateway=_reply("food.groceries.supermarket", "Odd"))
+    await classify_transaction(session, t, gateway=_reply("cash-giving.cash.atm-withdrawals", "Odd"))
     assert t.category_id is None
 
 
@@ -850,7 +865,7 @@ def test_direction_matches_rules(session):
     ensure_taxonomy(session)
     out = get_node(session, "food.groceries.supermarket")
     unsorted = get_node(session, UNSORTED_SLUG)
-    refunds = get_node(session, "refunds-reimbursements.refunds.purchase-refunds")
+    refunds = get_node(session, "income.gifts-other.gifts-received")
     def tx(k): return Transaction(document_id=1, provider="x", amount=1, transaction_type=k)
     assert direction_matches(tx(TransactionType.DEBIT), out)
     assert not direction_matches(tx(TransactionType.TRANSFER), out)
@@ -858,7 +873,9 @@ def test_direction_matches_rules(session):
     internal = get_node(session, "internal-transfers.between-my-accounts.santander-revolut")
     assert direction_matches(tx(TransactionType.TRANSFER), internal)
     assert direction_matches(tx(TransactionType.TRANSFER), unsorted)
-    assert not direction_matches(tx(TransactionType.CREDIT), out)
+    assert direction_matches(tx(TransactionType.CREDIT), out)  # a refund
+    assert not direction_matches(tx(TransactionType.CREDIT), get_node(session, "cash-giving.cash.atm-withdrawals"))
+    assert not direction_matches(tx(TransactionType.CREDIT), get_node(session, "loans-debt.loan-repayments.car-loan"))
     assert direction_matches(tx(TransactionType.CREDIT), refunds)
     assert not direction_matches(tx(TransactionType.DEBIT), refunds)
     assert direction_matches(tx(TransactionType.CREDIT), unsorted)
@@ -873,19 +890,26 @@ def test_prompt_names_the_credit_only_prefixes_and_not_loan_repayments(session):
     gw = _reply(UNSORTED_SLUG)
     asyncio.run(resolve_merchant_via_llm("X", session, gateway=gw))
     system = gw.requests[0]["system"]
-    for prefix in ("income.", "refunds-reimbursements.", "loans-debt-in."):
+    prefixes = ("income.", "loans-debt.money-borrowed.", "loans-debt.money-lent-out.from-",
+                "savings-investments.earnings.", "savings-investments.withdrawals.")
+    for prefix in prefixes:
         assert prefix in system
         assert any(sl.startswith(prefix) for sl in leaf_slugs(session))
-    assert any(sl.startswith("loans-debt.") for sl in leaf_slugs(session))
+    # every inflow leaf of the tree is covered by a credit-only prefix, and no outflow leaf is
+    from app.models.category_node import CategoryNode
+    from sqlmodel import select
+    for node in session.exec(select(CategoryNode).where(CategoryNode.level == 3)).all():
+        if node.kind == "in":
+            assert node.slug.startswith(prefixes), node.slug
+        elif node.kind == "out":
+            assert not node.slug.startswith(prefixes), node.slug
     credit_line = next(l for l in system.splitlines() if l.startswith("Credit-only"))
-    debit_line = next(l for l in system.splitlines() if l.startswith("Debit-only"))
-    assert "loans-debt." not in credit_line.replace("loans-debt-in.", "")
-    assert "loans-debt." in debit_line
+    assert "loans-debt.money-lent-out.from-" in credit_line and "loans-debt.loan-repayments" not in credit_line
 
 
 # ---- loan-insurance nodes are reachable only through insurance linking ----
 
-INSURANCE_SLUGS = ("loans-debt.loan-insurance.life-insurance-loan", "loans-debt.loan-insurance.building-insurance-loan")
+INSURANCE_SLUGS = ("insurances.home.life-insurance-house-loan", "insurances.home.building-insurance-house-loan")
 
 
 @pytest.mark.asyncio
@@ -955,7 +979,7 @@ async def test_match_rule_auto_link_creates_a_repayment_entry_and_files_it(sessi
     assert entry.kind == "repayment" and entry.amount == 100.0
     assert debt.current_balance == Decimal("900.00")
     # loan filing wins over the merchant's Unsorted memory
-    assert session.get(CategoryNode, txn.category_id).slug == "loans-debt-in.repayments-received.from-friends"
+    assert session.get(CategoryNode, txn.category_id).slug == "loans-debt.money-lent-out.from-friends"
 
 
 @pytest.mark.asyncio

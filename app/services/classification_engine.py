@@ -18,7 +18,9 @@ from app.services.debt_ledger import default_kind, link_transaction_as_entry
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
-from app.services.taxonomy import UNSORTED_SLUG, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
+from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
+from app.services.merchant_rules import keyword_node_slug
+from app.services.taxonomy import UNSORTED_SLUG, auto_fits, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
 from app.services.loan_insurance import link_insurance_transaction
 from app.services.loan_linking import link_transaction_to_loan
 from app.services.json_utils import strip_json_fences
@@ -62,7 +64,8 @@ Choose the single best node_slug from this list (and nothing else):
 
 {unsure_rule}
 Credit-only slugs (money coming in; never for a debit): those starting with \
-income., refunds-reimbursements. or loans-debt-in.
+income., loans-debt.money-borrowed., loans-debt.money-lent-out.from-, \
+savings-investments.earnings. or savings-investments.withdrawals.
 Debit-only slugs (money going out; never for a credit): every other slug, \
 including all loans-debt. slugs (loan repayments, loan interest and fees, \
 money lent out)."""
@@ -92,7 +95,7 @@ def _merchant_schema(slugs: list[str]) -> dict:
 
 # Nodes only the loan-insurance linker may file under (rule / amount match); the
 # LLM never sees or may choose them, or a generic insurer would count as loan insurance.
-LLM_EXCLUDED_PREFIXES = ("loans-debt.loan-insurance.",)
+LLM_EXCLUDED_SLUGS = LOAN_INSURANCE_SLUGS
 
 
 class MerchantResolutionError(Exception):
@@ -109,7 +112,7 @@ class ResolvedMerchant:
 
 def candidate_slugs(session: Session) -> list[str]:
     """Leaf slugs the LLM may choose from (loan-insurance leaves excluded)."""
-    return [s for s in leaf_slugs(session) if not s.startswith(LLM_EXCLUDED_PREFIXES)]
+    return [s for s in leaf_slugs(session) if s not in LLM_EXCLUDED_SLUGS]
 
 
 async def ask_merchant_llm(
@@ -189,10 +192,17 @@ async def classify_transaction(
     created_new_merchant = False
 
     if merchant is None:
-        resolved = await resolve_merchant_via_llm(
-            transaction.provider, session, gateway=gateway,
-            is_credit=transaction.transaction_type == TransactionType.CREDIT,
-        )
+        keyword_slug = keyword_node_slug(transaction.provider)
+        if keyword_slug:  # a fixed ruling, no LLM call
+            keyword_node = get_node(session, keyword_slug)
+            resolved = ResolvedMerchant(
+                canonical_name=transaction.provider.strip().title(), node_slug=keyword_slug,
+                category=legacy_category_for(session, keyword_node), nature=Nature.ESSENTIAL)
+        else:
+            resolved = await resolve_merchant_via_llm(
+                transaction.provider, session, gateway=gateway,
+                is_credit=transaction.transaction_type == TransactionType.CREDIT,
+            )
         merchant = Merchant(
             canonical_name=resolved.canonical_name,
             default_category=resolved.category,
@@ -244,7 +254,7 @@ async def classify_transaction(
     # A merchant with no node (legacy rows) leaves the transaction unfiled.
     if not loan_filed and merchant.default_category_id is not None:
         node = session.get(CategoryNode, merchant.default_category_id)
-        if node is not None and direction_matches(transaction, node):
+        if node is not None and auto_fits(session, transaction, node):
             file_transaction(session, transaction, node)
 
     if transaction.account_id is None:

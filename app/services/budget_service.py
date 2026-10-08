@@ -24,6 +24,7 @@ from app.services.budget_forecast import (
 from app.services.overview_charts import _complete_months_before
 from app.models.debt import Debt
 from app.services.loan_math import add_months, summarize_all
+from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
 from app.services.taxonomy import flow_of
 
 
@@ -81,7 +82,7 @@ def get_effective_budgets(session: Session, year: int) -> dict[int, tuple[Budget
 _HISTORY_MONTHS = 36
 _RELEVANCE_MONTHS = 12
 _RECURRING_INCOME = {"income.psi", "income.employment", "income.rental",
-                     "income.benefits-refunds-from-the-state", "income.investments-interest"}
+                     "income.benefits-refunds-from-the-state", "savings-investments.earnings"}
 _STATUS_RANK = {"no_budget": 0, "ok": 1, "at_risk": 2, "over": 3}
 
 
@@ -274,7 +275,7 @@ def _loan_instalments(session: Session, today: date, view: str) -> tuple[float, 
     # Loan insurance debits are linked to their loan but are ordinary spend (their
     # nodes are monthly budget lines), not instalments: never count them here.
     insurance_nodes = set(session.exec(
-        select(CategoryNode.id).where(CategoryNode.slug.like("loans-debt.loan-insurance%"))).all())
+        select(CategoryNode.id).where(CategoryNode.slug.in_(LOAN_INSURANCE_SLUGS))).all())
     paid_rows = [t for t in paid_rows if t.category_id not in insurance_nodes]
     paid = sum(t.amount for t in paid_rows)
     paid_this_month = {t.debt_id for t in paid_rows if (t.paid_date.year, t.paid_date.month) == (today.year, today.month)}

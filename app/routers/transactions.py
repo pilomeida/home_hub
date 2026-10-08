@@ -22,7 +22,7 @@ from app.models.transaction import Category, Nature, Transaction, TransactionTyp
 from app.services.taxonomy_seed import LEGACY_TO_SLUG
 from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
 from app.services.taxonomy import (
-    descendant_ids, direction_matches, file_transaction, flow_of, get_node, legacy_category_for,
+    auto_fits, descendant_ids, direction_matches, file_transaction, flow_of, get_node, is_refund, legacy_category_for,
 )
 from app.templating import templates
 
@@ -44,7 +44,12 @@ def _apply_transaction_filters(
     transaction_id: Optional[int] = None,
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
+    tag: Optional[str] = None,
 ):
+    if tag:
+        from app.services.tag_service import tag_node_ids
+        node_ids = tag_node_ids(session, tag)
+        statement = statement.where(Transaction.category_id.in_(node_ids if node_ids else [-1]))
     if category_node:
         node = session.exec(select(CategoryNode).where(CategoryNode.slug == category_node)).first()
         statement = statement.where(
@@ -86,13 +91,14 @@ def _filtered_transactions(
     transaction_id: Optional[int] = None,
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
+    tag: Optional[str] = None,
 ):
     statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
-        merchant_id=merchant_id, category_node=category_node,
+        merchant_id=merchant_id, category_node=category_node, tag=tag,
     )
     statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
     return session.exec(statement).all()
@@ -134,13 +140,14 @@ def _count_filtered_transactions(
     transaction_id: Optional[int] = None,
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
+    tag: Optional[str] = None,
 ) -> int:
     statement = select(Transaction)
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
-        merchant_id=merchant_id, category_node=category_node,
+        merchant_id=merchant_id, category_node=category_node, tag=tag,
     )
     return len(session.exec(statement).all())
 
@@ -160,7 +167,7 @@ def _node_context(session: Session, transactions: list[Transaction]) -> tuple[di
     node_labels, row_flow = {}, {}
     for t in transactions:
         node = nodes.get(t.category_id) if t.category_id else None
-        row_flow[t.id] = flow_of(t, node)
+        row_flow[t.id] = "refund" if is_refund(t, node) else flow_of(t, node)
         if node is not None:
             node_labels[t.id] = label(node)
     return node_labels, row_flow
@@ -192,19 +199,20 @@ async def list_transactions(
     transaction_id: Optional[int] = None,
     merchant_id: Optional[int] = None,
     category_node: Optional[str] = None,
+    tag: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
     transactions = _filtered_transactions(
         session, category, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         page=page, transaction_id=transaction_id, merchant_id=merchant_id,
-        category_node=category_node,
+        category_node=category_node, tag=tag,
     )
     total_count = _count_filtered_transactions(
         session, category, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         transaction_id=transaction_id, merchant_id=merchant_id,
-        category_node=category_node,
+        category_node=category_node, tag=tag,
     )
     total_pages = max(1, -(-total_count // _PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
@@ -214,6 +222,11 @@ async def list_transactions(
     if merchant_id and merchant_filter_name is None:
         merchant = session.get(Merchant, merchant_id)
         merchant_filter_name = merchant.canonical_name if merchant else None
+
+    # Get all tags for the filter dropdown
+    from app.services.tag_service import all_tags
+    tags = all_tags(session)
+
     return templates.TemplateResponse(
         request,
         "transactions/list.html",
@@ -227,7 +240,7 @@ async def list_transactions(
                 "date_from": date_from, "date_to": date_to,
                 "commitment_id": commitment_id, "debt_id": debt_id,
                 "transaction_type": transaction_type, "merchant_id": merchant_id,
-                "category_node": category_node,
+                "category_node": category_node, "tag": tag,
             },
             "merchant_filter_name": merchant_filter_name,
             "page": page,
@@ -238,6 +251,7 @@ async def list_transactions(
             "node_options": _node_options(session),
             "node_labels": node_labels,
             "row_flow": row_flow,
+            "tags": tags,
         },
     )
 
@@ -252,6 +266,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
 
     filter_category = form.get("category") or None
     filter_category_node = form.get("category_node") or None
+    filter_tag = form.get("tag") or None
     filter_nature = form.get("nature") or None
     filter_account_id = form.get("account_id") or None
     filter_date_from = form.get("date_from") or None
@@ -291,6 +306,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         session,
         category=filter_category,
         category_node=filter_category_node,
+        tag=filter_tag,
         nature=filter_nature,
         account_id=int(filter_account_id) if filter_account_id else None,
         date_from=filter_date_from,
@@ -414,7 +430,7 @@ async def confirm_merchant(request: Request, merchant_id: int, session: Session 
         # (or parked in Unsorted) whose direction fits the node. Deliberate
         # filings and mismatched directions are left alone.
         for t in session.exec(unsorted_transactions_query().where(Transaction.merchant_id == merchant.id)).all():
-            if direction_matches(t, node):
+            if auto_fits(session, t, node):
                 file_transaction(session, t, node)
     if new_nature:
         merchant.default_nature = Nature(new_nature)

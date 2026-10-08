@@ -6,9 +6,10 @@
   <script src="/static/htmx.min.js"></script>
   <style>
     tr.flow-out { background: #f7ebe9; } tr.flow-out td.amt { color: #a8504a; }
-    tr.flow-in { background: #e9f2ea; } tr.flow-in td.amt { color: #4d7a56; }
+    tr.flow-in, tr.flow-refund { background: #e9f2ea; } tr.flow-in td.amt, tr.flow-refund td.amt { color: #4d7a56; }
+    .tag-refund { font-size: .75em; padding: 1px 6px; border-radius: 8px; background: #d6e8d9; color: #3d6646; white-space: nowrap; }
     tr.flow-neutral { color: #76716a; }
-    @media (prefers-color-scheme: dark) { tr.flow-out { background: #3a2523; } tr.flow-in { background: #22332a; } }
+    @media (prefers-color-scheme: dark) { tr.flow-out { background: #3a2523; } tr.flow-in, tr.flow-refund { background: #22332a; } .tag-refund { background: #2f4a37; color: #b8d8be; } }
     body { font-family: system-ui, sans-serif; margin: 0; display: flex; }
     nav { width: 180px; padding: 1rem; border-right: 1px solid #ddd; }
     nav a { display: block; margin-bottom: 0.5rem; color: #333; text-decoration: none; }

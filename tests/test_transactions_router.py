@@ -157,7 +157,7 @@ def test_bulk_edit_applies_category_to_selected_transactions(client, session):
     session.refresh(t3)
     assert t1.category == Category.SHOPPING
     assert t2.category == Category.SHOPPING
-    assert t1.category_id == t2.category_id == get_node(session, "personal-lifestyle.personal.general-shopping").id
+    assert t1.category_id == t2.category_id == get_node(session, "family.personal.general-shopping").id
     assert t3.category == Category.OTHER_EXPENSE
 
 
@@ -272,7 +272,7 @@ def test_confirm_merchant_without_a_category_does_not_confirm(client, session):
     assert merchant.confirmed is False
 
 
-def test_confirm_merchant_does_not_file_credits_under_an_out_node(client, session):
+def test_confirm_merchant_files_a_credit_as_a_refund_only_when_the_merchant_was_paid(client, session):
     from app.models.document import Document, DocumentSource
     from app.models.transaction import Transaction
     from app.services.taxonomy import ensure_taxonomy, get_node
@@ -288,6 +288,23 @@ def test_confirm_merchant_does_not_file_credits_under_an_out_node(client, sessio
                 data={"category_node": "food.groceries.supermarket"})
     session.refresh(deb); session.refresh(cred)
     assert deb.category_id == get_node(session, "food.groceries.supermarket").id
+    assert cred.category_id == deb.category_id  # a refund: the merchant has a purchase
+
+
+def test_confirm_merchant_never_files_credits_of_a_never_paid_merchant_under_a_spending_node(client, session):
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.taxonomy import ensure_taxonomy
+    ensure_taxonomy(session)
+    merchant = _make_unconfirmed_merchant(session, name="Payer", key="payer-router-test")
+    doc = Document(filename="p.pdf", file_path="/tmp/p.pdf", content_hash="h-payer", source=DocumentSource.MANUAL)
+    session.add(doc); session.commit()
+    cred = Transaction(document_id=doc.id, provider="P", category=Category.OTHER, amount=500.0,
+                       merchant_id=merchant.id, transaction_type=TransactionType.CREDIT)
+    session.add(cred); session.commit()
+    client.post(f"/financials/transactions/merchants/{merchant.id}/confirm",
+                data={"category_node": "food.groceries.supermarket"})
+    session.refresh(cred)
     assert cred.category_id is None
 
 
@@ -298,13 +315,13 @@ def test_confirm_merchant_applies_edited_category_node_and_nature(client, sessio
 
     response = client.post(
         f"/financials/transactions/merchants/{merchant.id}/confirm",
-        data={"category_node": "food.dining-out.restaurants", "nature": "discretionary"},
+        data={"category_node": "food.eat-out.restaurants", "nature": "discretionary"},
     )
 
     assert response.status_code == 200
     session.refresh(merchant)
     assert merchant.confirmed is True
-    assert merchant.default_category_id == get_node(session, "food.dining-out.restaurants").id
+    assert merchant.default_category_id == get_node(session, "food.eat-out.restaurants").id
     assert merchant.default_category == Category.RESTAURANTS
     assert merchant.default_nature == Nature.DISCRETIONARY
 
@@ -319,7 +336,7 @@ def test_confirm_merchant_files_every_unsorted_transaction_of_that_merchant(clie
     doc = Document(filename="g.pdf", file_path="/tmp/g.pdf", content_hash="h-galp", source=DocumentSource.MANUAL)
     session.add(doc)
     session.commit()
-    fuel = get_node(session, "transport.car-running.fuel")
+    fuel = get_node(session, "transport.car-running-costs.fuel")
     groceries = get_node(session, "food.groceries.supermarket")
 
     def mk(m, node):
@@ -336,7 +353,7 @@ def test_confirm_merchant_files_every_unsorted_transaction_of_that_merchant(clie
 
     response = client.post(
         f"/financials/transactions/merchants/{merchant.id}/confirm",
-        data={"category_node": "transport.car-running.fuel"},
+        data={"category_node": "transport.car-running-costs.fuel"},
     )
 
     assert response.status_code == 200
@@ -661,7 +678,7 @@ def test_list_shows_tree_path_and_flow_class(client, session):
 def test_filter_by_node_includes_descendants(client, session):
     ensure_taxonomy(session)
     _filed(session, "PINGO DOCE", "food.groceries.supermarket")
-    _filed(session, "GALP", "transport.car-running.fuel")
+    _filed(session, "GALP", "transport.car-running-costs.fuel")
     html = client.get("/financials/transactions?category_node=food").text
     assert "PINGO DOCE" in html and "GALP" not in html
 

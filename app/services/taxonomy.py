@@ -25,7 +25,11 @@ def ensure_taxonomy(session: Session) -> int:
     def upsert(slug, parent, level, name, kind, cadence, order):
         nonlocal created
         if slug in existing:
-            return session.exec(select(CategoryNode).where(CategoryNode.slug == slug)).one()
+            node = session.exec(select(CategoryNode).where(CategoryNode.slug == slug)).one()
+            if node.sort_order != order:  # keep the tree in the seed's order after the seed is reshuffled
+                node.sort_order = order
+                session.add(node)
+            return node
         node = CategoryNode(slug=slug, parent_id=parent.id if parent else None, level=level,
                             name=name, kind=kind, cadence=cadence, sort_order=order)
         session.add(node)
@@ -40,8 +44,9 @@ def ensure_taxonomy(session: Session) -> int:
             g = upsert(_slug(gname), None, 1, gname, kind, None, order := order + 1)
             for cname, cadence, _legacy, subs in cats:
                 c = upsert(f"{g.slug}.{_slug(cname)}", g, 2, cname, kind, cadence, order := order + 1)
-                for sname in subs:
-                    upsert(f"{c.slug}.{_slug(sname)}", c, 3, sname, kind, cadence, order := order + 1)
+                for sub in subs:
+                    sname, scadence = sub if isinstance(sub, tuple) else (sub, cadence)
+                    upsert(f"{c.slug}.{_slug(sname)}", c, 3, sname, kind, scadence, order := order + 1)
     session.commit()
     return created
 
@@ -84,8 +89,13 @@ def legacy_category_for(session: Session, node: CategoryNode) -> Category:
     if node.level == 3 and node.name in SUB_LEGACY:
         return SUB_LEGACY[node.name]
     cat = session.get(CategoryNode, node.parent_id) if node.level == 3 else node
-    for _kind, groups in SEED.items():
-        for _g, cats in groups:
+    group = session.get(CategoryNode, cat.parent_id) if cat.level == 2 else None
+    for kind, groups in SEED.items():
+        if kind != node.kind:
+            continue  # a category can exist under two kinds (Money lent out)
+        for gname, cats in groups:
+            if group is not None and gname != group.name:
+                continue  # category names repeat across groups (Personal), so match the pair
             for cname, _cad, legacy, _subs in cats:
                 if cname == cat.name and legacy is not None:
                     return legacy
@@ -103,13 +113,46 @@ def flow_of(txn: Transaction, node: Optional[CategoryNode]) -> str:
 _legacy_for = legacy_category_for  # backwards-compatible alias
 
 
+# A credit may sit under a spending node as a refund of what was bought there, except
+# where money in is not a refund: loans, cash and savings (a person paying Pedro back).
+REFUND_EXCLUDED_GROUPS = ("loans-debt", "cash-giving", "savings-investments")
+
+
 def direction_matches(txn: Transaction, node: CategoryNode) -> bool:
     """Can txn be auto-filed under node? Unsorted and neutral nodes take anything;
-    'in' nodes need a credit; 'out' nodes need a debit. A TRANSFER only ever
-    fits neutral or Unsorted nodes."""
+    'in' nodes need a credit; 'out' nodes need a debit, or a credit that is a
+    refund (see is_refund). A TRANSFER only ever fits neutral or Unsorted nodes."""
     if node.slug.startswith("unsorted") or node.kind == "neutral":
         return True
     t = txn.transaction_type
     if node.kind == "in":
         return t == TransactionType.CREDIT
+    if t == TransactionType.CREDIT:
+        return node.slug.split(".")[0] not in REFUND_EXCLUDED_GROUPS
     return t == TransactionType.DEBIT
+
+
+def merchant_has_purchases(session: Session, merchant_id: Optional[int]) -> bool:
+    if merchant_id is None:
+        return False
+    return session.exec(select(Transaction.id).where(
+        Transaction.merchant_id == merchant_id,
+        Transaction.transaction_type == TransactionType.DEBIT).limit(1)).first() is not None
+
+
+def auto_fits(session: Session, txn: Transaction, node: CategoryNode) -> bool:
+    """direction_matches for automatic filing: a credit goes under a spending node
+    only as the refund of a merchant that was paid before (it has a debit). Otherwise
+    it is money in from someone, e.g. a client paying Pedro, and must not reduce spending."""
+    if not direction_matches(txn, node):
+        return False
+    if is_refund(txn, node):
+        return merchant_has_purchases(session, txn.merchant_id)
+    return True
+
+
+def is_refund(txn: Transaction, node: Optional[CategoryNode]) -> bool:
+    """A refund is not a category: it is a credit filed under the spending node it
+    refunds. Budgets already net it off (a credit under an 'out' node is negative spend)."""
+    return (node is not None and node.kind == "out" and not node.slug.startswith("unsorted")
+            and txn.transaction_type == TransactionType.CREDIT)

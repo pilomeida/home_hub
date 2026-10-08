@@ -26,7 +26,7 @@ def test_path_label_and_kind(session):
 
 def test_yearly_and_loan_cadences(session):
     ensure_taxonomy(session)
-    assert get_node(session, "housing.property-taxes-insurance.imi-property-tax").cadence == "yearly"
+    assert get_node(session, "taxes-financial-costs.taxes.imi-property-tax").cadence == "yearly"
     assert get_node(session, "loans-debt.loan-repayments.car-loan").cadence == "loan"
     assert get_node(session, "income.psi.sessions").kind == "in"
     assert get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments").kind == "neutral"
@@ -36,10 +36,10 @@ def test_loan_insurance_nodes_are_monthly_spend_with_the_insurance_legacy_catego
     from app.models.transaction import Category
     from app.services.taxonomy import legacy_category_for
     ensure_taxonomy(session)
-    parent = get_node(session, "loans-debt.loan-insurance")
-    assert parent.cadence == "monthly" and parent.kind == "out"
-    for slug, name in (("loans-debt.loan-insurance.life-insurance-loan", "Life insurance (loan)"),
-                       ("loans-debt.loan-insurance.building-insurance-loan", "Building insurance (loan)")):
+    parent = get_node(session, "insurances.home")
+    assert parent.kind == "out"
+    for slug, name in (("insurances.home.life-insurance-house-loan", "Life insurance, house loan"),
+                       ("insurances.home.building-insurance-house-loan", "Building insurance, house loan")):
         node = get_node(session, slug)
         assert node.name == name and node.cadence == "monthly" and node.parent_id == parent.id
         assert legacy_category_for(session, node) == Category.INSURANCE
@@ -82,9 +82,9 @@ def test_savings_groups_seeded(session):
     from app.services.budget_service import set_budget
 
     ensure_taxonomy(session)
-    out = get_node(session, "savings-investments.contributions.fund-subscriptions")
+    out = get_node(session, "savings-investments.contributions.fund-investment-subscriptions")
     assert out.kind == "out" and out.cadence == "monthly"
-    inn = get_node(session, "savings-investments-in.withdrawals.fund-redemptions")
+    inn = get_node(session, "savings-investments.withdrawals.fund-investment-redemptions")
     assert inn.kind == "in"
     assert set_budget(session, out.id, 2026, 100.0).amount == 100.0
     with pytest.raises(ValueError):

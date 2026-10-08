@@ -27,9 +27,9 @@ ROLES = ("advance", "repayment")  # the roles a bank transaction can take
 
 # (direction, kind) -> node slug. A missing direction counts as owed by us.
 _FILING = {
-    (DebtDirection.OWED_TO_US, "advance"): "loans-debt.money-lent-out.loan-to-friends",
-    (DebtDirection.OWED_TO_US, "repayment"): "loans-debt-in.repayments-received.from-friends",
-    (DebtDirection.OWED_BY_US, "advance"): "loans-debt-in.money-borrowed.personal-loan-received",
+    (DebtDirection.OWED_TO_US, "advance"): "loans-debt.money-lent-out.to-friends",
+    (DebtDirection.OWED_TO_US, "repayment"): "loans-debt.money-lent-out.from-friends",
+    (DebtDirection.OWED_BY_US, "advance"): "loans-debt.money-borrowed.personal-loan-received",
     (DebtDirection.OWED_BY_US, "repayment"): "loans-debt.loan-repayments.personal-loans",
 }
 

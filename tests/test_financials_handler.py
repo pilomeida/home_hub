@@ -888,7 +888,7 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
         return extracted
 
     merchant_response = json.dumps({
-        "canonical_name": "Loja Nova", "node_slug": "personal-lifestyle.personal.general-shopping", "nature": "discretionary",
+        "canonical_name": "Loja Nova", "node_slug": "family.personal.general-shopping", "nature": "discretionary",
     })
 
     async def real_classify_transaction_with_fake_client(session, transaction, gateway=None):

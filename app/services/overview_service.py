@@ -477,6 +477,7 @@ class OverviewData:
     cash_flow_chart: CashFlowChart
     category_comparison: list[CategoryComparisonRow]
     needs_attention: list[NeedsAttentionItem]
+    tag_totals: list = None
 
 
 def get_period_dependent_data(
@@ -522,6 +523,8 @@ def get_overview_data(
         session, today, rolling_months=_resolve_lookback_months(cash_flow_range, today)
     )
 
+    from app.services.tag_service import tag_totals
+
     return OverviewData(
         flow_kpis=get_flow_kpis(session, today, income_monthly, expense_monthly),
         position_kpis=[get_cash_kpi(session, today), get_debt_kpi(session, today)],
@@ -530,4 +533,5 @@ def get_overview_data(
         cash_flow_chart=cash_flow_chart,
         category_comparison=table_category_rows,
         needs_attention=get_needs_attention(session, today, category_rows),
+        tag_totals=tag_totals(session, today),
     )

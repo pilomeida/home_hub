@@ -9,8 +9,8 @@ from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, file_transacti
 TODAY = date(2026, 10, 15)
 SUPERMARKET = "food.groceries.supermarket"
 MARKETS = "food.groceries.markets"
-RESTAURANTS = "food.dining-out.restaurants"
-IMI = "housing.property-taxes-insurance.imi-property-tax"
+RESTAURANTS = "food.eat-out.restaurants"
+IMI = "taxes-financial-costs.taxes.imi-property-tax"
 PSI = "income.psi.sessions"
 
 
@@ -73,7 +73,7 @@ def test_rollups_sum_and_worst_status_wins(session):
     assert groceries.status == "over" and groceries.spent == 160.0 and groceries.budget == 200.0
     assert groceries.expected == sum(l.expected for l in groceries.lines)
     assert food.status == "over" and food.spent == 200.0 and food.budget == 200.0
-    dining = next(c for c in food.categories if c.name == "Dining out")
+    dining = next(c for c in food.categories if c.name == "Eat out")
     assert dining.status == "no_budget" and dining.budget == 0.0
 
 
@@ -154,12 +154,17 @@ def _housing(ov):
     return next(g for g in ov.groups if g.name == "Housing")
 
 
+def _taxes(ov):
+    return next(g for g in ov.groups if g.name == "Taxes & financial costs")
+
+
 def test_group_budget_excludes_yearly_line_not_due_this_month(session):
     ensure_taxonomy(session)
     set_budget(session, get_node(session, ELECTRICITY).id, 2026, 100.0)
     set_budget(session, get_node(session, IMI).id, 2026, 420.0, expected_month=12)
     ov = get_budget_overview(session, TODAY)
     assert _housing(ov).budget == 100.0
+    assert not any(g.name == "Taxes & financial costs" for g in ov.groups)  # IMI is due in December, not shown in October
     assert _lines(ov)["Electricity"].budget_in_period == 100.0
 
 
@@ -170,9 +175,9 @@ def test_group_budget_includes_remaining_yearly_amount_when_due(session):
     ov = get_budget_overview(session, TODAY)
     imi = _lines(ov)["IMI property tax"]
     assert imi.budget == 420.0 and imi.budget_in_period == 420.0
-    assert _housing(ov).budget == 520.0
+    assert _housing(ov).budget == 100.0 and _taxes(ov).budget == 420.0
     year = get_budget_overview(session, TODAY, view="year")
-    assert _housing(year).budget == 100.0 * 12 + 420.0
+    assert _housing(year).budget == 100.0 * 12 and _taxes(year).budget == 420.0
 
 
 def test_unsorted_received_exposed_month_and_year(session):
@@ -186,7 +191,7 @@ def test_unsorted_received_exposed_month_and_year(session):
 
 def test_transfer_filed_under_out_node_counts_as_spend(session):
     ensure_taxonomy(session)
-    repairs = "housing.home-upkeep.repairs-maintenance"
+    repairs = "housing.home-running-costs.repairs-maintenance"
     _debit(session, repairs, 100.0, date(2026, 10, 2))
     _txn(session, repairs, 40.0, TransactionType.TRANSFER, date(2026, 10, 3))
     assert _lines(get_budget_overview(session, TODAY))["Repairs & maintenance"].spent == 140.0
@@ -216,7 +221,7 @@ def test_income_source_without_data_stays_out(session):
 def test_only_recurring_income_is_forecast(session):
     ensure_taxonomy(session)
     _txn(session, "income.gifts-other.gifts-received", 5000.0, TransactionType.CREDIT, date(2025, 10, 10))
-    _txn(session, "refunds-reimbursements.refunds.purchase-refunds", 800.0, TransactionType.CREDIT,
+    _txn(session, "savings-investments.withdrawals.fund-investment-redemptions", 800.0, TransactionType.CREDIT,
          date(2025, 10, 11))
     _txn(session, PSI, 1000.0, TransactionType.CREDIT, date(2025, 10, 12))
     ov = get_budget_overview(session, TODAY)

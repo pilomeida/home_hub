@@ -42,6 +42,17 @@
     {% include "dashboard/_period_panel.html" %}
   {% endwith %}
 
+  {% if overview.tag_totals %}
+  <div class="fc-section">
+    <div class="fc-section-title">
+      <span>By tag (spending across categories, EUR)</span>
+    </div>
+    {% with tags = overview.tag_totals %}
+      {% include "dashboard/_by_tag.html" %}
+    {% endwith %}
+  </div>
+  {% endif %}
+
   <div class="fc-section">
     <div class="fc-section-title">
       <span>Needs attention</span>

@@ -46,7 +46,7 @@ def test_flow_of_uses_kind_and_falls_back_to_type_for_unsorted(session):
 
 def test_refile_prefers_confirmed_merchant_then_legacy_then_review(session):
     ensure_taxonomy(session)
-    fuel = get_node(session, "transport.car-running.fuel")
+    fuel = get_node(session, "transport.car-running-costs.fuel")
     m = Merchant(canonical_name="Galp", normalized_key="galp", confirmed=True, default_category_id=fuel.id)
     session.add(m); session.commit()
     from_merchant = _txn(session, "GALP", Category.OTHER_EXPENSE, merchant_id=m.id)
@@ -88,13 +88,13 @@ async def test_reclassify_unsorted_costs_one_llm_call_per_merchant(session):
         file_transaction(session, t, unsorted)
     session.commit()
     gw = FakeGateway([
-        gateway_text_result(json.dumps({"canonical_name": "Galp", "node_slug": "transport.car-running.fuel", "nature": "essential"})),
+        gateway_text_result(json.dumps({"canonical_name": "Galp", "node_slug": "transport.car-running-costs.fuel", "nature": "essential"})),
         gateway_text_result(json.dumps({"canonical_name": "Mystery", "node_slug": UNSORTED_SLUG, "nature": "essential"})),
     ])
 
     report = await reclassify_unsorted(session, gateway=gw)
 
-    fuel = get_node(session, "transport.car-running.fuel")
+    fuel = get_node(session, "transport.car-running-costs.fuel")
     assert len(gw.requests) == 2  # two Galp transactions, one call
     for t in (t1, t2, t3):
         session.refresh(t)
@@ -117,7 +117,7 @@ async def test_reclassify_skips_confirmed_merchants_and_respects_direction(sessi
     unsorted = get_node(session, UNSORTED_SLUG)
     sm = get_node(session, "food.groceries.supermarket")
     confirmed = Merchant(canonical_name="Mine", normalized_key="mine", confirmed=True,
-                         default_category_id=get_node(session, "transport.car-running.fuel").id)
+                         default_category_id=get_node(session, "transport.car-running-costs.fuel").id)
     open_m = Merchant(canonical_name="Shop", normalized_key="shop")
     session.add(confirmed); session.add(open_m); session.commit()
     c1 = _txn(session, "MINE", Category.OTHER, merchant_id=confirmed.id)
@@ -135,10 +135,10 @@ async def test_reclassify_skips_confirmed_merchants_and_respects_direction(sessi
         session.refresh(x)
     assert len(gw.requests) == 1  # confirmed merchant never asked
     assert c1.category_id == unsorted.id
-    assert confirmed.default_category_id == get_node(session, 'transport.car-running.fuel').id
+    assert confirmed.default_category_id == get_node(session, 'transport.car-running-costs.fuel').id
     assert debit.category_id == sm.id
-    assert credit.category_id == unsorted.id  # direction mismatch stays for review
-    assert report.transactions_filed == 1
+    assert credit.category_id == sm.id  # a credit from a shop is a refund under the same node
+    assert report.transactions_filed == 2
 
 
 def test_refile_falls_back_to_unsorted_when_direction_does_not_fit(session):
@@ -150,9 +150,10 @@ def test_refile_falls_back_to_unsorted_when_direction_does_not_fit(session):
     unsorted = get_node(session, UNSORTED_SLUG)
     for t in (credit, transfer, debit):
         session.refresh(t)
-    assert credit.category_id == unsorted.id
-    assert transfer.category_id == unsorted.id
-    assert debit.category_id == get_node(session, "personal-lifestyle.personal.general-shopping").id
+    shopping = get_node(session, "family.personal.general-shopping")
+    assert credit.category_id == unsorted.id  # no merchant, so no purchase to refund
+    assert transfer.category_id == unsorted.id  # a transfer only fits neutral nodes
+    assert debit.category_id == shopping.id
 
 
 @pytest.mark.parametrize("home_first", [True, False])
@@ -218,11 +219,11 @@ async def test_reclassify_confirmed_merchant_with_ambiguous_legacy_asks_llm_keep
     t = _txn(session, "AMB", Category.OTHER, merchant_id=m.id)
     file_transaction(session, t, unsorted); session.commit()
     gw = FakeGateway([gateway_text_result(json.dumps(
-        {"canonical_name": "Amb", "node_slug": "transport.car-running.fuel", "nature": "essential"}))])
+        {"canonical_name": "Amb", "node_slug": "transport.car-running-costs.fuel", "nature": "essential"}))])
     await reclassify_unsorted(session, gateway=gw)
     session.refresh(t); session.refresh(m)
     assert len(gw.requests) == 1
-    assert t.category_id == get_node(session, "transport.car-running.fuel").id
+    assert t.category_id == get_node(session, "transport.car-running-costs.fuel").id
     assert m.confirmed is True
 
 
@@ -235,7 +236,7 @@ import re
 from app.llm_gateway import GatewayError
 from tests.fakes.fake_gateway import gateway_text_result
 
-_FUEL = "transport.car-running.fuel"
+_FUEL = "transport.car-running-costs.fuel"
 _SM = "food.groceries.supermarket"
 
 
@@ -308,10 +309,10 @@ async def test_reclassify_applies_each_result_to_its_own_merchant_whatever_the_c
 
     made = _merchants_with_unsorted(session, {"AAA": 1, "BBB": 1, "CCC": 1})
     # AAA is slowest, so completions arrive CCC, BBB, AAA
-    gw = SlowGateway(replies={"AAA": _SM, "BBB": _FUEL, "CCC": "food.dining-out.restaurants"},
+    gw = SlowGateway(replies={"AAA": _SM, "BBB": _FUEL, "CCC": "food.eat-out.restaurants"},
                      delays={"AAA": 0.15, "BBB": 0.08, "CCC": 0.01})
     await reclassify_unsorted(session, gateway=gw, concurrency=6)
-    for provider, slug in (("AAA", _SM), ("BBB", _FUEL), ("CCC", "food.dining-out.restaurants")):
+    for provider, slug in (("AAA", _SM), ("BBB", _FUEL), ("CCC", "food.eat-out.restaurants")):
         m, rows = made[provider]
         session.refresh(m); session.refresh(rows[0])
         assert m.default_category_id == get_node(session, slug).id
@@ -442,7 +443,7 @@ async def test_best_guess_respects_direction_and_never_touches_confirmed_merchan
     mine.confirmed = True; mine.default_category_id = get_node(session, _SM).id
     session.add_all([credit, mine]); session.commit()
     gw = FakeGateway([gateway_text_result(json.dumps(
-        {"canonical_name": "Payer", "node_slug": _FUEL, "nature": "essential"}))])  # a debit slug for a credit
+        {"canonical_name": "Payer", "node_slug": _FUEL, "nature": "essential"}))])  # a spending slug for a payer who never sold
 
     report = await reclassify_unsorted(session, gateway=gw, best_guess=True)
 
@@ -451,3 +452,27 @@ async def test_best_guess_respects_direction_and_never_touches_confirmed_merchan
     assert credit.category_id == get_node(session, UNSORTED_SLUG).id  # direction mismatch stays unsorted
     assert kept.category_id == get_node(session, UNSORTED_SLUG).id
     assert report.still_unsorted == 1
+
+
+# --- only-undecided pass -----------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_only_undecided_asks_just_the_merchants_without_a_default_node(session):
+    from tests.fakes.fake_gateway import FakeGateway
+    from app.services.taxonomy_refile import reclassify_unsorted
+
+    made = _merchants_with_unsorted(session, {"DECIDED": 1, "UNDECIDED": 1})
+    decided, (d_row,) = made["DECIDED"]
+    undecided, (u_row,) = made["UNDECIDED"]
+    decided.default_category_id = get_node(session, _SM).id
+    session.add(decided); session.commit()
+    gw = FakeGateway([gateway_text_result(json.dumps(
+        {"canonical_name": "Undecided", "node_slug": _FUEL, "nature": "essential"}))])
+
+    report = await reclassify_unsorted(session, gateway=gw, only_undecided=True)
+
+    assert len(gw.requests) == 1 and "UNDECIDED" in gw.requests[0]["user"]
+    session.refresh(d_row); session.refresh(u_row)
+    assert d_row.category_id == get_node(session, UNSORTED_SLUG).id  # untouched, still for the merchant default
+    assert u_row.category_id == get_node(session, _FUEL).id
+    assert report.merchants_asked == 1

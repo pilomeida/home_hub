@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
-from app.services.taxonomy import UNSORTED_SLUG, direction_matches, file_transaction, get_node
+from app.services.taxonomy import UNSORTED_SLUG, auto_fits, file_transaction, get_node
 from app.services.taxonomy_seed import LEGACY_TO_SLUG
 
 
@@ -47,7 +47,7 @@ def refile_all(session: Session, dry_run: bool = True) -> RefileReport:
             node, bucket = get_node(session, LEGACY_TO_SLUG[t.category]), "filed_from_legacy"
         else:
             node, bucket = unsorted, "sent_to_review"
-        if not direction_matches(t, node):
+        if not auto_fits(session, t, node):
             node, bucket = unsorted, "sent_to_review"
         setattr(report, bucket, getattr(report, bucket) + 1)
         if not dry_run:
@@ -105,7 +105,7 @@ _SKIPPED = object()
 
 async def reclassify_unsorted(
     session: Session, gateway=None, concurrency: int = DEFAULT_CONCURRENCY, progress=None,
-    best_guess: bool = False,
+    best_guess: bool = False, only_undecided: bool = False,
 ) -> ReclassifyReport:
     """Ask the LLM once per distinct merchant that has Unsorted transactions and
     file them under the answer. The merchant stays confirmed=False so Pedro can
@@ -113,6 +113,7 @@ async def reclassify_unsorted(
 
     Only the gateway calls run concurrently (at most `concurrency` in flight);
     every database read and write happens in this task, one merchant per commit.
+    With only_undecided the model is asked only about merchants with no default node.
     With best_guess the model may not answer "unsure" (a second pass for the
     merchants the first pass left behind). Merchants with the most Unsorted rows go first. A failed or timed-out call
     is counted and skipped; ABORT_AFTER_CONSECUTIVE_FAILURES in a row abort."""
@@ -142,6 +143,8 @@ async def reclassify_unsorted(
             continue
         if merchant.confirmed and merchant.default_category_id is not None:
             continue  # Pedro's own decisions are never touched; rows stay Unsorted
+        if only_undecided and merchant.default_category_id is not None:
+            continue  # a merchant that already has a node is for reconcile, not for the model
         legacy_slug = LEGACY_TO_SLUG.get(merchant.default_category) if merchant.confirmed else None
         if legacy_slug:
             legacy_items.append((merchant_id, legacy_slug))
@@ -171,7 +174,7 @@ async def reclassify_unsorted(
             merchant.default_category = legacy_category
         session.add(merchant)
         group = by_merchant[merchant_id]
-        fitting = [t for t in group if direction_matches(t, node)]
+        fitting = [t for t in group if auto_fits(session, t, node)]
         for t in fitting:
             file_transaction(session, t, node)
         report.merchants_resolved += 1

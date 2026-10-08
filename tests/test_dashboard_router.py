@@ -197,7 +197,7 @@ def test_post_budget_saves_and_returns_panel(client, session):
     assert get_budgets(session, today.year)[node_id].amount == 300
 
     # a yearly line takes an expected month
-    imi_id = get_node(session, "housing.property-taxes-insurance.imi-property-tax").id
+    imi_id = get_node(session, "taxes-financial-costs.taxes.imi-property-tax").id
     response = client.post(f"/overview/budget/{imi_id}", data={"amount": "420", "expected_month": "10", "view": "year"})
     assert response.status_code == 200
     session.expire_all()
@@ -209,7 +209,7 @@ def test_post_budget_rejects_bad_input(client, session):
 
     ensure_taxonomy(session)
     inflow = get_node(session, "income.psi.sessions").id
-    yearly = get_node(session, "housing.property-taxes-insurance.imi-property-tax").id
+    yearly = get_node(session, "taxes-financial-costs.taxes.imi-property-tax").id
     monthly = get_node(session, "food.groceries.supermarket").id
 
     assert client.post(f"/overview/budget/{inflow}", data={"amount": "100"}).status_code == 400
@@ -288,7 +288,7 @@ def test_panel_hints_and_error_slot(client, session):
     assert "bud-error" in month and "htmx:responseError" in month
     # a budget on a hidden yearly line still counts as "a budget exists"
     other = 12 if today.month != 12 else 1
-    set_budget(session, get_node(session, "housing.property-taxes-insurance.imi-property-tax").id,
+    set_budget(session, get_node(session, "taxes-financial-costs.taxes.imi-property-tax").id,
                today.year, 420.0, expected_month=other)
     assert "No budgets yet" not in client.get("/overview/budget").text
 

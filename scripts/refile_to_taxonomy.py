@@ -9,6 +9,7 @@ Usage:
     python scripts/refile_to_taxonomy.py --reclassify [--concurrency N]  # N 1..12, default 6; writes; one LLM call per merchant with Unsorted
                                                        # transactions (through the llmsel gateway)
 
+    python scripts/refile_to_taxonomy.py --reclassify --only-undecided   # just merchants with no default node
     python scripts/refile_to_taxonomy.py --reclassify --best-guess   # second pass: no "unsure" answer allowed
 
 Note: --reclassify only covers rows already in Unsorted, so run --apply first.
@@ -36,6 +37,7 @@ def main() -> None:
         if "--reclassify" in sys.argv:
             report = asyncio.run(reclassify_unsorted(
                 session, concurrency=parse_concurrency(sys.argv), best_guess="--best-guess" in sys.argv,
+                only_undecided="--only-undecided" in sys.argv,
                 progress=lambda line: print(line, flush=True)))
             print(report, flush=True)
         else:

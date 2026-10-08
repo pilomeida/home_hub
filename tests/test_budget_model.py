@@ -24,7 +24,7 @@ def test_zero_amount_removes_the_budget(session):
 
 def test_yearly_budget_keeps_expected_month(session):
     ensure_taxonomy(session)
-    node = get_node(session, "housing.property-taxes-insurance.imi-property-tax")
+    node = get_node(session, "taxes-financial-costs.taxes.imi-property-tax")
     b = set_budget(session, node.id, 2026, 420.0, expected_month=4)
     assert b.expected_month == 4
 
@@ -44,7 +44,7 @@ def test_budget_rejected_on_non_budgetable_nodes(session, slug):
 def test_expected_month_rejected_for_monthly_nodes_and_bad_values(session):
     ensure_taxonomy(session)
     monthly = get_node(session, "food.groceries.supermarket")
-    yearly = get_node(session, "housing.property-taxes-insurance.imi-property-tax")
+    yearly = get_node(session, "taxes-financial-costs.taxes.imi-property-tax")
     with pytest.raises(ValueError):
         set_budget(session, monthly.id, 2026, 100.0, expected_month=3)
     with pytest.raises(ValueError):

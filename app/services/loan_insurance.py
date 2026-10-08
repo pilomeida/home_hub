@@ -24,8 +24,9 @@ from app.models.position import LoanInsuranceRule, LoanMovement
 from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import file_transaction, get_node
 
-LIFE_SLUG = "loans-debt.loan-insurance.life-insurance-loan"
-BUILDING_SLUG = "loans-debt.loan-insurance.building-insurance-loan"
+LIFE_SLUG = "insurances.home.life-insurance-house-loan"
+BUILDING_SLUG = "insurances.home.building-insurance-house-loan"
+LOAN_INSURANCE_SLUGS = (LIFE_SLUG, BUILDING_SLUG)  # only the linker files here, never the LLM
 _SLUG = {"life": LIFE_SLUG, "building": BUILDING_SLUG}
 
 WINDOW_DAYS = 7

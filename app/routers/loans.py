@@ -24,6 +24,7 @@ from app.models.position import DebtEntry, LoanAlert, LoanMovement, LoanSnapshot
 from app.models.transaction import Transaction, TransactionType
 from app.services.ingestion import Classification, IncomingFile, ingest
 from app.services import debt_ledger
+from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
 from app.services.loan_alerts import (
     KINDS as ALERT_KINDS, MAX_NOTE_CHARS as MAX_ACK_NOTE, SPREAD_TOLERANCE, acknowledge_alert, acknowledge_group, group_alerts,
 )
@@ -94,7 +95,7 @@ def payoff_text(months_left: Optional[int], payoff_date: Optional[date]) -> Opti
 def _insurance_debits(session: Session, debt_id: int) -> tuple[float, Optional[float], Optional[date]]:
     """(total, latest premium, its date) of the debits linked to the loan AND filed
     under the Loan insurance nodes."""
-    node_ids = session.exec(select(CategoryNode.id).where(CategoryNode.slug.like("loans-debt.loan-insurance.%"))).all()
+    node_ids = session.exec(select(CategoryNode.id).where(CategoryNode.slug.in_(LOAN_INSURANCE_SLUGS))).all()
     if not node_ids:
         return 0.0, None, None
     rows = session.exec(
