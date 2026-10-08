@@ -37,6 +37,7 @@
             <option value="{{ n.value }}" {% if m.default_nature and n == m.default_nature %}selected{% endif %}>{{ n.value }}</option>
             {% endfor %}
           </select>
+          <label style="display:block; font-size:12px; color:#666;"><input type="checkbox" name="refile_existing" value="1" checked> also move earlier entries</label>
         </td>
         <td>
           <button

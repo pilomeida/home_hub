@@ -21,6 +21,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.taxonomy_seed import LEGACY_TO_SLUG
 from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
+from app.services.merchant_assign import assign_category, list_merchants
 from app.services.taxonomy import (
     auto_fits, descendant_ids, direction_matches, file_transaction, flow_of, get_node, is_refund, legacy_category_for,
 )
@@ -424,14 +425,11 @@ async def confirm_merchant(request: Request, merchant_id: int, session: Session 
             node = get_node(session, node_slug)
         except NoResultFound:
             raise HTTPException(status_code=400, detail="Unknown category")
-        merchant.default_category_id = node.id
-        merchant.default_category = legacy_category_for(session, node)
-        # One click fixes the merchant's history: file everything not yet filed
-        # (or parked in Unsorted) whose direction fits the node. Deliberate
-        # filings and mismatched directions are left alone.
-        for t in session.exec(unsorted_transactions_query().where(Transaction.merchant_id == merchant.id)).all():
-            if auto_fits(session, t, node):
-                file_transaction(session, t, node)
+        # One click fixes the merchant's history: entries not yet filed (or in Unsorted) are
+        # filed under the node; with "also move earlier entries" the ones filed elsewhere move
+        # too. Loan-linked entries, transfers and credits that are no refund are never moved.
+        assign_category(session, [merchant.id], node,
+                        refile_existing=form.get("refile_existing") in ("1", "on", "true"), confirm=False)
     if new_nature:
         merchant.default_nature = Nature(new_nature)
 
@@ -563,3 +561,65 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
     session.commit()
 
     return _review_rows(request, session, form)
+
+
+# ---- Bulk classification: pick many merchants, give them one category ----
+
+def _leaf_groups(session: Session) -> list[tuple[str, list[dict]]]:
+    groups: dict[str, list[dict]] = {}
+    for o in _node_options(session):
+        if o["level"] == 3 and not o["slug"].startswith("unsorted"):
+            groups.setdefault(o["label"].split(" › ")[0], []).append(o)
+    return list(groups.items())
+
+
+def _bulk_view(q: str, scope: str, sort: str, page: int) -> dict:
+    return {"q": q, "scope": scope if scope in ("all", "undecided") else "all", "sort": sort, "page": page}
+
+
+@router.get("/bulk")
+async def bulk_page(request: Request, q: str = "", scope: str = "undecided", sort: str = "entries",
+                    page: int = 1, applied: Optional[int] = None, moved: Optional[int] = None,
+                    filed: Optional[int] = None, session: Session = Depends(get_session)):
+    result = list_merchants(session, q=q, scope=scope, sort=sort, page=page)
+    return templates.TemplateResponse(request, "transactions/bulk.html", {
+        "result": result, "view": _bulk_view(q, scope, sort, result.page), "leaf_groups": _leaf_groups(session),
+        "banner": None if applied is None else {"merchants": applied, "moved": moved or 0, "filed": filed or 0},
+    })
+
+
+@router.post("/bulk")
+async def bulk_apply(request: Request, session: Session = Depends(get_session)):
+    from fastapi.responses import RedirectResponse
+    form = await request.form()
+    ids = sorted({int(v) for v in form.getlist("merchant_ids") if str(v).isdigit()})
+    slug = form.get("category_node") or ""
+    refile = form.get("refile_existing") in ("1", "on", "true")
+    view = _bulk_view(form.get("q") or "", form.get("scope") or "undecided", form.get("sort") or "entries",
+                      int(form.get("page") or 1))
+    if not ids:
+        raise HTTPException(status_code=400, detail="Tick at least one merchant")
+    try:
+        node = get_node(session, slug)
+        report = assign_category(session, ids, node, refile_existing=refile, dry_run=form.get("step") != "apply")
+    except (NoResultFound, ValueError):
+        raise HTTPException(status_code=400, detail="Pick a sub-category to apply")
+    if form.get("step") != "apply":
+        names = {m.id: m.canonical_name for m in session.exec(select(Merchant).where(Merchant.id.in_(ids))).all()}
+        return templates.TemplateResponse(request, "transactions/bulk_preview.html", {
+            "report": report, "ids": ids, "names": [names[i] for i in ids if i in names],
+            "node_label": " › ".join(reversed(_path_names(session, node))), "slug": slug,
+            "refile": refile, "view": view,
+        })
+    from urllib.parse import urlencode
+    query = urlencode({**view, "applied": report.merchants, "moved": report.moved_from_elsewhere,
+                       "filed": report.filed_from_unsorted})
+    return RedirectResponse(f"/financials/transactions/bulk?{query}", status_code=303)
+
+
+def _path_names(session: Session, node: CategoryNode) -> list[str]:
+    names = [node.name]
+    while node.parent_id:
+        node = session.get(CategoryNode, node.parent_id)
+        names.append(node.name)
+    return names

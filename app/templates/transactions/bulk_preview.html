@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Review bulk classify — Transactions{% endblock %}
+{% block content %}
+<h1>Review before applying</h1>
+<p>
+  <strong>{{ report.merchants }}</strong> merchant{{ "s" if report.merchants != 1 }} will be filed under
+  <strong>{{ node_label }}</strong>, and it becomes their category for every future entry.
+</p>
+<ul>
+  <li>{{ report.filed_from_unsorted }} unsorted entr{{ "ies" if report.filed_from_unsorted != 1 else "y" }} will be filed.</li>
+  {% if refile %}
+  <li>{{ report.moved_from_elsewhere }} entr{{ "ies" if report.moved_from_elsewhere != 1 else "y" }} filed under another category will move.</li>
+  {% else %}
+  <li>Entries already filed elsewhere stay where they are (you did not tick &ldquo;also move&rdquo;).</li>
+  {% endif %}
+  {% if report.left_alone %}<li>{{ report.left_alone }} entr{{ "ies" if report.left_alone != 1 else "y" }} cannot take this category (e.g. a credit from a merchant you never paid) and stay as they are.</li>{% endif %}
+  <li>Loan-linked entries and transfers are never moved.</li>
+</ul>
+<details><summary>Merchants ({{ names|length }})</summary><ul>{% for n in names %}<li>{{ n }}</li>{% endfor %}</ul></details>
+<form method="post" action="/financials/transactions/bulk">
+  <input type="hidden" name="step" value="apply">
+  <input type="hidden" name="category_node" value="{{ slug }}">
+  {% if refile %}<input type="hidden" name="refile_existing" value="1">{% endif %}
+  {% for i in ids %}<input type="hidden" name="merchant_ids" value="{{ i }}">{% endfor %}
+  <input type="hidden" name="q" value="{{ view.q }}"><input type="hidden" name="scope" value="{{ view.scope }}">
+  <input type="hidden" name="sort" value="{{ view.sort }}"><input type="hidden" name="page" value="{{ view.page }}">
+  <button type="submit">Apply</button>
+  <a href="/financials/transactions/bulk?q={{ view.q }}&scope={{ view.scope }}&sort={{ view.sort }}&page={{ view.page }}">Back</a>
+</form>
+{% endblock %}
