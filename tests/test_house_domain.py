@@ -53,6 +53,7 @@ def test_registry_lists_financials_then_house():
     assert spec.home_url == "/house"
     assert [c.value for c in spec.categories] == [
         "house_appliance", "outdoor_gear", "warranty_invoice", "maintenance_log", "floor_plan", "ownership_document",
+        "insurance_policy",
     ]
 
 
@@ -215,3 +216,31 @@ async def test_maintenance_by_hand_and_with_a_file_count_the_same(session, extra
     assert card.last_serviced == date(2026, 6, 1) and len(card.documents) == 2
     page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
     assert _active(session, page.id)["last_serviced"] == "2026-06-01"
+
+
+@pytest.mark.asyncio
+async def test_insurance_policy_is_a_reference_document_with_its_own_fields(session, extraction):
+    document = await _ingest(session, "insurance_policy", {
+        "insurer": "Zurich", "policy_number": "009886609", "document_kind": "general_conditions",
+        "product": "Zurich Lar Seguro", "broker": "EXS", "broker_contact": "Ana Chumbo <ana.chumbo@exs.pt>",
+        "edition": "January 2024", "property": "Mafra house"}, filename="009886609_CondicoesGerais.pdf")
+    assert document.status == DocumentStatus.PROCESSED and document.category == "insurance_policy"
+    assert document.domain == Domain.HOUSE
+    assert extraction[0] == []  # no LLM, and no item page: a policy is not an appliance
+    assert session.exec(select(WikiPage).where(WikiPage.page_type == "house.item")).first() is None
+
+
+@pytest.mark.asyncio
+async def test_insurance_policy_needs_insurer_policy_number_and_kind(session, extraction):
+    from app.domains.fields import InvalidClassification
+    with pytest.raises(InvalidClassification) as err:
+        await _ingest(session, "insurance_policy", {"broker": "EXS"}, filename="p.pdf")
+    assert set(err.value.errors) == {"insurer", "policy_number", "document_kind"}
+
+
+@pytest.mark.asyncio
+async def test_insurance_summary_and_payment_plan_are_accepted_kinds(session, extraction):
+    for kind, name in (("policy_summary", "resumo.pdf"), ("payment_plan", "plano.pdf")):
+        document = await _ingest(session, "insurance_policy", {
+            "insurer": "Aegon Santander", "policy_number": "3000310113", "document_kind": kind}, filename=name)
+        assert document.status == DocumentStatus.PROCESSED

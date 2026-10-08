@@ -13,13 +13,15 @@ from app.models.domain import Domain
 _WARRANTY = frozenset({HouseCategory.WARRANTY_INVOICE.value})
 _MAINTENANCE = frozenset({HouseCategory.MAINTENANCE_LOG.value})
 _FLOOR_PLAN = frozenset({HouseCategory.FLOOR_PLAN.value})
+_INSURANCE = frozenset({HouseCategory.INSURANCE_POLICY.value})
 
 SPEC = DomainSpec(
     domain=Domain.HOUSE,
     label="House",
     description=(
         "The home itself: appliance and outdoor-gear manuals, warranties and purchase invoices, "
-        "maintenance records, floor plans and pipe/electrical layouts, and property ownership documents."
+        "maintenance records, floor plans and pipe/electrical layouts, property ownership documents, "
+        "and the home's insurance policies."
     ),
     home_url="/house",
     categories=(
@@ -37,6 +39,9 @@ SPEC = DomainSpec(
                      accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}),
         CategorySpec(HouseCategory.OWNERSHIP_DOCUMENT.value, "Ownership document",
                      "A property deed, land registry record or purchase contract for the house."),
+        CategorySpec(HouseCategory.INSURANCE_POLICY.value, "Insurance policy",
+                     "A home insurance policy: the conditions booklet, the policy schedule (condições particulares), "
+                     "a renewal notice or a claim document."),
     ),
     fields=(
         FieldSpec("item_name", "Item", FieldKind.SUGGEST, categories=ITEM_CATEGORIES, required=True,
@@ -52,6 +57,20 @@ SPEC = DomainSpec(
                   help="e.g. Pipes, Sewage, Electricity, Floor material."),
         FieldSpec("indoor_outdoor", "Indoor / outdoor", FieldKind.CHOICE, categories=_FLOOR_PLAN, required=True,
                   choices=(("indoor", "Indoor"), ("outdoor", "Outdoor"))),
+        FieldSpec("insurer", "Insurer", FieldKind.SUGGEST, categories=_INSURANCE, required=True),
+        FieldSpec("policy_number", "Policy number", FieldKind.TEXT, categories=_INSURANCE, required=True),
+        FieldSpec("document_kind", "What this document is", FieldKind.CHOICE, categories=_INSURANCE, required=True,
+                  choices=(("general_conditions", "General conditions"), ("policy_schedule", "Policy schedule (particular conditions)"),
+                           ("policy_summary", "Policy summary"), ("payment_plan", "Payment plan"),
+                           ("renewal", "Renewal / premium notice"), ("claim", "Claim"), ("other", "Other"))),
+        FieldSpec("property", "Property", FieldKind.SUGGEST, categories=_INSURANCE,
+                  help="Which house it insures, e.g. Mafra house."),
+        FieldSpec("product", "Product", FieldKind.TEXT, categories=_INSURANCE, help="e.g. Zurich Lar Seguro."),
+        FieldSpec("broker", "Broker", FieldKind.SUGGEST, categories=_INSURANCE),
+        FieldSpec("broker_contact", "Broker contact", FieldKind.TEXT, categories=_INSURANCE),
+        FieldSpec("edition", "Edition / date of the document", FieldKind.TEXT, categories=_INSURANCE),
+        FieldSpec("insurance_notes", "Notes", FieldKind.LONGTEXT, categories=_INSURANCE,
+                  help="What it covers, which property or loan it belongs to, anything to remember."),
         FieldSpec("observations", "Observations", FieldKind.LONGTEXT, categories=_FLOOR_PLAN,
                   media=frozenset({MediaKind.IMAGE, MediaKind.VIDEO}),
                   help="For photos and videos: what the picture shows."),
