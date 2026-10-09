@@ -8,7 +8,7 @@
   <a href="/financials/transactions/bulk" class="active">Bulk classify</a>
 </nav>
 {% if banner %}
-<p class="loan-flags" role="status">Done: {{ banner.n }} {{ "provider text" if banner.by == "provider" else "merchant" }}{{ "s" if banner.n != 1 }} &mdash;
+<p class="loan-flags" role="status">Done: {{ banner.n }} {{ "description" if banner.by == "provider" else "merchant" }}{{ "s" if banner.n != 1 }} &mdash;
   {{ banner.filed }} unsorted entr{{ "ies" if banner.filed != 1 else "y" }} filed, {{ banner.moved }} moved from another category{% if banner.rules %}, {{ banner.rules }} rule{{ "s" if banner.rules != 1 }} saved for future entries{% endif %}.</p>
 {% endif %}
 
@@ -16,14 +16,14 @@
   <a href="?{{ qs_nb }}{{ '&' if qs_nb else '' }}by=merchant"
      {% if view.by == "merchant" %}style="font-weight:700"{% endif %}>By merchant</a> &middot;
   <a href="?{{ qs_nb }}{{ '&' if qs_nb else '' }}by=provider"
-     {% if view.by == "provider" %}style="font-weight:700"{% endif %}>By provider text</a>
+     {% if view.by == "provider" %}style="font-weight:700"{% endif %}>By description</a>
   <small style="color:#777">&mdash;
-    {% if view.by == "merchant" %}one category for everything a merchant does.{% else %}one category per kind of payment text (numbers ignored), for channels like MB Way or Pag Serviços where the merchant says nothing.{% endif %}</small>
+    {% if view.by == "merchant" %}one category for everything a merchant does.{% else %}one category per kind of statement description (numbers ignored), for counterparties such as Santander that do many different things.{% endif %}</small>
 </p>
 
 <form method="get" action="/financials/transactions/bulk">
   <input type="hidden" name="by" value="{{ view.by }}">
-  <input type="search" name="q" value="{{ view.q }}" placeholder="Search merchant or provider text" size="28">
+  <input type="search" name="q" value="{{ view.q }}" placeholder="Search merchant or description" size="28">
   <select name="cat">
     <option value="">Any category</option>
     <option value="unsorted" {% if view.cat == "unsorted" %}selected{% endif %}>Needs review / none yet</option>
@@ -46,7 +46,7 @@
     <option value="name" {% if view.sort == "name" %}selected{% endif %}>Name</option>
   </select>
   <button type="submit">Filter</button>
-  <span>{{ result.total_count }} {{ "provider text" if view.by == "provider" else "merchant" }}{{ "s" if result.total_count != 1 }}</span>
+  <span>{{ result.total_count }} {{ "description" if view.by == "provider" else "merchant" }}{{ "s" if result.total_count != 1 }}</span>
 </form>
 
 <form method="post" action="/financials/transactions/bulk">
@@ -67,8 +67,8 @@
     </select>
     <label><input type="checkbox" name="refile_existing" value="1" checked> also move entries already filed elsewhere</label>
     {% if view.by == "provider" %}
-    <label><input type="checkbox" name="remember" value="1" checked> remember for future entries with this text</label>
-    <label title="Stop applying these merchants' own category to new entries; only rules and review decide"><input type="checkbox" name="per_entry" value="1"> these merchants are channels (decide entry by entry)</label>
+    <label><input type="checkbox" name="remember" value="1" checked> remember for future entries with this description</label>
+    <label title="Stop applying these merchants' own category to new entries; only rules and review decide"><input type="checkbox" name="per_entry" value="1"> these merchants do many things (decide entry by entry)</label>
     {% endif %}
     <button type="submit">Review &amp; apply</button>
   </div>
@@ -98,7 +98,7 @@
   <table>
     <thead><tr>
       <th><input type="checkbox" aria-label="Tick all on this page" onclick="document.querySelectorAll('input[name=group_keys]').forEach(function (c) { c.checked = this.checked; }, this)"></th>
-      <th>Provider text (example)</th><th>Merchant</th><th>Category now</th><th>Entries</th><th>Total €</th><th>Rule</th>
+      <th>Description (example)</th><th>Merchant</th><th>Category now</th><th>Entries</th><th>Total €</th><th>Rule</th>
     </tr></thead>
     <tbody>
       {% for g in result.rows %}
@@ -112,7 +112,7 @@
         <td>{{ "saved" if g.rule else "" }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="7">No provider texts match.</td></tr>
+      <tr><td colspan="7">No descriptions match.</td></tr>
       {% endfor %}
     </tbody>
   </table>

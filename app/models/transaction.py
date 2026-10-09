@@ -55,6 +55,7 @@ class Transaction(SQLModel, table=True):
     amount: float
     currency: str = Field(default="EUR")
     due_date: Optional[date] = None
+    issue_date: Optional[date] = None  # bills: the date the document was issued (payment may be made from then on)
     paid_date: Optional[date] = None
     statement_period: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

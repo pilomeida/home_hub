@@ -61,7 +61,7 @@ def reconcile_merchants(session: Session, dry_run: bool = True) -> ReconcileRepo
     for t in session.exec(select(Transaction).where(Transaction.merchant_id.is_not(None))).all():
         by_merchant[t.merchant_id].append(t)
     for merchant in session.exec(select(Merchant)).all():
-        if merchant.by_provider:
+        if merchant.by_provider or merchant.merged_into_id is not None:
             continue  # a channel (MB Way Transfer ...): its entries are classified one by one
         txns = by_merchant.get(merchant.id, [])
         movable = [t for t in txns if t.debt_id is None and t.transaction_type != TransactionType.TRANSFER]

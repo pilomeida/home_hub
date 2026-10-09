@@ -174,6 +174,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         transaction_type=TransactionType.DEBIT,
         amount=extracted.amount,
         currency=extracted.currency,
+        issue_date=extracted.issue_date,
         due_date=extracted.due_date,
         paid_date=extracted.paid_date,
         statement_period=extracted.statement_period,

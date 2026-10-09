@@ -683,7 +683,7 @@ async def bulk_apply(request: Request, session: Session = Depends(get_session)):
         if view["by"] == "provider":
             keys = sorted({v for v in form.getlist("group_keys") if v})
             if not keys:
-                raise HTTPException(status_code=400, detail="Tick at least one provider text")
+                raise HTTPException(status_code=400, detail="Tick at least one description")
             report = apply_to_providers(
                 session, keys, node, q=view["q"], node_slug=view["cat"], date_from=_date(view["date_from"]),
                 date_to=_date(view["date_to"]), refile_existing=refile,

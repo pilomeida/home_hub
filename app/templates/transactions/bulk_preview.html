@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Review before applying</h1>
 <p>
-  <strong>{{ n }}</strong> {{ "provider text" if view.by == "provider" else "merchant" }}{{ "s" if n != 1 }} will be filed under
+  <strong>{{ n }}</strong> {{ "description" if view.by == "provider" else "merchant" }}{{ "s" if n != 1 }} will be filed under
   <strong>{{ node_label }}</strong>{% if view.by == "merchant" %}, and it becomes their category for every future entry{% endif %}.
 </p>
 <ul>
@@ -15,12 +15,12 @@
   {% endif %}
   {% if report.left_alone %}<li>{{ report.left_alone }} entr{{ "ies" if report.left_alone != 1 else "y" }} cannot take this category (e.g. a credit from a merchant you never paid) and stay as they are.</li>{% endif %}
   {% if view.by == "provider" %}
-  <li>{% if remember %}{{ report.rules_saved }} rule{{ "s" if report.rules_saved != 1 }} saved: future entries with the same text are filed here automatically.{% else %}No rule saved: only the entries that exist now are filed.{% endif %}</li>
-  {% if per_entry %}<li>The merchants of these entries become &ldquo;decide entry by entry&rdquo;: their own category stops applying to new entries.</li>{% endif %}
+  <li>{% if remember %}{{ report.rules_saved }} rule{{ "s" if report.rules_saved != 1 }} saved: future entries with the same description are filed here automatically.{% else %}No rule saved: only the entries that exist now are filed.{% endif %}</li>
+  {% if per_entry %}<li>The merchants of these entries become &ldquo;decide entry by entry&rdquo; (they do many different things): their own category stops applying to new entries.</li>{% endif %}
   {% endif %}
   <li>Loan-linked entries are never moved.</li>
 </ul>
-<details><summary>{{ "Provider texts" if view.by == "provider" else "Merchants" }} ({{ labels|length }})</summary><ul>{% for l in labels %}<li>{{ l }}</li>{% endfor %}</ul></details>
+<details><summary>{{ "Descriptions" if view.by == "provider" else "Merchants" }} ({{ labels|length }})</summary><ul>{% for l in labels %}<li>{{ l }}</li>{% endfor %}</ul></details>
 <form method="post" action="/financials/transactions/bulk">
   <input type="hidden" name="step" value="apply">
   <input type="hidden" name="category_node" value="{{ slug }}">

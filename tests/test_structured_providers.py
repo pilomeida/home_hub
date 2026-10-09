@@ -57,7 +57,7 @@ def test_relabel_collapses_the_invented_merchants_and_leaves_categories_and_loan
     session.expire_all()
     assert report.transactions_relabelled == 4 and report.merchants_created == 2
     lender = session.query(Merchant).filter_by(normalized_key=LENDER.key).one()
-    assert {t.merchant_id for t in rows} == {lender.id} and lender.canonical_name == "Santander – Crédito habitação"
+    assert {t.merchant_id for t in rows} == {lender.id} and lender.canonical_name == "Santander" and lender.by_provider is True
     assert ins.merchant_id != edf.id
     assert all(t.debt_id == 1 for t in rows)
     assert rows[0].category_id == get_node(session, mort).id
@@ -82,3 +82,15 @@ async def test_new_instalments_share_one_merchant_and_never_ask_the_model(sessio
         made.append(t.merchant_id)
     assert gw.requests == [] and len(set(made)) == 1
     assert session.get(Merchant, made[0]).canonical_name == LENDER.name
+
+
+def test_the_three_insurance_kinds_share_one_counterparty_merchant(session):
+    from app.services.merchant_relabel import ensure_structured_merchant
+    from app.services.structured_providers import structured_merchant
+    ensure_taxonomy(session)
+    merchants = {ensure_structured_merchant(session, structured_merchant(p))[0].id
+                 for p in ("SEG:LAR 2026-10-02/2026-11-01", "SEG VIDA 15.268206-2026/09/21", "SEG:EDF 2026-10-02/2026-11-01")}
+    assert len(merchants) == 1
+    survivor = session.get(Merchant, merchants.pop())
+    assert survivor.canonical_name == "Aegon Santander" and survivor.by_provider is True
+    assert session.query(Merchant).filter(Merchant.merged_into_id == survivor.id).count() == 2  # two aliases

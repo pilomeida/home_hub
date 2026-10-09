@@ -19,7 +19,8 @@ from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
 from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
-from app.services.merchant_rules import keyword_node_slug
+from app.services.merchant_merge import find_merchant_by_name, resolve_merchant
+from app.services.merchant_rules import is_multi_purpose, keyword_match, keyword_node_slug
 from app.services.provider_rules import find_rule_node, provider_fits
 from app.services.merchant_relabel import ensure_structured_merchant
 from app.services.structured_providers import structured_merchant
@@ -56,8 +57,11 @@ category tree. Respond with ONLY a JSON object, no prose, matching this \
 shape exactly:
 
 {
-  "canonical_name": "string, a clean human-readable merchant name, e.g. \
-'Modelo Hiper'",
+  "canonical_name": "string, the COUNTERPARTY: the institution, company or \
+person on the other side, e.g. 'Modelo Hiper', 'Santander', 'Matias Almeida'. \
+Never the product, fund, action or channel: a subscription to Santander's \
+Aforro PPR fund is merchant 'Santander'; 'Transfer to Matias Almeida' is \
+'Matias Almeida'. What it is for belongs in node_slug.",
   "node_slug": "the single best category slug from the list below",
   "nature": "essential or discretionary"
 }
@@ -179,7 +183,7 @@ class ClassificationResult:
 
 def _find_merchant_by_key(session: Session, normalized_key: str) -> Optional[Merchant]:
     statement = select(Merchant).where(Merchant.normalized_key == normalized_key)
-    return session.exec(statement).first()
+    return resolve_merchant(session, session.exec(statement).first())  # a merged merchant answers as its survivor
 
 
 async def classify_transaction(
@@ -199,28 +203,41 @@ async def classify_transaction(
         merchant = _find_merchant_by_key(session, normalized_key)
         created_new_merchant = False
 
+    resolved_node_slug = None
     if merchant is None:
-        keyword_slug = keyword_node_slug(transaction.provider)
-        if keyword_slug:  # a fixed ruling, no LLM call
+        keyword = keyword_match(transaction.provider)
+        if keyword:  # a fixed ruling, no LLM call
+            keyword_slug, chain_name = keyword
             keyword_node = get_node(session, keyword_slug)
             resolved = ResolvedMerchant(
-                canonical_name=transaction.provider.strip().title(), node_slug=keyword_slug,
+                canonical_name=chain_name, node_slug=keyword_slug,
                 category=legacy_category_for(session, keyword_node), nature=Nature.ESSENTIAL)
         else:
             resolved = await resolve_merchant_via_llm(
                 transaction.provider, session, gateway=gateway,
                 is_credit=transaction.transaction_type == TransactionType.CREDIT,
             )
-        merchant = Merchant(
-            canonical_name=resolved.canonical_name,
-            default_category=resolved.category,
-            default_category_id=get_node(session, resolved.node_slug).id,
-            default_nature=resolved.nature,
-            normalized_key=normalized_key,
-        )
-        session.add(merchant)
-        session.flush()
-        created_new_merchant = True
+        resolved_node_slug = resolved.node_slug
+        existing = find_merchant_by_name(session, resolved.canonical_name)
+        if existing is not None:
+            # The counterparty is already known under another description: this text becomes an alias of
+            # it, so one counterparty is one merchant however many descriptions the bank writes.
+            session.add(Merchant(canonical_name=resolved.canonical_name, normalized_key=normalized_key,
+                                 merged_into_id=existing.id))
+            session.flush()
+            merchant = existing
+        else:
+            merchant = Merchant(
+                canonical_name=resolved.canonical_name,
+                default_category=resolved.category,
+                default_category_id=get_node(session, resolved.node_slug).id,
+                default_nature=resolved.nature,
+                normalized_key=normalized_key,
+                by_provider=is_multi_purpose(resolved.canonical_name),
+            )
+            session.add(merchant)
+            session.flush()
+            created_new_merchant = True
 
     transaction.merchant_id = merchant.id
     if transaction.nature is None:
@@ -267,6 +284,12 @@ async def classify_transaction(
         rule_node = find_rule_node(session, transaction.provider)
         if rule_node is not None and provider_fits(session, transaction, rule_node):
             file_transaction(session, transaction, rule_node)
+            rule_filed = True
+    if not loan_filed and not rule_filed and merchant.by_provider and resolved_node_slug:
+        # A multi-purpose counterparty has no category of its own: this description's category does.
+        llm_node = get_node(session, resolved_node_slug)
+        if auto_fits(session, transaction, llm_node):
+            file_transaction(session, transaction, llm_node)
             rule_filed = True
     if not loan_filed and not rule_filed and not merchant.by_provider and merchant.default_category_id is not None:
         node = session.get(CategoryNode, merchant.default_category_id)
@@ -315,7 +338,7 @@ def detect_recurring_candidates(session: Session) -> list[Merchant]:
     show 3+ consecutive statement_periods with every amount within +/-10%
     of that run's average."""
     merchants = session.exec(
-        select(Merchant).where(Merchant.recurring_reviewed == False)  # noqa: E712
+        select(Merchant).where(Merchant.recurring_reviewed == False, Merchant.merged_into_id.is_(None))  # noqa: E712
     ).all()
     merchant_ids = [m.id for m in merchants]
     if not merchant_ids:
@@ -382,7 +405,7 @@ def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
     Merchant at all (merchant_id left NULL), and transactions still unfiled
     or in Unsorted (grouped by merchant)."""
     unconfirmed = session.exec(
-        select(Merchant).where(Merchant.confirmed == False)  # noqa: E712
+        select(Merchant).where(Merchant.confirmed == False, Merchant.merged_into_id.is_(None))  # noqa: E712
     ).all()
     unclassified = session.exec(
         select(Transaction).where(Transaction.merchant_id.is_(None), Transaction.settled_by_id.is_(None))

@@ -190,3 +190,64 @@ def test_the_pages_show_the_document_on_the_bank_entry_and_the_settled_row_as_su
     assert "see the bank entry" in detail and f"transaction_id={d.id}" in detail
     unmatched = _txn(session, _doc(session, "bill"), "EDP", 10.0, date(2026, 1, 1))
     assert "not matched to a bank entry yet" in client.get(f"/financials/bills/{unmatched.document_id}").text
+
+
+def test_a_bill_known_only_by_its_due_date_may_have_been_paid_weeks_earlier(session, bank, bill):
+    b = _txn(session, bill, "amigo (Vodafone Portugal)", 9.98, None, due_date=date(2026, 10, 15))
+    d = _txn(session, bank, "PAG SERVICOS 1835 12442-540006308 Amigo easypay.p", 9.98, date(2026, 9, 28))
+    reconcile_documents(session)
+    session.refresh(b)
+    assert b.settled_by_id == d.id  # 17 days before the due date; a bill WITH a paid date keeps the tight window
+
+
+def test_the_window_starts_at_the_documents_issue_date(session, bank, bill):
+    b = _txn(session, bill, "amigo (Vodafone Portugal)", 9.98, None, due_date=date(2026, 10, 15), issue_date=date(2026, 9, 23))
+    early = _txn(session, bank, "PAG SERVICOS 1835 Amigo easypay.p", 9.98, date(2026, 9, 10))   # before it was issued
+    d = _txn(session, bank, "PAG SERVICOS 1835 Amigo easypay.p", 9.98, date(2026, 9, 28))      # after
+    reconcile_documents(session)
+    session.refresh(b)
+    assert b.settled_by_id == d.id
+
+
+@pytest.mark.asyncio
+async def test_the_extracted_issue_date_is_stored_on_the_bill_row(session, monkeypatch, tmp_path):
+    import app.domains.financials.handler as handler
+    from app.services.extraction import ExtractedBill
+    doc = _doc(session, None, name="fatura.pdf")
+
+    async def fake_extract(file_path, gateway=None):
+        return ExtractedBill(provider="Vodafone", category_hint="telecom", amount=9.98, currency="EUR", due_date=date(2026, 10, 15),
+                             paid_date=None, statement_period="2026-09", issue_date=date(2026, 9, 23))
+
+    async def classify(file_path, gateway=None):
+        return "bill"
+
+    async def noop_wiki(session, document, context=None, **kw):
+        return None
+
+    async def noop_classify(session, transaction, gateway=None):
+        return None
+
+    monkeypatch.setattr(handler, "classify_document", classify)
+    monkeypatch.setattr(handler, "extract_bill", fake_extract)
+    monkeypatch.setattr(handler, "ingest_into_wiki", noop_wiki)
+    monkeypatch.setattr(handler, "classify_transaction", noop_classify)
+    await handler.process_financials_document(session, doc)
+    assert session.exec(select(Transaction).where(Transaction.document_id == doc.id)).one().issue_date == date(2026, 9, 23)
+
+
+def test_a_receipt_issued_after_the_debit_still_finds_it_even_with_an_issue_date(session, bank):
+    receipt = _doc(session, None, name="recibo.pdf")
+    r = _txn(session, receipt, "MetLife", 109.64, date(2026, 8, 14), issue_date=date(2026, 8, 14))
+    d = _txn(session, bank, "DEBITO DIRETO-METLIFE EUROPE", 109.64, date(2026, 8, 11))
+    reconcile_documents(session)
+    session.refresh(r)
+    assert r.settled_by_id == d.id
+
+
+def test_an_invoice_is_never_settled_by_a_debit_from_before_it_was_issued(session, bank, bill):
+    b = _txn(session, bill, "EDP", 55.0, None, due_date=date(2026, 5, 20), issue_date=date(2026, 5, 2))
+    _txn(session, bank, "DEBITO DIRETO EDP COMERCIAL", 55.0, date(2026, 4, 20))  # last month's, same amount
+    reconcile_documents(session)
+    session.refresh(b)
+    assert b.settled_by_id is None

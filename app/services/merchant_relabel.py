@@ -7,6 +7,8 @@ from sqlmodel import Session, select
 from app.models.merchant import Merchant
 from app.models.transaction import Nature, Transaction
 from app.services.structured_providers import StructuredMerchant, structured_merchant
+from app.services.merchant_merge import find_merchant_by_name, resolve_merchant
+from app.services.merchant_rules import is_multi_purpose
 from app.services.taxonomy import get_node, legacy_category_for
 
 
@@ -19,13 +21,20 @@ class RelabelReport:
 
 
 def ensure_structured_merchant(session: Session, spec: StructuredMerchant) -> tuple[Merchant, bool]:
-    merchant = session.exec(select(Merchant).where(Merchant.normalized_key == spec.key)).first()
-    if merchant is not None:
-        return merchant, False
+    """The counterparty merchant for a bank-structured description. Several descriptions (loan instalment,
+    the three insurance kinds) can name the same counterparty: the first creates it, the others are aliases."""
+    by_key = session.exec(select(Merchant).where(Merchant.normalized_key == spec.key)).first()
+    if by_key is not None:
+        return resolve_merchant(session, by_key), False
+    survivor = find_merchant_by_name(session, spec.name)
+    if survivor is not None:
+        session.add(Merchant(canonical_name=spec.name, normalized_key=spec.key, merged_into_id=survivor.id))
+        session.flush()
+        return survivor, False
     node = get_node(session, spec.node_slug)
     merchant = Merchant(canonical_name=spec.name, normalized_key=spec.key, default_category_id=node.id,
-                        default_category=legacy_category_for(session, node),
-                        default_nature=Nature.ESSENTIAL, confirmed=True)
+                        default_category=legacy_category_for(session, node), default_nature=Nature.ESSENTIAL,
+                        confirmed=True, by_provider=is_multi_purpose(spec.name))
     session.add(merchant)
     session.flush()
     return merchant, True
@@ -42,8 +51,9 @@ def relabel_structured(session: Session, dry_run: bool = True) -> RelabelReport:
             continue
         if spec.key not in made:
             if dry_run:
-                existing = session.exec(select(Merchant).where(Merchant.normalized_key == spec.key)).first()
-                made[spec.key] = existing or Merchant(id=-1, canonical_name=spec.name, normalized_key=spec.key)
+                existing = (session.exec(select(Merchant).where(Merchant.normalized_key == spec.key)).first()
+                            or find_merchant_by_name(session, spec.name))
+                made[spec.key] = resolve_merchant(session, existing) if existing else Merchant(id=-1, canonical_name=spec.name, normalized_key=spec.key)
                 report.merchants_created += 0 if existing else 1
             else:
                 made[spec.key], created = ensure_structured_merchant(session, spec)

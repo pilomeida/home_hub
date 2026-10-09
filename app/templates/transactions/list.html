@@ -11,7 +11,7 @@
 <p>Showing transactions for merchant: <strong>{{ merchant_filter_name }}</strong> — <a href="/financials/transactions">clear</a></p>
 {% endif %}
 <form method="get" action="/financials/transactions">
-  <input type="search" name="q" value="{{ filters.q or '' }}" placeholder="Search merchant or provider text" size="28">
+  <input type="search" name="q" value="{{ filters.q or '' }}" placeholder="Search merchant or description" size="28">
   <select name="category_node">
     <option value="">All categories</option>
     {% for o in node_options %}
@@ -57,7 +57,7 @@
   <input type="hidden" name="page" value="{{ page }}">
   <table id="transactions-table">
     <thead>
-      <tr><th></th><th>Date</th><th>Provider</th><th>Merchant</th><th>Category</th><th>Nature</th><th>Account</th><th>Amount</th><th>Linked</th></tr>
+      <tr><th></th><th>Date</th><th>Description</th><th>Merchant</th><th>Category</th><th>Nature</th><th>Account</th><th>Amount</th><th>Linked</th></tr>
     </thead>
     <tbody id="transactions-tbody">
       {% include "transactions/_rows.html" %}

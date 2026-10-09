@@ -22,6 +22,7 @@ from app.models.todo import Todo
 from app.models.transaction import Transaction, TransactionType
 
 DAYS_BANK_BEFORE_DOCUMENT = 5     # a receipt is often issued a few days after the debit
+DAYS_BANK_BEFORE_DUE_DATE = 45    # a bill known only by its due date may be paid weeks before it
 DAYS_BANK_AFTER_DOCUMENT = 60     # a bill precedes its direct debit by 3 to 6 weeks
 _STOP = {"debito", "direto", "debit", "direct", "pagamento", "compra", "transferencia", "transfer", "payment",
          "europe", "europa", "seguros", "insurance", "portugal", "lda", "companhia", "fatura", "recibo", "servicos"}
@@ -83,7 +84,14 @@ def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDoc
     for c in sorted(candidates, key=lambda t: ((t.paid_date or t.due_date), t.id)):
         ref = c.paid_date or c.due_date
         ctokens = _tokens(c.provider, names.get(c.merchant_id))
-        lo, hi = ref - timedelta(days=DAYS_BANK_BEFORE_DOCUMENT), ref + timedelta(days=DAYS_BANK_AFTER_DOCUMENT)
+        if c.issue_date:
+            # You learn a payment is due when the document is issued, so nothing earlier can be it. A receipt,
+            # though, is issued after the payment: when it states a paid date, look back from that date too.
+            lo = c.issue_date if not c.paid_date else min(c.issue_date, c.paid_date - timedelta(days=DAYS_BANK_BEFORE_DOCUMENT))
+            hi = max(ref, c.issue_date) + timedelta(days=DAYS_BANK_AFTER_DOCUMENT)
+        else:
+            before = DAYS_BANK_BEFORE_DOCUMENT if c.paid_date else DAYS_BANK_BEFORE_DUE_DATE
+            lo, hi = ref - timedelta(days=before), ref + timedelta(days=DAYS_BANK_AFTER_DOCUMENT)
         options = [b for b in banks if b.id not in used and b.paid_date and lo <= b.paid_date <= hi
                    and abs(b.amount - c.amount) < 0.005 and ctokens & bank_tokens[b.id]]
         if not options:

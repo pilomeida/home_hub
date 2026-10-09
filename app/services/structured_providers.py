@@ -22,11 +22,13 @@ class StructuredMerchant:
     node_slug: str
 
 
-LENDER = StructuredMerchant("structured:credito-habitacao", "Santander – Crédito habitação", MORTGAGE_SLUG)
+# The merchant is the counterparty: the bank (and its insurer), never the product. What each entry is for
+# is its category, and its description says what it was.
+LENDER = StructuredMerchant("structured:credito-habitacao", "Santander", MORTGAGE_SLUG)
 _INSURANCE = {
-    "seg vida": StructuredMerchant("structured:seguro-vida-habitacao", "Seguro de vida (crédito habitação)", LIFE_SLUG),
-    "seg edf": StructuredMerchant("structured:seguro-edificio-habitacao", "Seguro de edifício (crédito habitação)", BUILDING_SLUG),
-    "seg lar": StructuredMerchant("structured:seguro-multirriscos-habitacao", "Seguro multirriscos (crédito habitação)", BUILDING_SLUG),
+    "seg vida": StructuredMerchant("structured:seguro-vida-habitacao", "Aegon Santander", LIFE_SLUG),
+    "seg edf": StructuredMerchant("structured:seguro-edificio-habitacao", "Aegon Santander", BUILDING_SLUG),
+    "seg lar": StructuredMerchant("structured:seguro-multirriscos-habitacao", "Aegon Santander", BUILDING_SLUG),
 }
 ALL = (LENDER, *_INSURANCE.values())
 

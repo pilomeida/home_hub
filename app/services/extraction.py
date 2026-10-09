@@ -31,6 +31,7 @@ shape exactly:
 insurance, subscriptions, groceries, health, home, or other",
   "amount": 0.00,
   "currency": "3-letter ISO code, default EUR",
+  "issue_date": "YYYY-MM-DD or null, the date the document was issued",
   "due_date": "YYYY-MM-DD or null",
   "paid_date": "YYYY-MM-DD or null",
   "statement_period": "YYYY-MM or null"
@@ -53,6 +54,7 @@ _BILL_SCHEMA = {
         },
         "amount": {"type": ["number", "null"]},
         "currency": {"type": ["string", "null"], "minLength": 3, "maxLength": 3},
+        "issue_date": {"type": ["string", "null"], "format": "date"},
         "due_date": {"type": ["string", "null"], "format": "date"},
         "paid_date": {"type": ["string", "null"], "format": "date"},
         "statement_period": {"type": ["string", "null"]},
@@ -75,6 +77,7 @@ class ExtractedBill:
     due_date: Optional[date]
     paid_date: Optional[date]
     statement_period: Optional[str]
+    issue_date: Optional[date] = None  # when the document reached you: the payment may be made from then on
 
 
 def _parse_date(value: Optional[str]) -> Optional[date]:
@@ -107,6 +110,7 @@ async def extract_bill(file_path: str, gateway=None) -> ExtractedBill:
             due_date=_parse_date(data.get("due_date")),
             paid_date=_parse_date(data.get("paid_date")),
             statement_period=data.get("statement_period"),
+            issue_date=_parse_date(data.get("issue_date")),
         )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise ExtractionError(f"Could not parse extraction response: {exc}") from exc
