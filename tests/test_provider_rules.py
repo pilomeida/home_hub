@@ -17,7 +17,7 @@ MBW = "TRF MBWAY P/MATIAS"
 
 
 def test_provider_key_ignores_numbers_case_and_accents():
-    assert provider_key("TRF MBWAY P/XXXXX1225") == provider_key("trf mbway p/xxxxx9981") == "trf mbway p/xxxxx#"
+    assert provider_key("TRF MBWAY P/XXXXX1225") == provider_key("trf mbway p/xxxxx1225") != provider_key("trf mbway p/xxxxx9981")
     assert provider_key("Pag Serviços EUPAGO*LIGATTE 123") == "pag servicos eupago*ligatte #"
     assert provider_key("COMPRA  3315 SODIMAFRA MAFRA") == "compra # sodimafra mafra"
     assert provider_key(None) == "" and provider_key("  ") == ""
@@ -165,3 +165,9 @@ def test_bulk_page_filters_by_search_category_entries_and_dates(client, session)
     assert "MBWay Transfer" in merchant_page.text
     assert "MBWay Transfer" not in client.get("/financials/transactions/bulk", params={"scope": "all", "min": "9"}).text
     assert "MBWay Transfer" in client.get("/financials/transactions/bulk", params={"scope": "all", "q": "MATIAS"}).text  # provider text search
+
+
+def test_mb_way_recipients_stay_distinguishable_by_their_visible_digits():
+    assert provider_key("TRF MBWAY P/XXXXX3940") == provider_key("trf mbway p/xxxxx3940")
+    assert provider_key("TRF MBWAY P/XXXXX3940") != provider_key("TRF MBWAY P/XXXXX1585")
+    assert provider_key("PAG SERVICOS 22255-100878991") == provider_key("PAG SERVICOS 22255-555")  # references still collapse

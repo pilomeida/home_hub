@@ -147,8 +147,24 @@ def auto_fits(session: Session, txn: Transaction, node: CategoryNode) -> bool:
     if not direction_matches(txn, node):
         return False
     if is_refund(txn, node):
-        return merchant_has_purchases(session, txn.merchant_id)
+        # A person's transfer to you is not a shop refund, even when you also paid that person.
+        return merchant_has_purchases(session, txn.merchant_id) and not looks_like_person_transfer(txn.provider)
     return True
+
+
+def default_node_id(merchant, txn) -> Optional[int]:
+    """The merchant's default for THIS entry's direction: a credit takes the credit default when there is one."""
+    if txn.transaction_type == TransactionType.CREDIT and getattr(merchant, "default_credit_category_id", None):
+        return merchant.default_credit_category_id
+    return merchant.default_category_id
+
+
+_TRANSFER_TEXT = re.compile(r"(\btrf\b|transfer|\bmbway\b|\bmb way\b|\bimed\b|intrabanc|\bsepa\b)", re.IGNORECASE)
+
+
+def looks_like_person_transfer(description: Optional[str]) -> bool:
+    """A bank transfer text, not a shop's refund (CCR-/CPR-/estorno/reembolso)."""
+    return bool(_TRANSFER_TEXT.search(description or ""))
 
 
 def is_refund(txn: Transaction, node: Optional[CategoryNode]) -> bool:

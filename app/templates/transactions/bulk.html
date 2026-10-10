@@ -84,7 +84,7 @@
       <tr>
         <td><input type="checkbox" name="merchant_ids" value="{{ r.id }}"></td>
         <td><a href="/financials/transactions?merchant_id={{ r.id }}" target="_blank">{{ r.name }}</a>{% if not r.confirmed %} <small>(unconfirmed)</small>{% endif %}</td>
-        <td>{{ r.category_label or "—" }}</td>
+        <td>{{ r.category_label or "—" }}{% if r.credit_label %}<br><small>money in: {{ r.credit_label }}</small>{% endif %}</td>
         <td>{{ r.entries }}</td>
         <td class="amt">{{ "{:,.0f}".format(r.total) }}</td>
         <td>{{ r.elsewhere if r.elsewhere else "" }}</td>

@@ -54,13 +54,15 @@ def _pick_target(session: Session, merchant: Merchant, txns: list[Transaction],
     return None if _is_unsorted(default) else default
 
 
-def reconcile_merchants(session: Session, dry_run: bool = True) -> ReconcileReport:
+def reconcile_merchants(session: Session, dry_run: bool = True, only_ids: list[int] | None = None) -> ReconcileReport:
     report = ReconcileReport()
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
     by_merchant: dict[int, list[Transaction]] = defaultdict(list)
     for t in session.exec(select(Transaction).where(Transaction.merchant_id.is_not(None))).all():
         by_merchant[t.merchant_id].append(t)
     for merchant in session.exec(select(Merchant)).all():
+        if only_ids is not None and merchant.id not in only_ids:
+            continue
         if merchant.by_provider or merchant.merged_into_id is not None:
             continue  # a channel (MB Way Transfer ...): its entries are classified one by one
         txns = by_merchant.get(merchant.id, [])
@@ -68,10 +70,16 @@ def reconcile_merchants(session: Session, dry_run: bool = True) -> ReconcileRepo
         if not movable:
             continue
         target = _pick_target(session, merchant, movable, nodes)
-        if target is None:
+        # Money in may have its own default (a client's payment is income, a benefit is not a tax).
+        credit_target = nodes.get(merchant.default_credit_category_id) if merchant.default_credit_category_id else None
+        if credit_target is None and target is not None and target.kind == "in":
+            credit_target = target
+        if target is None and credit_target is None:
             report.merchants_unresolved += 1
             continue
-        if merchant.default_category_id != target.id:
+        if target is not None and target.kind == "in":
+            target = None  # an inflow node is the credit default, not the outflow one
+        if target is not None and merchant.default_category_id != target.id:
             report.merchant_changes.append((merchant.id, merchant.default_category_id, target.id))
             report.merchants_changed += 1
             if not dry_run:
@@ -79,16 +87,19 @@ def reconcile_merchants(session: Session, dry_run: bool = True) -> ReconcileRepo
                 merchant.default_category = legacy_category_for(session, target)
                 session.add(merchant)
         for t in movable:
-            if t.category_id == target.id:
+            aim = credit_target if (t.transaction_type == TransactionType.CREDIT and credit_target is not None) else target
+            if aim is None:
                 continue
-            if not auto_fits(session, t, target):
+            if t.category_id == aim.id:
+                continue
+            if not auto_fits(session, t, aim):
                 if t.transaction_type == TransactionType.CREDIT:
                     report.credits_left += 1
                 continue
-            report.moves.append((t.id, t.category_id, target.id))
+            report.moves.append((t.id, t.category_id, aim.id))
             report.transactions_moved += 1
             if not dry_run:
-                file_transaction(session, t, target)
+                file_transaction(session, t, aim)
     if not dry_run:
         session.commit()
     return report

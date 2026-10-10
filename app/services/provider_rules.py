@@ -20,6 +20,9 @@ def provider_key(text: Optional[str]) -> str:
     """lowercase, accents removed, every run of digits -> '#', whitespace collapsed.
     'TRF MBWAY P/XXXXX1225' -> 'trf mbway p/xxxxx#'; 'COMPRA 3315 SODIMAFRA' -> 'compra # sodimafra'."""
     s = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().lower()
+    # An MB Way recipient is only known by the digits left visible after the X's ('P/XXXXX3940'): keep them
+    # (as letters, so the digit collapse below leaves them alone).
+    s = re.sub(r"x{3,}(\d+)", lambda m: "xmask" + "".join(chr(97 + int(d)) for d in m.group(1)), s)
     s = re.sub(r"\d+", "#", s)
     return re.sub(r"\s+", " ", s).strip(" -/*.")
 
@@ -37,6 +40,8 @@ def provider_fits(session: Session, t: Transaction, node: CategoryNode) -> bool:
     (budgets count it as spend/income there); credits and debits still obey direction and refund rules."""
     if t.transaction_type == TransactionType.TRANSFER:
         return True
+    if t.transaction_type == TransactionType.CREDIT and node.kind == "out" and not node.slug.startswith("unsorted"):
+        return True  # a reversal or refund the human filed on purpose (e.g. the bank reversing a loan instalment)
     return auto_fits(session, t, node)
 
 

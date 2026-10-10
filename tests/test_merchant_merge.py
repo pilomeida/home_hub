@@ -62,3 +62,14 @@ def test_a_merged_merchant_is_not_offered_for_review(session):
     merge_merchants(session, [sub.id, aforro.id], ppr.id)
     names = {m.canonical_name for m in get_needs_review_queue(session).unconfirmed_merchants}
     assert "Santander Subscription" not in names and "Santander Aforro" not in names
+
+
+def test_a_merged_merchants_old_name_still_finds_the_survivor(session):
+    from app.services.merchant_merge import find_merchant_by_name
+    ensure_taxonomy(session)
+    old = _merchant(session, "Matias Correia de Almeida")
+    survivor = _merchant(session, "Matias")
+    merge_merchants(session, [old.id], survivor.id)
+    assert find_merchant_by_name(session, "MATIAS CORREIA DE ALMEIDA").id == survivor.id
+    assert find_merchant_by_name(session, "Matias").id == survivor.id
+    assert find_merchant_by_name(session, "Somebody Else") is None

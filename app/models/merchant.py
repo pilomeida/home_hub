@@ -16,6 +16,9 @@ class Merchant(SQLModel, table=True):
     canonical_name: str
     default_category: Category = Field(default=Category.OTHER)
     default_category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id")
+    # Money coming IN from this merchant can have another category than money going out (Segurança Social: a
+    # contribution is a tax, a benefit is income; a client's payment is income). Unset: default_category_id applies.
+    default_credit_category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id")
     default_nature: Optional[Nature] = None
     normalized_key: str = Field(index=True, unique=True)
     confirmed: bool = Field(default=False)

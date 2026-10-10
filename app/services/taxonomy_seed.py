@@ -63,6 +63,9 @@ SEED = {
  ("Savings & investments", [
   ("Contributions", M, None, ["Fund / investment subscriptions", "Deposits to savings"]),
  ]),
+ ("Psi expenses", [
+  ("Premises", M, None, ["Session room rental"]),
+ ]),
  ("Unsorted", [
   ("Needs review", NONE, L.OTHER_EXPENSE, ["Needs review"]),
  ]),
@@ -87,7 +90,7 @@ SEED = {
 ],
 "neutral": [
  ("Internal transfers", [
-  ("Between my accounts", NONE, L.TRANSFER, ["Santander ↔ card", "Santander ↔ Revolut", "Top-ups & card payments"]),
+  ("Between my accounts", NONE, L.TRANSFER, ["Santander ↔ card", "Santander ↔ Revolut", "Top-ups & card payments", "Cash paid into the account"]),
  ]),
 ],
 }

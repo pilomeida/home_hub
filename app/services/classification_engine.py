@@ -24,7 +24,7 @@ from app.services.merchant_rules import is_multi_purpose, keyword_match, keyword
 from app.services.provider_rules import find_rule_node, provider_fits
 from app.services.merchant_relabel import ensure_structured_merchant
 from app.services.structured_providers import structured_merchant
-from app.services.taxonomy import UNSORTED_SLUG, auto_fits, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
+from app.services.taxonomy import UNSORTED_SLUG, auto_fits, default_node_id, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
 from app.services.loan_insurance import link_insurance_transaction
 from app.services.loan_linking import link_transaction_to_loan
 from app.services.json_utils import strip_json_fences
@@ -291,8 +291,9 @@ async def classify_transaction(
         if auto_fits(session, transaction, llm_node):
             file_transaction(session, transaction, llm_node)
             rule_filed = True
-    if not loan_filed and not rule_filed and not merchant.by_provider and merchant.default_category_id is not None:
-        node = session.get(CategoryNode, merchant.default_category_id)
+    default_id = default_node_id(merchant, transaction)
+    if not loan_filed and not rule_filed and not merchant.by_provider and default_id is not None:
+        node = session.get(CategoryNode, default_id)
         if node is not None and auto_fits(session, transaction, node):
             file_transaction(session, transaction, node)
 

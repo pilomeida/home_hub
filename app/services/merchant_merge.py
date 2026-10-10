@@ -33,14 +33,18 @@ def name_key(name: Optional[str]) -> str:
 
 
 def find_merchant_by_name(session: Session, name: str) -> Optional[Merchant]:
-    """The existing merchant of that name (a merged one answers as its survivor)."""
+    """The existing merchant of that name. A merged merchant keeps its name as an alias, so the old name still
+    finds the survivor ('Matias Correia de Almeida' -> 'Matias')."""
     wanted = name_key(name)
     if not wanted:
         return None
-    for merchant in session.exec(select(Merchant).where(Merchant.merged_into_id.is_(None))).all():
+    alias = None
+    for merchant in session.exec(select(Merchant).order_by(Merchant.id)).all():
         if name_key(merchant.canonical_name) == wanted:
-            return merchant
-    return None
+            if merchant.merged_into_id is None:
+                return merchant
+            alias = alias or merchant
+    return resolve_merchant(session, alias) if alias is not None else None
 
 
 @dataclass

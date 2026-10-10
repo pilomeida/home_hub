@@ -31,8 +31,11 @@ def assign_category(session: Session, merchant_ids: list[int], node: CategoryNod
     for merchant in session.exec(select(Merchant).where(Merchant.id.in_(merchant_ids))).all():
         report.merchants += 1
         if not dry_run:
-            merchant.default_category_id = node.id
-            merchant.default_category = legacy_category_for(session, node)
+            if node.kind == "in":  # money coming in has its own default; the outflow default is left alone
+                merchant.default_credit_category_id = node.id
+            else:
+                merchant.default_category_id = node.id
+                merchant.default_category = legacy_category_for(session, node)
             if confirm:
                 merchant.confirmed = True
             session.add(merchant)
@@ -66,6 +69,7 @@ class MerchantRow:
     id: int
     name: str
     category_label: str
+    credit_label: str
     confirmed: bool
     entries: int
     total: float
@@ -88,7 +92,7 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
     node_slug filters on the merchant's category ("unsorted" = none yet); min_entries on the count."""
     from app.services.taxonomy import descendant_ids
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
-    stmt = (select(Merchant.id, Merchant.canonical_name, Merchant.default_category_id, Merchant.confirmed,
+    stmt = (select(Merchant.id, Merchant.canonical_name, Merchant.default_category_id, Merchant.confirmed, Merchant.default_credit_category_id,
                    func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount), 0.0))
             .join(Transaction, Transaction.merchant_id == Merchant.id).group_by(Merchant.id))
     if q.strip():
@@ -126,10 +130,11 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
                 .group_by(Merchant.id)).all():
             elsewhere[mid] = n
     rows = []
-    for mid, name, default_id, confirmed, n, total in chunk:
-        node = nodes.get(default_id)
+    for mid, name, default_id, confirmed, credit_id, n, total in chunk:
+        node, credit = nodes.get(default_id), nodes.get(credit_id)
         label = " › ".join(_path(nodes, node)) if node else ""
-        rows.append(MerchantRow(mid, name, label, bool(confirmed), n, float(total), elsewhere.get(mid, 0)))
+        credit_label = " › ".join(_path(nodes, credit)) if credit else ""
+        rows.append(MerchantRow(mid, name, label, credit_label, bool(confirmed), n, float(total), elsewhere.get(mid, 0)))
     return MerchantPage(rows, len(all_rows), page, pages)
 
 
