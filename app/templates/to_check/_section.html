@@ -1,0 +1,16 @@
+<section id="to-check" class="tc-section">
+  <h2>To check{% if total %} ({{ total }}){% endif %}</h2>
+  <p>Bank statement lines the Hub wasn't sure it read correctly. Until someone decides, a line is left out of every total.
+     Anyone in the family can check; the Hub keeps who did and when.</p>
+  {% if groups %}
+    {% for group in groups %}
+      <div class="tc-group" id="tc-doc-{{ group.document.id }}">
+        <h3><a href="{{ group.file_href }}" target="_blank">{{ group.document.filename }}</a></h3>
+        {% if group.mismatch %}{% with check = group.mismatch, sentence = group.mismatch_sentence %}{% include "to_check/_statement.html" %}{% endwith %}{% endif %}
+        {% for card in group.cards %}{{ card | safe }}{% endfor %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="inbox-empty">Nothing to check — every statement line the Hub read is either confirmed or sure.</p>
+  {% endif %}
+</section>

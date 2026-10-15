@@ -9,6 +9,8 @@
   <p class="inbox-empty">Nothing waiting — you're all caught up.</p>
 {% endif %}
 
+{% if to_check_section %}{{ to_check_section | safe }}{% endif %}
+
 {% if recent %}
 <h2>Recently handled</h2>
 <table class="review-table">

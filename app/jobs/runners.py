@@ -200,6 +200,45 @@ async def run_statement_reminder(session: Session, trigger: str) -> JobOutcome:
     return _failed(explain_service_failure("Telegram", not_sent, raw or "the send did not complete"))
 
 
+# ====================================================== things to check ===
+
+async def run_check_nudge(session: Session, trigger: str) -> JobOutcome:
+    """The weekly nudge (decision D11): ONE Telegram message to the statement reminder's recipient saying how many
+    things wait on the To check list, only when there are some. Sending and the recipient lookup are the reminder's own."""
+    from app.services import to_check
+
+    waiting = to_check.count(session)
+    if not waiting:
+        return JobOutcome("ok", "Nothing to check this week.")
+    things = _plural(waiting, "thing is", "things are")
+    not_sent = "The “things to check” message wasn't sent."
+    retry = "it is sent at the next scheduled run after that, or press Run now on the Scheduled jobs page."
+    token = settings.HUB_TELEGRAM_BOT_TOKEN
+    if not token:
+        return _failed(Problem(not_sent, f"{things.capitalize()} waiting to be checked, but the Telegram bot isn't set up on this server (no bot token saved).",
+                               f"Tell Pedro to add the bot token to the server settings; {retry}"))
+    try:
+        users = settings.telegram_allowed_users
+    except ValueError as exc:
+        return _failed(Problem(not_sent, f"The list of allowed Telegram users on the server can't be read ({exc}).",
+                               f"Tell Pedro to correct HUB_TELEGRAM_ALLOWED_USERS on the server; {retry}"))
+    name = settings.HUB_REMINDER_TELEGRAM_NAME
+    chat_id = reminder_job.find_recipient(users, name)
+    if chat_id is None:
+        return _failed(Problem(not_sent, f"No allowed Telegram user is named {name!r}, so there is nobody to send it to.",
+                               "Tell Pedro to add that person to the allowed Telegram users (or change who receives the reminder) on the server."))
+    text = f"{things.capitalize()} waiting to be checked in the Hub: {settings.PUBLIC_BASE_URL.rstrip('/')}/to-check"
+    try:
+        await asyncio.to_thread(reminder_job.telegram_send, token, chat_id, text)    # it calls asyncio.run: not on this loop
+    except Exception as exc:
+        raw = f"{type(exc).__name__}: {exc}"
+        if _TELEGRAM_CLOSED.search(raw):
+            return _failed(Problem(not_sent, "Telegram wouldn't deliver it: the chat with the Hub bot is closed or the bot was blocked.",
+                                   f"Open the Hub bot in Telegram and press Start (or unblock it); {retry}"))
+        return _failed(explain_service_failure("Telegram", not_sent, raw))
+    return JobOutcome("ok", f"Sent on Telegram to {name}: {things} waiting to be checked.")
+
+
 # ===================================================== mailbox check ===
 
 RECEIVE = email_poller.receive_document        # what files an attachment in the Inbox (replaced only in tests)

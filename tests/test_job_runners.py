@@ -58,7 +58,7 @@ def test_every_default_passes_its_own_validation_and_limit():
 
 def test_only_the_bank_has_a_daily_limit_and_it_is_four():
     assert {k: j.max_runs_per_day for k, j in registry.JOBS.items()} == {
-        "mailbox_check": None, "statement_reminder": None, "bank_sync": 4, "wiki_lint": None}
+        "mailbox_check": None, "statement_reminder": None, "check_nudge": None, "bank_sync": 4, "wiki_lint": None}
     assert "4 requests per account per day" in registry.JOBS["bank_sync"].max_runs_reason
 
 
