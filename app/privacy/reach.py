@@ -3,7 +3,7 @@
 Ask and the wiki check read documents of EVERY type, so no single type's level can govern their
 AI calls. Instead, while levels are binding the household has a "reachable set" of types:
 
-  EXCLUDED  a type whose level is High (no route exists), or has no level yet, or whose
+  EXCLUDED  a type whose level is High (Ask and the wiki check do not read it), or has no level yet, or whose
             "hide personal details" switch is on (hiding cannot work when the AI also looks
             things up or reads files);
   INCLUDED  every other type.
@@ -137,7 +137,7 @@ class LeftOut:
                 continue
             many = len(labels) > 1
             if reason == HIGH:
-                parts.append(f"{_names(labels)} {'are' if many else 'is'} set to High, and no AI service is approved for that level")
+                parts.append(f"{_names(labels)} {'are' if many else 'is'} set to High, and Ask and the wiki check do not read that level")
             elif reason == UNSET:
                 parts.append(f"{_names(labels)} {'have' if many else 'has'} no level yet")
             else:

@@ -14,6 +14,7 @@ RAW_REASONS = [
     "gateway returned 400: could not read pdf",
     "gateway returned 413: prompt_too_long",
     "gateway returned 403: sensitivity house_high has no route yet",
+    "gateway returned 403: sensitivity house_high cannot be served: no supplier for model x; nothing was sent",
     "redaction requested but the call carries attachments (images/PDFs cannot be redacted)",
     "redaction with tool use is not supported yet",
     "redaction incomplete (2 identifier(s) remain)",
@@ -37,6 +38,7 @@ def test_causes_name_the_right_reason():
     assert "damaged" in pr.classify_reason("bad pdf").why
     assert "Privacy page" in pr.classify_reason("redaction requested but the call carries attachments").next_step
     assert "High" in pr.classify_reason("sensitivity house_high has no route yet").why
+    assert "High" in pr.classify_reason("sensitivity house_high cannot be served: x").why
 
 
 def test_plain_english_is_left_alone():

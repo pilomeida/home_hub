@@ -23,7 +23,7 @@ router = APIRouter(prefix="/privacy", tags=["privacy"])
 TIER_LABELS = {
     Tier.LOW.value: "Low — any AI service",
     Tier.MID.value: "Mid — zero-retention, US/EU providers only",
-    Tier.HIGH.value: "High — highly sensitive (no route yet: nothing is read)",
+    Tier.HIGH.value: "High — highly sensitive: confidential-computing service only (Ask and the wiki check do not read these)",
 }
 
 

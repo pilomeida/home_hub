@@ -85,7 +85,7 @@
   {% for j in jobs %}
   {% set fid = "j-" ~ j.workload_type %}
   <tr>
-    <td>{{ j.label }}<div style="font-size:12px;color:#666;">{{ j.blurb }}</div>
+    <td style="min-width:15em;">{{ j.label }}<div style="font-size:12px;color:#666;">{{ j.blurb }}</div>
       <form id="{{ fid }}" method="post" action="/privacy/jobs"><input type="hidden" name="workload_type" value="{{ j.workload_type }}"></form></td>
     <td>{{ j.model_display or j.model }}</td>
     <td>

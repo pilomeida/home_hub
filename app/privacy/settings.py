@@ -26,7 +26,7 @@ ENFORCE_KEY = "enforce_tiers"
 
 # Starting suggestions shown pre-filled on the settings screen (Pedro, 2026-10-15).
 # They are NOT active until confirmed. house_high is deliberately never suggested:
-# it has no route yet.
+# Pedro chooses it per type (it is served only by Privatemode, which costs money).
 SUGGESTED_TIERS: dict[tuple[str, str], Tier] = {
     ("financials", "bill"): Tier.MID,
     ("financials", "statement"): Tier.MID,

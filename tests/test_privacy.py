@@ -138,9 +138,9 @@ def test_policies_follow_pedros_definition():
     assert policy_for("house_mid").requires_zdr is True
 
 
-def test_high_has_no_route_and_unknown_tiers_fail_closed():
-    with pytest.raises(TierBlocked, match="no route"):
-        policy_for(Tier.HIGH)
+def test_high_has_a_route_without_redaction_and_unknown_tiers_fail_closed():
+    high = policy_for(Tier.HIGH)
+    assert high.route_available and high.requires_zdr and not high.redact
     for bad in ("house_medium", "", None, "HIGH", "top"):
         with pytest.raises(TierBlocked):
             parse_tier(bad)

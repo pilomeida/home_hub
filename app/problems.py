@@ -57,7 +57,7 @@ _PDF = re.compile(r"\bpdf\b", re.I)
 _UNDERSTOOD = re.compile(r"is not a valid|could not parse", re.I)
 _TECHNICAL = re.compile(r"\b\w*(?:Error|Exception)\b|Traceback", re.I)
 _NO_MODEL = re.compile(r"no_eligible_model|no supplier for model|has no model paired|does not satisfy", re.I)
-_BLOCKED_SENS = re.compile(r"sensitivity[_ ]blocked|house_high has no route|no route is available", re.I)
+_BLOCKED_SENS = re.compile(r"sensitivity[_ ]blocked|house_high has no route|house_high cannot be served|no route is available", re.I)
 _REDACT_FILE = re.compile(r"redaction requested but the call carries", re.I)
 _REDACT_TOOLS = re.compile(r"redaction with tool use", re.I)
 _REDACT_FAILED = re.compile(r"redaction (failed|incomplete)", re.I)
@@ -84,8 +84,8 @@ def classify_reason(raw: Optional[str]) -> Optional[Cause]:
                      "Try again. If it repeats, tell Pedro: the technical details below will help.")
     if _BLOCKED_SENS.search(raw):
         return Cause("The AI wasn't allowed to read this document.",
-                     "Its privacy level is “High”, and no AI service is approved for that level yet.",
-                     "Choose a different level for this type on the Privacy page, or file it without reading.")
+                     "Its privacy level is “High”, which only the confidential AI service may read, and that service couldn't be used just now.",
+                     "Try again in a few minutes. If it keeps happening, tell Pedro: the technical details below will help.")
     if _CREDIT.search(raw):
         return Cause("The AI service couldn't be used.",
                      "The account that pays for it has run out of credit.",

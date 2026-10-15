@@ -60,12 +60,23 @@ async def test_tiered_call_tells_the_gateway_its_tier(tier):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("bad", [Tier.HIGH, "house_high", "HIGH", "house_medium", "", "top"])
-async def test_high_and_unknown_tiers_never_reach_the_wire(bad):
+@pytest.mark.parametrize("bad", ["HIGH", "house_medium", "", "top"])
+async def test_unknown_tiers_never_reach_the_wire(bad):
     wire = Wire()
     with pytest.raises(TierBlocked):
         await wire.client().run("classification", "sys", TEXT, sensitivity=bad)
     assert wire.bodies == []                                      # nothing was sent at all
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("high", [Tier.HIGH, "house_high"])
+async def test_high_is_sent_to_the_gateway_unredacted_with_its_tier(high):
+    """High is served only by the gateway's confidential route (Privatemode); the Hub
+    tells the gateway the tier and sends the text as it is (no redaction is needed)."""
+    wire = Wire()
+    await wire.client().run("classification", "sys", TEXT, sensitivity=high)
+    (sent,) = wire.bodies
+    assert "house_high" in sent and NAME in sent
 
 
 @pytest.mark.asyncio
@@ -179,7 +190,7 @@ async def test_audit_log_has_counts_and_sizes_but_never_content(caplog):
     with caplog.at_level("INFO", logger="home_hub.privacy"):
         await wire.client().run("classification", "sys", TEXT, sensitivity="house_mid", redaction=_redaction())
         with pytest.raises(TierBlocked):
-            await wire.client().run("classification", "sys", TEXT, sensitivity="house_high")
+            await wire.client().run("classification", "sys", TEXT, sensitivity="house_medium")
     log = "\n".join(r.getMessage() for r in caplog.records)
     assert "house_mid" in log and "'redacted': True" in log and "'outcome': 'blocked'" in log
     for secret in SECRETS + ["120,00"]:

@@ -6,7 +6,8 @@ doubt raises TierBlocked and nothing is sent.
 - house_low          -> passes; the gateway is told, and changes nothing.
 - house_mid          -> the gateway is told; it routes only to zero-data-retention
                         endpoints. Redaction only if the caller asked for it (D3).
-- house_high         -> blocked: no route exists yet.
+- house_high         -> the gateway is told; it routes only to Privatemode (confidential
+                        computing, end-to-end encrypted) and refuses if it cannot.
 - unknown value      -> blocked.
 Redaction cannot see inside images/PDFs, so a call that asks for redaction
 and carries attachments is blocked rather than half-redacted. Redaction with
@@ -85,7 +86,7 @@ def prepare(
 
         tier: Tier = parse_tier(sensitivity)
         audit["tier"] = tier.value
-        policy = policy_for(tier)            # raises for house_high / unknown
+        policy = policy_for(tier)            # raises for a tier with no route / unknown
         want_redaction = redaction is not None
         if policy.redact and not want_redaction:
             raise TierBlocked(f"{tier.value} requires redaction and none was supplied")

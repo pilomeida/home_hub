@@ -2,7 +2,8 @@
 
 house_low  any provider:model
 house_mid  zero-data-retention endpoints only
-house_high highly sensitive; route TBD (likely dedicated inference capacity)
+house_high highly sensitive; the gateway serves it only through Privatemode
+           (confidential computing, end-to-end encrypted), so no redaction is needed
 
 Separate from the gateway's own quality tiers (low/high/top) and privacy
 tiers (personal/private/business/public), which this module never touches.
@@ -36,7 +37,7 @@ class TierBlocked(Exception):
 class RoutePolicy:
     tier: Tier
     requires_zdr: bool        # only zero-data-retention endpoints
-    route_available: bool     # False: nothing may be sent (house_high today)
+    route_available: bool     # False: nothing may be sent at this tier
     redact: bool              # deterministic redaction before leaving the VPS
 
 
@@ -45,7 +46,9 @@ class RoutePolicy:
 POLICIES: dict[Tier, RoutePolicy] = {
     Tier.LOW: RoutePolicy(Tier.LOW, requires_zdr=False, route_available=True, redact=False),
     Tier.MID: RoutePolicy(Tier.MID, requires_zdr=True, route_available=True, redact=False),
-    Tier.HIGH: RoutePolicy(Tier.HIGH, requires_zdr=True, route_available=False, redact=True),
+    # HIGH: the gateway routes it only to Privatemode, whose proxy encrypts to an attested
+    # machine; redaction would add nothing, and could not see inside PDFs/photos anyway.
+    Tier.HIGH: RoutePolicy(Tier.HIGH, requires_zdr=True, route_available=True, redact=False),
 }
 
 def parse_tier(value: object) -> Tier:
@@ -60,7 +63,7 @@ def parse_tier(value: object) -> Tier:
 
 def policy_for(tier: object) -> RoutePolicy:
     """The policy a call must obey. Raises TierBlocked if the tier is unknown
-    or has no route (house_high until Pedro's dedicated route exists)."""
+    or has no route (none today; a tier is switched off here, not in the callers)."""
     policy = POLICIES[parse_tier(tier)]
     if not policy.route_available:
         raise TierBlocked(f"{policy.tier.value}: no route is available yet")
