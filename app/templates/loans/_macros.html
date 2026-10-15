@@ -4,10 +4,20 @@
 {% macro signed0(v) %}{{ "+" if v >= 0 else "−" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
 {% macro freshness(as_of, stale_days, stale_after=150) %}
 {%- if as_of -%}
-<div class="loan-fresh{{ ' loan-stale' if stale_days is not none and stale_days > stale_after else '' }}">Data as of {{ date(as_of) }}{% if stale_days is not none and stale_days > stale_after %} — {{ stale_days }} days old, upload newer statements{% endif %}</div>
+{%- if stale_days is not none and stale_days > stale_after -%}
+<div class="loan-fresh loan-stale">Not up to date. The newest figures are from {{ date(as_of) }}, {{ stale_days }} days ago, so the totals may be out of date. Upload newer statements with the + button.</div>
+{%- else -%}
+<div class="loan-fresh">Data as of {{ date(as_of) }}</div>
+{%- endif -%}
 {%- endif -%}
 {% endmacro %}
 {% macro rate(r) %}{% if r.summary.rate_percent is none %}rate unknown{% elif r.rate_derived %}≈ {{ "%.1f"|format(r.summary.rate_percent) }}% (derived){% else %}{{ "%.3f"|format(r.summary.rate_percent) }}%{% if r.summary.applied_rate_percent is not none %} <span class="loan-sub">(applied last instalment: {{ "%.3f"|format(r.summary.applied_rate_percent) }}%)</span>{% endif %}{% endif %}{% endmacro %}
+{% macro flag_help(kind) -%}
+{%- if kind == "interest_only" -%}A normal instalment repays some capital. One that is all interest can mean the bank charged it wrongly: check it with the bank, then acknowledge it if it is a known charge.
+{%- elif kind == "spread_changed" -%}The spread over the index is fixed for the life of the loan and should not change on its own: compare it with the contract, then acknowledge it once it is explained.
+{%- elif kind == "rate_inconsistent" -%}The next rate should equal the index plus the spread, and it doesn't: check the statement against the contract, then acknowledge it if it is known.
+{%- endif -%}
+{%- endmacro %}
 {% macro flags(r, back) %}
 {%- if r.groups or r.acked_alerts -%}
 <div class="loan-flags-wrap">
@@ -19,6 +29,7 @@
     {% if g.alerts|length == 1 %}
     {% set a = g.alerts[0] %}
     <div>{{ a.message }} <span class="loan-sub">detected {{ date(a.detected_on) }}</span></div>
+    <div class="loan-sub">{{ flag_help(a.kind) }}</div>
     <form method="post" action="/financials/loans/alerts/{{ a.id }}/ack">
       <input type="hidden" name="next" value="{{ back }}">
       <input type="text" name="note" placeholder="Note (optional), e.g. bank error, known" maxlength="300">
@@ -26,6 +37,7 @@
     </form>
     {% else %}
     <div>{{ g.text }}</div>
+    <div class="loan-sub">{{ flag_help(g.kind) }}</div>
     <form method="post" action="/financials/loans/alerts/ack-group">
       <input type="hidden" name="next" value="{{ back }}">
       <input type="hidden" name="debt_id" value="{{ g.debt.id }}">
@@ -60,3 +72,4 @@
 {% endmacro %}
 {% macro pct(v) %}{% if v is none %}—{% else %}{{ "%.3f"|format(v) }}%{% endif %}{% endmacro %}
 {% macro insurance_line(r) %}{% if r.insurance_paid %}<div><span class="loan-k">Insurance paid (linked debits)</span>{{ eur2(r.insurance_paid) }}{% if r.last_premium is not none %} <span class="loan-sub">· last premium {{ eur2(r.last_premium) }}{% if r.last_premium_date %} on {{ date(r.last_premium_date) }}{% endif %}</span>{% endif %}</div>{% endif %}{% endmacro %}
+{% macro three_parts(p, technical=None) %}<strong>{{ p.what }}</strong> {{ p.why }} {{ p.next_step }}{% if technical %}<details><summary>Technical details</summary><code>{{ technical }}</code></details>{% endif %}{% endmacro %}

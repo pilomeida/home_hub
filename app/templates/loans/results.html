@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "loans/_macros.html" as m %}
 {% block title %}Upload results — Home & Family{% endblock %}
 {% block content %}
 <div class="fc-page">
@@ -8,7 +9,7 @@
     <div class="fc-period"><a href="/financials/loans">← Loans &amp; Savings</a></div>
   </div>
   <div class="fc-section">
-    {% if error %}<p class="loan-error" role="alert" style="color:#a8504a"><strong>{{ error }}</strong></p>{% endif %}
+    {% if error %}<p class="loan-error" role="alert" style="color:#a8504a">{{ m.three_parts(error) }}</p>{% endif %}
     <table class="loan-results">
       <thead><tr><th>File</th><th>Result</th></tr></thead>
       <tbody>
@@ -18,11 +19,8 @@
         <td>
           {% if r.outcome == "read" %}read: {{ r.message }}
           {% elif r.outcome == "already_read" %}already read{% if r.message %} — {{ r.message }}{% endif %}
-          {% elif r.outcome == "failed" %}failed: {{ r.message }}
-          {% elif r.outcome == "rejected" %}rejected: {{ r.message }}
-          {% elif r.outcome == "other" %}{{ r.message }}
           {% elif r.outcome == "needs_loan" %}
-            <strong>needs a loan</strong> — {{ r.message }}
+            {{ m.three_parts(r.problem) }}
             <form action="/financials/loans/assign" method="post" class="loan-assign">
               <input type="hidden" name="extraction_id" value="{{ r.extraction_id }}">
               <p><label>Loan
@@ -39,7 +37,9 @@
                   </select></label></p>
               <p><button type="submit">Assign</button></p>
             </form>
+          {% else %}{{ m.three_parts(r.problem, r.technical) }}
           {% endif %}
+          {% for w in r.warnings %}<p class="loan-warn">{{ m.three_parts(w) }}</p>{% endfor %}
         </td>
       </tr>
       {% endfor %}

@@ -157,7 +157,8 @@ def main(argv, session_factory=None, gateway=None) -> int:
     with session_factory() as session:
         results = asyncio.run(_process(session, plan, args.user, gateway))
         for r in results:
-            _line(_LABEL.get(r.outcome, "FAILED"), r.name, r.message)
+            text = r.message or (f"{r.problem.what} {r.problem.why} {r.problem.next_step}" if r.problem else "")
+            _line(_LABEL.get(r.outcome, "FAILED"), r.name, text)
         pending = [r for r in results if r.outcome == "needs_loan" and r.extraction_id is not None]
         code = 1 if any(r.outcome == "failed" for r in results) else 0
         if new_loan is not None:
