@@ -55,11 +55,16 @@ async def add(
     target = _parse_domain(domain)
     try:
         due = date.fromisoformat(due_date) if due_date else None
-        add_todo(session, title, target, due)
-    except ValueError as exc:
+    except ValueError:
         raise HTTPException(status_code=400, detail={
-            "what": "To-do not added.", "why": f"What was entered isn't valid: {exc}.",
-            "next_step": "Check the title and the date (YYYY-MM-DD) and try again."}) from exc
+            "what": "To-do not added.", "why": "The due date isn't a real date in the form YYYY-MM-DD.",
+            "next_step": "Pick the date again, or leave it empty, and add the to-do again."}) from None
+    try:
+        add_todo(session, title, target, due)
+    except ValueError:
+        raise HTTPException(status_code=400, detail={
+            "what": "To-do not added.", "why": "The title is empty, and a to-do needs a few words saying what to do.",
+            "next_step": "Type a title and add the to-do again."}) from None
     return templates.TemplateResponse(request, "todos/_backlog.html", backlog_context(session, target))
 
 

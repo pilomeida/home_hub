@@ -83,7 +83,8 @@ def test_upload_rejects_video_for_a_manual(client, session):
     response = _upload(client, {"category": "house_appliance", "item_name": "Boiler"},
                        filename="demo.mp4", content=b"v", mime="video/mp4")
     assert response.status_code == 400
-    assert "accepts" in response.text
+    assert "House appliance takes only photo or PDF files, and this file is another kind." in response.text
+    assert "Choose a file of one of those kinds, then try again." in response.text
 
 
 def test_upload_without_a_file_is_rejected(client):

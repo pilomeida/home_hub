@@ -3,6 +3,7 @@ is the explicit 'Add link' click (logged as WikiOperation.EDIT)."""
 
 import json
 from datetime import datetime
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,6 +13,7 @@ from app.llm_gateway import GatewayClient, get_gateway
 from app.db import get_session, get_session_factory
 from app.models.wiki import WikiOperation, WikiPage
 from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus, LintRun
+from app.problems import Problem
 from app.services.wiki_lint.runner import LintAlreadyRunning, execute_run, start_run
 from app.services.wiki_store import add_link, append_log
 from app.templating import templates
@@ -83,7 +85,9 @@ async def run_now(background_tasks: BackgroundTasks, session: Session = Depends(
     try:
         run = start_run(session, "manual")
     except LintAlreadyRunning:
-        return RedirectResponse("/wiki/lint?message=A+check+is+already+running", status_code=303)
+        note = Problem("Not started.", "A check is already running, and only one can run at a time.",
+                       "Wait for it to finish, then refresh this page.").text
+        return RedirectResponse("/wiki/lint?" + urlencode({"message": note}), status_code=303)
     background_tasks.add_task(_execute_in_background, session_factory, run.id, gateway)
     return RedirectResponse("/wiki/lint?message=Check+started+-+refresh+in+a+minute", status_code=303)
 

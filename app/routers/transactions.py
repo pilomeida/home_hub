@@ -21,6 +21,7 @@ from app.services import debt_ledger as ledger
 from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.problems import notice
 from app.services.taxonomy_seed import LEGACY_TO_SLUG
 from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
 from app.services.merchant_assign import assign_category, list_merchants
@@ -550,18 +551,18 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
     form = await request.form()
     transaction = session.get(Transaction, transaction_id)
     if transaction is None:
-        return _plain(404, "Transaction not found")
+        return _plain(404, notice("Transaction not found", "Not linked."))
     role = (form.get("role") or "").strip() or None
     if role is not None and role not in ledger.ROLES:
-        return _plain(400, "The role must be advance or repayment")
+        return _plain(400, notice("The role must be advance or repayment", "Not linked."))
     if transaction.debt_id is not None:
-        return _plain(400, "This transaction is already linked to a debt")
+        return _plain(400, notice("This transaction is already linked to a debt", "Not linked."))
 
     existing_debt_id = (form.get("existing_debt_id") or "").strip()
     if existing_debt_id:
         debt = session.get(Debt, int(existing_debt_id)) if existing_debt_id.isdigit() else None
         if debt is None:
-            return _plain(404, "Debt not found")
+            return _plain(404, notice("Debt not found", "Not linked."))
         if debt.external_number is not None:
             # A statement loan: a plain link, no ledger and no counterparty rule.
             transaction.debt_id = debt.id
@@ -575,28 +576,28 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
         try:
             direction = DebtDirection(direction) if direction else ledger.derived_direction(transaction.transaction_type)
         except ValueError:
-            return _plain(400, "Unknown direction")
+            return _plain(400, notice("Unknown direction", "Not linked."))
         if direction is None:
-            return _plain(400, "Choose the direction: a transfer does not say whether you lent or borrowed")
+            return _plain(400, notice("Choose the direction: a transfer does not say whether you lent or borrowed", "Not linked."))
         person_name = (form.get("person_name") or "").strip()
         if len(person_name) > 80:
-            return _plain(400, "The name is at most 80 characters")
+            return _plain(400, notice("The name is at most 80 characters", "Not linked."))
         entry_kind = role or "advance"  # the creating transaction is the loan's first advance
         if transaction.transaction_type != TransactionType.TRANSFER \
                 and ledger.default_kind(direction, transaction.transaction_type) != entry_kind:
-            return _plain(400, "The role does not fit this transaction and direction: money going out "
-                               "starts a loan we gave, money coming in starts a loan we received")
+            return _plain(400, notice("The role does not fit this transaction and direction: money going out "
+                                      "starts a loan we gave, money coming in starts a loan we received", "Not linked."))
         try:
             debt = ledger.create_informal_debt(session, person_name, direction)
         except ValueError as exc:
             session.rollback()
-            return _plain(400, str(exc))
+            return _plain(400, notice(str(exc), "Not linked."))
 
     try:
         ledger.link_transaction_as_entry(session, debt, transaction, entry_kind)
     except ValueError as exc:
         session.rollback()
-        return _plain(400, str(exc))
+        return _plain(400, notice(str(exc), "Not linked."))
 
     # Informal debts learn the counterparty, so later transactions from it
     # link automatically; statement loans never get rules.

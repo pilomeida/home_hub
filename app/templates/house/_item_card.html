@@ -14,7 +14,7 @@
       <span class="badge">{{ category_label(item.category) }}</span>
       <a href="{{ item.url }}">{{ item.title }}</a>
       {% if item.fields.get("service_date") %} — {{ item.fields["service_date"] }}{% endif %}
-      {% if item.document and item.document.failure_reason %}<span class="needs-attention">!</span>{% endif %}
+      {% if item.document and item.document.failure_reason %}<span class="needs-attention">Not read: the Hub couldn't process this file. Open it to see why and what to do.</span>{% endif %}
     </li>
     {% endfor %}
   </ul>
