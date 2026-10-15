@@ -55,7 +55,9 @@ def test_friendly_reason_passes_through_plain_english_unchanged():
 def test_friendly_reason_appends_page_specific_actionable_sentence():
     raw = "Warranty date could not be read (Error code: 401 - {'type': 'error'})"
     rendered = str(friendly_reason(raw, "Enter it manually below."))
-    assert "The AI service couldn't be reached. Enter it manually below." in rendered
+    # fact, then the reason, then the page's own next step - in that order
+    assert ("The AI service couldn't be reached. It didn't answer, usually because it is restarting or busy. "
+            "Enter it manually below.") in rendered
 
 
 def test_friendly_reason_empty_input_renders_empty():

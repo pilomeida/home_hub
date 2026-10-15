@@ -54,7 +54,9 @@ async def upload_bill(
             classification,
         )
     except InvalidClassification as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail={
+            "what": "Not uploaded.", "why": f"The Hub can't accept this file: {exc}.",
+            "next_step": "Correct what is listed and upload it again."}) from exc
     return RedirectResponse(document_url(result.document) or "/financials/bills", status_code=303)
 
 @router.get("/{document_id}")

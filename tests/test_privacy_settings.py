@@ -254,6 +254,6 @@ def test_a_web_upload_of_a_held_type_is_refused_before_anything_is_stored(client
     from app.models.document import Document
     ps.set_enforcing(session, True, None)
     r = client.post("/financials/bills/upload", files={"file": ("a.pdf", b"%PDF-1.3 synthetic", "application/pdf")})
-    assert r.status_code == 409 and "no privacy level yet" in r.text and "Nothing was uploaded" in r.text
+    assert r.status_code == 409 and "no privacy level yet" in r.text and "Not uploaded." in r.text and "Nothing was stored" in r.text
     assert session.exec(select(Document)).all() == []
     assert not inbox_documents_dir.exists() or list(inbox_documents_dir.iterdir()) == []

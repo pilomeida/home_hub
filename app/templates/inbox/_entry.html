@@ -11,7 +11,7 @@
       {% if entry.item.classifier_note %}<em>{{ entry.item.classifier_note | friendly_reason }}</em>{% endif %}
     </p>
   {% endif %}
-  {% if held %}<p class="needs-attention">This kind of document has no privacy level yet, so nothing can read it. <a href="/privacy">Set its level on the Privacy page</a>, then approve again.</p>{% endif %}
+  {% if held %}<p class="needs-attention"><strong>Not filed.</strong> This kind of document has no privacy level yet, so nothing may read it. <a href="/privacy">Set its level on the Privacy page</a>, then press Approve again.</p>{% endif %}
   <form hx-post="/inbox/{{ entry.document.id }}/approve" hx-target="#inbox-{{ entry.document.id }}" hx-swap="outerHTML">
     <div id="fields-{{ entry.document.id }}" class="inbox-fields">
       {% include "inbox/_fields.html" %}

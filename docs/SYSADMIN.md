@@ -166,8 +166,9 @@ ingestion channels above:
 
 ```bash
 # As home-hub (after su -s /bin/bash home-hub, or sudo -u home-hub with XDG_RUNTIME_DIR set)
-systemctl --user list-timers home-hub-wikilint.timer
-journalctl --user -u home-hub-wikilint
+systemctl --user list-timers home-hub-scheduler.timer   # the clock for jobs scheduled on the Hub (wiki check)
+journalctl --user -u home-hub-scheduler
+# how often the wiki check runs is set on the Hub: /schedules (the old fixed home-hub-wikilint timer is retired)
 
 # Manual run, as the home-hub user
 cd /srv/home-hub/app && ../venv/bin/python -m app.jobs.wiki_lint

@@ -23,6 +23,8 @@ from app.models.document import DocumentSource
 from app.services.inbox_service import receive_document
 from app.services.ingestion import IncomingFile
 
+from app.problems import Problem  # noqa: E402
+
 logger = logging.getLogger("home_hub.email_poller")
 
 PROCESSED_FOLDER = "Hub-Processed"
@@ -84,6 +86,16 @@ class PollReport:
     documents_created: int = 0
 
 
+def _note(session_factory, problem, ref: str, technical=None) -> None:
+    """Keep what the mail check could not do findable on the Problems page. Never raises."""
+    try:
+        from app.problems import record_problem
+        with session_factory() as session:
+            record_problem(session, area="Email", problem=problem, ref=ref, technical=technical)
+    except Exception:
+        logger.exception("could not record a problem")
+
+
 def _family_submitter(parsed: ParsedEmail, allowed_senders: frozenset[str]) -> str | None:
     """The allow-listed account that sent this mail in: the sender itself, or
     (for a Gmail auto-forward, which keeps the original From) the forwarder."""
@@ -107,6 +119,11 @@ async def poll_once(
             parsed = parse_email(mailbox.fetch(uid))
         except Exception:
             logger.exception("could not read message uid=%s", uid)
+            _note(session_factory, Problem(
+                "An email in the Hub mailbox couldn't be read.",
+                "Its format wasn't understood, so it was moved to the Hub-Failed folder untouched.",
+                "Open the Hub mailbox and check that message; forward the document again as a normal email with the file attached."),
+                ref=f"email-uid:{uid}")
             mailbox.move(uid, FAILED_FOLDER)
             report.failed += 1
             continue
@@ -115,11 +132,22 @@ async def poll_once(
         if submitter is None:
             logger.info("ignoring mail from non-allow-listed sender %s (forwarded by %r)",
                         parsed.sender, parsed.forwarded_by)
+            if parsed.forwarded_by:     # someone's forwarding rule sent it, so a person expects it to arrive
+                _note(session_factory, Problem(
+                    f"An email wasn't filed: “{parsed.subject[:80]}”.",
+                    f"It was forwarded by {parsed.forwarded_by}, who isn't on the list of approved senders, so the Hub ignored it.",
+                    "Add that address to HUB_IMAP_ALLOWED_SENDERS on the server, then send it again."),
+                    ref=f"email-sender:{parsed.forwarded_by}")
             mailbox.move(uid, IGNORED_FOLDER)
             report.ignored += 1
             continue
         if not parsed.attachments:
             logger.info("ignoring mail without usable attachments from %s: %s", parsed.sender, parsed.subject)
+            _note(session_factory, Problem(
+                f"An email wasn't filed: “{parsed.subject[:80]}”.",
+                "It had no attachment the Hub can read (it takes PDFs, photos and short videos).",
+                "Send it again with the document attached as a PDF or photo, not as a link or pasted text."),
+                ref=f"email:{parsed.message_id}")
             mailbox.move(uid, IGNORED_FOLDER)
             report.ignored += 1
             continue
@@ -140,6 +168,12 @@ async def poll_once(
             # Content-hash dedup makes a later retry (moving the mail back to
             # INBOX) safe even if some attachments were already stored.
             logger.exception("failed to ingest mail uid=%s from %s", uid, parsed.sender)
+            import sys
+            _note(session_factory, Problem(
+                f"An email wasn't filed: “{parsed.subject[:80]}”.",
+                "The Hub hit an unexpected error while storing its attachment(s).",
+                "It was moved to the Hub-Failed folder in the mailbox. Try forwarding it again; if it repeats, tell Pedro."),
+                ref=f"email:{parsed.message_id}", technical=f"{type(sys.exc_info()[1]).__name__}: {sys.exc_info()[1]}")
             mailbox.move(uid, FAILED_FOLDER)
             report.failed += 1
             continue

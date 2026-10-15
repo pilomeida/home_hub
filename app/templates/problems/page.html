@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Problems{% endblock %}
+{% block content %}
+<h1>Problems</h1>
+<p>Things the Hub was asked to do and couldn't. Each one says what didn't happen, why, and what you can do. A problem disappears by itself once the thing it was about works; you can also dismiss it.</p>
+{% if open %}
+<table class="review-table">
+  <thead><tr><th>When</th><th>Where</th><th>What happened</th><th></th></tr></thead>
+  <tbody>
+  {% for p in open %}
+  <tr>
+    <td>{{ p.at | lisbon }}{% if p.times > 1 %}<div style="font-size:12px;color:#666;">{{ p.times }}×</div>{% endif %}</td>
+    <td>{{ p.area }}</td>
+    <td><strong>{{ p.what }}</strong> {{ p.why }} {{ p.next_step }}
+      {% if p.link %}<a href="{{ p.link }}">Open</a>{% endif %}
+      {% if p.technical %}<details><summary>Technical details</summary><code>{{ p.technical }}</code></details>{% endif %}</td>
+    <td><form method="post" action="/problems/{{ p.id }}/dismiss"><button>Dismiss</button></form></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>Nothing is stuck right now.</p>{% endif %}
+{% if resolved %}
+<h2>Recently cleared</h2>
+<table class="review-table">
+  <thead><tr><th>Cleared</th><th>Where</th><th>What it was</th><th>By</th></tr></thead>
+  <tbody>
+  {% for p in resolved %}<tr><td>{{ p.resolved_at | lisbon }}</td><td>{{ p.area }}</td><td>{{ p.what }} {{ p.why }}</td><td>{{ p.resolved_by or "—" }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

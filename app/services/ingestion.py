@@ -124,6 +124,19 @@ def mark_needs_attention(session: Session, document: Document, reason: str) -> D
     session.add(document)
     session.commit()
     session.refresh(document)
+    # Say what didn't happen, why, and what to do - and keep it findable on the Problems page.
+    from app.problems import Problem, explain, record_problem
+    try:
+        link = None
+        if document.domain is not None:
+            from app.domains.registry import document_url
+            link = document_url(document)
+        problem = explain(f"{document.filename} wasn't processed.", reason)
+        record_problem(session, area="Reading documents",
+                       problem=Problem(problem.what, problem.why, problem.next_step, link),
+                       ref=f"document:{document.id}", technical=reason)
+    except Exception:
+        pass   # reporting a problem must never create another one
     return document
 
 
@@ -187,7 +200,11 @@ async def _file_under(session: Session, document: Document, validated: Validated
     # document type's privacy scope: its level rides on every call, and a type with
     # no level is held (decision D12). A no-op while levels are not binding.
     with privacy_scope(session, validated.spec.domain, validated.category):
-        return await _file_under_scoped(session, document, validated)
+        result = await _file_under_scoped(session, document, validated)
+    if result.status == DocumentStatus.PROCESSED:
+        from app.problems import resolve_for
+        resolve_for(session, f"document:{result.id}")      # it works now: clear its earlier problem
+    return result
 
 
 async def _file_under_scoped(session: Session, document: Document, validated: ValidatedClassification) -> Document:

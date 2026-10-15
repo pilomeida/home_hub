@@ -15,9 +15,18 @@ if [ ! -d "$XDG_RUNTIME_DIR" ]; then
   exit 1
 fi
 
+# Units that were replaced by the Hub's own scheduler (app/jobs/scheduler.py): stop and remove them so a
+# job never runs twice. Add to this list when a fixed timer is retired.
+RETIRED_UNITS="home-hub-wikilint.timer home-hub-wikilint.service"
+
 SRC="$(cd "$(dirname "$0")" && pwd)/systemd"
 DEST="$HOME/.config/systemd/user"
 mkdir -p "$DEST"
+
+for unit in $RETIRED_UNITS; do
+  systemctl --user disable --now "$unit" 2>/dev/null || true
+  rm -f "$HOME/.config/systemd/user/$unit"
+done
 
 for unit in "$SRC"/*.service "$SRC"/*.timer; do
   install -m 0644 "$unit" "$DEST/"

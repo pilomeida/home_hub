@@ -13,6 +13,7 @@
     .tag-doc { font-size: .75em; white-space: nowrap; }
     @media (prefers-color-scheme: dark) { tr.flow-out { background: #3a2523; } tr.flow-in, tr.flow-refund { background: #22332a; } .tag-refund { background: #2f4a37; color: #b8d8be; } }
     body { font-family: system-ui, sans-serif; margin: 0; display: flex; }
+    .problem { background: #fdecea; border: 1px solid #e0a39c; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; }
     nav { width: 180px; padding: 1rem; border-right: 1px solid #ddd; }
     nav a { display: block; margin-bottom: 0.5rem; color: #333; text-decoration: none; }
     nav a:hover { text-decoration: underline; }
@@ -291,6 +292,8 @@
     <a href="/wiki">Wiki</a>
     <a href="/todos">To-Dos</a>
     <a href="/privacy">Privacy</a>
+    <a href="/schedules">Scheduled jobs</a>
+    <a href="/problems">Problems{% set n = open_problem_count() %}{% if n %} ({{ n }}){% endif %}</a>
     <div class="nav-group">
       <span class="nav-group-label">Other apps</span>
       <a href="https://recipes.cdafamily.casa" target="_blank" rel="noopener">Recipes</a>
@@ -298,7 +301,25 @@
     </div>
   </nav>
   <main>
+  <div id="problem-banner" role="alert"></div>
     {% block content %}{% endblock %}
   </main>
+<script>
+  // A failed button press must never be silent: HTMX ignores 4xx/5xx by default, so let them through
+  // (the server answers with a message in the right place) and say so when the Hub can't be reached at all.
+  document.body.addEventListener("htmx:beforeSwap", function (e) {
+    if (e.detail.xhr && e.detail.xhr.status >= 400) { e.detail.shouldSwap = true; e.detail.isError = false; }
+  });
+  function hubBanner(text) {
+    var b = document.getElementById("problem-banner");
+    if (b) { b.innerHTML = '<div class="problem" role="alert"></div>'; b.firstChild.textContent = text; b.scrollIntoView(); }
+  }
+  document.body.addEventListener("htmx:sendError", function () {
+    hubBanner("Not done. The Hub couldn't be reached, so nothing was sent. Check your connection and try again.");
+  });
+  document.body.addEventListener("htmx:timeout", function () {
+    hubBanner("Not finished. The Hub took too long to answer, so the result is unknown. Reload the page to see whether it went through, then try again if not.");
+  });
+</script>
 </body>
 </html>

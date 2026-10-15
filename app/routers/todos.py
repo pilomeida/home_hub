@@ -57,7 +57,9 @@ async def add(
         due = date.fromisoformat(due_date) if due_date else None
         add_todo(session, title, target, due)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail={
+            "what": "To-do not added.", "why": f"What was entered isn't valid: {exc}.",
+            "next_step": "Check the title and the date (YYYY-MM-DD) and try again."}) from exc
     return templates.TemplateResponse(request, "todos/_backlog.html", backlog_context(session, target))
 
 

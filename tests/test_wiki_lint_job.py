@@ -27,8 +27,12 @@ async def test_main_exits_cleanly_when_already_running(engine, monkeypatch):
     assert await job.main() == 0
 
 
-def test_user_units_point_at_the_job():
-    service = Path("deploy/systemd/home-hub-wikilint.service").read_text()
-    timer = Path("deploy/systemd/home-hub-wikilint.timer").read_text()
-    assert "-m app.jobs.wiki_lint" in service and "User=" not in service  # user unit: no User=
-    assert "OnCalendar=Sun *-*-* 03:30:00" in timer and "Persistent=true" in timer
+def test_the_hubs_scheduler_units_replace_the_fixed_weekly_timer():
+    service = Path("deploy/systemd/home-hub-scheduler.service").read_text()
+    timer = Path("deploy/systemd/home-hub-scheduler.timer").read_text()
+    assert "-m app.jobs.scheduler" in service and "User=" not in service     # user unit: no User=
+    assert "OnUnitActiveSec=15min" in timer and "OnBootSec=" in timer
+    # the old fixed timer is gone from the repo and retired on the server, so a check never runs twice
+    assert not Path("deploy/systemd/home-hub-wikilint.timer").exists()
+    installer = Path("deploy/install_user_units.sh").read_text()
+    assert "home-hub-wikilint.timer" in installer.split("RETIRED_UNITS=")[1].splitlines()[0]

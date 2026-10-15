@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Scheduled jobs{% endblock %}
+{% block content %}
+<h1>Scheduled jobs</h1>
+<p>Background jobs that run on their own. Times are Lisbon time. If the Hub was off at the planned moment, the job runs once as soon as it is back.</p>
+{% if problem %}<p class="needs-attention">{{ problem }}</p>{% endif %}
+
+{% for r in rows %}
+<section style="margin-bottom:1.5rem;">
+  <h2>{{ r.job.label }}</h2>
+  <p>{{ r.job.description }}</p>
+  <p><strong>{{ r.text }}</strong>{% if not r.custom %} <span style="color:#666;">(the usual setting)</span>{% endif %}
+    {% if saved == r.job.key %}<span style="color:#2e7d32;"> Saved.</span>{% endif %}<br>
+    {% if r.spec.enabled %}Next run: {% if r.due_now %}at the next check (within 15 minutes){% else %}{{ r.next | lisbon }}{% endif %}{% endif %}</p>
+  {% if r.latest %}
+  <p>Last run: {{ r.latest.started_at | lisbon }} ({{ "by hand" if r.latest.trigger == "manual" else "on schedule" }}) —
+    {% if r.latest.outcome == "running" %}still running{% else %}<span{% if r.latest.outcome in ("failed", "partial", "skipped") %} class="needs-attention"{% endif %}>{{ r.latest.summary }}</span>{% endif %}</p>
+  {% else %}<p>It has not run since schedules moved to the Hub.</p>{% endif %}
+
+  <form method="post" action="/schedules/{{ r.job.key }}" class="schedule-form" data-job="{{ r.job.key }}">
+    <label>How often
+      <select name="kind" class="kind">
+        {% for k, text in kinds.items() %}<option value="{{ k }}"{% if r.spec.kind == k %} selected{% endif %}>{{ text }}</option>{% endfor %}
+      </select></label>
+    <label class="f-n">every <input type="number" name="every_n" min="1" max="365" value="{{ r.spec.every_n }}" style="width:4em"> <span class="n-unit"></span></label>
+    <label class="f-weekday">on
+      <select name="weekday">{% for w in weekdays %}<option value="{{ loop.index0 }}"{% if r.spec.weekday == loop.index0 %} selected{% endif %}>{{ w }}</option>{% endfor %}</select></label>
+    <label class="f-dom">on day <input type="number" name="day_of_month" min="1" max="31" value="{{ r.spec.day_of_month }}" style="width:4em"> of the month</label>
+    <label>at <input type="text" name="time_of_day" value="{{ r.spec.time_of_day }}" style="width:5em" pattern="[0-2][0-9]:[0-5][0-9]"></label>
+    <label><input type="checkbox" name="enabled" value="1"{% if r.spec.enabled %} checked{% endif %}> switched on</label>
+    <button>Save</button>
+  </form>
+  <form method="post" action="/schedules/{{ r.job.key }}/run" style="margin-top:6px;"><button>Run now</button></form>
+</section>
+{% endfor %}
+
+<h2>Still on fixed timers</h2>
+<p>These run on the server's own timers for now and can't be changed here yet.</p>
+<table class="review-table">
+  <thead><tr><th>Job</th><th>When</th><th>What it does</th></tr></thead>
+  <tbody>{% for label, when, what in fixed %}<tr><td>{{ label }}</td><td>{{ when }}</td><td>{{ what }}</td></tr>{% endfor %}</tbody>
+</table>
+
+{% if history %}
+<h2>Recent runs</h2>
+<table class="review-table">
+  <thead><tr><th>Started</th><th>Job</th><th>How</th><th>Result</th></tr></thead>
+  <tbody>
+  {% for h in history %}
+  <tr><td>{{ h.started_at | lisbon }}</td><td>{{ labels.get(h.job, h.job) }}</td><td>{{ "by hand" if h.trigger == "manual" else "on schedule" }}</td>
+      <td>{% if h.outcome == "running" %}still running{% else %}{{ h.summary }}{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<script>
+document.querySelectorAll(".schedule-form").forEach(function (f) {
+  var kind = f.querySelector(".kind");
+  function sync() {
+    var k = kind.value;
+    f.querySelector(".f-n").style.display = (k === "every_n_days" || k === "every_n_weeks") ? "" : "none";
+    f.querySelector(".n-unit").textContent = k === "every_n_weeks" ? "weeks" : "days";
+    f.querySelector(".f-weekday").style.display = (k === "weekly" || k === "every_n_weeks") ? "" : "none";
+    f.querySelector(".f-dom").style.display = k === "monthly" ? "" : "none";
+  }
+  kind.addEventListener("change", sync);
+  sync();
+});
+</script>
+{% endblock %}

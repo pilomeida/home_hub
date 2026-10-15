@@ -25,3 +25,4 @@ from app.models.position import (  # noqa: F401
 )
 from app.models.tag import Tag, NodeTag  # noqa: F401
 from app.models.privacy import DocumentFingerprint, DocumentTypeSetting, PrivacySetting, TierChange  # noqa: F401
+from app.models.schedule import JobRun, JobSchedule, ProblemEntry  # noqa: F401

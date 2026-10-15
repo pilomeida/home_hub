@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - check every 15 minutes which scheduled jobs are due
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target

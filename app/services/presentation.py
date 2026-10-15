@@ -18,6 +18,8 @@ from typing import Optional
 
 from markupsafe import Markup, escape
 
+from app.problems import classify_reason
+
 _GENERIC_REASON_MESSAGE = "Something went wrong processing this document."
 _READ_FAILURE_MESSAGE = "This document couldn't be read automatically."
 
@@ -92,7 +94,11 @@ def friendly_reason(reason: Optional[str], actionable: Optional[str] = None) -> 
     sentence = _friendly_sentence(reason)
     if sentence is None:
         return Markup(escape(reason))
-    if actionable:
+    cause = classify_reason(reason)
+    if cause is not None:
+        # fact + why + what to do (the page's own call to action wins over the generic one)
+        sentence = f"{sentence} {cause.why} {actionable or cause.next_step}"
+    elif actionable:
         sentence = f"{sentence} {actionable}"
     # `sentence` is always one of our own trusted strings (the mapped
     # message plus the caller's own actionable text) -- never escaped, so

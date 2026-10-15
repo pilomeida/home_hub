@@ -1,5 +1,5 @@
-"""Weekly Wiki Lint pass, run by the systemd user timer
-deploy/systemd/home-hub-wikilint.timer. Usage: python -m app.jobs.wiki_lint"""
+"""Wiki Lint pass by hand: python -m app.jobs.wiki_lint. The regular runs are started by the
+Hub's own scheduler (app/jobs/scheduler.py); how often is set on the Scheduled jobs page."""
 
 import asyncio
 import logging

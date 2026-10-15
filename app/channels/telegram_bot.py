@@ -31,6 +31,24 @@ logger = logging.getLogger("home_hub.telegram_bot")
 
 MAX_BOT_DOWNLOAD_BYTES = 20 * 1024 * 1024  # Bot API getFile limit
 HELP_TEXT = "Send me a PDF, a photo or a short video and I'll put it in the Hub Inbox for approval."
+UNSUPPORTED_TEXT = ("Not received. I can only take PDFs, photos and short videos, and this isn't one of those. "
+                    "Send it as a PDF or a photo instead.")
+TOO_BIG_TEXT = ("Not received. Telegram doesn't let me download files over 20 MB, and this one is bigger. "
+                "Email it to the Hub's address instead.")
+FAILED_TEXT = ("Not saved. The Hub hit an unexpected problem while storing it (it is logged on the Problems page). "
+               "Try again in a minute, or email it to the Hub's address.")
+
+
+def _note_problem(problem, ref: str, technical: str | None = None) -> None:
+    """Keep what the bot could not do findable on the Problems page. Never raises."""
+    try:
+        from sqlmodel import Session
+        from app.db import engine
+        from app.problems import record_problem
+        with Session(engine) as s:
+            record_problem(s, area="Telegram", problem=problem, ref=ref, technical=technical)
+    except Exception:
+        logger.exception("could not record a problem")
 
 
 @dataclass
@@ -100,6 +118,13 @@ def _sender_name(update: Update) -> Optional[str]:
     name = settings.telegram_allowed_users.get(user.id) if user else None
     if name is None and user is not None:
         logger.info("ignoring message from unknown Telegram user id=%s name=%s", user.id, user.full_name)
+        # Strangers get no reply (by design), but a family member who is simply not on the list yet
+        # should not be a silent mystery: tell the person who can fix it.
+        from app.problems import Problem
+        _note_problem(Problem("A Telegram message was ignored.",
+                              f"It came from {user.full_name} (Telegram id {user.id}), who isn't on the allowed list, so the bot didn't answer.",
+                              "If this is someone in the family, add them to HUB_TELEGRAM_ALLOWED_USERS on the server; otherwise ignore this."),
+                      ref=f"telegram-user:{user.id}")
     return name
 
 
@@ -112,12 +137,10 @@ async def on_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     picked = pick_file(message)
     if picked is None or media_kind_for(picked.filename) == MediaKind.OTHER:
-        await message.reply_text(HELP_TEXT)
+        await message.reply_text(UNSUPPORTED_TEXT if picked is not None else HELP_TEXT)
         return
     if picked.size and picked.size > MAX_BOT_DOWNLOAD_BYTES:
-        await message.reply_text(
-            "That file is over 20 MB — Telegram won't let me download it. Please email it to the Hub instead."
-        )
+        await message.reply_text(TOO_BIG_TEXT)
         return
     try:
         tg_file = await context.bot.get_file(picked.file_id)
@@ -129,7 +152,12 @@ async def on_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
     except Exception:
         logger.exception("failed to file Telegram message %s from %s", message.message_id, sender)
-        reply = "Something went wrong saving that — please try again, or email it to the Hub."
+        reply = FAILED_TEXT
+        from app.problems import Problem
+        _note_problem(Problem("A file sent on Telegram wasn't saved.",
+                              f"The Hub hit an unexpected error while storing {picked.filename} from {sender}.",
+                              "Ask them to send it again or email it; if it repeats, tell Pedro."),
+                      ref=f"telegram:{message.chat_id}:{message.message_id}", technical=f"{type(sys.exc_info()[1]).__name__}: {sys.exc_info()[1]}")
     await message.reply_text(reply)
 
 
