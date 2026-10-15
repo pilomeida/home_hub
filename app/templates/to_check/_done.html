@@ -1,0 +1,6 @@
+<div class="inbox-card done" id="tc-line-{{ t.id }}">
+  <strong>{{ t.description }}</strong> ({{ amount_text }}) —
+  {% if t.review_status == "rejected" %}marked as not a real line by {{ t.checked_by }}; it counts nowhere.
+  {% elif corrected %}corrected and confirmed by {{ t.checked_by }}; it now counts.
+  {% else %}confirmed by {{ t.checked_by }}; it now counts.{% endif %}
+</div>

@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 
 from app.jobs.outcome import JobOutcome
 from app.jobs.runners import (
-    BANK_LIMIT_REASON, bank_legacy_last_start, run_bank_sync, run_mailbox_check, run_statement_reminder,
+    BANK_LIMIT_REASON, bank_legacy_last_start, run_bank_sync, run_check_nudge, run_mailbox_check, run_statement_reminder,
 )
 from app.services.schedule import Spec
 
@@ -81,6 +81,12 @@ JOBS: dict[str, JobDef] = {
                     "Telegram (once per cycle). On every other day it does nothing.",
         default=Spec(kind="daily", time_of_day="09:00"),
         run=run_statement_reminder),
+    "check_nudge": JobDef(
+        key="check_nudge", label="Things to check",
+        description="Once a week, if bank statement lines are waiting on the To check list, sends one Telegram message saying how many "
+                    "and linking to the list. When nothing is waiting it sends nothing.",
+        default=Spec(kind="weekly", weekday=0, time_of_day="09:00"),
+        run=run_check_nudge),
     "bank_sync": JobDef(
         key="bank_sync", label="Bank sync",
         description="Fetches new transactions from the linked bank accounts and files them. The bank allows only 4 requests per "

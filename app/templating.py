@@ -29,6 +29,8 @@ templates.env.globals["domain_label"] = domain_label
 templates.env.globals["scan_notice"] = SCAN_NOTICE
 from app.problems import open_count as _open_problem_count  # noqa: E402
 templates.env.globals["open_problem_count"] = _open_problem_count
+from app.services.to_check import menu_count as _to_check_count  # noqa: E402
+templates.env.globals["to_check_count"] = _to_check_count
 
 # Shared presentation filters (app/services/presentation.py) -- the one
 # place a technical failure reason, an internal claim key, or a raw

@@ -1,0 +1,7 @@
+<div class="inbox-card tc-card" id="tc-stmt-{{ check.document_id }}">
+  <p><strong>This statement doesn't add up.</strong> {{ sentence }}</p>
+  {% if check.note %}<p class="inbox-hint">{{ check.note }}</p>{% endif %}
+  <p class="inbox-hint">If the difference is a line the Hub missed or misread, it needs fixing; if it is something you know about, you can accept it.</p>
+  <button type="button" class="inbox-approve"
+          hx-post="/to-check/statements/{{ check.document_id }}/accept" hx-target="#tc-stmt-{{ check.document_id }}" hx-swap="outerHTML">The difference is fine</button>
+</div>

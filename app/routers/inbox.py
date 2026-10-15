@@ -17,6 +17,7 @@ from app.domains.registry import document_url, get_spec, implemented_domains, is
 from app.models.domain import Domain
 from app.privacy.recognise import original_sender
 from app.privacy.settings import TierHeld
+from app.routers.to_check import section_html as to_check_section
 from app.services import inbox_service
 from app.templating import templates
 
@@ -82,7 +83,8 @@ async def inbox_page(request: Request, session: Session = Depends(get_session)):
          "label": inbox_service.describe(document.domain, document.category)}
         for item, document in inbox_service.recently_reviewed(session)
     ]
-    return templates.TemplateResponse(request, "inbox/list.html", {"cards": cards, "recent": recent})
+    return templates.TemplateResponse(request, "inbox/list.html",
+                                      {"cards": cards, "recent": recent, "to_check_section": to_check_section(session)})
 
 
 @router.get("/{document_id}/fields")

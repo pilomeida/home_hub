@@ -1,0 +1,37 @@
+<div class="inbox-card tc-card" id="tc-line-{{ t.id }}">
+  <div class="tc-grid">
+    <div class="tc-source">
+      {% if source_kind == "image" %}<img src="{{ file_href }}" alt="The document this line was read from">
+      {% elif source_kind == "pdf" %}<iframe src="{{ file_href }}#page={{ t.source_page or 1 }}" title="The statement{% if t.source_page %}, page {{ t.source_page }}{% endif %}" loading="lazy"></iframe>
+      {% else %}<a href="{{ file_href }}" target="_blank">Open the document</a>{% endif %}
+      <small>{% if t.source_page %}Page {{ t.source_page }} of the statement{% else %}Page not recorded{% endif %}</small>
+    </div>
+    <div class="tc-values">
+      <p class="tc-reason"><strong>Why the Hub is unsure:</strong> {{ t.review_reason or "The Hub could not be certain it read this line correctly." }}</p>
+      {% if problem_html %}<div class="problem" role="alert">{{ problem_html }}</div>{% endif %}
+      {% if editing %}
+        <form hx-post="/to-check/lines/{{ t.id }}/correct" hx-target="#tc-line-{{ t.id }}" hx-swap="outerHTML" class="tc-edit">
+          <label>Date <input type="date" name="date" value="{{ values.date }}" required></label>
+          <label>Description <input type="text" name="description" value="{{ values.description }}" required maxlength="200"></label>
+          <label>Amount (€) <input type="text" name="amount" value="{{ values.amount }}" inputmode="decimal" required></label>
+          <div>
+            <button type="submit" class="inbox-approve">Save the fix</button>
+            <button type="button" class="inbox-discard" hx-get="/to-check/lines/{{ t.id }}" hx-target="#tc-line-{{ t.id }}" hx-swap="outerHTML">Cancel</button>
+          </div>
+        </form>
+      {% else %}
+        <dl class="tc-fields">
+          <dt>Date</dt><dd{% if "date" in doubtful %} class="tc-doubt"{% endif %}>{{ date_text }}</dd>
+          <dt>Description</dt><dd{% if "description" in doubtful %} class="tc-doubt"{% endif %}>{{ t.description }}</dd>
+          <dt>Amount</dt><dd{% if "amount" in doubtful %} class="tc-doubt"{% endif %}>{{ amount_text }} <small>({{ t.transaction_type.value }})</small></dd>
+        </dl>
+        <div>
+          <button type="button" class="inbox-approve" hx-post="/to-check/lines/{{ t.id }}/confirm" hx-target="#tc-line-{{ t.id }}" hx-swap="outerHTML">Looks right</button>
+          <button type="button" class="inbox-discard" hx-get="/to-check/lines/{{ t.id }}/edit" hx-target="#tc-line-{{ t.id }}" hx-swap="outerHTML">Fix the value</button>
+          <button type="button" class="inbox-discard" hx-post="/to-check/lines/{{ t.id }}/reject" hx-target="#tc-line-{{ t.id }}" hx-swap="outerHTML"
+                  hx-confirm="This line will not count anywhere. Is it really not a line of the statement?">Not a real line</button>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
