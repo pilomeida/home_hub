@@ -8,12 +8,14 @@ from sqlmodel import Field, SQLModel
 
 class JobSchedule(SQLModel, table=True):
     """How often one background job runs. kind: daily | every_n_days | weekly |
-    every_n_weeks | monthly. A job with no row uses its built-in default."""
+    every_n_weeks | monthly | times_per_day | every_n_minutes. A job with no row uses its built-in default.
+    time_of_day is one HH:MM, or for times_per_day a comma-separated list ("07:30,13:00,18:30");
+    every_n_minutes uses every_n (5-1440) and ignores time_of_day."""
     __tablename__ = "job_schedules"
 
     job: str = Field(primary_key=True)
     kind: str
-    every_n: int = Field(default=1)             # the N of every_n_days / every_n_weeks
+    every_n: int = Field(default=1)             # the N of every_n_days / every_n_weeks / every_n_minutes
     weekday: int = Field(default=0)             # 0 = Monday … 6 = Sunday (weekly, every_n_weeks)
     day_of_month: int = Field(default=1)        # 1–31, clamped to the month's length (monthly)
     time_of_day: str = Field(default="04:30")   # HH:MM, Europe/Lisbon

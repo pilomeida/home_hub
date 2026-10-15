@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import and_, not_
 from sqlmodel import Session, select
 
 from app.db import get_session, get_session_factory
@@ -33,9 +34,14 @@ def page(request: Request, session: Session = Depends(get_session), problem: str
         rows.append({"job": job, "spec": spec, "text": sched.describe(spec), "latest": latest,
                      "next": nxt.astimezone(timezone.utc).replace(tzinfo=None) if nxt else None, "due_now": nxt is not None and nxt <= now,
                      "custom": session.get(JobSchedule, job.key) is not None})
-    history = session.exec(select(JobRun).order_by(JobRun.started_at.desc()).limit(15)).all()
+    quiet = [j.key for j in JOBS.values() if j.quiet_when_ok]
+    recent = select(JobRun).order_by(JobRun.started_at.desc()).limit(15)
+    if quiet:                           # a job that runs every few minutes: only its failures and manual runs are history
+        recent = recent.where(not_(and_(JobRun.job.in_(quiet), JobRun.trigger == "schedule", JobRun.outcome == "ok")))
+    history = session.exec(recent).all()
     return templates.TemplateResponse(request, "schedules/page.html", {
         "rows": rows, "fixed": FIXED_JOBS, "history": history, "kinds": sched.KINDS, "weekdays": sched.WEEKDAYS,
+        "check_minutes": sched.CHECK_INTERVAL_MINUTES, "min_minutes": sched.MIN_MINUTES, "max_minutes": sched.MAX_MINUTES,
         "labels": {j.key: j.label for j in JOBS.values()}, "problem": problem, "saved": saved,
     })
 
@@ -48,8 +54,10 @@ def save(request: Request, job_key: str, kind: str = Form("weekly"), every_n: st
     if job_key not in JOBS:
         return RedirectResponse("/schedules", status_code=303)
     try:
+        job = JOBS[job_key]
         spec = sched.validate(sched.Spec(kind, int(every_n or 1), int(weekday or 0), int(day_of_month or 1),
-                                         time_of_day.strip(), enabled is not None))
+                                         time_of_day.strip(), enabled is not None),
+                              max_runs_per_day=job.max_runs_per_day, limit_reason=job.max_runs_reason, job_label=job.label)
     except (sched.InvalidSchedule, ValueError) as exc:
         msg = str(exc) if isinstance(exc, sched.InvalidSchedule) else "Enter whole numbers for the day and the count."
         return RedirectResponse("/schedules?" + urlencode({"problem": f"Not saved. {msg} The schedule was left as it was."}), status_code=303)

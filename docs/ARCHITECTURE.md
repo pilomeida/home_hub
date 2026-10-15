@@ -27,7 +27,7 @@ FastAPI  (app/main.py)
   └── Static: /static/*  (htmx.min.js; app/static/documents/ — uploaded source PDFs)
 
 Ingestion channels (separate OS processes, systemd user units):
-  home-hub-mailpoll.timer → python -m app.channels.email_poller  (IMAP, every 10 min)
+  home-hub-scheduler.timer → python -m app.jobs.scheduler  (every 5 min; runs the Mailbox check — IMAP, every 10 min by default — and the other due jobs)
   home-hub-telegram        → python -m app.channels.telegram_bot  (long-polling bot)
         │  ingestion.IncomingFile + caption/subject
         ▼
@@ -172,8 +172,8 @@ Home & Family/
 │   │   │                       nothing else; each runs as its own OS process (see deploy/)
 │   │   ├── email_parsing.py     Pure parsing of one raw RFC822 email into its usable attachments
 │   │   ├── email_poller.py      Mailbox protocol + ImapMailbox; poll_once() — moves handled mail
-│   │   │                       into Hub-Processed / Hub-Ignored / Hub-Failed; run by
-│   │   │                       home-hub-mailpoll.timer
+│   │   │                       into Hub-Processed / Hub-Ignored / Hub-Failed; run by the
+│   │   │                       Hub's scheduler (job "Mailbox check", app/jobs/runners.py)
 │   │   └── telegram_bot.py      The Hub's own dedicated Telegram bot (long-polling); run by
 │   │                           home-hub-telegram.service
 │   │
@@ -267,8 +267,12 @@ Home & Family/
 │   │                           dismissals, deterministic findings auto-resolve, LLM findings don't
 │   │
 │   ├── jobs/
-│   │   └── wiki_lint.py         `python -m app.jobs.wiki_lint` — the weekly Wiki Lint pass, run by
-│   │                           `deploy/systemd/home-hub-wikilint.timer`
+│   │   ├── scheduler.py         `python -m app.jobs.scheduler` — every 5 min (home-hub-scheduler.timer) runs the jobs
+│   │   │                       that are due by their schedule (edited at /schedules)
+│   │   ├── registry.py          The scheduled jobs: label, description, default schedule, daily limit, runner
+│   │   ├── runners.py           Runners for bank sync, statement reminder and mailbox check (wrap the old job bodies)
+│   │   ├── bank_sync.py / statement_reminder.py   the job bodies (still runnable by hand: `python -m app.jobs.bank_sync --dry-run`)
+│   │   └── wiki_lint.py         `python -m app.jobs.wiki_lint` — the Wiki Lint pass (scheduled as job "Wiki check")
 │   │
 │   ├── templates/               Jinja2, server-rendered, htmx for partial-swap interactivity
 │   │   ├── base.html            Nav shell; loads htmx.min.js; shared CSS

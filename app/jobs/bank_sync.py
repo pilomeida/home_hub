@@ -1,6 +1,6 @@
-"""Fetch new bank transactions, run by the systemd user timer
-deploy/systemd/home-hub-banksync.timer. Usage: python -m app.jobs.bank_sync
-[--dry-run]"""
+"""Fetch new bank transactions. Scheduled on the Hub (job "Bank sync" on /schedules, run by
+app.jobs.scheduler through app/jobs/runners.py, which calls run_all below); this module's
+main() is for running it by hand. Usage: python -m app.jobs.bank_sync [--dry-run]"""
 
 from __future__ import annotations
 

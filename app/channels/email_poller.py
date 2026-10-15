@@ -1,7 +1,9 @@
 """Email ingestion channel: polls the Hub's dedicated mailbox over IMAP and
 drops every attachment from an allow-listed sender into the Inbox.
 
-Run once per systemd timer tick (deploy/systemd/home-hub-mailpoll.timer):
+Scheduled on the Hub (job "Mailbox check" on /schedules, every 10 minutes by default, run by
+app.jobs.scheduler through app/jobs/runners.py, which calls poll_once below). main() is for running
+one check by hand:
     python -m app.channels.email_poller
 Handled mail is MOVED out of INBOX into Hub-Processed / Hub-Ignored /
 Hub-Failed -- never deleted, and never tracked via read/unread flags."""

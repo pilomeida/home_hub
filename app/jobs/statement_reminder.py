@@ -1,9 +1,10 @@
-"""Push the statement reminder to Telegram once per cycle, run daily by the
-systemd user timer deploy/systemd/home-hub-reminder.timer.
+"""Push the statement reminder to Telegram once per cycle. Scheduled on the Hub (job "Statement
+reminder" on /schedules, daily by default, run by app.jobs.scheduler through app/jobs/runners.py,
+which calls run() below and reports a delivery problem as a failed run); main() is for running it by hand.
 Usage: python -m app.jobs.statement_reminder
 
-Never fails the timer on a delivery problem: no token / no recipient / a
-Telegram error is logged, nothing is marked sent, and the exit code is 0."""
+A delivery problem (no token / no recipient / a Telegram error) is logged, nothing is marked sent
+(so the next run retries), and main() exits 0."""
 
 from __future__ import annotations
 
