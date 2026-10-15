@@ -24,4 +24,4 @@ from app.models.position import (  # noqa: F401
     BalanceSnapshot, DebtEntry, DebtMatchRule, LoanAlert, LoanMovement, LoanSnapshot, PositionExtraction, ReminderLog, SavingsSnapshot,
 )
 from app.models.tag import Tag, NodeTag  # noqa: F401
-from app.models.privacy import DocumentTypeSetting, PrivacySetting, TierChange  # noqa: F401
+from app.models.privacy import DocumentFingerprint, DocumentTypeSetting, PrivacySetting, TierChange  # noqa: F401

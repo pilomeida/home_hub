@@ -85,6 +85,12 @@ class GatewayClient:
     ) -> GatewayResult:
         # The one outbound checkpoint (app/privacy/outbound.py): fail closed,
         # nothing below runs if it raises. sensitivity=None = type not wired yet.
+        if sensitivity is None:                       # an explicit value always wins
+            from app.privacy.scope import current_scope
+            scope = current_scope()
+            if scope is not None:
+                sensitivity = scope.tier.value
+                redaction = redaction or scope.redaction
         out = prepare(system=system, user=user, messages=messages, tools=tools,
                       attachments=attachments, sensitivity=sensitivity, redaction=redaction)
         payload: dict = {

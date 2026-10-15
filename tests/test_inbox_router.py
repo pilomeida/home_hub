@@ -163,3 +163,45 @@ def test_actions_on_missing_or_handled_document(client, session):
     document = _pending(session)
     client.post(f"/inbox/{document.id}/discard")
     assert client.post(f"/inbox/{document.id}/discard").status_code == 409
+
+
+# --- privacy: remember, and the hold -------------------------------------------------
+
+def _forwarded(session, content_hash="fw"):
+    doc = _pending(session, content_hash=content_hash)
+    item = session.exec(select(InboxItem).where(InboxItem.document_id == doc.id)).one()
+    item.context_text = "Originally from: Billing <billing@exemplo.pt>\nEmail subject: Invoice"
+    session.add(item); session.commit()
+    return doc
+
+
+def test_card_offers_to_remember_and_names_the_original_sender(client, session):
+    _forwarded(session)
+    html = client.get("/inbox").text
+    assert 'name="remember"' in html and "billing@exemplo.pt" in html and 'name="remember_words"' in html
+
+
+def test_approve_with_remember_creates_the_rules_and_does_not_leak_into_fields(client, session, inbox_documents_dir):
+    from app.models.privacy import DocumentFingerprint
+    doc = _forwarded(session)
+    client.post(f"/inbox/{doc.id}/approve", data={"domain": "house", "category": "manual", "item_name": "Boiler",
+                                                    "remember": "1", "remember_words": "Exemplo SA"})
+    assert {(r.kind, r.pattern) for r in session.exec(select(DocumentFingerprint))} == {
+        ("sender", "billing@exemplo.pt"), ("words", "exemplo sa")}
+
+
+def test_approve_without_the_tick_remembers_nothing(client, session, inbox_documents_dir):
+    from app.models.privacy import DocumentFingerprint
+    doc = _forwarded(session, "fw2")
+    client.post(f"/inbox/{doc.id}/approve", data={"domain": "house", "category": "manual", "item_name": "Boiler"})
+    assert session.exec(select(DocumentFingerprint)).all() == []
+
+
+def test_a_held_type_shows_the_card_again_with_a_link_to_set_the_level(client, session):
+    from app.privacy import settings as ps
+    doc = _forwarded(session, "fw3")
+    ps.set_enforcing(session, True, None)
+    r = client.post(f"/inbox/{doc.id}/approve", data={"domain": "house", "category": "manual", "item_name": "Boiler"})
+    assert r.status_code == 409 and "no privacy level yet" in r.text and 'href="/privacy"' in r.text
+    session.expire_all()
+    assert session.get(Document, doc.id).status == DocumentStatus.PENDING_REVIEW

@@ -35,3 +35,17 @@ app.include_router(transactions.router)
 app.include_router(utilities.router)
 app.include_router(wiki_lint.router)
 app.include_router(wiki.router)
+
+
+from fastapi import Request  # noqa: E402
+from fastapi.responses import HTMLResponse  # noqa: E402
+
+from app.privacy.settings import TierHeld  # noqa: E402
+
+
+@app.exception_handler(TierHeld)
+async def _tier_held(request: Request, exc: TierHeld):
+    return HTMLResponse(
+        "<p>This kind of document has no privacy level yet, so nothing can read it. "
+        "<a href='/privacy'>Set its level on the Privacy page</a> and try again. Nothing was uploaded.</p>",
+        status_code=409)

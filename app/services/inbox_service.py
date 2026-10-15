@@ -36,6 +36,9 @@ from app.services.ingestion import (
     receive_file,
     validate_classification,
 )
+from app.privacy import settings as privacy_settings
+from app.privacy.recognise import original_sender, recognise, remember
+from app.privacy.scope import require_ready
 from app.services.wiki_store import append_log
 
 
@@ -75,13 +78,24 @@ async def receive_document(
     if received.duplicate:
         return InboxReceipt(document=document, inbox_item=item_for(session, document.id), duplicate=True)
 
-    try:
-        suggestion = await classify(document.file_path, context_text)
-    except Exception as exc:
-        # Broad by design: a classifier failure (API down, credits, bad
-        # response) must never lose the document -- it arrives without a
-        # suggestion and a human chooses.
-        suggestion = DomainSuggestion(None, None, 0.0, f"Automatic sorting failed: {exc}")
+    # 1. Known, recurring documents are recognised by rules, with no AI (D13).
+    recognised = recognise(session, filename=incoming.filename, content=incoming.content, context_text=context_text)
+    if recognised is not None:
+        suggestion = DomainSuggestion(Domain(recognised.domain), recognised.category, 1.0,
+                                      "Recognised from " + "; ".join(recognised.reasons))
+    elif privacy_settings.enforcing(session):
+        # 2. Levels are binding and this is a new kind of document: nothing may read it
+        #    until a human says what it is (its level depends on that).
+        suggestion = DomainSuggestion(None, None, 0.0, "A new kind of document — nothing has read it yet. Tell me what it is.")
+    else:
+        # 3. Levels not binding yet: today's behaviour (an AI suggests).
+        try:
+            suggestion = await classify(document.file_path, context_text)
+        except Exception as exc:
+            # Broad by design: a classifier failure (API down, credits, bad
+            # response) must never lose the document -- it arrives without a
+            # suggestion and a human chooses.
+            suggestion = DomainSuggestion(None, None, 0.0, f"Automatic sorting failed: {exc}")
 
     item = InboxItem(
         document_id=document.id, context_text=context_text, external_ref=external_ref,
@@ -172,6 +186,8 @@ async def approve(
     category: Optional[str],
     fields: Mapping[str, str],
     reviewed_by: Optional[str],
+    remember_sender: bool = False,
+    remember_words: str = "",
 ) -> Document:
     document, item = _pending(session, document_id)
     try:
@@ -180,7 +196,8 @@ async def approve(
         raise InvalidClassification({"domain": "Choose an area"}) from None
     classification = Classification(domain=domain, category=category or None, fields=dict(fields))
     # Validate first so a rejected choice changes nothing (no review mark, no log).
-    validate_classification(session, classification, document.filename)
+    validated = validate_classification(session, classification, document.filename)
+    require_ready(session, domain, validated.category)    # raises TierHeld before anything is marked or read
 
     item.reviewed_by = reviewed_by
     item.reviewed_at = datetime.utcnow()
@@ -193,7 +210,12 @@ async def approve(
     )
     session.commit()
 
-    return await finalize_document(session, document, classification)
+    filed = await finalize_document(session, document, classification)
+    if remember_sender or remember_words.strip():
+        remember(session, domain=domain.value, category=validated.category or "", by=reviewed_by,
+                 sender=original_sender(item.context_text) if remember_sender else "",
+                 words=remember_words, note=f"Remembered when {document.filename} was filed")
+    return filed
 
 
 def discard(session: Session, document_id: int, *, reviewed_by: Optional[str]) -> Document:

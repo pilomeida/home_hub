@@ -46,3 +46,23 @@ class TierChange(SQLModel, table=True):
     new_value: Optional[str] = None
     changed_by: Optional[str] = None
     changed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DocumentFingerprint(SQLModel, table=True):
+    """A rule that recognises a known, recurring kind of document WITHOUT any AI
+    (decision D13). kind: "sender" (the original sender address contains pattern),
+    "words" (the words appear in the subject/caption or the PDF's own text),
+    "filename" (the file name contains pattern). All matching is case-insensitive
+    substring matching, on purpose: Pedro must be able to read and edit a rule."""
+    __tablename__ = "document_fingerprints"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    kind: str
+    pattern: str
+    domain: str
+    category: str
+    note: Optional[str] = None            # where the rule came from, in plain words
+    created_by: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    hits: int = Field(default=0)
+    last_hit_at: Optional[datetime] = None

@@ -11,9 +11,14 @@
       {% if entry.item.classifier_note %}<em>{{ entry.item.classifier_note | friendly_reason }}</em>{% endif %}
     </p>
   {% endif %}
+  {% if held %}<p class="needs-attention">This kind of document has no privacy level yet, so nothing can read it. <a href="/privacy">Set its level on the Privacy page</a>, then approve again.</p>{% endif %}
   <form hx-post="/inbox/{{ entry.document.id }}/approve" hx-target="#inbox-{{ entry.document.id }}" hx-swap="outerHTML">
     <div id="fields-{{ entry.document.id }}" class="inbox-fields">
       {% include "inbox/_fields.html" %}
+    </div>
+    <div class="inbox-remember" style="margin:8px 0;font-size:13px;">
+      <label><input type="checkbox" name="remember" value="1" checked> Remember this for next time{% if original_sender %} (anything from <em>{{ original_sender }}</em>){% endif %}</label><br>
+      <label>…or anything containing these words <input type="text" name="remember_words" placeholder="e.g. EDP Comercial" style="width:16em"></label>
     </div>
     <button type="submit" class="inbox-approve">Approve</button>
     <button type="button" class="inbox-discard"

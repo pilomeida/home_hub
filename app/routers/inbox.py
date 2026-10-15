@@ -15,12 +15,14 @@ from app.domains.fields import InvalidClassification, build_form_fields, file_ur
 from app.domains.entries import record_for_document
 from app.domains.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
 from app.models.domain import Domain
+from app.privacy.recognise import original_sender
+from app.privacy.settings import TierHeld
 from app.services import inbox_service
 from app.templating import templates
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
-_SELECTOR_KEYS = ("domain", "category")
+_SELECTOR_KEYS = ("domain", "category", "remember", "remember_words")
 
 
 def _spec_for_value(domain_value: Optional[str]):
@@ -59,6 +61,7 @@ def _card_context(session: Session, entry, *, domain_value=None, category=None,
         category = entry.item.suggested_category
     return {
         "file_href": file_url(entry.document),
+        "original_sender": original_sender(entry.item.context_text),
         **_fields_context(session, entry, domain_value, category, values or {}, errors or {}),
     }
 
@@ -101,7 +104,12 @@ async def approve(request: Request, document_id: int, session: Session = Depends
         document = await inbox_service.approve(
             session, document_id, domain_value=domain_value, category=category, fields=fields,
             reviewed_by=getattr(request.state, "user_email", None),
+            remember_sender=form.get("remember") == "1" and bool(original_sender(entry.item.context_text)),
+            remember_words=form.get("remember_words", "") if form.get("remember") == "1" else "",
         )
+    except TierHeld:
+        ctx = _card_context(session, entry, domain_value=domain_value, category=category, values=fields, errors={})
+        return templates.TemplateResponse(request, "inbox/_entry.html", {**ctx, "held": True}, status_code=409)
     except inbox_service.InboxError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except InvalidClassification as exc:

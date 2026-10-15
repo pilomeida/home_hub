@@ -33,6 +33,8 @@ from app.models.record import Record
 from app.models.todo import Todo
 from app.services.dedup import find_existing_document_by_hash
 from app.services.storage import content_hash, save_file
+from app.privacy.scope import privacy_scope, require_ready
+from app.privacy.settings import configured_tier
 from app.services.wiki_engine import withdraw_from_wiki
 
 
@@ -181,8 +183,17 @@ def validate_classification(
 
 
 async def _file_under(session: Session, document: Document, validated: ValidatedClassification) -> Document:
+    # Everything below talks to AI on this document's behalf, so it runs inside the
+    # document type's privacy scope: its level rides on every call, and a type with
+    # no level is held (decision D12). A no-op while levels are not binding.
+    with privacy_scope(session, validated.spec.domain, validated.category):
+        return await _file_under_scoped(session, document, validated)
+
+
+async def _file_under_scoped(session: Session, document: Document, validated: ValidatedClassification) -> Document:
     document.domain = validated.spec.domain
     document.category = validated.category
+    document.sensitivity_tier = configured_tier(session, validated.spec.domain, validated.category)
     document.failure_reason = None
     if _category_kind(validated) == SourceKind.RECORD:
         document.fields_json = "{}"
@@ -190,6 +201,7 @@ async def _file_under(session: Session, document: Document, validated: Validated
         record = Record(domain=validated.spec.domain, category=validated.category,
                         fields_json=dump_fields(validated.fields), document_id=document.id,
                         entered_by=document.uploaded_by)
+        record.sensitivity_tier = document.sensitivity_tier
         session.add(document)
         session.add(record)
         session.commit()
@@ -385,7 +397,8 @@ async def refile_record(session: Session, record: Record, classification: Classi
 async def ingest(
     session: Session, incoming: IncomingFile, classification: Classification
 ) -> ReceiveResult:
-    validate_classification(session, classification, incoming.filename)
+    validated = validate_classification(session, classification, incoming.filename)
+    require_ready(session, classification.domain, validated.category)   # held types are not even stored
     received = receive_file(session, incoming)
     if received.duplicate:
         return received

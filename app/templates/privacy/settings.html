@@ -12,6 +12,7 @@
   {% else %}
   <p>For now the Hub works as it always did, whatever is set below. When you switch levels on, a document whose type has no level is held until you set one.
   {% if unset_count %}<strong>{{ unset_count }}</strong> type{{ "s have" if unset_count != 1 else " has" }} no level yet — confirm the suggestions first.{% endif %}</p>
+  <p style="font-size:13px;color:#b36b00;">Not covered yet: Ask and the weekly wiki check read documents of every level and do not follow these settings yet. Documents being filed do.</p>
   <form method="post" action="/privacy/enforce"><input type="hidden" name="on" value="1"><button>Switch levels on</button></form>
   {% endif %}
 </section>
@@ -51,6 +52,27 @@
 </table>
 {% endfor %}
 
+
+<h2>Documents the Hub recognises on its own</h2>
+<p>When a document matches one of these rules, the Hub knows what it is without asking an AI, and pre-fills the Inbox card. A rule only counts if every rule that matches a document agrees; otherwise you decide. Text comes from the subject, the caption or a PDF's own text. Photos and scans have no text of their own, so only the sender or your caption can recognise them. <em>Hide personal details</em> works only on text: documents sent to AI as PDFs or photos can't be hidden, and are flagged instead.</p>
+{% if rules %}
+<table class="review-table">
+  <thead><tr><th>Rule</th><th>Means it is</th><th>Used</th><th></th></tr></thead>
+  <tbody>
+  {% for r, name in rules %}
+  <tr><td>{{ kinds[r.kind] }}: <strong>{{ r.pattern }}</strong><div style="font-size:12px;color:#666;">{{ r.note }}</div></td>
+      <td>{{ name }}</td><td>{{ r.hits }}×</td>
+      <td><form method="post" action="/privacy/rules/{{ r.id }}/delete"><button>Delete</button></form></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>No rules yet. They are added when you tick “Remember this for next time” while filing a document in the Inbox, or here.</p>{% endif %}
+<form method="post" action="/privacy/rules">
+  <select name="kind">{% for k, text in kinds.items() %}<option value="{{ k }}">{{ text }}</option>{% endfor %}</select>
+  <input type="text" name="pattern" placeholder="e.g. edp.pt" required>
+  <select name="doc_type">{% for value, text in type_choices %}<option value="{{ value }}">{{ text }}</option>{% endfor %}</select>
+  <button>Add rule</button>
+</form>
 
 <h2>The AI jobs</h2>
 <p>Each job the Hub gives to AI has two standing rules, set when the Hub was connected to the AI gateway: how private the AI provider must be, and how strong the model must be. They apply to every document, whatever its level above. Changes here affect only the Hub's own jobs.</p>

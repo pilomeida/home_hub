@@ -99,6 +99,14 @@ def _setting(session: Session, domain: object, category: str) -> Optional[Docume
         DocumentTypeSetting.domain == _s(domain), DocumentTypeSetting.category == category)).first()
 
 
+def configured_tier(session: Session, domain: object, category: Optional[str]) -> Optional[str]:
+    """The tier saved for a type, whether or not levels are binding yet (None = not set)."""
+    if domain is None or category is None:
+        return None
+    row = _setting(session, domain, category)
+    return row.tier if row is not None else None
+
+
 def enforcing(session: Session) -> bool:
     row = session.get(PrivacySetting, ENFORCE_KEY)
     return row is not None and row.value == "1"

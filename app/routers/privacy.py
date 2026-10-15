@@ -7,12 +7,14 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session
 from app.llm_gateway import GatewayClient, GatewayError, get_gateway
 from app.privacy.jobs import PRIVACY_LABELS, QUALITY_LABELS, job_label
+from app.models.privacy import DocumentFingerprint
 from app.privacy import settings as ps
+from app.privacy.recognise import KINDS
 from app.privacy.tiers import Tier, TierBlocked
 from app.templating import templates
 
@@ -42,6 +44,7 @@ def _back() -> RedirectResponse:
 async def settings_page(request: Request, session: Session = Depends(get_session),
                         gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = ""):
     rows = ps.type_rows(session)
+    type_names = {(r.info.domain, r.info.category): f"{r.info.domain_label} › {r.info.label}" for r in rows}
     groups: dict[str, list] = {}
     for r in rows:
         groups.setdefault(r.info.domain_label, []).append(r)
@@ -60,6 +63,9 @@ async def settings_page(request: Request, session: Session = Depends(get_session
         "changes": ps.recent_changes(session),
         "jobs": jobs, "jobs_error": jobs_error, "saved_job": saved, "job_problem": problem,
         "privacy_labels": PRIVACY_LABELS, "quality_labels": QUALITY_LABELS,
+        "rules": [(r, type_names.get((r.domain, r.category), f"{r.domain}/{r.category}"))
+                  for r in session.exec(select(DocumentFingerprint).order_by(DocumentFingerprint.id))],
+        "kinds": KINDS, "type_choices": [(f"{i.domain}/{i.category}", f"{i.domain_label} › {i.label}") for i in ps.known_types()],
     })
 
 
@@ -104,3 +110,24 @@ def _friendly(exc: GatewayError) -> str:
     if exc.status == 0:
         return "Can't reach the AI gateway right now. Nothing was changed."
     return "The AI gateway refused that change. Nothing was changed."
+
+
+@router.post("/rules")
+def add_rule(request: Request, kind: str = Form(...), pattern: str = Form(...), doc_type: str = Form(...),
+             session: Session = Depends(get_session)):
+    domain, _, category = doc_type.partition("/")
+    valid = {(i.domain, i.category) for i in ps.known_types()}
+    if kind in KINDS and pattern.strip() and (domain, category) in valid:
+        session.add(DocumentFingerprint(kind=kind, pattern=pattern.strip().lower(), domain=domain, category=category,
+                                        note="Added on the Privacy page", created_by=_by(request)))
+        session.commit()
+    return _back()
+
+
+@router.post("/rules/{rule_id}/delete")
+def delete_rule(rule_id: int, session: Session = Depends(get_session)):
+    rule = session.get(DocumentFingerprint, rule_id)
+    if rule is not None:
+        session.delete(rule)
+        session.commit()
+    return _back()
