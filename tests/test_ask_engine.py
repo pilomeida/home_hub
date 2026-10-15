@@ -9,6 +9,7 @@ import pytest
 
 from app.llm_gateway import GatewayError
 from app.models.ask import AskStatus
+from app.services.ask import messages as ask_messages
 from app.services.ask.conversation import add_turn, start_conversation
 from app.services.ask.engine import run_turn
 from tests.fakes.fake_gateway import FakeGateway
@@ -135,19 +136,25 @@ async def test_runaway_loop_fails_gracefully(session, fake_domain):
     turn = start_conversation(session, "q", started_by=None)
     gateway = FakeGateway([_tool([{"id": "tu_1", "name": "list_todos", "input": {}}])] * 8)
     result = await run_turn(session, turn.id, gateway=gateway)
-    assert result.status == AskStatus.FAILED and "research steps" in result.error
+    problem, _ = ask_messages.failure(result)
+    assert result.status == AskStatus.FAILED and "look-ups" in problem.why
+    assert problem.what and problem.why and problem.next_step           # what / why / what to do
 
 
 @pytest.mark.asyncio
 async def test_refusal_marks_failed(session, fake_domain):
     turn = start_conversation(session, "q", started_by=None)
     result = await run_turn(session, turn.id, gateway=FakeGateway([_refusal()]))
-    assert result.status == AskStatus.FAILED and "declined" in result.error
+    problem, _ = ask_messages.failure(result)
+    assert result.status == AskStatus.FAILED and "declined" in problem.why and problem.next_step
 
 
 @pytest.mark.asyncio
 async def test_gateway_error_marks_failed(session, fake_domain):
     turn = start_conversation(session, "q", started_by=None)
-    gateway = FakeGateway(errors=[GatewayError(status=503, detail="overloaded")])
-    result = await run_turn(session, turn.id, gateway=gateway)
-    assert result.status == AskStatus.FAILED and "unavailable" in result.error
+    error = GatewayError(status=503, detail="overloaded")
+    result = await run_turn(session, turn.id, gateway=FakeGateway(errors=[error]))
+    problem, technical = ask_messages.failure(result)
+    assert result.status == AskStatus.FAILED
+    assert problem.what == "I couldn't answer that question." and "didn't answer" in problem.why and problem.next_step
+    assert str(error) in technical                                        # the raw text is kept, but not shown first

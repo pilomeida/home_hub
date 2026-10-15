@@ -4,7 +4,8 @@
   {% if turn.status.value == "pending" %}
     <p class="ask-thinking">Looking through the wiki and documents…</p>
   {% elif turn.status.value == "failed" %}
-    <p class="needs-attention">Sorry, I couldn't answer that: {{ turn.error }} Try asking again.</p>
+    <p class="needs-attention"><strong>{{ failure.what }}</strong> {{ failure.why }} {{ failure.next_step }}{% if failure.link %} <a href="{{ failure.link }}">Open</a>{% endif %}</p>
+    {% if failure_technical %}<details class="ask-note"><summary>Technical details</summary><code>{{ failure_technical }}</code></details>{% endif %}
   {% else %}
     {% for paragraph in rendered.paragraphs %}
       <p class="ask-paragraph">{% for seg in paragraph %}{% if seg.source_number %}<sup><a href="#src-{{ turn.id }}-{{ seg.source_number }}">[{{ seg.source_number }}]</a></sup>{% else %}{{ seg.text }}{% endif %}{% endfor %}</p>
@@ -24,4 +25,7 @@
       </form>
     {% endif %}
   {% endif %}
+  {% for note in notices %}
+    <p class="ask-note ask-left-out"><strong>{{ note.what }}</strong> {{ note.why }} {{ note.next_step }}{% if note.link %} <a href="{{ note.link }}">Privacy page</a>{% endif %}</p>
+  {% endfor %}
 </div>

@@ -46,12 +46,18 @@ async def _run_wiki_lint(session: Session, trigger: str) -> JobOutcome:
     except LintAlreadyRunning:
         return JobOutcome("failed", "Not started. A wiki check was already running, so this one would have collided with it. "
                                     "Wait for it to finish (it can take a few minutes), then run it again.")
+    from app.privacy.reach import LeftOut
     from app.problems import explain_lint_errors
+    left_out = LeftOut.from_json(run.left_out_json).problem("check")
+    skipped = f" {left_out.text}" if left_out is not None else ""     # the privacy levels left some sources out
     if run.status == LintRunStatus.FAILED:
-        return JobOutcome("failed", explain_lint_errors(run.errors, whole_run=True))
+        return JobOutcome("failed", explain_lint_errors(run.errors, whole_run=True) + skipped)
     if run.status == LintRunStatus.PARTIAL:
-        return JobOutcome("partial", f"Partly done: {run.open_count} open finding(s). " + explain_lint_errors(run.errors, whole_run=False))
-    return JobOutcome("ok", f"Done: {run.new_count} new finding(s), {run.open_count} open in total.")
+        return JobOutcome("partial", f"Partly done: {run.open_count} open finding(s). "
+                                     + explain_lint_errors(run.errors, whole_run=False) + skipped)
+    done = f"Done: {run.new_count} new finding(s), {run.open_count} open in total."
+    # A check that ran but not over everything must not look complete.
+    return JobOutcome("partial" if left_out is not None else "ok", done + skipped)
 
 
 def _lint_legacy_last_start(session: Session) -> Optional[datetime]:

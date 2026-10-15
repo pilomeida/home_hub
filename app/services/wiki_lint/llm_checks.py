@@ -15,6 +15,7 @@ from app.domains.base import DomainSpec, SourceKind
 from app.domains.registry import implemented_domains
 from app.models.wiki import ANSWER_PAGE_TYPE, WikiClaim, WikiPage
 from app.models.wiki_lint import LintFindingKind
+from app.privacy.reach import reach_for
 from app.services.ask.refs import source_ref
 from app.services.ask.tools import entry_fields_text, settled_entries
 from app.services.json_utils import strip_json_fences
@@ -92,12 +93,18 @@ def _schema_text(spec: DomainSpec) -> str:
 
 
 def build_domain_payload(session: Session, spec: DomainSpec) -> DomainPayload:
-    pages = session.exec(select(WikiPage).where(WikiPage.domain == spec.domain,
-                                                WikiPage.page_type != ANSWER_PAGE_TYPE).order_by(WikiPage.id)).all()
-    claims_by_page = {p.id: active_claims(session, p.id) for p in pages}
+    """What the AI audit is shown. While levels are binding (app/privacy/reach.py) that is only the pages,
+    claims and sources of types the audit may read: a claim derived from any withheld source is left out,
+    a page whose claims are all left out is left out, and the audit's ids can only name what it was shown."""
+    reach = reach_for(session)
+    view = reach.wiki_view(session)
+    pages = [p for p in session.exec(select(WikiPage).where(WikiPage.domain == spec.domain,
+                                                            WikiPage.page_type != ANSWER_PAGE_TYPE)
+                                     .order_by(WikiPage.id)).all() if view.page_visible(p.id)]
+    claims_by_page = {p.id: [c for c in active_claims(session, p.id) if view.claim_visible(c.id)] for p in pages}
     claims = {c.id: c for cs in claims_by_page.values() for c in cs}
     sources = claim_sources(session, list(claims))                  # withdrawn links excluded
-    entries = settled_entries(session, spec.domain)[:_MAX_SOURCES]
+    entries = settled_entries(session, spec.domain, reach=reach)[:_MAX_SOURCES]
 
     lines = [f"Domain: {spec.label}", "Wiki schema:", _schema_text(spec), "", "Wiki pages:"]
     for p in pages:

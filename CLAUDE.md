@@ -10,5 +10,8 @@ A green suite has hidden production bugs when a test used a value typed by hand 
 ## Messages rule (Pedro, 2026-10-15)
 Every warning or error a person can see says **what** didn't happen, **why**, and **what they can do** — in that order, in plain words ("Not uploaded. This kind of document has no privacy level yet, so nothing may read it. Set its level on the Privacy page, then try again."). Build it with `app/problems.py` (`Problem`, `classify_reason`, `explain`, `record_problem`); raise `HTTPException(detail={"what", "why", "next_step"})` for a route's own message; anything that can fail where nobody is looking (background jobs, Telegram, email) must also `record_problem` so it shows on the Problems page. Never show a bare fact, a bare exception text, or a silent failure. A button that can fail must show its failure (the page already shows a banner for failed HTMX presses).
 
+## Privacy levels: what the AI may read (D16)
+Anything that shows the AI documents, records, wiki claims, transactions or to-dos beyond one document being filed (Ask tools, the wiki check, any new reader) must go through `app/privacy/reach.py` (`reach_for(session)`, `settled_entries(..., reach=)`, `wiki_view`) and run inside `reachable_scope(session)`. Never read those tables straight into a prompt. The tripwire tests (`tests/test_privacy_reach*.py`) must cover any new tool.
+
 ## Never
 - `git commit`/`git push` without explicit order (see the monorepo root CLAUDE.md).

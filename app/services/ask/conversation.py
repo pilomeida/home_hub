@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlmodel import Session, func, select
 
 from app.models.ask import AskConversation, AskStatus, AskTurn
+from app.privacy.reach import LeftOut, reach_for
 from app.services.ask.citations import known_from_turn
 from app.services.ask.contracts import Citable
 
@@ -61,11 +62,32 @@ def add_turn(session: Session, conversation_id: int, question: str, asked_by) ->
     return _new_turn(session, conv, (turns[-1].position if turns else 0) + 1, question.strip(), asked_by)
 
 
+def _answered_before(session: Session, turn: AskTurn) -> list[AskTurn]:
+    return [t for t in turns_of(session, turn.conversation_id)
+            if t.position < turn.position and t.status == AskStatus.ANSWERED and t.answer_text]
+
+
+def _replayable(session: Session, answered: list[AskTurn]) -> tuple[list[AskTurn], int]:
+    """While levels are binding, an earlier answer is replayed to the AI only if no type of document is
+    withheld now that was not already withheld when it was written: an answer given while a type was
+    readable (or while levels were off) may repeat details from it. Returns (usable, how many dropped)."""
+    reach = reach_for(session)
+    if not reach.binding:
+        return answered, 0
+    now = reach.excluded_keys
+    usable = [t for t in answered if now <= set(LeftOut.from_json(t.left_out_json).excluded)]
+    return usable, len(answered) - len(usable)
+
+
+def privacy_dropped(session: Session, turn: AskTurn) -> int:
+    """How many earlier answers of this chat are not replayed for privacy reasons."""
+    return _replayable(session, _answered_before(session, turn))[1]
+
+
 def build_history(session: Session, turn: AskTurn) -> tuple[list[dict], dict[str, Citable]]:
     """Earlier ANSWERED turns as plain user/assistant messages (oldest first),
     bounded to the last MAX_HISTORY_TURNS; their cited refs stay citable."""
-    answered = [t for t in turns_of(session, turn.conversation_id)
-                if t.position < turn.position and t.status == AskStatus.ANSWERED and t.answer_text]
+    answered, _ = _replayable(session, _answered_before(session, turn))
     kept = answered[-MAX_HISTORY_TURNS:]
     omitted = len(answered) - len(kept)
     messages: list[dict] = []

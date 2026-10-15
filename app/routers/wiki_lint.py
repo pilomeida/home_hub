@@ -13,6 +13,7 @@ from app.llm_gateway import GatewayClient, get_gateway
 from app.db import get_session, get_session_factory
 from app.models.wiki import WikiOperation, WikiPage
 from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus, LintRun
+from app.privacy.reach import LeftOut
 from app.problems import Problem
 from app.services.wiki_lint.runner import LintAlreadyRunning, execute_run, start_run
 from app.services.wiki_store import add_link, append_log
@@ -74,9 +75,10 @@ async def lint_page(request: Request, session: Session = Depends(get_session)):
     groups = [(kind, label, [(f, _pages_for(session, f)) for f in open_findings if f.kind == kind])
               for kind, label in KIND_LABELS.items()]
     last_run = session.exec(select(LintRun).order_by(LintRun.started_at.desc())).first()
+    left_out = LeftOut.from_json(last_run.left_out_json).problem("check") if last_run else None
     return templates.TemplateResponse(request, "wiki/lint.html", {
         "groups": [g for g in groups if g[2]], "last_run": last_run, "open_count": len(open_findings),
-        "message": request.query_params.get("message")})
+        "message": request.query_params.get("message"), "left_out": left_out})
 
 
 @router.post("/run")
