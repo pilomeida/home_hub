@@ -163,16 +163,16 @@ async def test_bank_sync_when_the_bank_access_has_ended_fails_and_says_how_to_re
     install({"u1": BankApiError(401, "SESSION_EXPIRED", "consent ended")})
     out = await runners.run_bank_sync(session, "schedule")
     assert out.outcome == "failed" and out.summary.startswith("Nothing was fetched from the bank.")
-    assert "Conta Ordenado" in out.summary and "permission" in out.summary and "Renew the bank connection" in out.summary
-    assert session.get(BankAccountLink, lk.id).last_error == "Bank access has ended; renew it"        # what the production path stored
+    assert "Santander Totta access has expired" in out.summary and "nothing will sync until you renew it" in out.summary and "Press Renew" in out.summary
+    assert session.get(BankAccountLink, lk.id).last_error.startswith("Santander Totta access has expired.")        # what the production path stored
     three_parts(out.summary)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("error,fragment", [
-    (BankApiError(429, "RATE_LIMITED", "slow down"), "asked the Hub to slow down"),
-    (BankApiError(500, "SERVER_ERROR", "oops"), "answered with an error"),
-    (RuntimeError("boom"), "unexpected error"),
+    (BankApiError(429, "RATE_LIMITED", "slow down"), "reached its limit of 4 requests per day"),
+    (BankApiError(500, "SERVER_ERROR", "oops"), "answered, but not in a way the Hub could use"),
+    (RuntimeError("boom"), "Something unexpected went wrong"),
 ])
 async def test_bank_sync_failures_have_a_reason_and_a_next_step(session, bank, error, fragment):
     install, link = bank
@@ -230,9 +230,13 @@ async def test_a_failed_bank_run_lands_on_the_problems_page_through_the_schedule
     link("u1", "Conta Ordenado")
     install({"u1": BankApiError(401, "SESSION_EXPIRED", "consent ended")})
     run = await scheduler.run_job(session, "bank_sync", "schedule")
-    assert run.outcome == "failed" and "Renew the bank connection" in run.summary
-    entry = session.exec(select(ProblemEntry)).one()
-    assert entry.area == "Scheduled jobs" and entry.ref == "job:bank_sync" and entry.what == "Bank sync didn’t finish."
+    assert run.outcome == "failed" and "Press Renew" in run.summary
+    entries = {e.area: e for e in session.exec(select(ProblemEntry))}
+    # two entries, each in its own place: the bank connection's own problem and the job run that failed
+    assert set(entries) == {"Bank sync", "Scheduled jobs"}
+    job = entries["Scheduled jobs"]
+    assert job.ref == "job:bank_sync" and job.what == "Bank sync didn’t finish."
+    assert entries["Bank sync"].what == "Santander Totta access has expired." and entries["Bank sync"].link
 
 
 # --- not repeating a sync right after the deploy ---

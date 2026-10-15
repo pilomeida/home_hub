@@ -87,15 +87,22 @@ def _bank_cause(error: str) -> tuple[str, str]:
     return problem.why.rstrip("."), problem.next_step
 
 
-def _bank_failure_text(session: Session, failed: dict[int, str], *, everything: bool, saved: int) -> str:
-    groups: dict[tuple[str, str], list[str]] = {}
-    for link_id, error in failed.items():
-        groups.setdefault(_bank_cause(error), []).append(_account_label(session, link_id))
+def _bank_failure_text(session: Session, failed: dict, *, everything: bool, saved: int) -> str:
+    """`failed` maps account id -> the structured Problem sync_link produced (or, for an older stored
+    error, its plain text). Each distinct problem is told once, in its own three parts."""
     what = "Nothing was fetched from the bank." if everything else "Some bank accounts weren't fetched."
-    why = " ".join(f"{', '.join(names)}: {cause}." for (cause, _), names in groups.items())
-    steps = " ".join(dict.fromkeys(step for (_, step) in groups))
+    told: list[str] = []
+    legacy: dict[tuple[str, str], list[str]] = {}
+    for link_id, err in failed.items():
+        if isinstance(err, Problem):
+            if err.text not in told:
+                told.append(err.text)
+        else:
+            legacy.setdefault(_bank_cause(err), []).append(_account_label(session, link_id))
+    for (cause, step), names in legacy.items():
+        told.append(f"{', '.join(names)}: {cause}. {step}")
     done = "" if everything else f" The other accounts worked ({_plural(saved, 'new transaction', 'new transactions')} saved)."
-    return f"{what} {why}{done} {steps}"
+    return f"{what} {' '.join(told)}{done}"
 
 
 async def run_bank_sync(session: Session, trigger: str) -> JobOutcome:
@@ -118,7 +125,7 @@ async def run_bank_sync(session: Session, trigger: str) -> JobOutcome:
         session.rollback()
         topups_failed = True
 
-    failed = {i: r.error for i, r in results.items() if r.error}
+    failed = {i: (r.problem or r.error) for i, r in results.items() if r.error or r.problem and not r.skipped_quota}
     skipped = [i for i, r in results.items() if r.skipped_quota and not r.error]
     created = sum(r.created for r in results.values())
     unclassified = sum(r.unclassified for r in results.values())
