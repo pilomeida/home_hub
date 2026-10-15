@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
+from app.privacy.reach import reach_for
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 
 _TOP_N = 25
@@ -18,6 +19,13 @@ _TOP_N = 25
 
 def _txn_url(**params) -> str:
     return "/financials/transactions?" + urlencode({k: v for k, v in params.items() if v not in (None, "")})
+
+
+def _readable(session: Session, transactions: list) -> list:
+    """Only transactions read from a document whose type the AI may read (app/privacy/reach.py);
+    all of them while levels are not binding."""
+    allowed = reach_for(session).included_document_ids(session)
+    return list(transactions) if allowed is None else [t for t in transactions if t.document_id in allowed]
 
 
 def _merchant_names(session: Session) -> dict[int, str]:
@@ -34,7 +42,7 @@ def _spending(session: Session, args: dict) -> ToolOutput:
         statement = statement.where(Transaction.category == Category(category))
     merchants = _merchant_names(session) if group_by == "merchant" else {}
     totals: dict[str, list] = defaultdict(lambda: [0.0, 0])
-    for t in session.exec(statement).all():
+    for t in _readable(session, session.exec(statement).all()):
         key = (merchants.get(t.merchant_id, t.description) if group_by == "merchant"
                else f"{t.paid_date:%Y-%m}" if group_by == "month" else t.category.value)
         totals[key][0] += t.amount
@@ -59,7 +67,7 @@ def _find_transactions(session: Session, args: dict) -> ToolOutput:
     if args.get("date_to"):
         statement = statement.where(Transaction.paid_date <= date.fromisoformat(args["date_to"]))
     merchants = _merchant_names(session)
-    matches = [t for t in session.exec(statement.order_by(Transaction.paid_date.desc())).all()
+    matches = [t for t in _readable(session, session.exec(statement.order_by(Transaction.paid_date.desc())).all())
                if needle in t.description.lower() or needle in merchants.get(t.merchant_id, "").lower()]
     shown = matches[:40]
     lines = [f"{len(matches)} matching transactions (showing {len(shown)}):"] + [

@@ -6,7 +6,11 @@ Runs through the LLM gateway (llmsel): one `job_id` (uuid4) per question,
 re-sent every turn; the same tools in the same order each turn;
 `assistant_content` is appended verbatim; usage accumulates from
 `result.usage`. Adaptive thinking is the gateway's business now.
-"""
+
+Privacy (decision D16): the whole run happens inside `reachable_scope`, so while levels are binding
+every gateway call carries the strictest level among the types Ask may read, and everything the
+engine shows the model (prompt, history, tools) is limited to those types. The turn records what was
+left out so the page can say so."""
 
 from __future__ import annotations
 
@@ -20,10 +24,14 @@ from typing import Optional
 from sqlmodel import Session
 
 from app.models.ask import AskConversation, AskStatus, AskTurn
+from app.privacy.reach import LeftOut, Reach
+from app.privacy.scope import reachable_scope
+from app.problems import Problem, record_problem
+from app.services.ask import messages as ask_messages
 from app.services.ask.citations import cited_refs
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 from app.services.ask.context import build_system_prompt
-from app.services.ask.conversation import build_history
+from app.services.ask.conversation import build_history, privacy_dropped
 from app.services.ask.tools import READ_FILE_TOOL, available_tools
 from app.llm_gateway import GatewayError, INTERACTIVE_RESEARCH, get_gateway
 
@@ -52,22 +60,32 @@ def _tool_result(block_id: str, output: ToolOutput) -> dict:
 
 async def run_turn(session: Session, turn_id: int, gateway=None,
                    today: Optional[date] = None) -> AskTurn:
+    """Answer one turn. The scope is entered HERE, inside the code that actually runs (the router runs
+    this in a background task with its own session), so the gateway picks up the level on every call."""
+    with reachable_scope(session) as reach:
+        return await _answer(session, turn_id, gateway, today, reach)
+
+
+async def _answer(session: Session, turn_id: int, gateway, today: Optional[date], reach: Reach) -> AskTurn:
     turn = session.get(AskTurn, turn_id)
-    gw = gateway or get_gateway()
-    system, index_citables = build_system_prompt(session, today or date.today())
-    history, history_citables = build_history(session, turn)
-    tools = available_tools()
-    by_name = {t.name: t for t in tools}
-    known: dict[str, Citable] = {c.ref: c for c in index_citables}
-    known.update(history_citables)
-    messages: list[dict] = [*history, {"role": "user", "content": turn.question}]
-    tool_specs = [t.to_api() for t in tools]  # same tools, same order, every turn
+    left_out = LeftOut(reach.binding, tuple(sorted(reach.excluded_keys)))
+    known: dict[str, Citable] = {}
     job_id = str(uuid.uuid4())
     file_reads, used_raw, in_tokens, out_tokens = 0, False, 0, 0
     answer: Optional[str] = None
-    error: Optional[str] = None
+    failure: Optional[tuple[Problem, Optional[str]]] = None
 
     try:
+        gw = gateway or get_gateway()
+        left_out = reach.left_out(session, history_dropped=privacy_dropped(session, turn))
+        system, index_citables = build_system_prompt(session, today or date.today(), left_out)
+        history, history_citables = build_history(session, turn)
+        tools = available_tools()
+        by_name = {t.name: t for t in tools}
+        known = {c.ref: c for c in index_citables}
+        known.update(history_citables)
+        messages: list[dict] = [*history, {"role": "user", "content": turn.question}]
+        tool_specs = [t.to_api() for t in tools]  # same tools, same order, every turn
         for _ in range(_MAX_TURNS):
             result = await gw.run(
                 INTERACTIVE_RESEARCH, system,
@@ -77,14 +95,14 @@ async def run_turn(session: Session, turn_id: int, gateway=None,
             in_tokens += result.usage.get("input_tokens", 0)
             out_tokens += result.usage.get("output_tokens", 0)
             if result.stop_reason == "refusal":
-                error = "The AI declined to answer this question."
+                failure = (ask_messages.refused(), None)
                 break
             if result.stop_reason != "tool_use":
                 answer = "".join(
                     block.get("text", "") for block in result.assistant_content
                     if isinstance(block, dict) and block.get("type") == "text"
                 ).strip() or result.text.strip() or None
-                error = None if answer else "No answer was produced."
+                failure = None if answer else (ask_messages.empty_reply(), None)
                 break
             messages.append({"role": "assistant", "content": result.assistant_content})
             results = []
@@ -101,18 +119,25 @@ async def run_turn(session: Session, turn_id: int, gateway=None,
                 results.append(_tool_result(block_id, output))
             messages.append({"role": "user", "content": results})
         else:
-            error = "Ran out of research steps before finding an answer."
-    except GatewayError:
+            failure = (ask_messages.out_of_steps(_MAX_TURNS), None)
+    except GatewayError as exc:
         logger.exception("Ask: gateway call failed")
-        error = "The AI service is unavailable right now."
+        failure = ask_messages.from_exception(exc)
+    except Exception as exc:  # never leave the person looking at "Looking through the wiki…" forever
+        logger.exception("Ask: turn %s failed", turn_id)
+        session.rollback()
+        failure = ask_messages.from_exception(exc)
+        record_problem(session, area="Ask", problem=failure[0], ref=f"ask:{turn_id}", technical=failure[1])
 
     turn = session.get(AskTurn, turn_id)
     turn.input_tokens, turn.output_tokens, turn.used_raw_sources = in_tokens, out_tokens, used_raw
+    turn.left_out_json = left_out.to_json() if reach.binding else None
     if answer:
         turn.status, turn.answer_text = AskStatus.ANSWERED, answer
         turn.citations_json = json.dumps([asdict(known[r]) for r in cited_refs(answer, known)])
     else:
-        turn.status, turn.error = AskStatus.FAILED, error
+        turn.status = AskStatus.FAILED
+        turn.error = ask_messages.encode(*failure)
     turn.answered_at = datetime.utcnow()
     conv = session.get(AskConversation, turn.conversation_id)
     conv.updated_at = turn.answered_at

@@ -7,6 +7,7 @@
   {{ open_count }} item(s) to review.
 </p>
 {% if message %}<p class="ask-note">{{ message }}</p>{% endif %}
+{% if left_out %}<p class="needs-attention"><strong>{{ left_out.what }}</strong> {{ left_out.why }} {{ left_out.next_step }} <a href="{{ left_out.link }}">Privacy page</a></p>{% endif %}
 <form method="post" action="/wiki/lint/run"><button type="submit">Run check now</button></form>
 {% for kind, label, items in groups %}
   <h2>{{ label }}</h2>

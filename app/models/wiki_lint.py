@@ -48,6 +48,9 @@ class LintRun(SQLModel, table=True):
     open_count: int = Field(default=0)
     auto_resolved_count: int = Field(default=0)
     errors: Optional[str] = None
+    # NULL = run while levels were not binding. Otherwise what the AI audit could not read
+    # (app.privacy.reach.LeftOut), shown in the run summary.
+    left_out_json: Optional[str] = None
 
 
 class LintFinding(SQLModel, table=True):

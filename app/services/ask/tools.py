@@ -2,7 +2,11 @@
 declared on the registry. All read-only. The ONLY place Ask/Lint decide
 which sources are visible: settled_entries() / is_settled() /
 is_settled_source(). Claim sources are read only via claim_sources(),
-which excludes withdrawn links."""
+which excludes withdrawn links.
+
+While levels are binding (app/privacy/reach.py) the AI-facing callers pass the run's Reach, which
+removes every document, record, wiki claim/page, transaction and to-do of a type the AI may not read.
+A tool reads the Reach of the run in progress (reach_for); with levels off it filters nothing."""
 
 from __future__ import annotations
 
@@ -23,12 +27,15 @@ from app.models.domain import Domain
 from app.models.record import Record
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
+from app.privacy.reach import Reach, reach_for
 from app.services.ask.contracts import AskTool, ToolOutput
 from app.services.ask.refs import (
     Source, citable_for_source, citable_for_todo, citable_for_wiki_page, source_ref,
 )
 from app.services.document_input import UnsupportedFileTypeError, build_content_block
-from app.services.wiki_store import active_claims, claim_sources, links_from, links_to, superseded_claims
+from app.services.wiki_store import (
+    active_claims, claim_sources, links_from, links_to, superseded_claims, visible_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +64,16 @@ def is_settled_source(source: Optional[Source]) -> bool:
     return is_settled(source)
 
 
-def settled_entries(session: Session, domain: Optional[Domain] = None) -> list[SourceEntry]:
-    """PROCESSED documents and non-retired records of implemented domains, newest first."""
+def settled_entries(session: Session, domain: Optional[Domain] = None,
+                    reach: Optional[Reach] = None) -> list[SourceEntry]:
+    """PROCESSED documents and non-retired records of implemented domains, newest first.
+    With a binding `reach`, only those of types the AI may read (everything the AI is shown
+    about documents comes through here)."""
     domains = [domain] if domain is not None else [s.domain for s in implemented_domains()]
     entries = [e for d in domains for e in domain_entries(session, d)
                if e.kind == SourceKind.RECORD or is_settled(e.document)]
+    if reach is not None:
+        entries = reach.filter_entries(entries)
     return sorted(entries, key=lambda e: e.created_at, reverse=True)
 
 
@@ -91,24 +103,28 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
     if not page_ids:
         return ToolOutput(text="No page_ids given.", is_error=True)
     parts, citables = [], []
+    view = reach_for(session).wiki_view(session)          # claims and pages the AI may not see
     for page_id in page_ids:
         page = session.get(WikiPage, page_id)
-        if page is None:
-            parts.append(f"wiki:{page_id}: not found")
+        if page is None or not view.page_visible(page.id):
+            parts.append(f"wiki:{page_id}: not found")   # a hidden page looks exactly like a missing one
             continue
         citables.append(citable_for_wiki_page(page.id, page.topic))
-        current, history = active_claims(session, page.id), superseded_claims(session, page.id)
+        current = [c for c in active_claims(session, page.id) if view.claim_visible(c.id)]
+        history = [c for c in superseded_claims(session, page.id) if view.claim_visible(c.id)]
         sources = claim_sources(session, [c.id for c in current + history])   # withdrawn links excluded
         for source in {source_ref(s): s for ss in sources.values() for s in ss}.values():
             if is_settled_source(source):
                 citables.append(citable_for_source(source))
         lines = [f"## wiki:{page.id} — {page.topic} ({page.domain.value if page.domain else 'general'}, {page.page_type})",
-                 f"Summary: {page.summary or '-'}", "Current facts:"]
+                 f"Summary: {(visible_summary(session, page, view) if page.id in view.trimmed_pages else page.summary) or '-'}",
+                 "Current facts:"]
         lines += [_claim_line(c, sources.get(c.id, [])) for c in current] or ["- (none)"]
         if history:
             lines.append("Superseded facts (history only, NOT current):")
             lines += [f"- {c.key}: {c.value} (superseded {c.superseded_at:%Y-%m-%d})" for c in history]
-        neighbours = {p.id: p for p in links_from(session, page.id) + links_to(session, page.id)}
+        neighbours = {p.id: p for p in links_from(session, page.id) + links_to(session, page.id)
+                      if view.page_visible(p.id)}
         if neighbours:
             lines.append("Linked pages: " + "; ".join(f"wiki:{p.id} {p.topic}" for p in neighbours.values()))
             citables += [citable_for_wiki_page(p.id, p.topic) for p in neighbours.values()]
@@ -122,7 +138,7 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
     limit = max(1, min(int(args.get("limit", 30)), 60))
     query_tokens = tokens(args.get("query") or "")
     scored = []
-    for entry in settled_entries(session, domain):
+    for entry in settled_entries(session, domain, reach=reach_for(session)):
         if category and entry.category != category:
             continue
         source = _entry_source(entry)
@@ -146,7 +162,9 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
 
 def _read_document_file(session: Session, args: dict) -> ToolOutput:
     doc = session.get(Document, int(args["document_id"]))
-    if not is_settled(doc):
+    reach = reach_for(session)
+    if not is_settled(doc) or not reach.includes_file_of(session, doc):
+        # One answer for every reason, so the AI cannot tell a withheld document from a missing one.
         return ToolOutput(text="That document is not available (not found, or not filed yet).", is_error=True)
     path = Path(doc.file_path)
     if not path.exists() or path.stat().st_size > _MAX_FILE_BYTES:
@@ -166,7 +184,9 @@ def _list_todos(session: Session, args: dict) -> ToolOutput:
         statement = statement.where(Todo.done == False)  # noqa: E712
     if domain is not None:
         statement = statement.where(Todo.domain == domain)
-    todos = session.exec(statement.order_by(Todo.due_date).limit(100)).all()
+    reach = reach_for(session)
+    todos = session.exec(statement.order_by(Todo.due_date)).all()
+    todos = [t for t in todos if reach.includes_todo(session, t)][:100]
     lines = [f"{len(todos)} to-dos:"] + [
         f"todo:{t.id} | {t.title} | due {t.due_date or '-'} | {'done' if t.done else 'open'} | "
         f"{t.domain.value if t.domain else 'general'}" for t in todos]

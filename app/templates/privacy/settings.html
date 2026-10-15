@@ -12,7 +12,7 @@
   {% else %}
   <p>For now the Hub works as it always did, whatever is set below. When you switch levels on, a document whose type has no level is held until you set one.
   {% if unset_count %}<strong>{{ unset_count }}</strong> type{{ "s have" if unset_count != 1 else " has" }} no level yet — confirm the suggestions first.{% endif %}</p>
-  <p style="font-size:13px;color:#b36b00;">Not covered yet: Ask and the weekly wiki check read documents of every level and do not follow these settings yet. Documents being filed do.</p>
+  <p style="font-size:13px;">Once levels are binding, Ask and the weekly wiki check read only documents whose type has a Low or Mid level and does not hide personal details. The rest is left out, and each answer and each check says how many documents were left out and why.</p>
   <form method="post" action="/privacy/enforce"><input type="hidden" name="on" value="1"><button>Switch levels on</button></form>
   {% endif %}
 </section>

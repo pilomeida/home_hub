@@ -7,6 +7,7 @@ from sqlmodel import Session
 from app.db import get_session, get_session_factory
 from app.llm_gateway import GatewayClient, get_gateway
 from app.models.ask import AskConversation, AskStatus, AskTurn
+from app.services.ask import messages as ask_messages
 from app.services.ask.citations import render_turn
 from app.services.ask.conversation import TurnInProgress, add_turn, recent_conversations, start_conversation, turns_of
 from app.services.ask.engine import run_turn
@@ -31,7 +32,10 @@ def _clean(question: str) -> str:
 
 
 def _turn_view(turn: AskTurn) -> dict:
-    return {"turn": turn, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None}
+    failed = ask_messages.failure(turn) if turn.status == AskStatus.FAILED else None
+    return {"turn": turn, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
+            "failure": failed[0] if failed else None, "failure_technical": failed[1] if failed else None,
+            "notices": [] if turn.status == AskStatus.PENDING else ask_messages.notices(turn)}
 
 
 async def _answer_in_background(session_factory, turn_id: int, gateway) -> None:

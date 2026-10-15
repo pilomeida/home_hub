@@ -38,7 +38,10 @@ class AskTurn(SQLModel, table=True):
     citations_json: str = Field(default="[]")    # [{"ref","label","url"}] cited by THIS turn
     used_raw_sources: bool = Field(default=False)
     asked_by: Optional[str] = None
-    error: Optional[str] = None
+    error: Optional[str] = None                  # JSON {"what","why","next_step","technical"}; older rows: plain text
+    # NULL = answered while levels were not binding. Otherwise what was left out of this answer
+    # (app.privacy.reach.LeftOut): the notice shown to the person and the snapshot of withheld types.
+    left_out_json: Optional[str] = None
     input_tokens: int = Field(default=0)
     output_tokens: int = Field(default=0)
     saved_wiki_page_id: Optional[int] = Field(default=None, foreign_key="wiki_pages.id")

@@ -1,7 +1,12 @@
 """The contract between the Ask engine and anything that feeds it context.
 Core tools (wiki, documents, todos) and domain tools declared on a
 DomainSpec (spec.ask_tools) all implement AskTool, so a new domain plugs
-into Ask through its registry entry without editing Ask."""
+into Ask through its registry entry without editing Ask.
+
+PRIVACY: a tool that returns anything read from a document, record, wiki claim, transaction or to-do
+MUST limit it to what `app.privacy.reach.reach_for(session)` allows (see app/privacy/reach.py); while
+levels are binding, content of a type the AI may not read must never be returned. The tripwire test
+(tests/test_privacy_reach.py) calls every registered tool and fails when excluded content gets out."""
 
 from __future__ import annotations
 

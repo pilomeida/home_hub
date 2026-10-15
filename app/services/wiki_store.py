@@ -403,7 +403,18 @@ class IndexSection:
     entries: list[IndexEntry]
 
 
-def build_wiki_index(session: Session) -> list[IndexSection]:
+def visible_summary(session: Session, page: WikiPage, view) -> Optional[str]:
+    """A page's summary as Ask / the wiki check may see it. The stored summary (and facts_json) can
+    repeat claims that are hidden from them, so a page with any hidden claim gets one rebuilt from
+    its visible active claims only. `view` is app.privacy.reach.WikiView (duck-typed: no import)."""
+    if view is None or page.id not in view.trimmed_pages:
+        return page.summary or _derived_summary(json.loads(page.facts_json or "{}").items())
+    return _derived_summary((claim_label(c.label, c.key), c.value)
+                            for c in active_claims(session, page.id) if view.claim_visible(c.id))
+
+
+def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
+    """`view` (app.privacy.reach.WikiView) hides the pages and claims Ask may not see; None = all."""
     from app.domains.registry import implemented_domains
 
     specs = implemented_domains()
@@ -416,8 +427,10 @@ def build_wiki_index(session: Session) -> list[IndexSection]:
 
     grouped: dict[tuple[Optional[Domain], str], list[IndexEntry]] = {}
     for page in session.exec(select(WikiPage)).all():
+        if view is not None and not view.page_visible(page.id):
+            continue
         page_type = page.page_type or TOPIC_PAGE_TYPE
-        summary = page.summary or _derived_summary(json.loads(page.facts_json or "{}").items())
+        summary = visible_summary(session, page, view)
         grouped.setdefault((page.domain, page_type), []).append(
             IndexEntry(page_id=page.id, title=page.topic, summary=summary, updated_at=page.updated_at)
         )

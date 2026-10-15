@@ -26,6 +26,7 @@ from app.models.account import Account
 from app.models.person import Person
 from app.privacy import settings as ps
 from app.privacy.outbound import Redaction
+from app.privacy.reach import _current as _reach_var, compute_reach
 from app.privacy.redactor import Redactor
 from app.privacy.tiers import Tier
 from app.privacy.vault import Vault
@@ -92,3 +93,24 @@ def privacy_scope(session: Session, domain: object, category: Optional[str]):
         yield _current.get()
     finally:
         _current.reset(token)
+
+
+@contextmanager
+def reachable_scope(session: Session):
+    """Ask and the weekly wiki check read documents of every type, so they run inside THIS scope
+    (decision D16, app/privacy/reach.py): the call level is the strictest level among the types they
+    may read, and everything they read is filtered to those types. Enter it inside the code that
+    actually runs (a background task has its own session), not only in the request handler.
+
+    - levels not binding -> a non-binding Reach and no Scope: calls behave exactly as before.
+    - binding            -> Scope(tier=strictest included tier, no redaction: a type that hides
+                            personal details is never included) and a Reach snapshot for the filters."""
+    reach = compute_reach(session)
+    scope_token = _current.set(Scope(reach.tier, None)) if reach.binding else None
+    reach_token = _reach_var.set(reach)
+    try:
+        yield reach
+    finally:
+        _reach_var.reset(reach_token)
+        if scope_token is not None:
+            _current.reset(scope_token)

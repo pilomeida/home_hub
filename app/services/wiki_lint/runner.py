@@ -16,6 +16,9 @@ from sqlmodel import Session, select
 
 from app.models.wiki import WikiOperation
 from app.models.wiki_lint import LintFinding, LintFindingStatus, LintRun, LintRunStatus
+from app.privacy.reach import LeftOut
+from app.privacy.scope import reachable_scope
+from app.problems import record_problem, resolve_for
 from app.services.wiki_lint.checks import run_deterministic_checks
 from app.services.wiki_lint.findings import DETERMINISTIC_KINDS, FindingDraft
 from app.services.wiki_lint.llm_checks import run_llm_checks
@@ -76,11 +79,30 @@ def persist_findings(session: Session, run: LintRun, drafts: list[FindingDraft])
     return new, open_count, auto
 
 
+LEFT_OUT_REF = "wiki_lint:left_out"
+
+
+def note_left_out(session: Session, left_out: LeftOut) -> None:
+    """Keep the Problems log in step with the run: a log entry while sources are being left out,
+    cleared by the first run that leaves none out (or once levels are not binding)."""
+    problem = left_out.problem("check")
+    if problem is not None:
+        record_problem(session, area="Wiki check", problem=problem, ref=LEFT_OUT_REF)
+    else:
+        resolve_for(session, LEFT_OUT_REF)
+
+
 async def execute_run(session: Session, run_id: int, gateway=None) -> LintRun:
+    """Entered inside `reachable_scope` HERE (the router and the scheduler run this in their own
+    session): while levels are binding the AI audit reads only the types it may, at the strictest
+    of their levels. The deterministic checks send nothing anywhere and see everything."""
     run = session.get(LintRun, run_id)
+    left_out = LeftOut()
     try:
-        drafts = run_deterministic_checks(session)
-        llm_drafts, errors = await run_llm_checks(session, gateway=gateway)
+        with reachable_scope(session) as reach:
+            left_out = reach.left_out(session)
+            drafts = run_deterministic_checks(session)
+            llm_drafts, errors = await run_llm_checks(session, gateway=gateway)
         run.new_count, run.open_count, run.auto_resolved_count = persist_findings(session, run, drafts + llm_drafts)
         run.status = LintRunStatus.PARTIAL if errors else LintRunStatus.SUCCEEDED
         run.errors = "\n".join(errors) or None
@@ -89,9 +111,11 @@ async def execute_run(session: Session, run_id: int, gateway=None) -> LintRun:
         session.rollback()
         run = session.get(LintRun, run_id)
         run.status, run.errors = LintRunStatus.FAILED, str(exc)
+    run.left_out_json = left_out.to_json() if left_out.binding else None
     run.finished_at = datetime.utcnow()
     session.add(run)
     session.commit()
+    note_left_out(session, left_out)
     append_log(session, WikiOperation.LINT, f"Wiki check {run.status.value}: {run.new_count} new, "
                                             f"{run.open_count} open, {run.auto_resolved_count} auto-resolved")
     session.refresh(run)
