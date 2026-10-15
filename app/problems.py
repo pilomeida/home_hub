@@ -361,3 +361,28 @@ def file_notices(errors: dict) -> dict:
             out[key] = value
     return out
 # --- end pages-other agent ---
+
+
+# --- added by jobs agent ---
+# Background jobs that talk to a service that is not the AI (the bank, the mailbox, Telegram). The causes in
+# `classify_reason` are written about the AI service and documents ("The AI service couldn't be reached"), which
+# would mislead here, so these have their own wording; anything else falls back to the same "recorded this reason" form.
+
+_SVC_LOGIN = re.compile(r"LOGIN failed|AUTHENTICATIONFAILED|authentication failed|invalid credentials|"
+                        r"InvalidToken|Unauthorized|\b401\b|\b403\b", re.I)
+_SVC_NETWORK = re.compile(r"timed out|timeout|connection (refused|reset|aborted)|NetworkError|ConnectError|gaierror|"
+                          r"name or service not known|temporary failure in name resolution|SSLError|EOF occurred|"
+                          r"unreachable|ConnectionError|BrokenPipe", re.I)
+
+
+def explain_service_failure(service: str, what: str, raw: Optional[str], *, actionable: Optional[str] = None) -> Problem:
+    """Three-part message for a background job whose call to `service` (e.g. "The Hub mailbox") failed with `raw`."""
+    if raw and _SVC_LOGIN.search(raw):
+        return Problem(what, f"{service} didn't accept the Hub's login; the saved password or key may have been changed or may have expired.",
+                       actionable or "Tell Pedro: the login saved on the server needs updating.")
+    if raw and _SVC_NETWORK.search(raw):
+        return Problem(what, f"{service} couldn't be reached; the internet connection or the service itself may be down for a moment.",
+                       actionable or "Nothing is lost: the next scheduled run tries again. If it keeps failing for hours, tell Pedro.")
+    return Problem(what, f"The Hub recorded this reason: {raw or 'no reason was recorded'}.",
+                   actionable or "Try again at the next run; if it repeats, tell Pedro.")
+# --- end of block added by jobs agent ---

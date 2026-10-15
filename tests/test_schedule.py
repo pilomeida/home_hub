@@ -197,10 +197,19 @@ def test_the_wiki_check_is_registered_with_a_weekly_default():
 
 # --- the page --------------------------------------------------------------------------------
 
-def test_page_lists_the_job_its_plain_schedule_and_the_fixed_jobs(client):
+def test_page_lists_every_job_with_its_plain_schedule_and_no_fixed_timers_section(client):
     page = client.get("/schedules").text
     assert "Wiki check" in page and "Every Sunday at 04:30" in page and "the usual setting" in page
-    assert "Bank sync" in page and "Mailbox check" in page and "can't be changed here yet" in page
+    assert "Bank sync" in page and "Every day at 07:30, 13:00 and 18:30" in page
+    assert "Mailbox check" in page and "Every 10 minutes" in page
+    assert "Statement reminder" in page and "Every day at 09:00" in page
+    assert "Still on fixed timers" not in page and "can't be changed here yet" not in page   # nothing left on fixed timers
+
+
+def test_page_shows_the_fixed_timers_section_only_when_something_is_still_on_one(client, monkeypatch):
+    monkeypatch.setattr("app.routers.schedules.FIXED_JOBS", [("Old job", "Every hour", "Does a thing.")])
+    page = client.get("/schedules").text
+    assert "Still on fixed timers" in page and "Old job" in page
 
 
 def test_saving_a_schedule_stores_it_and_shows_it(client, session):

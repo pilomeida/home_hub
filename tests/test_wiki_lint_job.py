@@ -27,12 +27,15 @@ async def test_main_exits_cleanly_when_already_running(engine, monkeypatch):
     assert await job.main() == 0
 
 
-def test_the_hubs_scheduler_units_replace_the_fixed_weekly_timer():
+def test_the_hubs_scheduler_units_replace_the_fixed_timers():
     service = Path("deploy/systemd/home-hub-scheduler.service").read_text()
     timer = Path("deploy/systemd/home-hub-scheduler.timer").read_text()
     assert "-m app.jobs.scheduler" in service and "User=" not in service     # user unit: no User=
-    assert "OnUnitActiveSec=15min" in timer and "OnBootSec=" in timer
-    # the old fixed timer is gone from the repo and retired on the server, so a check never runs twice
-    assert not Path("deploy/systemd/home-hub-wikilint.timer").exists()
+    assert "OnCalendar=*:0/5" in timer and "OnBootSec=" in timer and "OnUnitActiveSec" not in timer
+    # every old fixed timer is gone from the repo and retired on the server, so a job never runs twice
     installer = Path("deploy/install_user_units.sh").read_text()
-    assert "home-hub-wikilint.timer" in installer.split("RETIRED_UNITS=")[1].splitlines()[0]
+    retired = installer.split("RETIRED_UNITS=")[1].splitlines()[0]
+    for name in ("wikilint", "banksync", "reminder", "mailpoll"):
+        assert not Path(f"deploy/systemd/home-hub-{name}.timer").exists()
+        assert not Path(f"deploy/systemd/home-hub-{name}.service").exists()
+        assert f"home-hub-{name}.timer" in retired and f"home-hub-{name}.service" in retired

@@ -1,9 +1,12 @@
 [Unit]
-Description=Home Hub - check every 15 minutes which scheduled jobs are due
+Description=Home Hub - check every 5 minutes which scheduled jobs are due
 
 [Timer]
+# On the clock (:00, :05, :10 ...) so a job planned for 07:30 starts at 07:30, not at some drifting moment.
+OnCalendar=*:0/5
+AccuracySec=10s
 OnBootSec=3min
-OnUnitActiveSec=15min
+Persistent=true
 
 [Install]
 WantedBy=timers.target

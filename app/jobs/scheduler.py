@@ -1,8 +1,12 @@
 """The one clock for jobs whose schedule is set on the Hub (decision D15).
 
-A systemd user timer starts this every 15 minutes (deploy/systemd/home-hub-scheduler.timer);
+A systemd user timer starts this every 5 minutes (deploy/systemd/home-hub-scheduler.timer);
 it runs whichever jobs are due according to the schedules saved on the Scheduled jobs
-page (/schedules), and exits. Usage: python -m app.jobs.scheduler"""
+page (/schedules), and exits. Usage: python -m app.jobs.scheduler
+
+One slow job (a long bank sync) cannot be started twice: the next timer tick finds the job's "running"
+record and leaves it alone, and systemd does not start a second copy of this one-shot service while the
+first is still going."""
 
 from __future__ import annotations
 
@@ -20,7 +24,8 @@ from app.problems import Problem, explain, record_problem, resolve_for
 from app.services import schedule as sched
 
 logger = logging.getLogger("scheduler")
-_STALE_AFTER = timedelta(minutes=45)
+_STALE_AFTER = timedelta(minutes=45)           # a "running" record older than this is a crashed run, not a live one
+_QUIET_KEEP = timedelta(days=2)                # how long the routine runs of a quiet_when_ok job are kept
 
 
 def effective_spec(session: Session, job: JobDef) -> sched.Spec:
@@ -44,6 +49,17 @@ def _running(session: Session, job_key: str) -> Optional[JobRun]:
                                              JobRun.started_at >= cutoff)).first()
 
 
+def _forget_old_quiet_runs(session: Session, job_key: str) -> None:
+    """A job that runs every few minutes would otherwise add hundreds of rows a day. Old routine scheduled
+    runs are dropped; failures, partial runs and manual runs stay, and the newest scheduled run is far younger
+    than the cutoff, so the cycle's anchor is never lost."""
+    cutoff = datetime.utcnow() - _QUIET_KEEP
+    for old in session.exec(select(JobRun).where(JobRun.job == job_key, JobRun.trigger == "schedule",
+                                                 JobRun.outcome == "ok", JobRun.started_at < cutoff)).all():
+        session.delete(old)
+    session.commit()
+
+
 async def run_job(session: Session, job_key: str, trigger: str) -> JobRun:
     """Run one job now and record the result. Never raises: a failure becomes a plain-language
     message in the run history and in the Problems log."""
@@ -65,6 +81,8 @@ async def run_job(session: Session, job_key: str, trigger: str) -> JobRun:
     session.refresh(run)
     run.outcome, run.summary, run.finished_at = outcome.outcome, outcome.summary, datetime.utcnow()
     session.add(run); session.commit(); session.refresh(run)
+    if job.quiet_when_ok:
+        _forget_old_quiet_runs(session, job_key)
     ref = f"job:{job_key}"
     if outcome.outcome in ("failed", "partial"):
         what = f"{job.label} didn\u2019t finish." if outcome.outcome == "failed" else f"{job.label} only partly worked."
@@ -82,6 +100,9 @@ async def run_due(session: Session, now: Optional[datetime] = None) -> list[JobR
     for job in JOBS.values():
         spec = effective_spec(session, job)
         if sched.is_due(spec, last_scheduled_start(session, job), now):
+            if _running(session, job.key) is not None:     # still going from an earlier check: leave it alone
+                logger.info("%s is still running; not starting it again", job.key)
+                continue
             ran.append(await run_job(session, job.key, "schedule"))
     return ran
 

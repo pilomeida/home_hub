@@ -17,7 +17,7 @@ fi
 
 # Units that were replaced by the Hub's own scheduler (app/jobs/scheduler.py): stop and remove them so a
 # job never runs twice. Add to this list when a fixed timer is retired.
-RETIRED_UNITS="home-hub-wikilint.timer home-hub-wikilint.service"
+RETIRED_UNITS="home-hub-wikilint.timer home-hub-wikilint.service home-hub-banksync.timer home-hub-banksync.service home-hub-reminder.timer home-hub-reminder.service home-hub-mailpoll.timer home-hub-mailpoll.service"
 
 SRC="$(cd "$(dirname "$0")" && pwd)/systemd"
 DEST="$HOME/.config/systemd/user"
