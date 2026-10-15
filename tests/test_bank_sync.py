@@ -59,7 +59,7 @@ def test_quota_skips_and_spends_on_real_fetch(session):
 def test_first_sync_window_looks_back_from_latest_transaction(session):
     link, account = make_link(session)
     doc = _doc(session)
-    session.add(Transaction(document_id=doc.id, provider="X", amount=5.0,
+    session.add(Transaction(document_id=doc.id, description="X", amount=5.0,
                             account_id=account.id, paid_date=date(2026, 9, 20)))
     session.commit()
     seen = {}
@@ -86,7 +86,7 @@ def test_maps_booked_rows_into_transactions(session):
     txn = session.query(Transaction).one()
     assert txn.external_id == "r1" and txn.amount == 23.40
     assert txn.transaction_type == TransactionType.DEBIT
-    assert txn.provider == "Continente" and txn.paid_date == date(2026, 9, 30)
+    assert txn.description == "Continente" and txn.paid_date == date(2026, 9, 30)
     assert txn.statement_period == "2026-09"
 
 
@@ -98,7 +98,7 @@ def test_falls_back_to_hash_when_no_reference(session):
     _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4), classify=fake_classify))
     txn = session.query(Transaction).one()
     assert txn.external_id and len(txn.external_id) == 64
-    assert txn.transaction_type == TransactionType.CREDIT and txn.provider == "Patrao"
+    assert txn.transaction_type == TransactionType.CREDIT and txn.description == "Patrao"
 
 
 @pytest.mark.asyncio
@@ -107,7 +107,7 @@ async def test_statement_overlap_is_not_double_counted(session):
     statement_doc = Document(filename="s.pdf", file_path="/x", content_hash="s1",
                              source=DocumentSource.MANUAL, category="statement")
     session.add(statement_doc); session.commit(); session.refresh(statement_doc)
-    session.add(Transaction(document_id=statement_doc.id, provider="CONTINENTE", amount=23.40,
+    session.add(Transaction(document_id=statement_doc.id, description="CONTINENTE", amount=23.40,
                             account_id=account.id, transaction_type=TransactionType.DEBIT,
                             paid_date=date(2026, 9, 29)))
     session.commit()
@@ -126,6 +126,27 @@ def test_same_reference_twice_is_already_synced(session):
     _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4), classify=fake_classify))
     result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4), classify=fake_classify))
     assert result.already_synced == 1 and result.created == 0
+
+
+def _credit(ref, amount="1100.00"):
+    return {"entry_reference": ref, "status": "BOOK", "credit_debit_indicator": "CRDT",
+            "transaction_amount": {"amount": amount, "currency": "EUR"},
+            "booking_date": "2026-10-07", "debtor": {"name": "Natcha"}}
+
+
+def test_a_booking_the_bank_renumbered_between_fetches_is_not_stored_twice(session):
+    link, account = make_link(session)
+    day = date(2026, 10, 8)
+    _run(sync_link(session, FakeClient([_credit("202610071503171975960001")]), link, today=day, classify=fake_classify))
+    result = _run(sync_link(session, FakeClient([_credit("202610071503171975960002")]), link, today=day, classify=fake_classify))
+    assert result.created == 0 and result.already_synced == 1
+
+
+def test_genuine_twins_in_one_fetch_are_both_stored(session):
+    link, account = make_link(session)
+    rows = [_credit("202610071503171975960001"), _credit("202610071503171975960002")]
+    result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 8), classify=fake_classify))
+    assert result.created == 2
 
 
 def test_dry_run_writes_nothing_but_records_the_call(session):
@@ -199,7 +220,7 @@ def test_classify_failure_keeps_the_transaction_as_other(session):
                             classify=failing_classify))
     assert result.created == 1 and result.unclassified == 1
     txn = session.query(Transaction).one()
-    assert txn.provider == "Continente"
+    assert txn.description == "Continente"
     assert txn.merchant_id is None
     from app.models.transaction import Category
     assert txn.category == Category.OTHER
@@ -267,7 +288,7 @@ def test_identical_coffees_match_one_to_one(session):
     statement_doc = Document(filename="s.pdf", file_path="/x", content_hash="s2",
                              source=DocumentSource.MANUAL, category="statement")
     session.add(statement_doc); session.commit(); session.refresh(statement_doc)
-    session.add(Transaction(document_id=statement_doc.id, provider="CAFE", amount=1.50,
+    session.add(Transaction(document_id=statement_doc.id, description="CAFE", amount=1.50,
                             account_id=account.id, transaction_type=TransactionType.DEBIT,
                             paid_date=date(2026, 9, 29)))
     session.commit()
@@ -333,9 +354,9 @@ def test_first_sync_window_ignores_rows_the_sync_itself_wrote(session):
     backfill start to Oct 1, hiding six weeks of real history."""
     link, account = make_link(session)
     doc = _doc(session)
-    session.add(Transaction(document_id=doc.id, provider="stmt", amount=5.0,
+    session.add(Transaction(document_id=doc.id, description="stmt", amount=5.0,
                             account_id=account.id, paid_date=date(2026, 8, 14)))
-    session.add(Transaction(document_id=doc.id, provider="api", amount=6.0, account_id=account.id,
+    session.add(Transaction(document_id=doc.id, description="api", amount=6.0, account_id=account.id,
                             paid_date=date(2026, 10, 4), external_id="from-api"))
     session.commit()
     seen = {}
@@ -359,9 +380,9 @@ def test_first_sync_window_starts_from_the_last_statement_not_a_later_bill(sessi
                     source=DocumentSource.MANUAL, category=None, domain=Domain.FINANCIALS)
     session.add(statement); session.add(bill); session.commit()
     session.refresh(statement); session.refresh(bill)
-    session.add(Transaction(document_id=statement.id, provider="stmt", amount=5.0,
+    session.add(Transaction(document_id=statement.id, description="stmt", amount=5.0,
                             account_id=account.id, paid_date=date(2026, 7, 31)))
-    session.add(Transaction(document_id=bill.id, provider="bill", amount=109.64,
+    session.add(Transaction(document_id=bill.id, description="bill", amount=109.64,
                             account_id=account.id, paid_date=date(2026, 8, 14)))
     session.commit()
     seen = {}

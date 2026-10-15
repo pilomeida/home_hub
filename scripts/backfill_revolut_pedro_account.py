@@ -144,7 +144,7 @@ async def backfill() -> None:
                         continue
                     transaction = Transaction(
                         document_id=document.id,
-                        provider=item.description,
+                        description=item.description,
                         category=normalize_category(item.category_hint),
                         transaction_type=TransactionType(item.transaction_type.strip().lower()),
                         amount=abs(item.amount),

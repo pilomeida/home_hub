@@ -84,7 +84,7 @@
   {% set opt = debt_options[t.id] %}
   {% set is_transfer = t.transaction_type.value == "transfer" %}
   <div class="needs-attention">
-    <p>{{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR <span class="loan-sub">{{ t.transaction_type.value }}{% if t.paid_date %} · {{ t.paid_date }}{% endif %}</span></p>
+    <p>{{ t.description }} — {{ "%.2f"|format(t.amount) }} EUR <span class="loan-sub">{{ t.transaction_type.value }}{% if t.paid_date %} · {{ t.paid_date }}{% endif %}</span></p>
     <form hx-post="/financials/transactions/{{ t.id }}/link-debt" hx-target="#needs-review-body" hx-swap="innerHTML">
       <fieldset class="loan-link">
         <legend>New informal loan</legend>
@@ -129,7 +129,7 @@
   <h2>Could not classify</h2>
   {% for t in queue.unclassified_transactions %}
   <div class="needs-attention">
-    <p>{{ t.provider }} — {{ "%.2f"|format(t.amount) }} EUR — flagged for manual attention</p>
+    <p>{{ t.description }} — {{ "%.2f"|format(t.amount) }} EUR — flagged for manual attention</p>
   </div>
   {% else %}
   <p>Nothing unclassified.</p>
@@ -142,7 +142,7 @@
   {% set m = queue.unsorted_merchants.get(mid) %}
   {% if m is none %}
   <div class="needs-attention">
-    <p>{{ txns|length }} transaction{{ "s" if txns|length != 1 }} from a merchant that no longer exists ({{ txns[0].provider }})</p>
+    <p>{{ txns|length }} transaction{{ "s" if txns|length != 1 }} from a merchant that no longer exists ({{ txns[0].description }})</p>
   </div>
   {% else %}
   <div class="needs-attention">

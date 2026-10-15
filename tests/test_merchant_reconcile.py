@@ -23,12 +23,12 @@ def _merchant(session, name, node=None, confirmed=False):
 _n = [0]
 
 
-def _t(session, m, slug, ttype=TransactionType.DEBIT, amount=10.0, provider=None, debt_id=None):
+def _t(session, m, slug, ttype=TransactionType.DEBIT, amount=10.0, description=None, debt_id=None):
     _n[0] += 1
     doc = Document(filename=f"d{_n[0]}.pdf", file_path=f"/tmp/d{_n[0]}.pdf",
                    content_hash=f"hash-{_n[0]}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, provider=provider or m.canonical_name, category=Category.OTHER,
+    t = Transaction(document_id=doc.id, description=description or m.canonical_name, category=Category.OTHER,
                     transaction_type=ttype, amount=amount, merchant_id=m.id, debt_id=debt_id)
     session.add(t); session.commit()
     file_transaction(session, t, get_node(session, slug))
@@ -59,8 +59,8 @@ def test_is_refund_only_for_a_credit_under_a_spending_node(session):
 def test_supermarket_rule_overrides_every_other_filing_even_a_confirmed_merchant(session):
     ensure_taxonomy(session)
     m = _merchant(session, "Modelo Hiper", ATM, confirmed=True)
-    a, b = _t(session, m, ATM, provider="MO 2640-000 MAFR"), _t(session, m, SM)
-    refund = _t(session, m, UNSORTED_SLUG, TransactionType.CREDIT, provider="CCR-MODELO HIPER reembolso")
+    a, b = _t(session, m, ATM, description="MO 2640-000 MAFR"), _t(session, m, SM)
+    refund = _t(session, m, UNSORTED_SLUG, TransactionType.CREDIT, description="CCR-MODELO HIPER reembolso")
     report = reconcile_merchants(session, dry_run=False)
     for t in (a, b, refund):
         session.refresh(t)
@@ -153,7 +153,7 @@ async def test_new_chain_merchant_is_filed_by_the_rule_without_asking_the_llm(se
 
     ensure_taxonomy(session)
     m = _merchant(session, "placeholder")
-    t = _t(session, m, UNSORTED_SLUG, provider="PINGO DOCE 1234 LISBOA")
+    t = _t(session, m, UNSORTED_SLUG, description="PINGO DOCE 1234 LISBOA")
     t.merchant_id = None; session.add(t); session.commit()
     gw = FakeGateway([])  # any gateway call raises
     await classify_transaction(session, t, gateway=gw)
@@ -176,7 +176,7 @@ async def test_merchant_memory_leaves_a_credit_of_a_never_paid_merchant_for_revi
 
     ensure_taxonomy(session)
     client = _merchant(session, "Some Client", "family.personal.general-shopping")
-    t = _t(session, client, UNSORTED_SLUG, TransactionType.CREDIT, provider="Some Client")
+    t = _t(session, client, UNSORTED_SLUG, TransactionType.CREDIT, description="Some Client")
     t.category_id = None; session.add(t); session.commit()
     await classify_transaction(session, t, gateway=FakeGateway([]))
     assert t.category_id is None

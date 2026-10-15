@@ -148,7 +148,7 @@ def auto_fits(session: Session, txn: Transaction, node: CategoryNode) -> bool:
         return False
     if is_refund(txn, node):
         # A person's transfer to you is not a shop refund, even when you also paid that person.
-        return merchant_has_purchases(session, txn.merchant_id) and not looks_like_person_transfer(txn.provider)
+        return merchant_has_purchases(session, txn.merchant_id) and not looks_like_person_transfer(txn.description)
     return True
 
 

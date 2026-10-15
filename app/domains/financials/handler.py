@@ -45,7 +45,7 @@ def _wiki_context(transaction: Transaction) -> str:
     # Text-only context (no file) -- the same cheap input the pre-knowledge-
     # layer wiki assessment used.
     return (
-        f"Provider: {transaction.provider}\n"
+        f"Provider: {transaction.description}\n"
         f"Category: {transaction.category.value}\n"
         f"Statement period: {transaction.statement_period}\n"
     )
@@ -156,7 +156,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         return mark_needs_attention(session, document, str(exc))
 
     duplicate = find_duplicate_transaction(
-        session, provider=extracted.provider, statement_period=extracted.statement_period
+        session, description=extracted.provider, statement_period=extracted.statement_period
     )
     if duplicate is not None:
         await _log_ingest_without_assessment(session, document)
@@ -169,7 +169,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
 
     transaction = Transaction(
         document_id=document.id,
-        provider=extracted.provider,
+        description=extracted.provider,
         category=normalize_category(extracted.category_hint),
         transaction_type=TransactionType.DEBIT,
         amount=extracted.amount,
@@ -292,7 +292,7 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
         for item in extracted.transactions:
             transaction = Transaction(
                 document_id=document.id,
-                provider=item.description,
+                description=item.description,
                 category=normalize_category(item.category_hint),
                 transaction_type=TransactionType(item.transaction_type.strip().lower()),
                 amount=abs(item.amount),

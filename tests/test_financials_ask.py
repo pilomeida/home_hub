@@ -12,7 +12,7 @@ def _tool(name):
 
 
 def _txn(session, doc, provider, category, amount, paid, ttype=TransactionType.DEBIT):
-    session.add(Transaction(document_id=doc.id, provider=provider, category=category, amount=amount,
+    session.add(Transaction(document_id=doc.id, description=provider, category=category, amount=amount,
                             currency="EUR", paid_date=paid, transaction_type=ttype))
     session.commit()
 

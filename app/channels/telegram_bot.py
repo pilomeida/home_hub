@@ -23,6 +23,7 @@ from app.config import settings
 from app.domains.base import MediaKind
 from app.domains.fields import media_kind_for
 from app.models.document import DocumentSource, DocumentStatus
+from app.privacy.notices import SCAN_NOTICE, is_image_name
 from app.services.inbox_service import InboxReceipt, describe, is_confident, receive_document, suggested_domain
 from app.services.ingestion import IncomingFile
 
@@ -88,7 +89,10 @@ async def file_to_inbox(
             context_text=f"Telegram caption: {caption}" if caption else None,
             external_ref=message_ref,
         )
-        return reply_for(receipt, base_url)
+        reply = reply_for(receipt, base_url)
+        if is_image_name(filename) and not receipt.duplicate:
+            reply += f"\n\n{SCAN_NOTICE}"
+        return reply
 
 
 def _sender_name(update: Update) -> Optional[str]:

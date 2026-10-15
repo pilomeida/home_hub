@@ -135,7 +135,7 @@ def test_unknown_balance_loan_listed_and_excluded(client, session):
 def test_informal_debt_section(client, session):
     _seed(session)
     doc = _doc(session, 9)
-    t = Transaction(document_id=doc.id, provider="TRF P/ JOAO", category=Category.OTHER_EXPENSE, amount=300.0,
+    t = Transaction(document_id=doc.id, description="TRF P/ JOAO", category=Category.OTHER_EXPENSE, amount=300.0,
                     transaction_type=TransactionType.DEBIT)
     session.add(t)
     session.commit()
@@ -347,7 +347,7 @@ def test_assign_new_loan_creates_it_fills_movements_and_links_transactions(clien
     session.add(doc)
     session.commit()
     session.refresh(doc)
-    txn = Transaction(document_id=doc.id, provider="COB.REC.31.900100299/ 35", amount=120.0,
+    txn = Transaction(document_id=doc.id, description="COB.REC.31.900100299/ 35", amount=120.0,
                       transaction_type=TransactionType.DEBIT)
     session.add(txn)
     session.commit()
@@ -697,7 +697,7 @@ def test_loan_page_shows_linked_insurance_paid_and_last_premium(client, session)
     debt = _seed(session)
     doc = _doc(session, 9)
     for paid, amount in ((date(2026, 7, 3), 12.5), (date(2026, 8, 3), 13.0)):
-        t = Transaction(document_id=doc.id, provider="SEG VIDA 15.000001-2026/08/21", amount=amount,
+        t = Transaction(document_id=doc.id, description="SEG VIDA 15.000001-2026/08/21", amount=amount,
                         transaction_type=TransactionType.DEBIT, paid_date=paid)
         session.add(t)
         session.flush()
@@ -726,7 +726,7 @@ def test_informal_section_shows_ledger_with_running_balances(client, session):
     from app.services import debt_ledger
     d = _informal_debt(session, opening=1000.0)
     debt_ledger.add_entry(session, d, "repayment", 300.0, date(2026, 2, 1), note="first back")
-    t = Transaction(document_id=_doc(session, 40).id, provider="TRF P/ TEST", amount=500.0,
+    t = Transaction(document_id=_doc(session, 40).id, description="TRF P/ TEST", amount=500.0,
                     transaction_type=TransactionType.DEBIT, paid_date=date(2026, 3, 1))
     session.add(t)
     session.commit()
@@ -799,7 +799,7 @@ def test_delete_manual_entry_but_not_a_linked_one(client, session):
     from app.services import debt_ledger
     d = _informal_debt(session, opening=100.0)
     manual = session.exec(select(DebtEntry)).one()
-    t = Transaction(document_id=_doc(session, 41).id, provider="TRF P/ TEST", amount=50.0,
+    t = Transaction(document_id=_doc(session, 41).id, description="TRF P/ TEST", amount=50.0,
                     transaction_type=TransactionType.DEBIT, paid_date=date(2026, 3, 1))
     session.add(t)
     session.commit()

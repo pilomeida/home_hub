@@ -46,7 +46,7 @@ def relabel_structured(session: Session, dry_run: bool = True) -> RelabelReport:
     made: dict[str, Merchant] = {}
     old_ids: set[int] = set()
     for t in session.exec(select(Transaction)).all():
-        spec = structured_merchant(t.provider)
+        spec = structured_merchant(t.description)
         if spec is None:
             continue
         if spec.key not in made:

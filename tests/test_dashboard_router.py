@@ -43,7 +43,7 @@ def test_overview_page_renders_kpi_cards_and_sections(client, session):
     session.refresh(document)
 
     t = Transaction(
-        document_id=document.id, provider="SALARIO", category=Category.INCOME,
+        document_id=document.id, description="SALARIO", category=Category.INCOME,
         transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
         account_id=account.id, paid_date=date.today(),
     )
@@ -104,7 +104,7 @@ def test_cash_flow_range_pill_swap_changes_content(client, session):
     session.commit()
     session.refresh(document)
     session.add(Transaction(
-        document_id=document.id, provider="SALARIO", category=Category.INCOME,
+        document_id=document.id, description="SALARIO", category=Category.INCOME,
         transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
         paid_date=date(2025, 1, 15),
     ))
@@ -138,7 +138,7 @@ def _file_spend(session, slug, amount, paid):
     session.add(doc)
     session.commit()
     session.refresh(doc)
-    t = Transaction(document_id=doc.id, provider="X", transaction_type=TransactionType.DEBIT,
+    t = Transaction(document_id=doc.id, description="X", transaction_type=TransactionType.DEBIT,
                     amount=amount, currency="EUR", paid_date=paid)
     session.add(t)
     session.flush()
@@ -241,7 +241,7 @@ def _file_credit(session, slug, amount, paid):
         session.add(doc)
         session.commit()
         session.refresh(doc)
-    t = Transaction(document_id=doc.id, provider="X", transaction_type=TransactionType.CREDIT,
+    t = Transaction(document_id=doc.id, description="X", transaction_type=TransactionType.CREDIT,
                     amount=amount, currency="EUR", paid_date=paid)
     session.add(t)
     session.flush()

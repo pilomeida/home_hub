@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import httpx
 
+from app.privacy.outbound import Redaction, prepare
+
 from app.config import settings
 
 _TIMEOUT_S = 600  # long generations are normal; the gateway owns the real budget
@@ -78,29 +80,52 @@ class GatewayClient:
         attachments: list | None = None,
         max_tokens: int | None = None,
         response_schema: dict | None = None,
+        sensitivity: str | None = None,
+        redaction: Redaction | None = None,
     ) -> GatewayResult:
+        # The one outbound checkpoint (app/privacy/outbound.py): fail closed,
+        # nothing below runs if it raises. sensitivity=None = type not wired yet.
+        out = prepare(system=system, user=user, messages=messages, tools=tools,
+                      attachments=attachments, sensitivity=sensitivity, redaction=redaction)
         payload: dict = {
             "workload_type": workload_type,
-            "system": system,
+            "system": out.system,
             "max_tokens": max_tokens,
             "response_schema": response_schema,
         }
-        if messages is not None:
-            payload["messages"] = messages
+        if out.sensitivity is not None:
+            payload["sensitivity"] = out.sensitivity
+        if out.messages is not None:
+            payload["messages"] = out.messages
             payload["tools"] = tools
             payload["job_id"] = job_id
         else:
-            payload["user"] = user
+            payload["user"] = out.user
             if attachments is not None:
                 payload["attachments"] = attachments
-        return GatewayResult(await self._post("/run", payload))
+        result = GatewayResult(await self._post("/run", payload))
+        if out.vault is not None:
+            result.text = out.vault.restore(result.text)   # only ever on the VPS
+        return result
+
+    async def pairings(self) -> list[dict]:
+        """This app's own pairings with their quality/privacy settings (GET /worker/pairings)."""
+        return (await self._call("GET", "/worker/pairings", None))["pairings"]
+
+    async def set_pairing_tiers(self, workload_type: str, **overrides) -> dict:
+        """Adjust this app's own pairing's privacy_tier / min_quality_tier. A key left out is
+        unchanged; a key set to None means "inherit the standard value again"."""
+        return await self._call("PUT", f"/worker/pairings/{workload_type}", overrides)
 
     async def _post(self, path: str, payload: dict) -> dict:
+        return await self._call("POST", path, payload)
+
+    async def _call(self, method: str, path: str, payload: dict | None) -> dict:
         url = self.base_url + path
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as http:
-                resp = await http.post(
-                    url, json=payload,
+                resp = await http.request(
+                    method, url, json=payload,
                     headers={"Authorization": f"Bearer {self._token}"},
                 )
         except httpx.HTTPError as exc:

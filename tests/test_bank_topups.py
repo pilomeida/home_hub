@@ -22,7 +22,7 @@ def _accounts(session):
 def _santander_debit(session, san, doc, amount, paid):
     # Provider text produced by the real sync path from a raw bank row.
     provider = _provider({"creditor": {"name": "COMPRA ESTRANG 3315 Revolut  0008"}}, is_credit=False)
-    t = Transaction(document_id=doc.id, provider=provider, amount=amount, paid_date=paid,
+    t = Transaction(document_id=doc.id, description=provider, amount=amount, paid_date=paid,
                     account_id=san.id, transaction_type=TransactionType.DEBIT)
     session.add(t); session.commit(); session.refresh(t)
     return t
@@ -30,7 +30,7 @@ def _santander_debit(session, san, doc, amount, paid):
 
 def _revolut_credit(session, rev, doc, amount, paid):
     provider = _provider({"debtor": {"name": "Top-Up by *3871"}}, is_credit=True)
-    t = Transaction(document_id=doc.id, provider=provider, amount=amount, paid_date=paid,
+    t = Transaction(document_id=doc.id, description=provider, amount=amount, paid_date=paid,
                     account_id=rev.id, transaction_type=TransactionType.CREDIT)
     session.add(t); session.commit(); session.refresh(t)
     return t
@@ -84,7 +84,7 @@ def test_extra_topup_is_left_alone_and_pairing_is_one_to_one(session):
 def test_ordinary_santander_debits_are_ignored(session):
     san, rev, doc = _accounts(session)
     _revolut_credit(session, rev, doc, 25.0, date(2026, 9, 1))
-    other = Transaction(document_id=doc.id, provider="Continente", amount=25.0,
+    other = Transaction(document_id=doc.id, description="Continente", amount=25.0,
                         paid_date=date(2026, 9, 2), account_id=san.id)
     session.add(other); session.commit()
     assert link_revolut_topups(session) == 0

@@ -23,7 +23,7 @@ _holder_n = [0]
 async def _classify(session, description, gw, ttype=TransactionType.DEBIT):
     _holder_n[0] += 1
     holder = _merchant(session, f"holder {_holder_n[0]}")
-    t = _t(session, holder, UNSORTED_SLUG, ttype, provider=description)
+    t = _t(session, holder, UNSORTED_SLUG, ttype, description=description)
     t.category_id = None; t.merchant_id = None; session.add(t); session.commit()
     result = await classify_transaction(session, t, gateway=gw)
     return t, result

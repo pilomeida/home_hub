@@ -6,7 +6,7 @@ def _data(session):
     ensure_taxonomy(session)
     a, b = _merchant(session, "Padaria Sol"), _merchant(session, "Galp")
     for i in range(105):  # more than one page of 100
-        _t(session, a if i % 2 else b, UNSORTED_SLUG, provider=f"COMPRA {i} PADARIA")
+        _t(session, a if i % 2 else b, UNSORTED_SLUG, description=f"COMPRA {i} PADARIA")
     return a, b
 
 

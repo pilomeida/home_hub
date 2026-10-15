@@ -14,7 +14,7 @@ def find_existing_document_by_hash(session: Session, content_hash: str) -> Optio
 
 
 def find_duplicate_transaction(
-    session: Session, provider: str, statement_period: Optional[str]
+    session: Session, description: str, statement_period: Optional[str]
 ) -> Optional[Transaction]:
     """A transaction is a duplicate if the same provider already has a
     BILL-derived transaction for the same statement period. Statement line
@@ -27,7 +27,7 @@ def find_duplicate_transaction(
         select(Transaction)
         .join(Document, Transaction.document_id == Document.id)
         .where(
-            Transaction.provider == provider,
+            Transaction.description == description,
             Transaction.statement_period == statement_period,
             or_(Document.category.is_(None), Document.category != "statement"),
         )

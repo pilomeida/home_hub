@@ -82,7 +82,7 @@ async def test_process_financials_document_creates_transaction(session, monkeypa
         select(Transaction).where(Transaction.document_id == document.id)
     ).first()
     assert transaction is not None
-    assert transaction.provider == "EDP"
+    assert transaction.description == "EDP"
     assert transaction.category == Category.ELECTRICITY
     assert transaction.amount == 87.32
     assert transaction.transaction_type == TransactionType.DEBIT
@@ -127,7 +127,7 @@ async def test_process_financials_document_skips_duplicate_transaction(session, 
     session.commit()
 
     session.add(Transaction(
-        document_id=existing_document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=existing_document.id, description="EDP", category=Category.ELECTRICITY,
         amount=87.32, currency="EUR", statement_period="2026-08",
     ))
     session.commit()
@@ -200,7 +200,7 @@ async def test_process_financials_document_marks_needs_attention_on_enrichment_f
         select(Transaction).where(Transaction.document_id == document.id)
     ).first()
     assert transaction is not None
-    assert transaction.provider == "EDP"
+    assert transaction.description == "EDP"
     assert transaction.amount == 87.32
 
 
@@ -239,7 +239,7 @@ async def test_ingest_statement_creates_one_transaction_per_line_item(session, m
         select(Transaction).where(Transaction.document_id == document.id).order_by(Transaction.paid_date)
     ).all()
     assert len(transactions) == 3
-    assert transactions[0].provider == "CONTINENTE MAFRA"
+    assert transactions[0].description == "CONTINENTE MAFRA"
     assert transactions[0].category == Category.GROCERIES
     assert transactions[0].transaction_type == TransactionType.DEBIT
     assert transactions[0].statement_period == "2026-07"
@@ -512,7 +512,7 @@ async def test_process_financials_document_bill_not_falsely_deduped_by_statement
         select(Transaction).where(Transaction.document_id == bill_document.id)
     ).first()
     assert bill_transaction is not None
-    assert bill_transaction.provider == "EDP"
+    assert bill_transaction.description == "EDP"
     assert bill_transaction.amount == 87.32
 
 
@@ -577,7 +577,7 @@ async def test_process_financials_document_bill_dedup_still_works_when_prior_doc
     session.commit()
 
     session.add(Transaction(
-        document_id=legacy_document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=legacy_document.id, description="EDP", category=Category.ELECTRICITY,
         transaction_type=TransactionType.DEBIT, amount=87.32, currency="EUR", statement_period="2026-07",
     ))
     session.commit()

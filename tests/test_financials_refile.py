@@ -18,7 +18,7 @@ def _bill(session):
     session.add(document)
     session.commit()
     session.refresh(document)
-    transaction = Transaction(document_id=document.id, provider="Worten", category=Category.OTHER_EXPENSE,
+    transaction = Transaction(document_id=document.id, description="Worten", category=Category.OTHER_EXPENSE,
                               transaction_type=TransactionType.DEBIT, amount=499.0)
     session.add(transaction)
     session.commit()

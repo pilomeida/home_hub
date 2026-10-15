@@ -37,7 +37,7 @@ def _doc(session):
 
 def _txn(session, provider, ttype=TransactionType.DEBIT):
     doc = session.exec(select(Document)).first() or _doc(session)
-    t = Transaction(document_id=doc.id, provider=provider, amount=100.0, transaction_type=ttype)
+    t = Transaction(document_id=doc.id, description=provider, amount=100.0, transaction_type=ttype)
     session.add(t)
     session.commit()
     session.refresh(t)
@@ -98,7 +98,7 @@ def test_ambiguity_no_link(session, tree):
     _debt(session, "9001002001")
     _debt(session, "001002001")  # substring of the first's run
     t = _txn(session, "COB.REC.31.9001002001")
-    assert find_loan_for(session, t.provider) is None
+    assert find_loan_for(session, t.description) is None
     assert link_transaction_to_loan(session, t) is False
 
 
@@ -106,7 +106,7 @@ def test_separator_collision_does_not_link(session, tree):
     _debt(session, "123456789")
     # digits only match when separators are merged
     t = _txn(session, "REF 12345.6789 X")
-    assert find_loan_for(session, t.provider) is None
+    assert find_loan_for(session, t.description) is None
     assert link_transaction_to_loan(session, t) is False
 
 

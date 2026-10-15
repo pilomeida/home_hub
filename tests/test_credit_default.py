@@ -33,7 +33,7 @@ async def test_a_new_entry_takes_the_default_of_its_own_direction(session):
     m = Merchant(canonical_name="Segurança Social", normalized_key=normalize_provider(provider), confirmed=True,
                  default_category_id=get_node(session, TAX).id, default_credit_category_id=get_node(session, BENEFIT).id)
     session.add(m); session.commit()
-    out = _t(session, m, UNSORTED_SLUG, provider=provider); inn = _t(session, m, UNSORTED_SLUG, TransactionType.CREDIT, provider=provider)
+    out = _t(session, m, UNSORTED_SLUG, description=provider); inn = _t(session, m, UNSORTED_SLUG, TransactionType.CREDIT, description=provider)
     for t in (out, inn):
         t.category_id = None; session.add(t)
     session.commit()
@@ -55,14 +55,14 @@ def test_a_persons_transfer_to_you_is_not_a_shop_refund(session):
     ensure_taxonomy(session)
     shop = _merchant(session, "Zara", "family.personal.clothing")
     _t(session, shop, "family.personal.clothing")  # a purchase
-    refund = _t(session, shop, UNSORTED_SLUG, TransactionType.CREDIT, provider="CCR-ZARA refund")
+    refund = _t(session, shop, UNSORTED_SLUG, TransactionType.CREDIT, description="CCR-ZARA refund")
     person = _merchant(session, "Ivo Ferreira", "family.personal.general-shopping")
     _t(session, person, "family.personal.general-shopping")  # you paid him once
-    transfer = _t(session, person, UNSORTED_SLUG, TransactionType.CREDIT, provider="TRF.IMED. DE IVO ANDRE SERAFIM FERREIRA-R7544210")
+    transfer = _t(session, person, UNSORTED_SLUG, TransactionType.CREDIT, description="TRF.IMED. DE IVO ANDRE SERAFIM FERREIRA-R7544210")
     from app.services.taxonomy import auto_fits
     assert auto_fits(session, refund, get_node(session, "family.personal.clothing"))
     assert not auto_fits(session, transfer, get_node(session, "family.personal.general-shopping"))
-    assert looks_like_person_transfer(transfer.provider) and not looks_like_person_transfer("CCR-ZARA refund")
+    assert looks_like_person_transfer(transfer.description) and not looks_like_person_transfer("CCR-ZARA refund")
 
 
 @pytest.mark.parametrize("text,way", [
@@ -77,10 +77,10 @@ def test_the_banks_own_words_give_the_direction(text, way):
 def test_transfer_entries_get_a_direction_unless_internal_or_unclear(session):
     ensure_taxonomy(session)
     m = _merchant(session, "Pessoa")
-    out = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, provider="TRF.IMED. P/ MARCO MOREIRAS")
-    inn = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, provider="TRF.IMED. DE IVO ANDRE")
-    vague = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, provider="TRANSF-24206738")
-    own = _t(session, m, "internal-transfers.between-my-accounts.santander-revolut", TransactionType.TRANSFER, provider="TRF P/ REVOLUT")
+    out = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, description="TRF.IMED. P/ MARCO MOREIRAS")
+    inn = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, description="TRF.IMED. DE IVO ANDRE")
+    vague = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, description="TRANSF-24206738")
+    own = _t(session, m, "internal-transfers.between-my-accounts.santander-revolut", TransactionType.TRANSFER, description="TRF P/ REVOLUT")
     dry = recover_transfer_directions(session)
     assert (dry.to_debit, dry.to_credit, dry.unclear) == (1, 1, 1)
     recover_transfer_directions(session, dry_run=False)
@@ -93,7 +93,7 @@ def test_transfer_entries_get_a_direction_unless_internal_or_unclear(session):
 def test_a_human_can_file_a_reversal_credit_under_the_loan(session):
     ensure_taxonomy(session)
     bank = _merchant(session, "Santander")
-    rev = _t(session, bank, UNSORTED_SLUG, TransactionType.CREDIT, provider="ESTORNO 31.0003.17997064096")
+    rev = _t(session, bank, UNSORTED_SLUG, TransactionType.CREDIT, description="ESTORNO 31.0003.17997064096")
     rep = apply_to_providers(session, [provider_key("ESTORNO 31.0003.17997064096")], get_node(session, "loans-debt.loan-repayments.mortgage"))
     session.refresh(rev)
     assert rev.category_id == get_node(session, "loans-debt.loan-repayments.mortgage").id and rep.left_alone == 0

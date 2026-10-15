@@ -46,5 +46,7 @@ class Document(SQLModel, table=True):
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None
+    # house_low|house_mid|house_high (app.privacy.tiers); NULL = no tier wired for this type yet.
+    sensitivity_tier: Optional[str] = None
     account_id: Optional[int] = Field(default=None, foreign_key="accounts.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)

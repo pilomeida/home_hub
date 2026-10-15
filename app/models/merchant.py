@@ -1,4 +1,4 @@
-"""Merchant: the canonical identity a raw Transaction.provider string
+"""Merchant: the canonical identity a raw Transaction.description string
 resolves to, via rules-based normalization with an LLM fallback."""
 
 from datetime import datetime

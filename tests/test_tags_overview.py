@@ -25,7 +25,7 @@ def test_tag_totals_aggregates_spending_by_tag(session):
 
     # Add some insurance transactions
     txn1 = Transaction(
-        document_id=doc.id, provider="Car Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Car Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -61,7 +61,7 @@ def test_tag_totals_in_overview_data(session):
     session.commit()
 
     txn = Transaction(
-        document_id=doc.id, provider="Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -91,7 +91,7 @@ def test_tag_totals_by_period(session):
 
     # Add insurance from current month
     txn_current = Transaction(
-        document_id=doc.id, provider="Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -102,7 +102,7 @@ def test_tag_totals_by_period(session):
 
     # Add insurance from previous month
     txn_prev = Transaction(
-        document_id=doc.id, provider="Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=80.0, currency="EUR",
         paid_date=date(2026, 9, 5)
     )
@@ -113,7 +113,7 @@ def test_tag_totals_by_period(session):
 
     # Add insurance from last year
     txn_last_year = Transaction(
-        document_id=doc.id, provider="Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=90.0, currency="EUR",
         paid_date=date(2025, 10, 5)
     )
@@ -148,7 +148,7 @@ def test_dashboard_renders_the_by_tag_panel_with_links_and_amounts(client, sessi
     doc = Document(filename="d.pdf", file_path="/tmp/d.pdf", content_hash="dash-tag", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
     today = _date.today()
-    t = Transaction(document_id=doc.id, provider="Seguro Carro", category=Category.OTHER,
+    t = Transaction(document_id=doc.id, description="Seguro Carro", category=Category.OTHER,
                     transaction_type=TransactionType.DEBIT, amount=321.0, paid_date=today)
     session.add(t); session.commit()
     file_transaction(session, t, get_node(session, "insurances.cars.car-insurance")); session.commit()

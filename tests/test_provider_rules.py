@@ -26,7 +26,7 @@ def test_provider_key_ignores_numbers_case_and_accents():
 def _channel(session):
     ensure_taxonomy(session)
     m = _merchant(session, "MBWay Transfer", REST)
-    return m, [_t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, provider=p)
+    return m, [_t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, description=p)
                for p in ("TRF MBWAY P/MATIAS", "TRF MBWAY P/MATIAS", "TRF MBWAY P/JOANA")]
 
 
@@ -55,7 +55,7 @@ def test_apply_files_transfers_by_hand_and_saves_a_rule(session):
 def test_a_rule_made_from_a_text_with_a_reference_number_matches_any_other_number(session):
     ensure_taxonomy(session)
     m = _merchant(session, "Pag Serviços")
-    _t(session, m, UNSORTED_SLUG, provider="PAG SERVICOS EUPAGO*LIGATTE 9981")
+    _t(session, m, UNSORTED_SLUG, description="PAG SERVICOS EUPAGO*LIGATTE 9981")
     node = get_node(session, "housing.utilities.telecom")
     apply_to_providers(session, [provider_key("PAG SERVICOS EUPAGO*LIGATTE 9981")], node)
     assert find_rule_node(session, "PAG SERVICOS EUPAGO*LIGATTE 1234").id == node.id
@@ -75,9 +75,9 @@ def test_dry_run_and_no_remember_write_nothing_extra(session):
 def test_loan_linked_rows_never_move_and_a_debit_cannot_take_an_inflow_node(session):
     ensure_taxonomy(session)
     m = _merchant(session, "Santander")
-    loan = _t(session, m, "loans-debt.loan-repayments.mortgage", provider="COB.REC.31.000317997064096/3")
+    loan = _t(session, m, "loans-debt.loan-repayments.mortgage", description="COB.REC.31.000317997064096/3")
     loan.debt_id = 1; session.add(loan)
-    debit = _t(session, m, UNSORTED_SLUG, provider="COB.REC.31.000317997064096/4")
+    debit = _t(session, m, UNSORTED_SLUG, description="COB.REC.31.000317997064096/4")
     session.commit()
     node = get_node(session, "income.psi.sessions")
     report = apply_to_providers(session, ["cob.rec.#.#/#"], node)
@@ -109,10 +109,10 @@ async def test_new_entry_follows_the_rule_before_the_merchant_default(session):
     m = Merchant(canonical_name="MBWay Transfer", normalized_key=normalize_provider(provider),
                  default_category_id=get_node(session, REST).id)
     session.add(m); session.commit()
-    seed = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, provider=provider)
+    seed = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, description=provider)
     apply_to_providers(session, [provider_key(provider)], get_node(session, FAMILY), remember=True)
 
-    new = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, provider=provider)
+    new = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER, description=provider)
     new.category_id = None; session.add(new); session.commit()
     await classify_transaction(session, new, gateway=FakeGateway([]))
     assert new.category_id == get_node(session, FAMILY).id  # the rule, not the merchant's Restaurants
@@ -129,7 +129,7 @@ async def test_a_channel_merchant_default_is_not_applied(session):
     m = Merchant(canonical_name="Channel", normalized_key=normalize_provider(provider), by_provider=True,
                  default_category_id=get_node(session, REST).id)
     session.add(m); session.commit()
-    t = _t(session, m, UNSORTED_SLUG, provider=provider)
+    t = _t(session, m, UNSORTED_SLUG, description=provider)
     t.category_id = None; session.add(t); session.commit()
     await classify_transaction(session, t, gateway=FakeGateway([]))
     assert t.category_id is None  # waits in Needs Review

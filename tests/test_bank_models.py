@@ -28,7 +28,7 @@ def test_connection_and_link_roundtrip(session):
 def test_same_bank_reference_cannot_be_stored_twice_per_account(session):
     acct = Account(name="Conta", institution="Santander"); session.add(acct); session.commit()
     d = _doc(session)
-    kw = dict(document_id=d.id, provider="X", amount=1.0, account_id=acct.id, external_id="ref-1")
+    kw = dict(document_id=d.id, description="X", amount=1.0, account_id=acct.id, external_id="ref-1")
     session.add(Transaction(**kw)); session.commit()
     session.add(Transaction(**kw))
     with pytest.raises(IntegrityError):

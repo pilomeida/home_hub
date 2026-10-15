@@ -32,7 +32,7 @@ def _txn(session, node, merchant=None):
     doc = Document(filename=f"m{_n[0]}.pdf", file_path=f"/tmp/m{_n[0]}.pdf",
                    content_hash=f"mig-{_n[0]}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, provider="X", category=Category.OTHER, amount=10.0,
+    t = Transaction(document_id=doc.id, description="X", category=Category.OTHER, amount=10.0,
                     transaction_type=TransactionType.DEBIT, category_id=node.id,
                     merchant_id=merchant.id if merchant else None)
     session.add(t); session.commit(); session.refresh(t)

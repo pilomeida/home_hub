@@ -196,7 +196,7 @@ def test_informal_balance_never_negative(session):
 
 def _txn(session, debt, ttype, amount, n):
     doc = _doc(session, 100 + n)
-    t = Transaction(document_id=doc.id, provider=f"P{n}", amount=amount, transaction_type=ttype, debt_id=debt.id)
+    t = Transaction(document_id=doc.id, description=f"P{n}", amount=amount, transaction_type=ttype, debt_id=debt.id)
     session.add(t)
     session.commit()
 

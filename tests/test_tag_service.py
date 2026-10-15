@@ -163,7 +163,7 @@ def test_tag_totals_counts_transactions_by_tag(session):
 
     # Add an insurance debit (car insurance)
     txn1 = Transaction(
-        document_id=doc.id, provider="Insurance Co", category=Category.OTHER,
+        document_id=doc.id, description="Insurance Co", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -174,7 +174,7 @@ def test_tag_totals_counts_transactions_by_tag(session):
 
     # Add a home insurance debit
     txn2 = Transaction(
-        document_id=doc.id, provider="Home Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Home Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=150.0, currency="EUR",
         paid_date=date(2026, 10, 3)
     )
@@ -208,7 +208,7 @@ def test_tag_totals_ignores_transfers(session):
 
     # Add a transfer (should be ignored)
     txn = Transaction(
-        document_id=doc.id, provider="Bank", category=Category.OTHER,
+        document_id=doc.id, description="Bank", category=Category.OTHER,
         transaction_type=TransactionType.TRANSFER, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -239,7 +239,7 @@ def test_tag_totals_counts_refunds_as_negative(session):
 
     # Add a debit (expense)
     txn1 = Transaction(
-        document_id=doc.id, provider="Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -250,7 +250,7 @@ def test_tag_totals_counts_refunds_as_negative(session):
 
     # Add a credit (refund)
     txn2 = Transaction(
-        document_id=doc.id, provider="Insurance", category=Category.OTHER,
+        document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.CREDIT, amount=30.0, currency="EUR",
         paid_date=date(2026, 10, 6)
     )
@@ -281,7 +281,7 @@ def test_tag_totals_handles_multiple_tags_on_one_transaction(session):
 
     # transaction under car-running tagged as "car"
     txn = Transaction(
-        document_id=doc.id, provider="Fuel", category=Category.OTHER,
+        document_id=doc.id, description="Fuel", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=50.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )

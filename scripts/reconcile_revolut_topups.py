@@ -217,10 +217,10 @@ def reconcile() -> None:
         print(f"Pairs linked:            {len(pairs)}")
         print(f"Unmatched Santander-side: {len(unmatched_san)}")
         for t in unmatched_san:
-            print(f"  SAN #{t.id} {t.paid_date} {t.provider!r} {t.amount}")
+            print(f"  SAN #{t.id} {t.paid_date} {t.description!r} {t.amount}")
         print(f"Unmatched Revolut-side:   {len(unmatched_rev)}")
         for t in unmatched_rev:
-            print(f"  REV #{t.id} {t.paid_date} {t.provider!r} {t.amount}")
+            print(f"  REV #{t.id} {t.paid_date} {t.description!r} {t.amount}")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ def _doc(session, name="doc"):
 
 def _txn(session, document, provider, amount, ttype, paid_date, category=Category.OTHER_EXPENSE):
     t = Transaction(
-        document_id=document.id, provider=provider, category=category,
+        document_id=document.id, description=provider, category=category,
         transaction_type=ttype, amount=amount, currency="EUR", paid_date=paid_date,
     )
     session.add(t)

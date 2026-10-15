@@ -45,7 +45,7 @@ def link_transaction_to_loan(session: Session, txn: Transaction, loans: Optional
     """Link one debit to its loan and file it under Loans. Does not commit."""
     if txn.debt_id is not None or txn.transaction_type != TransactionType.DEBIT:
         return False
-    debt = find_loan_for(session, txn.provider, loans)
+    debt = find_loan_for(session, txn.description, loans)
     if debt is None:
         return False
     slug = MORTGAGE_SLUG if debt.loan_type == "mortgage" else PERSONAL_SLUG
@@ -80,7 +80,7 @@ def _link_insurance_debits(session: Session, loans: list[Debt]) -> int:
         pending = session.exec(
             select(Transaction).where(Transaction.debt_id.is_(None))
             .where(Transaction.transaction_type == TransactionType.DEBIT)
-            .where(func.lower(Transaction.provider).like("seg%"))
+            .where(func.lower(Transaction.description).like("seg%"))
         ).all()
         if not pending:
             return 0

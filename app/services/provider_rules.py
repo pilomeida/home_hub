@@ -85,7 +85,7 @@ def filtered_transactions(session: Session, q: str = "", node_slug: str = "", da
     stmt = select(Transaction)
     if q.strip():
         like = f"%{q.strip()}%"
-        stmt = stmt.where(Transaction.provider.ilike(like)
+        stmt = stmt.where(Transaction.description.ilike(like)
                           | Transaction.merchant_id.in_(select(Merchant.id).where(Merchant.canonical_name.ilike(like))))
     if date_from:
         stmt = stmt.where(Transaction.paid_date >= date_from)
@@ -103,7 +103,7 @@ def filtered_transactions(session: Session, q: str = "", node_slug: str = "", da
 def group_transactions(rows: list[Transaction]) -> dict[str, list[Transaction]]:
     groups: dict[str, list[Transaction]] = {}
     for t in rows:
-        groups.setdefault(provider_key(t.provider), []).append(t)
+        groups.setdefault(provider_key(t.description), []).append(t)
     return groups
 
 
@@ -122,7 +122,7 @@ def list_provider_groups(session: Session, q: str = "", node_slug: str = "", dat
         label = _label(nodes, next(iter(cats))) if len(cats) == 1 else f"{len(cats)} categories"
         un = sum(1 for t in txns if t.category_id is None or nodes.get(t.category_id) is None
                  or nodes[t.category_id].slug.startswith("unsorted"))
-        out.append(ProviderGroup(key, txns[0].provider, merchants[:3], len(txns), round(sum(t.amount for t in txns), 2),
+        out.append(ProviderGroup(key, txns[0].description, merchants[:3], len(txns), round(sum(t.amount for t in txns), 2),
                                  label, un, key in rules))
     order = {"entries": lambda g: (-g.entries, g.key), "amount": lambda g: (-g.total, g.key),
              "name": lambda g: g.key}.get(sort, lambda g: (-g.entries, g.key))
@@ -182,7 +182,7 @@ def apply_to_providers(session: Session, keys: list[str], node: CategoryNode, *,
             if not dry_run:
                 rule = session.exec(select(ProviderRule).where(ProviderRule.key == key)).first()
                 if rule is None:
-                    session.add(ProviderRule(key=key, example=txns[0].provider, node_id=node.id))
+                    session.add(ProviderRule(key=key, example=txns[0].description, node_id=node.id))
                 else:
                     rule.node_id = node.id
                     session.add(rule)

@@ -135,7 +135,7 @@ async def test_classify_transaction_reuses_existing_merchant(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="MODELO HIPER MAFRA",
+        document_id=document.id, description="MODELO HIPER MAFRA",
         category=Category.GROCERIES, amount=42.0, currency="EUR",
     )
     session.add(transaction)
@@ -168,7 +168,7 @@ async def test_classify_transaction_creates_new_merchant_via_llm_fallback(sessio
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="LOJA NOVA DESCONHECIDA",
+        document_id=document.id, description="LOJA NOVA DESCONHECIDA",
         category=Category.OTHER_EXPENSE, amount=15.0, currency="EUR",
     )
     session.add(transaction)
@@ -215,7 +215,7 @@ async def test_classify_transaction_inherits_account_id_from_document(session):
     session.commit()
 
     transaction = Transaction(
-        document_id=document.id, provider="MODELO HIPER", category=Category.GROCERIES,
+        document_id=document.id, description="MODELO HIPER", category=Category.GROCERIES,
         amount=20.0, currency="EUR",
     )
     session.add(transaction)
@@ -259,7 +259,7 @@ async def test_classify_transaction_does_not_overwrite_existing_account_id(sessi
     session.commit()
 
     transaction = Transaction(
-        document_id=document.id, provider="MODELO HIPER", category=Category.GROCERIES,
+        document_id=document.id, description="MODELO HIPER", category=Category.GROCERIES,
         amount=20.0, currency="EUR", account_id=account_b.id,
     )
     session.add(transaction)
@@ -295,7 +295,7 @@ async def test_classify_transaction_does_not_overwrite_existing_nature(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="MODELO HIPER NATURE GUARD",
+        document_id=document.id, description="MODELO HIPER NATURE GUARD",
         category=Category.GROCERIES, amount=20.0, currency="EUR",
         nature=Nature.DISCRETIONARY,
     )
@@ -327,7 +327,7 @@ async def test_classify_transaction_does_not_commit_internally(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="LOJA NOVA DESCONHECIDA",
+        document_id=document.id, description="LOJA NOVA DESCONHECIDA",
         category=Category.OTHER_EXPENSE, amount=15.0, currency="EUR",
     )
     session.add(transaction)
@@ -371,7 +371,7 @@ def test_detect_recurring_candidates_flags_three_consecutive_similar_months(sess
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, provider="NETFLIX", category=Category.SUBSCRIPTIONS,
+            document_id=document.id, description="NETFLIX", category=Category.SUBSCRIPTIONS,
             amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
@@ -404,7 +404,7 @@ def test_detect_recurring_candidates_skips_already_reviewed_merchant(session):
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, provider="NETFLIX", category=Category.SUBSCRIPTIONS,
+            document_id=document.id, description="NETFLIX", category=Category.SUBSCRIPTIONS,
             amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
@@ -437,7 +437,7 @@ def test_detect_recurring_candidates_ignores_two_month_run(session):
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, provider="ONE-OFF SHOP", category=Category.SHOPPING,
+            document_id=document.id, description="ONE-OFF SHOP", category=Category.SHOPPING,
             amount=30.0, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
@@ -471,7 +471,7 @@ def test_detect_recurring_candidates_ignores_run_with_dissimilar_amounts(session
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, provider="GROCERIES CHAIN", category=Category.GROCERIES,
+            document_id=document.id, description="GROCERIES CHAIN", category=Category.GROCERIES,
             amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
@@ -505,7 +505,7 @@ def test_detect_recurring_candidates_flags_four_month_alternating_amounts(sessio
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, provider="ALTERNATING SERVICE", category=Category.SUBSCRIPTIONS,
+            document_id=document.id, description="ALTERNATING SERVICE", category=Category.SUBSCRIPTIONS,
             amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
@@ -530,7 +530,7 @@ def test_detect_debt_candidates_flags_person_transfer_above_threshold(session):
 
     transaction = Transaction(
         document_id=document.id,
-        provider="TRF CRED SEPA+ P/ EDUARDO MANUEL DA SILVA-17471463",
+        description="TRF CRED SEPA+ P/ EDUARDO MANUEL DA SILVA-17471463",
         category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
     )
     session.add(transaction)
@@ -556,7 +556,7 @@ def test_detect_debt_candidates_ignores_small_amount(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="TRF MBWAY P/ JOAO SANTOS",
+        document_id=document.id, description="TRF MBWAY P/ JOAO SANTOS",
         category=Category.OTHER_EXPENSE, amount=20.0, currency="EUR",
     )
     session.add(transaction)
@@ -582,7 +582,7 @@ def test_detect_debt_candidates_ignores_grocery_category(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="MODELO HIPER MAFRA",
+        document_id=document.id, description="MODELO HIPER MAFRA",
         category=Category.GROCERIES, amount=600.0, currency="EUR",
     )
     session.add(transaction)
@@ -609,7 +609,7 @@ def test_detect_debt_candidates_skips_already_reviewed(session):
 
     transaction = Transaction(
         document_id=document.id,
-        provider="TRF CRED SEPA+ P/ MARIA COSTA",
+        description="TRF CRED SEPA+ P/ MARIA COSTA",
         category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
         debt_candidate_reviewed=True,
     )
@@ -652,7 +652,7 @@ def test_get_needs_review_queue_aggregates_all_three_categories(session):
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, provider="NETFLIX", category=Category.SUBSCRIPTIONS,
+            document_id=document.id, description="NETFLIX", category=Category.SUBSCRIPTIONS,
             amount=12.99, currency="EUR", statement_period=period,
             merchant_id=recurring_merchant.id,
         ))
@@ -666,7 +666,7 @@ def test_get_needs_review_queue_aggregates_all_three_categories(session):
     session.commit()
     session.refresh(debt_document)
     debt_transaction = Transaction(
-        document_id=debt_document.id, provider="TRF CRED SEPA+ P/ ANA PEREIRA",
+        document_id=debt_document.id, description="TRF CRED SEPA+ P/ ANA PEREIRA",
         category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
     )
     session.add(debt_transaction)
@@ -694,7 +694,7 @@ def test_get_needs_review_queue_includes_unclassified_transactions(session):
     session.refresh(document)
 
     unclassified_transaction = Transaction(
-        document_id=document.id, provider="UNRESOLVABLE PROVIDER",
+        document_id=document.id, description="UNRESOLVABLE PROVIDER",
         category=Category.OTHER, amount=25.0, currency="EUR", merchant_id=None,
     )
     session.add(unclassified_transaction)
@@ -714,7 +714,7 @@ def _txn(session, provider, ttype=None, amount=15.0, hash_=None):
                         content_hash=hash_ or f"h5-{provider}", source=DocumentSource.MANUAL)
     session.add(document)
     session.commit()
-    t = Transaction(document_id=document.id, provider=provider, category=Category.OTHER,
+    t = Transaction(document_id=document.id, description=provider, category=Category.OTHER,
                     transaction_type=ttype or TransactionType.DEBIT, amount=amount, currency="EUR")
     session.add(t)
     session.commit()
@@ -866,7 +866,7 @@ def test_direction_matches_rules(session):
     out = get_node(session, "food.groceries.supermarket")
     unsorted = get_node(session, UNSORTED_SLUG)
     refunds = get_node(session, "income.gifts-other.gifts-received")
-    def tx(k): return Transaction(document_id=1, provider="x", amount=1, transaction_type=k)
+    def tx(k): return Transaction(document_id=1, description="x", amount=1, transaction_type=k)
     assert direction_matches(tx(TransactionType.DEBIT), out)
     assert not direction_matches(tx(TransactionType.TRANSFER), out)
     assert not direction_matches(tx(TransactionType.TRANSFER), refunds)
@@ -953,7 +953,7 @@ async def _classify_with_rule(session, direction, ttype, amount=100.0):
     doc = Document(filename="ac.pdf", file_path="/tmp/ac.pdf", content_hash=f"ac-{direction}-{ttype}", source=DocumentSource.MANUAL)
     session.add(doc)
     session.commit()
-    txn = Transaction(document_id=doc.id, provider=provider, amount=amount, transaction_type=ttype,
+    txn = Transaction(document_id=doc.id, description=provider, amount=amount, transaction_type=ttype,
                       category=Category.OTHER_EXPENSE, paid_date=date(2026, 2, 1))
     session.add(txn)
     session.commit()

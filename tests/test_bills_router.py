@@ -66,12 +66,12 @@ def test_bill_detail_renders_multiple_transactions(client, session):
     session.refresh(document)
 
     session.add(Transaction(
-        document_id=document.id, provider="CONTINENTE", category=Category.GROCERIES,
+        document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
         transaction_type=TransactionType.DEBIT, amount=40.0, currency="EUR",
         statement_period="2026-08",
     ))
     session.add(Transaction(
-        document_id=document.id, provider="SALARIO", category=Category.INCOME,
+        document_id=document.id, description="SALARIO", category=Category.INCOME,
         transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
         statement_period="2026-08",
     ))

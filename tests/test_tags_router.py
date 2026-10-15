@@ -27,7 +27,7 @@ def test_transactions_filter_by_tag_includes_matching_transactions(client, sessi
 
     # Create insurance transaction (should be tagged)
     txn1 = Transaction(
-        document_id=doc1.id, provider="Insurance Co", category=Category.OTHER,
+        document_id=doc1.id, description="Insurance Co", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -38,7 +38,7 @@ def test_transactions_filter_by_tag_includes_matching_transactions(client, sessi
 
     # Create home insurance transaction (also tagged)
     txn2 = Transaction(
-        document_id=doc2.id, provider="Home Insurer", category=Category.OTHER,
+        document_id=doc2.id, description="Home Insurer", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=150.0, currency="EUR",
         paid_date=date(2026, 10, 3)
     )
@@ -49,7 +49,7 @@ def test_transactions_filter_by_tag_includes_matching_transactions(client, sessi
 
     # Create non-tagged transaction (grocery)
     txn3 = Transaction(
-        document_id=doc3.id, provider="Zeta Groceries", category=Category.GROCERIES,
+        document_id=doc3.id, description="Zeta Groceries", category=Category.GROCERIES,
         transaction_type=TransactionType.DEBIT, amount=50.0, currency="EUR",
         paid_date=date(2026, 10, 4)
     )
@@ -110,7 +110,7 @@ def test_transactions_filter_by_tag_combines_with_other_filters(client, session)
 
     # Insurance in October
     txn1 = Transaction(
-        document_id=doc1.id, provider="Ins1", category=Category.OTHER,
+        document_id=doc1.id, description="Ins1", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
@@ -121,7 +121,7 @@ def test_transactions_filter_by_tag_combines_with_other_filters(client, session)
 
     # Insurance in September
     txn2 = Transaction(
-        document_id=doc2.id, provider="Ins2", category=Category.OTHER,
+        document_id=doc2.id, description="Ins2", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=150.0, currency="EUR",
         paid_date=date(2026, 9, 5)
     )

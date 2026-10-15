@@ -97,7 +97,7 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
             .join(Transaction, Transaction.merchant_id == Merchant.id).group_by(Merchant.id))
     if q.strip():
         like = f"%{q.strip()}%"
-        stmt = stmt.where(Merchant.canonical_name.ilike(like) | Transaction.provider.ilike(like))
+        stmt = stmt.where(Merchant.canonical_name.ilike(like) | Transaction.description.ilike(like))
     if date_from:
         stmt = stmt.where(Transaction.paid_date >= date_from)
     if date_to:

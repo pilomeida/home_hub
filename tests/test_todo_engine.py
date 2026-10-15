@@ -15,7 +15,7 @@ def _make_transaction(session, due_date=None):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=document.id, description="EDP", category=Category.ELECTRICITY,
         amount=87.32, currency="EUR", due_date=due_date,
     )
     session.add(transaction)

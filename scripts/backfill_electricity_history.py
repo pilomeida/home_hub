@@ -169,7 +169,7 @@ def backfill() -> None:
 
             transaction = Transaction(
                 document_id=document.id,
-                provider=PROVIDER,
+                description=PROVIDER,
                 category=Category.ELECTRICITY,
                 transaction_type=TransactionType.DEBIT,
                 amount=row["cost_total"],

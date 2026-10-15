@@ -17,7 +17,7 @@ def generate_todo_for_transaction(session: Session, transaction: Transaction) ->
     if transaction.due_date is None:
         return None
     todo = Todo(
-        title=f"Pay {transaction.provider} — {transaction.amount:.2f} {transaction.currency}",
+        title=f"Pay {transaction.description} — {transaction.amount:.2f} {transaction.currency}",
         due_date=transaction.due_date,
         transaction_id=transaction.id,
         domain=Domain.FINANCIALS,

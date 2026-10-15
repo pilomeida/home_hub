@@ -105,7 +105,7 @@ def link_insurance_transaction(session: Session, txn: Transaction, index: Option
     commit. `index` lets a batch caller load loans, movements and rules once."""
     if txn.debt_id is not None or txn.transaction_type != TransactionType.DEBIT:
         return False
-    key = insurance_key(txn.provider)
+    key = insurance_key(txn.description)
     family = key_component(key) if key is not None else None
     if family is None:  # only SEG VIDA / SEG EDF / SEG LAR are loan insurance
         return False

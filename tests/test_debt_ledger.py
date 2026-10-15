@@ -33,8 +33,8 @@ def _doc(session):
     return d
 
 
-def _txn(session, amount, ttype=TransactionType.DEBIT, paid=date(2026, 1, 10), provider="TRF SEPA+ P/ TEST PERSON"):
-    t = Transaction(document_id=_doc(session).id, provider=provider, amount=amount, transaction_type=ttype,
+def _txn(session, amount, ttype=TransactionType.DEBIT, paid=date(2026, 1, 10), description="TRF SEPA+ P/ TEST PERSON"):
+    t = Transaction(document_id=_doc(session).id, description=description, amount=amount, transaction_type=ttype,
                     paid_date=paid)
     session.add(t)
     session.commit()
@@ -338,7 +338,7 @@ def _fk_stmt_doc(session, name="stmt.pdf"):
 
 
 def _fk_txn(session, doc, amount, ttype=TransactionType.DEBIT, paid=date(2026, 1, 10)):
-    t = Transaction(document_id=doc.id, provider="TRF SEPA+ P/ TEST PERSON", amount=amount, transaction_type=ttype,
+    t = Transaction(document_id=doc.id, description="TRF SEPA+ P/ TEST PERSON", amount=amount, transaction_type=ttype,
                     paid_date=paid)
     session.add(t)
     session.commit()
@@ -447,7 +447,7 @@ async def test_match_rule_auto_link_reattaches_after_a_reupload(fk_session):
 def _legacy_with_ids(session, direction, original, specs):
     d = _legacy(session, direction, original)
     for tid, amount, ttype, day in specs:
-        t = Transaction(id=tid, document_id=_doc(session).id, provider="TRF P/ TEST PERSON", amount=amount,
+        t = Transaction(id=tid, document_id=_doc(session).id, description="TRF P/ TEST PERSON", amount=amount,
                         transaction_type=ttype, paid_date=date(2026, 1, day), debt_id=d.id)
         session.add(t)
     session.commit()

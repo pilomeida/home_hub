@@ -21,7 +21,7 @@ def _doc(session, category, source=DocumentSource.MANUAL, name=None):
 
 
 def _txn(session, doc, provider, amount, paid, ttype=TransactionType.DEBIT, **kw):
-    t = Transaction(document_id=doc.id, provider=provider, category=Category.OTHER, transaction_type=ttype,
+    t = Transaction(document_id=doc.id, description=provider, category=Category.OTHER, transaction_type=ttype,
                     amount=amount, paid_date=paid, **kw)
     session.add(t); session.commit(); session.refresh(t)
     return t

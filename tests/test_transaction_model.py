@@ -13,7 +13,7 @@ def test_create_and_read_transaction(session):
 
     transaction = Transaction(
         document_id=document.id,
-        provider="EDP",
+        description="EDP",
         category=Category.ELECTRICITY,
         amount=87.32,
         currency="EUR",
@@ -41,7 +41,7 @@ def test_transaction_type_defaults_to_debit(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=document.id, description="EDP", category=Category.ELECTRICITY,
         amount=87.32, currency="EUR", statement_period="2026-08",
     )
     session.add(transaction)
@@ -61,7 +61,7 @@ def test_transaction_supports_new_category_and_credit_type(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="SALARIO EMPRESA X", category=Category.INCOME,
+        document_id=document.id, description="SALARIO EMPRESA X", category=Category.INCOME,
         transaction_type=TransactionType.CREDIT, amount=2200.0, currency="EUR",
         statement_period="2026-07",
     )
@@ -98,7 +98,7 @@ def test_transaction_links_to_account_commitment_and_debt(session):
 
     transaction = Transaction(
         document_id=document.id,
-        provider="AT - IMI",
+        description="AT - IMI",
         category=Category.HOME,
         amount=1600.0,
         currency="EUR",
@@ -128,7 +128,7 @@ def test_transaction_new_fields_default_to_none(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="CONTINENTE", category=Category.GROCERIES,
+        document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
         amount=45.20, currency="EUR",
     )
     session.add(transaction)
@@ -151,7 +151,7 @@ def test_transaction_merchant_and_debt_review_fields_default_to_none(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="CONTINENTE", category=Category.GROCERIES,
+        document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
         amount=30.0, currency="EUR",
     )
     session.add(transaction)
@@ -182,7 +182,7 @@ def test_transaction_links_to_merchant(session):
     session.refresh(merchant)
 
     transaction = Transaction(
-        document_id=document.id, provider="MODELO HIPER MAFRA", category=Category.GROCERIES,
+        document_id=document.id, description="MODELO HIPER MAFRA", category=Category.GROCERIES,
         amount=45.0, currency="EUR", merchant_id=merchant.id,
     )
     session.add(transaction)

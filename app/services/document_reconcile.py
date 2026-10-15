@@ -32,7 +32,7 @@ _UNKNOWN_BANK_DOCS = ("statement",)
 @dataclass
 class Unmatched:
     transaction_id: int
-    provider: str
+    description: str
     amount: float
     when: Optional[date]
     nearest: Optional[tuple[int, float, date]]  # (bank id, amount, date) of the closest same-payee debit, any amount
@@ -75,7 +75,7 @@ def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDoc
     candidates = [t for t, d in rows if not _is_bank(d) and t.settled_by_id is None and (t.paid_date or t.due_date)]
     banks = [t for t, d in rows if _is_bank(d)]
     used = {t.settled_by_id for t, _d in rows if t.settled_by_id is not None}
-    bank_tokens = {b.id: _tokens(b.provider, names.get(b.merchant_id)) for b in banks}
+    bank_tokens = {b.id: _tokens(b.description, names.get(b.merchant_id)) for b in banks}
 
     by_id = {t.id: t for t, _d in rows}
     done: set[int] = set()
@@ -83,7 +83,7 @@ def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDoc
     # the May one, and a receipt issued days after its debit still finds that debit.
     for c in sorted(candidates, key=lambda t: ((t.paid_date or t.due_date), t.id)):
         ref = c.paid_date or c.due_date
-        ctokens = _tokens(c.provider, names.get(c.merchant_id))
+        ctokens = _tokens(c.description, names.get(c.merchant_id))
         if c.issue_date:
             # You learn a payment is due when the document is issued, so nothing earlier can be it. A receipt,
             # though, is issued after the payment: when it states a paid date, look back from that date too.
@@ -115,11 +115,11 @@ def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDoc
         if c.id in done:
             continue
         ref = c.paid_date or c.due_date
-        ctokens = _tokens(c.provider, names.get(c.merchant_id))
+        ctokens = _tokens(c.description, names.get(c.merchant_id))
         near = [b for b in banks if b.paid_date and abs((b.paid_date - ref).days) <= DAYS_BANK_AFTER_DOCUMENT
                 and ctokens & bank_tokens[b.id]]
         best = min(near, key=lambda b: abs((b.paid_date - ref).days), default=None)
-        report.unmatched.append(Unmatched(c.id, c.provider, c.amount, ref,
+        report.unmatched.append(Unmatched(c.id, c.description, c.amount, ref,
                                           (best.id, best.amount, best.paid_date) if best else None))
     if not dry_run:
         session.commit()

@@ -45,7 +45,7 @@ class Transaction(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     document_id: int = Field(foreign_key="documents.id", index=True)
-    provider: str
+    description: str
     category: Category = Field(default=Category.OTHER)
     category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id", index=True)
     transaction_type: TransactionType = Field(

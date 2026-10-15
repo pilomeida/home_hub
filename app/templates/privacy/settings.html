@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Privacy{% endblock %}
+{% block content %}
+<h1>Privacy</h1>
+<p>Every kind of document has a privacy level. The level decides which AI services may read it. You can change any of them here; documents already filed change with it.</p>
+
+<section>
+  <h2>Levels are {% if enforcing %}binding{% else %}not binding yet{% endif %}</h2>
+  {% if enforcing %}
+  <p>A document whose type has no level is <strong>held</strong>: nothing reads it until you set one.</p>
+  <form method="post" action="/privacy/enforce"><input type="hidden" name="on" value="0"><button>Switch levels off</button></form>
+  {% else %}
+  <p>For now the Hub works as it always did, whatever is set below. When you switch levels on, a document whose type has no level is held until you set one.
+  {% if unset_count %}<strong>{{ unset_count }}</strong> type{{ "s have" if unset_count != 1 else " has" }} no level yet — confirm the suggestions first.{% endif %}</p>
+  <form method="post" action="/privacy/enforce"><input type="hidden" name="on" value="1"><button>Switch levels on</button></form>
+  {% endif %}
+</section>
+
+{% if unset_count %}
+<section>
+  <p>Suggested levels are pre-filled below but do not count until you confirm them.</p>
+  <form method="post" action="/privacy/confirm-suggestions"><button>Confirm all {{ unset_count }} suggestions</button></form>
+</section>
+{% endif %}
+
+{% for label, rows in groups.items() %}
+<h2>{{ label }}</h2>
+<table class="review-table">
+  <thead><tr><th>Type of document</th><th>Level</th><th>Hide personal details first</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  {% set fid = "f-" ~ r.info.domain ~ "-" ~ r.info.category %}
+  <tr>
+    <td>{{ r.info.label }}<div style="font-size:12px;color:#666;">{{ r.info.description }}</div>
+      <form id="{{ fid }}" method="post" action="/privacy/types">
+        <input type="hidden" name="domain" value="{{ r.info.domain }}"><input type="hidden" name="category" value="{{ r.info.category }}">
+      </form></td>
+    <td>
+      <select name="tier" form="{{ fid }}">
+        {% for value, text in tier_labels.items() %}
+        <option value="{{ value }}"{% if value == r.shown_tier.value %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+      {% if not r.is_saved %}<div style="font-size:12px;color:#b36b00;">Suggested, not set yet</div>{% endif %}
+    </td>
+    <td><label><input type="checkbox" name="redact" value="1" form="{{ fid }}"{% if r.redact %} checked{% endif %}> on</label></td>
+    <td><button form="{{ fid }}">Save</button></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+
+
+<h2>The AI jobs</h2>
+<p>Each job the Hub gives to AI has two standing rules, set when the Hub was connected to the AI gateway: how private the AI provider must be, and how strong the model must be. They apply to every document, whatever its level above. Changes here affect only the Hub's own jobs.</p>
+{% if jobs_error %}<p class="needs-attention">{{ jobs_error }}</p>{% endif %}
+{% if job_problem %}<p class="needs-attention">{{ job_problem }}</p>{% endif %}
+{% if jobs %}
+<table class="review-table">
+  <thead><tr><th>Job</th><th>AI model</th><th>Provider privacy</th><th>Model strength</th><th></th></tr></thead>
+  <tbody>
+  {% for j in jobs %}
+  {% set fid = "j-" ~ j.workload_type %}
+  <tr>
+    <td>{{ j.label }}<div style="font-size:12px;color:#666;">{{ j.blurb }}</div>
+      <form id="{{ fid }}" method="post" action="/privacy/jobs"><input type="hidden" name="workload_type" value="{{ j.workload_type }}"></form></td>
+    <td>{{ j.model_display or j.model }}</td>
+    <td>
+      <select name="privacy_tier" form="{{ fid }}">
+        <option value=""{% if not j.privacy_tier.override %} selected{% endif %}>Standard ({{ privacy_labels.get(j.privacy_tier.type, j.privacy_tier.type) }})</option>
+        {% for value, text in privacy_labels.items() %}<option value="{{ value }}"{% if j.privacy_tier.override == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+      </select>
+    </td>
+    <td>
+      <select name="min_quality_tier" form="{{ fid }}">
+        <option value=""{% if not j.min_quality_tier.override %} selected{% endif %}>Standard ({{ quality_labels.get(j.min_quality_tier.type, j.min_quality_tier.type) }})</option>
+        {% for value, text in quality_labels.items() %}<option value="{{ value }}"{% if j.min_quality_tier.override == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+      </select>
+      {% if saved_job == j.workload_type and not job_problem %}<div style="font-size:12px;color:#2e7d32;">Saved</div>{% endif %}
+    </td>
+    <td><button form="{{ fid }}">Save</button></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if changes %}
+<h2>Recent changes</h2>
+<table class="review-table">
+  <thead><tr><th>When</th><th>What</th><th>From → to</th><th>By</th></tr></thead>
+  <tbody>
+  {% for c in changes %}
+  <tr><td>{{ c.changed_at | display_datetime }}</td>
+      <td>{% if c.what == "enforce" %}Levels binding{% else %}{{ c.category }} — {{ c.what }}{% endif %}</td>
+      <td>{{ c.old_value or "not set" }} → {{ c.new_value or "not set" }}</td><td>{{ c.changed_by or "—" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

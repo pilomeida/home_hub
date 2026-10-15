@@ -15,7 +15,7 @@ def _three(session):
     sub = _merchant(session, "Santander Subscription")
     aforro = _merchant(session, "Santander Aforro")
     ppr = _merchant(session, "Santander Aforro PPR", confirmed=True)
-    rows = [_t(session, m, UNSORTED_SLUG, provider=PROVIDER) for m in (sub, sub, aforro, ppr)]
+    rows = [_t(session, m, UNSORTED_SLUG, description=PROVIDER) for m in (sub, sub, aforro, ppr)]
     return sub, aforro, ppr, rows
 
 
@@ -50,7 +50,7 @@ async def test_the_same_bank_text_arriving_later_lands_on_the_survivor_without_t
     survivor = _merchant(session, "Santander Aforro PPR", confirmed=True)
     session.add(old); session.commit()
     merge_merchants(session, [old.id], survivor.id)
-    new = _t(session, survivor, UNSORTED_SLUG, provider=PROVIDER)
+    new = _t(session, survivor, UNSORTED_SLUG, description=PROVIDER)
     new.merchant_id = None; session.add(new); session.commit()
     gw = FakeGateway([])
     await classify_transaction(session, new, gateway=gw)

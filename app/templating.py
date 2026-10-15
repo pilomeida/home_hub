@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.domains.registry import get_spec, implemented_domains, is_implemented
 from app.models.domain import Domain
+from app.privacy.notices import SCAN_NOTICE
 from app.services.presentation import (
     claim_label, display_date, display_datetime, friendly_reason, humanize_key, lisbon_datetime,
 )
@@ -25,6 +26,7 @@ def domain_label(domain: Optional[Domain]) -> str:
 
 templates.env.globals["domain_nav"] = implemented_domains
 templates.env.globals["domain_label"] = domain_label
+templates.env.globals["scan_notice"] = SCAN_NOTICE
 
 # Shared presentation filters (app/services/presentation.py) -- the one
 # place a technical failure reason, an internal claim key, or a raw

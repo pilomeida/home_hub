@@ -64,8 +64,12 @@ class FakeGateway:
         attachments: list | None = None,
         max_tokens: int | None = None,
         response_schema: dict | None = None,
+        sensitivity: str | None = None,
+        redaction: object | None = None,
     ) -> "object":
         self.requests.append({
+            "sensitivity": sensitivity,
+            "redaction": redaction,
             "workload_type": workload_type,
             "system": system,
             "user": user,

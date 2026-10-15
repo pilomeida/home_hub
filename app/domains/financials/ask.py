@@ -35,7 +35,7 @@ def _spending(session: Session, args: dict) -> ToolOutput:
     merchants = _merchant_names(session) if group_by == "merchant" else {}
     totals: dict[str, list] = defaultdict(lambda: [0.0, 0])
     for t in session.exec(statement).all():
-        key = (merchants.get(t.merchant_id, t.provider) if group_by == "merchant"
+        key = (merchants.get(t.merchant_id, t.description) if group_by == "merchant"
                else f"{t.paid_date:%Y-%m}" if group_by == "month" else t.category.value)
         totals[key][0] += t.amount
         totals[key][1] += 1
@@ -60,12 +60,12 @@ def _find_transactions(session: Session, args: dict) -> ToolOutput:
         statement = statement.where(Transaction.paid_date <= date.fromisoformat(args["date_to"]))
     merchants = _merchant_names(session)
     matches = [t for t in session.exec(statement.order_by(Transaction.paid_date.desc())).all()
-               if needle in t.provider.lower() or needle in merchants.get(t.merchant_id, "").lower()]
+               if needle in t.description.lower() or needle in merchants.get(t.merchant_id, "").lower()]
     shown = matches[:40]
     lines = [f"{len(matches)} matching transactions (showing {len(shown)}):"] + [
-        f"financials:txn:{t.id} | {t.paid_date or '-'} | {merchants.get(t.merchant_id, t.provider)} | "
+        f"financials:txn:{t.id} | {t.paid_date or '-'} | {merchants.get(t.merchant_id, t.description)} | "
         f"{t.transaction_type.value} €{t.amount:,.2f} | {t.category.value}" for t in shown]
-    citables = [Citable(ref=f"financials:txn:{t.id}", label=f"Transaction: {t.provider} ({t.paid_date})",
+    citables = [Citable(ref=f"financials:txn:{t.id}", label=f"Transaction: {t.description} ({t.paid_date})",
                         url=_txn_url(transaction_id=t.id)) for t in shown]
     return ToolOutput(text="\n".join(lines), citables=citables, used_raw_sources=True)
 

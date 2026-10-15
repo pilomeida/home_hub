@@ -42,12 +42,12 @@ def test_relabel_collapses_the_invented_merchants_and_leaves_categories_and_loan
     ensure_taxonomy(session)
     mort = "loans-debt.loan-repayments.mortgage"
     junk = [_merchant(session, n) for n in ("Caixa Geral de Depósitos", "Banco do Brasil - Conta de Débito", "COB Electricity")]
-    rows = [_t(session, m, mort, provider=p) for m, p in zip(junk, LOAN[:3])]
+    rows = [_t(session, m, mort, description=p) for m, p in zip(junk, LOAN[:3])]
     for t in rows:
         t.debt_id = 1; session.add(t)
     edf = _merchant(session, "EDF")
-    ins = _t(session, edf, "insurances.home.building-insurance-house-loan", provider="SEG:EDF 2026-09-02/2026-10-01")
-    other = _t(session, junk[0], UNSORTED_SLUG, provider="TRANSFERENCIA XYZ")
+    ins = _t(session, edf, "insurances.home.building-insurance-house-loan", description="SEG:EDF 2026-09-02/2026-10-01")
+    other = _t(session, junk[0], UNSORTED_SLUG, description="TRANSFERENCIA XYZ")
     session.commit()
 
     dry = relabel_structured(session)
@@ -76,7 +76,7 @@ async def test_new_instalments_share_one_merchant_and_never_ask_the_model(sessio
     base = _merchant(session, "placeholder")
     made = []
     for p in LOAN[:3]:
-        t = _t(session, base, UNSORTED_SLUG, provider=p)
+        t = _t(session, base, UNSORTED_SLUG, description=p)
         t.merchant_id = None; session.add(t); session.commit()
         await classify_transaction(session, t, gateway=gw)
         made.append(t.merchant_id)

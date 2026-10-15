@@ -189,23 +189,23 @@ def _find_merchant_by_key(session: Session, normalized_key: str) -> Optional[Mer
 async def classify_transaction(
     session: Session, transaction: Transaction, gateway=None
 ) -> ClassificationResult:
-    """Resolve transaction.provider to a Merchant (rules tier, then LLM
+    """Resolve transaction.description to a Merchant (rules tier, then LLM
     fallback on a miss), and set transaction.merchant_id/account_id/nature
     from the result. Does not commit — the caller controls the
     transaction boundary. This is the single entry point both the live
     ingestion pipeline and the historical backfill script use."""
-    structured = structured_merchant(transaction.provider)
+    structured = structured_merchant(transaction.description)
     if structured is not None:  # a loan instalment / loan insurance debit: one fixed merchant, no model call
         merchant, created_new_merchant = ensure_structured_merchant(session, structured)
         normalized_key = structured.key
     else:
-        normalized_key = normalize_provider(transaction.provider)
+        normalized_key = normalize_provider(transaction.description)
         merchant = _find_merchant_by_key(session, normalized_key)
         created_new_merchant = False
 
     resolved_node_slug = None
     if merchant is None:
-        keyword = keyword_match(transaction.provider)
+        keyword = keyword_match(transaction.description)
         if keyword:  # a fixed ruling, no LLM call
             keyword_slug, chain_name = keyword
             keyword_node = get_node(session, keyword_slug)
@@ -214,7 +214,7 @@ async def classify_transaction(
                 category=legacy_category_for(session, keyword_node), nature=Nature.ESSENTIAL)
         else:
             resolved = await resolve_merchant_via_llm(
-                transaction.provider, session, gateway=gateway,
+                transaction.description, session, gateway=gateway,
                 is_credit=transaction.transaction_type == TransactionType.CREDIT,
             )
         resolved_node_slug = resolved.node_slug
@@ -281,7 +281,7 @@ async def classify_transaction(
     # channel merchant (by_provider) has no default to apply: its entries wait for a rule or for review.
     rule_filed = False
     if not loan_filed:
-        rule_node = find_rule_node(session, transaction.provider)
+        rule_node = find_rule_node(session, transaction.description)
         if rule_node is not None and provider_fits(session, transaction, rule_node):
             file_transaction(session, transaction, rule_node)
             rule_filed = True
@@ -374,7 +374,7 @@ def detect_debt_candidates(session: Session) -> list[Transaction]:
         .where(Transaction.debt_candidate_reviewed.isnot(True))
     )
     transactions = session.exec(statement).all()
-    return [t for t in transactions if _DEBT_TRANSFER_MARKER_RE.search(t.provider)]
+    return [t for t in transactions if _DEBT_TRANSFER_MARKER_RE.search(t.description)]
 
 
 @dataclass

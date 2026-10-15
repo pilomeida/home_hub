@@ -21,7 +21,7 @@ def _make_transaction(session, provider, category, amount, account_id=None, natu
     session.commit()
     session.refresh(document)
     transaction = Transaction(
-        document_id=document.id, provider=provider, category=category,
+        document_id=document.id, description=provider, category=category,
         amount=amount, currency="EUR", account_id=account_id, nature=nature,
         paid_date=paid_date,
     )
@@ -211,7 +211,7 @@ def test_bulk_edit_preserves_active_page_on_rerender(client, session):
     for i in range(120):
         _make_transaction(session, f"PAGE SHOP {i:03d}", Category.OTHER_EXPENSE, 1.0, paid_date=date(2026, 1, 1))
     page2_transaction = session.exec(
-        select(Transaction).where(Transaction.provider == "PAGE SHOP 000")
+        select(Transaction).where(Transaction.description == "PAGE SHOP 000")
     ).first()
 
     response = client.post("/financials/transactions/bulk-edit", data={
@@ -280,8 +280,8 @@ def test_confirm_merchant_files_a_credit_as_a_refund_only_when_the_merchant_was_
     merchant = _make_unconfirmed_merchant(session, name="Shop2", key="shop2-router-test")
     doc = Document(filename="s.pdf", file_path="/tmp/s2.pdf", content_hash="h-shop2", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    deb = Transaction(document_id=doc.id, provider="S", category=Category.OTHER, amount=1.0, merchant_id=merchant.id)
-    cred = Transaction(document_id=doc.id, provider="S", category=Category.OTHER, amount=1.0,
+    deb = Transaction(document_id=doc.id, description="S", category=Category.OTHER, amount=1.0, merchant_id=merchant.id)
+    cred = Transaction(document_id=doc.id, description="S", category=Category.OTHER, amount=1.0,
                        merchant_id=merchant.id, transaction_type=TransactionType.CREDIT)
     session.add(deb); session.add(cred); session.commit()
     client.post(f"/financials/transactions/merchants/{merchant.id}/confirm",
@@ -299,7 +299,7 @@ def test_confirm_merchant_never_files_credits_of_a_never_paid_merchant_under_a_s
     merchant = _make_unconfirmed_merchant(session, name="Payer", key="payer-router-test")
     doc = Document(filename="p.pdf", file_path="/tmp/p.pdf", content_hash="h-payer", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    cred = Transaction(document_id=doc.id, provider="P", category=Category.OTHER, amount=500.0,
+    cred = Transaction(document_id=doc.id, description="P", category=Category.OTHER, amount=500.0,
                        merchant_id=merchant.id, transaction_type=TransactionType.CREDIT)
     session.add(cred); session.commit()
     client.post(f"/financials/transactions/merchants/{merchant.id}/confirm",
@@ -340,7 +340,7 @@ def test_confirm_merchant_files_every_unsorted_transaction_of_that_merchant(clie
     groceries = get_node(session, "food.groceries.supermarket")
 
     def mk(m, node):
-        t = Transaction(document_id=doc.id, provider="GALP", category=Category.OTHER, amount=10.0, merchant_id=m.id)
+        t = Transaction(document_id=doc.id, description="GALP", category=Category.OTHER, amount=10.0, merchant_id=m.id)
         session.add(t)
         session.commit()
         if node is not None:
@@ -396,7 +396,7 @@ def test_needs_review_page_lists_unsorted_transactions_grouped_by_merchant(clien
     session.add(doc)
     session.commit()
     for i in range(2):
-        session.add(Transaction(document_id=doc.id, provider=f"PADARIA ZETA {i}", category=Category.OTHER,
+        session.add(Transaction(document_id=doc.id, description=f"PADARIA ZETA {i}", category=Category.OTHER,
                                 amount=3.0, merchant_id=m.id))
     session.commit()
 
@@ -644,7 +644,7 @@ def test_list_transactions_filters_by_transaction_type(client, session):
     _make_transaction(session, "SALARIO", Category.INCOME, 2000.0)
     _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
     # _make_transaction defaults transaction_type to DEBIT; give SALARIO a CREDIT type directly.
-    salario = session.exec(select(Transaction).where(Transaction.provider == "SALARIO")).first()
+    salario = session.exec(select(Transaction).where(Transaction.description == "SALARIO")).first()
     salario.transaction_type = TransactionType.CREDIT
     session.add(salario)
     session.commit()
@@ -707,7 +707,7 @@ def test_bulk_edit_legacy_category_keeps_category_id_consistent(client, session)
     ensure_taxonomy(session)
     doc = Document(filename="b.pdf", file_path="/tmp/b.pdf", content_hash="h-bulk", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, provider="B", category=Category.OTHER, amount=1.0)
+    t = Transaction(document_id=doc.id, description="B", category=Category.OTHER, amount=1.0)
     session.add(t); session.commit(); session.refresh(t)
     ok = client.post("/financials/transactions/bulk-edit",
                      data={"transaction_ids": [str(t.id)], "new_category": "groceries"})
@@ -726,7 +726,7 @@ def test_needs_review_survives_a_transaction_whose_merchant_is_missing(client, s
     ensure_taxonomy(session)
     doc = Document(filename="o.pdf", file_path="/tmp/o.pdf", content_hash="h-orphan", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    session.add(Transaction(document_id=doc.id, provider="ORPHAN", category=Category.OTHER,
+    session.add(Transaction(document_id=doc.id, description="ORPHAN", category=Category.OTHER,
                             amount=1.0, merchant_id=987654))
     session.commit()
     r = client.get("/financials/transactions/needs-review")
@@ -1010,9 +1010,9 @@ def _bulk_review_data(session, n=1500):
     for i, (m, g) in enumerate(zip(unconfirmed, groups)):
         copies = 3 if i == n - 1 else 1  # the last one is the busiest: it must come first
         for _ in range(copies):
-            session.add(Transaction(document_id=doc.id, provider=f"SYNTH NEW {i}", category=Category.OTHER,
+            session.add(Transaction(document_id=doc.id, description=f"SYNTH NEW {i}", category=Category.OTHER,
                                     amount=1.0, merchant_id=m.id, category_id=filed.id))  # filed: only the groups are unsorted
-            session.add(Transaction(document_id=doc.id, provider=f"SYNTH GROUP {i}", category=Category.OTHER,
+            session.add(Transaction(document_id=doc.id, description=f"SYNTH GROUP {i}", category=Category.OTHER,
                                     amount=1.0, merchant_id=g.id))
     session.commit()
     return unconfirmed, groups

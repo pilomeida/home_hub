@@ -95,7 +95,7 @@ class ReclassifyReport:
 @dataclass
 class _WorkItem:
     merchant_id: int
-    provider: str
+    description: str
     is_credit: bool
     count: int
 
@@ -150,7 +150,7 @@ async def reclassify_unsorted(
             legacy_items.append((merchant_id, legacy_slug))
         else:
             llm_items.append(_WorkItem(
-                merchant_id, group[0].provider,
+                merchant_id, group[0].description,
                 any(t.transaction_type == TransactionType.CREDIT for t in group), len(group)))
     order = lambda mid: (-len(by_merchant[mid]), merchants[mid].canonical_name or "", mid)  # noqa: E731
     legacy_items.sort(key=lambda x: order(x[0]))
@@ -200,7 +200,7 @@ async def reclassify_unsorted(
                     return item, _SKIPPED
                 try:
                     out = await asyncio.wait_for(
-                        ask_merchant_llm(item.provider, slugs, gateway=gw, is_credit=item.is_credit,
+                        ask_merchant_llm(item.description, slugs, gateway=gw, is_credit=item.is_credit,
                                         best_guess=best_guess),
                         timeout=PER_CALL_TIMEOUT)
                     streak = 0

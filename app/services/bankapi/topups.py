@@ -43,7 +43,7 @@ def link_revolut_topups(session: Session) -> int:
             Transaction.linked_transaction_id.is_(None),  # type: ignore[attr-defined]
             Transaction.paid_date.is_not(None),  # type: ignore[attr-defined]
         )).all()
-        if "revolut" in t.provider.lower()
+        if "revolut" in t.description.lower()
     ]
     credits = [
         t for t in session.exec(select(Transaction).where(
@@ -52,7 +52,7 @@ def link_revolut_topups(session: Session) -> int:
             Transaction.linked_transaction_id.is_(None),  # type: ignore[attr-defined]
             Transaction.paid_date.is_not(None),  # type: ignore[attr-defined]
         )).all()
-        if t.provider.lower().startswith("top-up")
+        if t.description.lower().startswith("top-up")
     ]
 
     unused: dict[int, list[Transaction]] = defaultdict(list)  # cents -> credits, oldest first

@@ -53,7 +53,7 @@ def _apply_transaction_filters(
     if q:
         like = f"%{q}%"
         statement = statement.where(
-            Transaction.provider.ilike(like)
+            Transaction.description.ilike(like)
             | Transaction.merchant_id.in_(select(Merchant.id).where(Merchant.canonical_name.ilike(like))))
     if tag:
         from app.services.tag_service import tag_node_ids
@@ -600,7 +600,7 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
 
     # Informal debts learn the counterparty, so later transactions from it
     # link automatically; statement loans never get rules.
-    key = normalize_provider(transaction.provider)
+    key = normalize_provider(transaction.description)
     if key and session.exec(select(DebtMatchRule).where(DebtMatchRule.normalized_key == key)).first() is None:
         session.add(DebtMatchRule(debt_id=debt.id, normalized_key=key))
     session.commit()

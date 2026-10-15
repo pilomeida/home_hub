@@ -42,7 +42,7 @@ def recover_transfer_directions(session: Session, dry_run: bool = True) -> Direc
             continue  # an internal transfer is a transfer
         if t.debt_id is not None or t.linked_transaction_id is not None:
             continue
-        way = direction_from_description(t.provider)
+        way = direction_from_description(t.description)
         if way is None:
             report.unclear += 1
             continue

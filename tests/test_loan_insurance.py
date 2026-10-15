@@ -51,7 +51,7 @@ def _loan(session, number, life=0.0, building=0.0, when=date(2026, 9, 2), name=N
 
 
 def _txn(session, provider, amount, paid=date(2026, 9, 3), ttype=TransactionType.DEBIT):
-    t = Transaction(document_id=_doc(session).id, provider=provider, amount=amount,
+    t = Transaction(document_id=_doc(session).id, description=provider, amount=amount,
                     transaction_type=ttype, paid_date=paid)
     session.add(t)
     session.commit()

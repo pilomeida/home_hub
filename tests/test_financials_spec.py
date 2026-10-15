@@ -45,9 +45,9 @@ def test_overview_card_reports_spend_and_attention(session):
     session.add(broken)
     session.commit()
     session.refresh(document)
-    session.add(Transaction(document_id=document.id, provider="CONTINENTE", category=Category.GROCERIES,
+    session.add(Transaction(document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
                             transaction_type=TransactionType.DEBIT, amount=40.0, paid_date=date(2026, 9, 3)))
-    session.add(Transaction(document_id=document.id, provider="OLD", category=Category.GROCERIES,
+    session.add(Transaction(document_id=document.id, description="OLD", category=Category.GROCERIES,
                             transaction_type=TransactionType.DEBIT, amount=99.0, paid_date=date(2026, 8, 3)))
     session.commit()
 

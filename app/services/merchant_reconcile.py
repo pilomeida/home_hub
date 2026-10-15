@@ -36,7 +36,7 @@ def _is_unsorted(node) -> bool:
 
 def _pick_target(session: Session, merchant: Merchant, txns: list[Transaction],
                  nodes: dict[int, CategoryNode]):
-    slug = keyword_node_slug(merchant.canonical_name, *(t.provider for t in txns))
+    slug = keyword_node_slug(merchant.canonical_name, *(t.description for t in txns))
     if slug:
         return get_node(session, slug)
     default = nodes.get(merchant.default_category_id) if merchant.default_category_id else None

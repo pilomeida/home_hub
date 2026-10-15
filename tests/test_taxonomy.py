@@ -70,7 +70,7 @@ def test_transaction_and_merchant_accept_node_ids(session):
     node = get_node(session, "food.groceries.supermarket")
     doc = Document(filename="a.pdf", file_path="/tmp/a.pdf", content_hash="h1", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, provider="PINGO DOCE", amount=10.0, category_id=node.id)
+    t = Transaction(document_id=doc.id, description="PINGO DOCE", amount=10.0, category_id=node.id)
     m = Merchant(canonical_name="Pingo Doce", normalized_key="pingo doce", default_category_id=node.id)
     session.add_all([t, m]); session.commit()
     assert session.get(Transaction, t.id).category_id == node.id

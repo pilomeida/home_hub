@@ -28,7 +28,7 @@ def main() -> None:
         print(f"  document row {doc_id} -> bank row {bank_id}")
     print(f"not matched ({len(report.unmatched)}):")
     for u in report.unmatched:
-        print(f"  row {u.transaction_id} {u.provider!r} {u.amount:.2f} on {u.when}; closest same-payee debit: {u.nearest}")
+        print(f"  row {u.transaction_id} {u.description!r} {u.amount:.2f} on {u.when}; closest same-payee debit: {u.nearest}")
     if log:
         Path(log).write_text(json.dumps(report.pairs))
 

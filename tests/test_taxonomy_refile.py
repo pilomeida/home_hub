@@ -10,7 +10,7 @@ def _txn(session, provider, category, ttype=TransactionType.DEBIT, merchant_id=N
     doc = Document(filename=f"{provider}.pdf", file_path=f"/tmp/{provider}.pdf",
                    content_hash=f"h-{provider}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, provider=provider, category=category,
+    t = Transaction(document_id=doc.id, description=provider, category=category,
                     transaction_type=ttype, amount=10.0, merchant_id=merchant_id)
     session.add(t); session.commit(); session.refresh(t)
     return t
@@ -283,7 +283,7 @@ def _merchants_with_unsorted(session, counts):
         rows = []
         for i in range(n):
             t = _txn(session, f"{provider}", Category.OTHER, merchant_id=m.id)
-            t.provider = provider
+            t.description = provider
             file_transaction(session, t, unsorted)
             rows.append(t)
         session.commit()

@@ -55,7 +55,7 @@ async def backfill() -> None:
                 classified += 1
             except Exception as exc:
                 session.rollback()
-                errors.append(f"transaction #{transaction.id} ({transaction.provider!r}): {exc}")
+                errors.append(f"transaction #{transaction.id} ({transaction.description!r}): {exc}")
 
         print("\n--- Summary ---")
         print(f"Classified:      {classified}")

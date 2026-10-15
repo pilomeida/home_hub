@@ -120,6 +120,21 @@ def _external_id(raw: dict) -> str:
     return hashlib.sha256(basis.encode()).hexdigest()
 
 
+def _renumbered_twin(session: Session, account_id: int, external_id: str, kind: TransactionType,
+                     amount: float, fetched: set) -> bool:
+    """Santander ends its entry references with a 4-digit sequence ('...0001') and has been seen
+    to renumber a booking ('...0001' -> '...0002') between two fetches (seen live 2026-10-07: three
+    credits stored twice). A new reference that differs from a stored one only in that sequence, for
+    the same amount and direction, where the stored reference is no longer in this fetch, is the
+    same booking. Genuine twins come back together in one fetch, so they never match this."""
+    if len(external_id) < 8 or not external_id.isdigit():
+        return False
+    twins = session.exec(select(Transaction).where(
+        Transaction.account_id == account_id, Transaction.external_id.like(external_id[:-4] + "%"),  # type: ignore[union-attr]
+        Transaction.transaction_type == kind, Transaction.amount == amount)).all()
+    return any(t.external_id != external_id and t.external_id not in fetched for t in twins)
+
+
 def _provider(raw: dict, is_credit: bool) -> str:
     party = (raw.get("debtor") if is_credit else raw.get("creditor")) or {}
     return party.get("name") or " ".join(raw.get("remittance_information") or []).strip() or "Unknown"
@@ -183,6 +198,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
     if not dry_run:
         session.commit()  # the rolling document must survive any later rollback
     loop_finished = True
+    fetched_refs = {_external_id(r) for r in rows}
     for raw in rows:
         try:
             external_id = _external_id(raw)
@@ -200,6 +216,9 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             logger.warning("bank sync: skipping unparsable row for link %s: %r", link.id, raw)
             result.skipped_rows += 1
             continue
+        if _renumbered_twin(session, link.account_id, external_id, kind, amount, fetched_refs):
+            result.already_synced += 1
+            continue
         match_id = _match_existing(session, link.account_id, kind, amount, paid, result._used_match_ids)
         if match_id is not None:
             result._used_match_ids.add(match_id)
@@ -210,7 +229,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             continue
         try:
             txn = Transaction(
-                document_id=document.id, provider=_provider(raw, is_credit), category=Category.OTHER,
+                document_id=document.id, description=_provider(raw, is_credit), category=Category.OTHER,
                 transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
                 paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                 account_id=link.account_id, external_id=external_id,
@@ -238,7 +257,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                     Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()
                 if txn is None:
                     txn = Transaction(
-                        document_id=document.id, provider=_provider(raw, is_credit), category=Category.OTHER,
+                        document_id=document.id, description=_provider(raw, is_credit), category=Category.OTHER,
                         transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
                         paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                         account_id=link.account_id, external_id=external_id,

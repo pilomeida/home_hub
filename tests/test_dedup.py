@@ -31,20 +31,20 @@ def test_find_duplicate_transaction_matches_provider_and_period(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=document.id, description="EDP", category=Category.ELECTRICITY,
         amount=50.0, currency="EUR", statement_period="2026-08",
     )
     session.add(transaction)
     session.commit()
 
-    found = find_duplicate_transaction(session, provider="EDP", statement_period="2026-08")
+    found = find_duplicate_transaction(session, description="EDP", statement_period="2026-08")
 
     assert found is not None
     assert found.id == transaction.id
 
 
 def test_find_duplicate_transaction_returns_none_without_statement_period(session):
-    assert find_duplicate_transaction(session, provider="EDP", statement_period=None) is None
+    assert find_duplicate_transaction(session, description="EDP", statement_period=None) is None
 
 
 def test_find_duplicate_transaction_ignores_statement_derived_transactions(session):
@@ -60,12 +60,12 @@ def test_find_duplicate_transaction_ignores_statement_derived_transactions(sessi
     session.refresh(statement_document)
 
     session.add(Transaction(
-        document_id=statement_document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=statement_document.id, description="EDP", category=Category.ELECTRICITY,
         amount=87.32, currency="EUR", statement_period="2026-07",
     ))
     session.commit()
 
-    found = find_duplicate_transaction(session, provider="EDP", statement_period="2026-07")
+    found = find_duplicate_transaction(session, description="EDP", statement_period="2026-07")
 
     assert found is None
 
@@ -82,13 +82,13 @@ def test_find_duplicate_transaction_matches_bill_derived_transaction(session):
     session.refresh(bill_document)
 
     transaction = Transaction(
-        document_id=bill_document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=bill_document.id, description="EDP", category=Category.ELECTRICITY,
         amount=87.32, currency="EUR", statement_period="2026-07",
     )
     session.add(transaction)
     session.commit()
 
-    found = find_duplicate_transaction(session, provider="EDP", statement_period="2026-07")
+    found = find_duplicate_transaction(session, description="EDP", statement_period="2026-07")
 
     assert found is not None
     assert found.id == transaction.id
@@ -108,13 +108,13 @@ def test_find_duplicate_transaction_matches_when_category_is_null(session):
     session.refresh(legacy_document)
 
     transaction = Transaction(
-        document_id=legacy_document.id, provider="EDP", category=Category.ELECTRICITY,
+        document_id=legacy_document.id, description="EDP", category=Category.ELECTRICITY,
         amount=87.32, currency="EUR", statement_period="2026-07",
     )
     session.add(transaction)
     session.commit()
 
-    found = find_duplicate_transaction(session, provider="EDP", statement_period="2026-07")
+    found = find_duplicate_transaction(session, description="EDP", statement_period="2026-07")
 
     assert found is not None
     assert found.id == transaction.id

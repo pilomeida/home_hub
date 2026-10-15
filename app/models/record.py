@@ -21,6 +21,8 @@ class Record(SQLModel, table=True):
     fields_json: str = Field(default="{}")
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id", unique=True, index=True)
     entered_by: Optional[str] = None
+    # house_low|house_mid|house_high (app.privacy.tiers); NULL = no tier wired for this type yet.
+    sensitivity_tier: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     retired_at: Optional[datetime] = None

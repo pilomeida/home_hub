@@ -17,7 +17,7 @@ def _make_transaction_for_merchant(session, merchant_id, provider, amount=10.0):
     session.commit()
     session.refresh(document)
     transaction = Transaction(
-        document_id=document.id, provider=provider, category=Category.GROCERIES,
+        document_id=document.id, description=provider, category=Category.GROCERIES,
         amount=amount, currency="EUR", merchant_id=merchant_id,
     )
     session.add(transaction)

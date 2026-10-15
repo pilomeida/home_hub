@@ -27,7 +27,7 @@ def _doc(session):
 
 def _txn(session, slug, amount, ttype, paid):
     """Create a transaction and file it through the production path."""
-    t = Transaction(document_id=_doc(session).id, provider="X", transaction_type=ttype,
+    t = Transaction(document_id=_doc(session).id, description="X", transaction_type=ttype,
                     amount=amount, currency="EUR", paid_date=paid)
     session.add(t)
     session.flush()
@@ -306,7 +306,7 @@ def _loan_with_snapshot(session, number="9000001", status="active", next_due=dat
 
 def _pay_instalment(session, debt, amount, paid):
     from app.services.loan_linking import link_transaction_to_loan
-    t = Transaction(document_id=_doc(session).id, provider=f"COB.REC.31.{debt.external_number}/ 1",
+    t = Transaction(document_id=_doc(session).id, description=f"COB.REC.31.{debt.external_number}/ 1",
                     transaction_type=TransactionType.DEBIT, amount=amount, currency="EUR", paid_date=paid)
     session.add(t)
     session.flush()
