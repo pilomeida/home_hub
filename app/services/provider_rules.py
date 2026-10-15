@@ -82,6 +82,7 @@ def _label(nodes: dict, node_id: Optional[int]) -> str:
 def filtered_transactions(session: Session, q: str = "", node_slug: str = "", date_from: Optional[date] = None,
                           date_to: Optional[date] = None) -> list[Transaction]:
     from app.services.taxonomy import descendant_ids
+    # keeps held rows: classification workbench (bulk page): groups EVERY entry so the totals shown are the rows apply_to_providers will file; not a spending figure
     stmt = select(Transaction)
     if q.strip():
         like = f"%{q.strip()}%"

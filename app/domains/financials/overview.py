@@ -15,6 +15,7 @@ def financials_overview_card(session: Session, today: date) -> DomainCard:
     spent = session.exec(
         select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(
             Transaction.transaction_type == TransactionType.DEBIT,
+            Transaction.counts(),
             Transaction.paid_date >= month_start,
             Transaction.paid_date <= today,
         )

@@ -79,6 +79,7 @@ def _window_start(session: Session, link: BankAccountLink, today: date) -> date:
     # overlap is matched against them and nothing after them is missed. Rows the
     # sync itself wrote (external_id set) and bills (which can carry a later date
     # than the last statement) must not move the start forward.
+    # keeps held rows: bank-sync window start: where the stored statements end, held lines included
     latest = session.exec(
         select(Transaction.paid_date)
         .join(Document, Transaction.document_id == Document.id)
@@ -87,6 +88,7 @@ def _window_start(session: Session, link: BankAccountLink, today: date) -> date:
         .order_by(Transaction.paid_date.desc())  # type: ignore[attr-defined]
     ).first()
     if latest is None:
+        # keeps held rows: bank-sync window start: where the stored rows end, held lines included
         latest = session.exec(
             select(Transaction.paid_date)
             .where(Transaction.account_id == link.account_id, Transaction.paid_date.is_not(None),
@@ -134,6 +136,7 @@ def _renumbered_twin(session: Session, account_id: int, external_id: str, kind: 
     same booking. Genuine twins come back together in one fetch, so they never match this."""
     if len(external_id) < 8 or not external_id.isdigit():
         return False
+    # keeps held rows: bank-sync dedup of renumbered bookings
     twins = session.exec(select(Transaction).where(
         Transaction.account_id == account_id, Transaction.external_id.like(external_id[:-4] + "%"),  # type: ignore[union-attr]
         Transaction.transaction_type == kind, Transaction.amount == amount)).all()
@@ -149,6 +152,7 @@ def _match_existing(session: Session, account_id: int, kind: TransactionType,
                     amount: float, paid: date, used_ids: set) -> Optional[int]:
     """One-to-one: each stored statement row can absorb at most one bank row."""
     lo, hi = paid - timedelta(days=_OVERLAP_DAYS), paid + timedelta(days=_OVERLAP_DAYS)
+    # keeps held rows: bank-sync matching of API rows to statement rows: a held statement row still absorbs its API twin
     candidates = session.exec(
         select(Transaction).where(
             Transaction.account_id == account_id, Transaction.external_id.is_(None),  # type: ignore[attr-defined]
@@ -234,6 +238,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
     for raw in rows:
         try:
             external_id = _external_id(raw)
+            # keeps held rows: bank-sync dedup: never insert a booking twice
             exists = session.exec(select(Transaction).where(
                 Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()
             if exists is not None:
@@ -285,6 +290,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                 # Keep the transaction: the bank reference prevents duplicates on
                 # a re-run, so re-fetch it and store it plainly.
                 document = sync_document(session, link.account_id, connection.bank_name)
+                # keeps held rows: bank-sync recovery after a failed classify
                 txn = session.exec(select(Transaction).where(
                     Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()
                 if txn is None:

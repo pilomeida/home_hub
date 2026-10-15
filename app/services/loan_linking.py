@@ -63,6 +63,7 @@ def link_all_unlinked(session: Session) -> int:
     loans = _all_loans(session)  # once, not one query per unlinked debit
     if not loans:
         return 0
+    # keeps held rows: auto-linking of instalments to loans is matching; it moves rows, it adds up nothing
     candidates = session.exec(
         select(Transaction).where(Transaction.debt_id.is_(None))
         .where(Transaction.transaction_type == TransactionType.DEBIT)
@@ -77,6 +78,7 @@ def _link_insurance_debits(session: Session, loans: list[Debt]) -> int:
     """The insurance step never undoes the instalment links: it runs after their
     commit and any failure in it is logged and rolled back on its own."""
     try:
+        # keeps held rows: auto-linking of insurance debits to loans is matching
         pending = session.exec(
             select(Transaction).where(Transaction.debt_id.is_(None))
             .where(Transaction.transaction_type == TransactionType.DEBIT)

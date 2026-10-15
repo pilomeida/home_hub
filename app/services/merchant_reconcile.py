@@ -58,6 +58,7 @@ def reconcile_merchants(session: Session, dry_run: bool = True, only_ids: list[i
     report = ReconcileReport()
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
     by_merchant: dict[int, list[Transaction]] = defaultdict(list)
+    # keeps held rows: merchant/category consistency pass moves rows, held ones included
     for t in session.exec(select(Transaction).where(Transaction.merchant_id.is_not(None))).all():
         by_merchant[t.merchant_id].append(t)
     for merchant in session.exec(select(Merchant)).all():

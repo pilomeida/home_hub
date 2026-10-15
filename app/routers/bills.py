@@ -65,6 +65,7 @@ async def bill_detail(request: Request, document_id: int, session: Session = Dep
     if document is None:
         # "<thing> not found" is turned into what / why / what to do by the central handler (app/problems.py).
         raise HTTPException(status_code=404, detail="Document not found")
+    # keeps held rows: a document's page lists every line read from it; adds up nothing
     transactions = session.exec(
         select(Transaction)
         .where(Transaction.document_id == document_id)

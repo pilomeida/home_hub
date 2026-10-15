@@ -87,10 +87,12 @@ class FinancialsHandler(DomainHandler):
         return await process_financials_document(session, document)
 
     def refile_blocker(self, session: Session, document: Document) -> Optional[str]:
+        # keeps held rows: re-file safety check must see every row of the document, held or not
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
         ids = [t.id for t in transactions]
         linked = [t for t in transactions if t.commitment_id or t.debt_id or t.linked_transaction_id]
         if ids and not linked:
+            # keeps held rows: re-file safety check must see every linked row, held or not
             linked = session.exec(select(Transaction).where(Transaction.linked_transaction_id.in_(ids))).all()
         if linked:
             return (
@@ -103,6 +105,7 @@ class FinancialsHandler(DomainHandler):
         """Reverse Financials' automated derivations for this document.
         Merchants are shared across documents and are kept; loan/savings
         position rows are detached, never deleted."""
+        # keeps held rows: deleting a document removes ALL its rows, held ones too
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
         ids = [t.id for t in transactions]
         for reading in session.exec(select(UtilityReading).where(UtilityReading.document_id == document.id)).all():
@@ -118,6 +121,7 @@ class FinancialsHandler(DomainHandler):
                 else:
                     session.delete(todo)
             # A bill settled by one of these bank rows becomes the open record of its payment again.
+            # keeps held rows: releasing bills this document's bank rows settled; a held bank row still settled them
             for settled in session.exec(select(Transaction).where(Transaction.settled_by_id.in_(ids))).all():
                 settled.settled_by_id = None
                 session.add(settled)

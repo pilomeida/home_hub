@@ -39,6 +39,7 @@ def assign_category(session: Session, merchant_ids: list[int], node: CategoryNod
             if confirm:
                 merchant.confirmed = True
             session.add(merchant)
+        # keeps held rows: filing a merchant's history; a held line must carry the right category once a person confirms it
         for t in session.exec(select(Transaction).where(Transaction.merchant_id == merchant.id)).all():
             if t.debt_id is not None or t.transaction_type == TransactionType.TRANSFER or t.category_id == node.id:
                 continue
@@ -92,6 +93,7 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
     node_slug filters on the merchant's category ("unsorted" = none yet); min_entries on the count."""
     from app.services.taxonomy import descendant_ids
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
+    # keeps held rows: classification workbench (bulk page): counts and totals size the work over EVERY entry, the same rows that will be filed; not a spending figure
     stmt = (select(Merchant.id, Merchant.canonical_name, Merchant.default_category_id, Merchant.confirmed, Merchant.default_credit_category_id,
                    func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount), 0.0))
             .join(Transaction, Transaction.merchant_id == Merchant.id).group_by(Merchant.id))
@@ -121,6 +123,7 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
     ids = [r[0] for r in chunk]
     elsewhere = {}
     if ids:
+        # keeps held rows: workbench count of entries filed elsewhere; same rows the bulk filing moves
         for mid, default_id, n in session.exec(
                 select(Merchant.id, Merchant.default_category_id, func.count(Transaction.id))
                 .join(Transaction, Transaction.merchant_id == Merchant.id)

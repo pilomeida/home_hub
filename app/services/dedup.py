@@ -24,6 +24,7 @@ def find_duplicate_transaction(
     if not statement_period:
         return None
     statement = (
+        # keeps held rows: bill re-upload duplicate check must see every stored bill row
         select(Transaction)
         .join(Document, Transaction.document_id == Document.id)
         .where(

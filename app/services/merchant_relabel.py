@@ -45,6 +45,7 @@ def relabel_structured(session: Session, dry_run: bool = True) -> RelabelReport:
     report = RelabelReport()
     made: dict[str, Merchant] = {}
     old_ids: set[int] = set()
+    # keeps held rows: relabels merchants on every row
     for t in session.exec(select(Transaction)).all():
         spec = structured_merchant(t.description)
         if spec is None:
@@ -71,6 +72,7 @@ def relabel_structured(session: Session, dry_run: bool = True) -> RelabelReport:
     if not dry_run:
         session.flush()
         for mid in old_ids:
+            # keeps held rows: is this merchant still used by any row at all (held ones included)?
             if session.exec(select(Transaction.id).where(Transaction.merchant_id == mid).limit(1)).first() is None:
                 report.merchants_left_empty += 1
         session.commit()
