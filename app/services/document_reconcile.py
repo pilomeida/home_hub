@@ -74,7 +74,8 @@ def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDoc
                         .where(Transaction.transaction_type == TransactionType.DEBIT)).all()
     names = {m.id: m.canonical_name for m in session.exec(select(Merchant)).all()}
     candidates = [t for t, d in rows if not _is_bank(d) and t.settled_by_id is None and (t.paid_date or t.due_date)]
-    banks = [t for t, d in rows if _is_bank(d)]
+    # a bank row waiting for a check, or rejected as not real, must not absorb a bill (neither would then count)
+    banks = [t for t, d in rows if _is_bank(d) and t.review_status not in ("needs_check", "rejected")]
     used = {t.settled_by_id for t, _d in rows if t.settled_by_id is not None}
     bank_tokens = {b.id: _tokens(b.description, names.get(b.merchant_id)) for b in banks}
 

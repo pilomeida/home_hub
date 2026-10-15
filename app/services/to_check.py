@@ -138,6 +138,10 @@ def reject(session: Session, transaction_id: int, by: Optional[str]) -> Transact
     transaction = _waiting_line(session, transaction_id, "Not removed.")
     _stamp(transaction, "rejected", by)
     session.add(transaction)
+    # bills this line had settled count again: the payment they were waiting for was not real
+    for bill in session.exec(select(Transaction).where(Transaction.settled_by_id == transaction.id)).all():
+        bill.settled_by_id = None
+        session.add(bill)
     session.commit()
     session.refresh(transaction)
     return transaction

@@ -21,7 +21,7 @@ from app.services import debt_ledger as ledger
 from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
-from app.problems import notice
+from app.problems import Problem, notice
 from app.services.taxonomy_seed import LEGACY_TO_SLUG
 from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
 from app.services.merchant_assign import assign_category, list_merchants
@@ -558,6 +558,11 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
     transaction = session.get(Transaction, transaction_id)
     if transaction is None:
         return _plain(404, notice("Transaction not found", "Not linked."))
+    if transaction.review_status in ("needs_check", "rejected"):
+        return _plain(409, Problem(
+            "Not linked.", "This line is waiting for a check (or was marked as not a real line), so it counts nowhere yet "
+            "and a debt balance built on it would be wrong.",
+            "Decide it first in the To check list (Looks right or Fix the value), then link it.").text)
     role = (form.get("role") or "").strip() or None
     if role is not None and role not in ledger.ROLES:
         return _plain(400, notice("The role must be advance or repayment", "Not linked."))

@@ -2,7 +2,7 @@
 <tr class="flow-{{ (row_flow or {}).get(t.id, 'out') }}">
   <td><input type="checkbox" name="transaction_ids" value="{{ t.id }}"></td>
   <td>{{ t.paid_date or "" }}</td>
-  <td>{{ t.description }}{% for did, fname in (attached or {}).get(t.id, []) %} <a href="/financials/bills/{{ did }}" title="{{ fname }}" class="tag-doc">&#128206; document</a>{% endfor %}</td>
+  <td>{{ t.description }}{% if t.review_status == "needs_check" %} <span class="tag-refund" title="{{ t.review_reason or '' }}">&#9888; pending check &mdash; not counted yet</span>{% elif t.review_status == "rejected" %} <span class="tag-refund" title="Someone said this is not a real line">not a real line &mdash; not counted</span>{% endif %}{% for did, fname in (attached or {}).get(t.id, []) %} <a href="/financials/bills/{{ did }}" title="{{ fname }}" class="tag-doc">&#128206; document</a>{% endfor %}</td>
   <td>
     {% if t.merchant_id and merchant_names and merchant_names.get(t.merchant_id) %}
     <a href="/financials/transactions?merchant_id={{ t.merchant_id }}">{{ merchant_names[t.merchant_id] }}</a>
