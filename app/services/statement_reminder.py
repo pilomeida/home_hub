@@ -13,6 +13,8 @@ from typing import Optional
 
 from sqlmodel import Session, func, select
 
+from app.problems import Problem
+
 from app.models.position import (
     BalanceSnapshot, LoanSnapshot, ReminderLog, SavingsSnapshot,
 )
@@ -81,3 +83,43 @@ def mark_reminder_sent(session: Session, today: date) -> None:
     if exists is None:
         session.add(ReminderLog(key=REMINDER_KEY, sent_at=datetime.utcnow(), cycle_start=state.cycle_start))
         session.commit()
+
+
+# --- when the reminder can't be delivered (decision D14) ---------------------------------------------
+PROBLEM_AREA = "Reminders"
+PROBLEM_REF = "statement-reminder"
+
+
+def problem_no_token() -> Problem:
+    return Problem(
+        "The statement reminder wasn't sent.",
+        "The Hub has no Telegram bot set up on the server, so it has nothing to send the message with.",
+        "Tell Pedro to add the Telegram bot token to the server settings; the reminder goes out on the "
+        "next daily run (09:00) after that.")
+
+
+def problem_bad_user_list() -> Problem:
+    return Problem(
+        "The statement reminder wasn't sent.",
+        "The list of people allowed to use the Hub's Telegram bot can't be read, so the Hub doesn't know "
+        "who to send the reminder to.",
+        "Tell Pedro to correct the allowed Telegram users in the server settings; the reminder goes out on "
+        "the next daily run (09:00) after that.")
+
+
+def problem_no_recipient(name: str) -> Problem:
+    return Problem(
+        "The statement reminder wasn't sent.",
+        f"No one named “{name}” is in the list of people allowed to use the Hub's Telegram bot, "
+        "so the Hub doesn't know who to send it to.",
+        "Tell Pedro to make the reminder's name match one of the allowed Telegram users in the server "
+        "settings; the reminder goes out on the next daily run (09:00) after that.")
+
+
+def problem_send_failed() -> Problem:
+    return Problem(
+        "The statement reminder wasn't sent.",
+        "Telegram didn't accept the message, usually because it couldn't be reached for a moment.",
+        "Nothing is lost: the Hub tries again on the next daily run (09:00). If it is still failing "
+        "in a few days, tell Pedro: the technical details are on the Problems page.",
+        "/problems")

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Bank connections{% endblock %}
+{% from "bank/_macros.html" import problem %}
 {% block content %}
 <h1>Bank connections</h1>
 {% include "bank/_notices.html" %}
@@ -50,6 +51,9 @@
         {% endif %}
       </td>
     </tr>
+    {% if row.hint %}
+    <tr><td colspan="5" class="error">{{ problem(row.hint) }}</td></tr>
+    {% endif %}
     {% if row.error %}
     <tr><td colspan="5" class="error">{{ row.error }}</td></tr>
     {% endif %}

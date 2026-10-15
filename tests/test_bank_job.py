@@ -100,7 +100,7 @@ def test_one_broken_link_does_not_stop_the_others(session, monkeypatch):
 
     monkeypatch.setattr(job, "sync_link", flaky_sync_link)
     results = _run(run_all(session, FakeClient([]), scheduled=True))
-    assert results[first.id].error == "Unexpected failure"
+    assert "wasn't updated this time" in results[first.id].error and "tell Pedro" in results[first.id].error
     assert results[second.id].created == 1  # the other account still got its turn
 
 

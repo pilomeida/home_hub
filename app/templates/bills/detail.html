@@ -6,6 +6,8 @@
 <p><a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
 {% if document.failure_reason %}
 <p class="needs-attention">{{ document.failure_reason | friendly_reason }}</p>
+{% elif document.status.value == "needs_attention" %}
+<p class="needs-attention"><strong>This document needs attention.</strong> The Hub couldn't finish filing it and no reason was recorded. Use “Edit / re-file” to correct its details, or upload it again.</p>
 {% endif %}
 {% if transactions %}
 <table>
@@ -21,7 +23,7 @@
       <td>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</td>
       <td>{{ transaction.due_date or transaction.paid_date or "—" }}</td>
       <td>{{ transaction.statement_period or "—" }}</td>
-      <td>{% if transaction.settled_by_id %}<a href="/financials/transactions?transaction_id={{ transaction.settled_by_id }}">paid &mdash; see the bank entry</a>{% else %}not matched to a bank entry yet{% endif %}</td>
+      <td>{% if transaction.settled_by_id %}<a href="/financials/transactions?transaction_id={{ transaction.settled_by_id }}">paid &mdash; see the bank entry</a>{% else %}not matched to a bank entry yet &mdash; it matches by itself when the payment shows up in the bank sync{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>

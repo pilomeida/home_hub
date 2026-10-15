@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import traceback
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
+import httpx
 from sqlmodel import Session, select
 
 from app.models.bank import BankAccountLink, BankApiCall, BankConnection, BankConnectionStatus
@@ -16,6 +18,8 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
+from app.problems import Problem, record_problem, resolve_for
+from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError
 from app.services.document_reconcile import reconcile_quietly
 from app.services.classification_engine import classify_transaction
@@ -41,7 +45,8 @@ class SyncResult:
     skipped_rows: int = 0
     unclassified: int = 0
     skipped_quota: bool = False
-    error: Optional[str] = None
+    error: Optional[str] = None          # the full what/why/next text when something failed (also stored on the link)
+    problem: Optional[Problem] = None    # the same, structured; set for a failure and for a daily-limit stop
     _used_match_ids: set = field(default_factory=set, repr=False)
 
 
@@ -158,10 +163,31 @@ def _match_existing(session: Session, account_id: int, kind: TransactionType,
     return None
 
 
-def _friendly_failure(exc: BankApiError) -> str:
-    if exc.rate_limited:
-        return "The bank asked us to wait; will retry later"
-    return "The bank didn't answer properly; will retry later"
+def _account_label(session: Session, link: BankAccountLink, connection: Optional[BankConnection]) -> str:
+    return msg.label(connection.bank_name if connection else "The bank", link.display_name)
+
+
+def _fail(session: Session, link: BankAccountLink, result: SyncResult, problem: Problem, *,
+          technical: Optional[str], dry_run: bool, store: bool = True, ref: Optional[str] = None) -> None:
+    """One place that turns a failed sync into the person-facing message, the stored per-account error
+    and the Problems log entry (cleared by the next successful sync of this account)."""
+    result.problem = problem
+    if store:
+        result.error = problem.text
+    if dry_run:
+        return
+    if store:
+        fresh = session.get(BankAccountLink, link.id) or link
+        fresh.last_error = problem.text
+        session.add(fresh)
+        session.commit()
+    record_problem(session, area=msg.AREA, problem=problem, ref=ref or msg.link_ref(link.id), technical=technical)
+
+
+def _failure_of(exc: Exception, account: str) -> Problem:
+    if isinstance(exc, BankApiError):
+        return msg.bank_rate_limited(account) if exc.rate_limited else msg.bank_not_answering(account)
+    return msg.bank_not_answering(account, reached=False)
 
 
 async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run: bool = False,
@@ -171,26 +197,32 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
     now = datetime.utcnow()
     today = today or now.date()
     limit = SCHEDULED_CALL_LIMIT if scheduled else DAILY_CALL_LIMIT
+    connection = session.get(BankConnection, link.connection_id)
+    account = _account_label(session, link, connection)
     if _calls_last_24h(session, link.id, now) >= limit:
         result.skipped_quota = True
+        # Not a failure of the account (nothing is stored on it), but never silent either.
+        _fail(session, link, result, msg.daily_budget_used(account), technical=None, dry_run=dry_run, store=False)
         return result
-    connection = session.get(BankConnection, link.connection_id)
     date_from = _window_start(session, link, today)
 
     session.add(BankApiCall(link_id=link.id, called_at=now, kind="transactions"))
     session.commit()  # the call is spent even if it fails
     try:
         rows = await client.list_transactions(link.bank_account_uid, date_from, today)
-    except BankApiError as exc:
-        if exc.status in (401, 403) or "SESSION" in exc.code.upper() or "CONSENT" in exc.code.upper():
+    except (BankApiError, httpx.HTTPError) as exc:
+        if isinstance(exc, BankApiError) and (
+                exc.status in (401, 403) or "SESSION" in exc.code.upper() or "CONSENT" in exc.code.upper()):
             connection.status = BankConnectionStatus.EXPIRED
             session.add(connection)
-            result.error = "Bank access has ended; renew it"
-        else:
-            result.error = _friendly_failure(exc)
-        link.last_error = result.error
-        session.add(link)
-        session.commit()
+            session.commit()
+            problem = msg.consent_expired(connection.bank_name)
+            # The access is what ended, so the Problems entry belongs to the connection, not the account.
+            _fail(session, link, result, problem, technical=str(exc), dry_run=dry_run,
+                  ref=msg.connection_ref(connection.id))
+            return result
+        _fail(session, link, result, _failure_of(exc, account), dry_run=dry_run,
+              technical=str(exc) if isinstance(exc, BankApiError) else repr(exc))
         return result
 
     result.fetched = len(rows)
@@ -275,7 +307,8 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             # (three accounts, three times a day, unattended).
             session.rollback()
             logger.exception("bank sync: unexpected failure on a row for link %s", link.id)
-            result.error = "Something went wrong saving the bank transactions; some may be missing"
+            save_problem, save_technical = msg.save_failed(account), traceback.format_exc()
+            result.problem, result.error = save_problem, save_problem.text
             loop_finished = False
             break
     if not dry_run and loop_finished:
@@ -283,12 +316,12 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
         link.last_error = None
         session.add(link)
         session.commit()
+        # It worked, so whatever was wrong with this account (or its bank access) is over.
+        resolve_for(session, msg.link_ref(link.id))
+        resolve_for(session, msg.connection_ref(connection.id))
         reconcile_quietly(session)  # bills filed before these debits arrived are now settled by them
     elif not loop_finished:
-        link = session.get(BankAccountLink, link.id)
-        link.last_error = result.error
-        session.add(link)
-        session.commit()
+        _fail(session, link, result, save_problem, technical=save_technical, dry_run=dry_run)
     elif dry_run:
         session.rollback()
     return result

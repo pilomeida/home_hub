@@ -10,6 +10,8 @@ from sqlmodel import Session, select
 
 from app.models.account import Account
 from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatus
+from app.problems import resolve_for
+from app.services.bankapi import messages as msg
 
 # aspsp.name strings must be confirmed against GET /aspsps (verified 2026-10-05: "Santander Totta"/PT, "Revolut"/LT) and
 # corrected here if they differ.
@@ -99,6 +101,14 @@ async def complete_connection(session: Session, client, *, state: str, code: str
         other.status = BankConnectionStatus.EXPIRED
         session.add(other)
     session.commit()
+    # Renewed: the "access expired / expires soon" entries in the Problems log for this bank are over, and
+    # so are the ones for its accounts (their next sync starts clean on the new connection).
+    for old in session.exec(select(BankConnection).where(
+            BankConnection.bank_name == connection.bank_name, BankConnection.id != connection.id)).all():
+        resolve_for(session, msg.connection_ref(old.id), by="renewed")
+        resolve_for(session, msg.expiring_ref(old.id), by="renewed")
+        for old_link in session.exec(select(BankAccountLink).where(BankAccountLink.connection_id == old.id)).all():
+            resolve_for(session, msg.link_ref(old_link.id), by="renewed")
     session.refresh(connection)
     return connection
 
@@ -122,3 +132,35 @@ def connection_days_left(conn: BankConnection, now: Optional[datetime] = None) -
     if valid_until.tzinfo is not None:
         valid_until = valid_until.replace(tzinfo=None)
     return max((valid_until - now).days, 0)
+
+
+def consent_ended(conn: BankConnection, now: Optional[datetime] = None) -> bool:
+    """True when the bank's permission is over: marked expired, or its end time has passed."""
+    if conn.status == BankConnectionStatus.EXPIRED:
+        return True
+    if conn.valid_until is None:
+        return False
+    now = (now or _utcnow()).replace(tzinfo=None)
+    return conn.valid_until.replace(tzinfo=None) <= now
+
+
+def consent_warning(conn: BankConnection, now: Optional[datetime] = None):
+    """The message for a bank permission that is over or about to be (14 days or less), else None.
+    Only the latest connection of a bank should be asked: a superseded one stays silent."""
+    if conn.status in (BankConnectionStatus.PENDING, BankConnectionStatus.FAILED):
+        return None
+    if consent_ended(conn, now):
+        return msg.consent_expired(conn.bank_name)
+    days = connection_days_left(conn, now=now)
+    if days is not None and days <= 14:
+        return msg.consent_expiring(conn.bank_name, days)
+    return None
+
+
+def latest_connections(session: Session) -> dict[str, BankConnection]:
+    """The current connection of each bank (the newest one)."""
+    latest: dict[str, BankConnection] = {}
+    for conn in session.exec(select(BankConnection)).all():
+        if conn.bank_name not in latest or conn.created_at > latest[conn.bank_name].created_at:
+            latest[conn.bank_name] = conn
+    return latest

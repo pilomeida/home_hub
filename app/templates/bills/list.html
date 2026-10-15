@@ -11,7 +11,7 @@
     {% for document in documents %}
     <tr>
       <td><a href="/financials/bills/{{ document.id }}">{{ document.filename }}</a></td>
-      <td class="{{ 'needs-attention' if document.status.value == 'needs_attention' else '' }}">{{ document.status.value }}</td>
+      <td class="{{ 'needs-attention' if document.status.value == 'needs_attention' else '' }}">{% if document.status.value == 'needs_attention' %}Needs attention. <a href="/financials/bills/{{ document.id }}">Open it</a> to see why and what to do.{% else %}{{ document.status.value }}{% endif %}</td>
       <td>{{ document.created_at | display_datetime }}</td>
     </tr>
     {% else %}

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import quote_plus
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.exc import OperationalError
@@ -16,20 +19,25 @@ from app.config import settings
 from app.db import get_session
 from app.models.account import Account
 from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatus
+from app.models.schedule import ProblemEntry
+from app.problems import Problem, record_problem
+from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError, EnableBankingClient
 from app.services.bankapi.connect import (
-    SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left,
+    SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left, consent_ended,
+    consent_warning, latest_connections,
 )
 from app.services.bankapi.sync import sync_link
 from app.services.presentation import lisbon_datetime
 from app.templating import templates
 
 router = APIRouter(prefix="/financials/bank", tags=["bank"])
+logger = logging.getLogger("bank")
 
 
 def get_bank_client() -> EnableBankingClient:
     if not settings.bank_configured:
-        raise HTTPException(status_code=503, detail="Bank connections aren't set up on this server yet")
+        raise HTTPException(status_code=503, detail=msg.bank_not_set_up())
     return EnableBankingClient(settings.ENABLE_BANKING_APP_ID, Path(settings.ENABLE_BANKING_KEY_PATH).read_bytes())
 
 
@@ -39,26 +47,27 @@ def _utcnow() -> datetime:
 
 @router.get("/")
 async def connections_page(request: Request, session: Session = Depends(get_session)):
-    connections = session.exec(select(BankConnection)).all()
-    by_bank: dict[str, BankConnection] = {}
-    for conn in connections:
-        if conn.bank_name not in by_bank or conn.created_at > by_bank[conn.bank_name].created_at:
-            by_bank[conn.bank_name] = conn
+    by_bank = latest_connections(session)
     links = session.exec(select(BankAccountLink)).all()
+    now = _utcnow()
     rows = []
     for bank_key, (bank_name, _country) in SUPPORTED_BANKS.items():
         conn = by_bank.get(bank_name)
         bank_links = [l for l in links if conn and l.connection_id == conn.id]
         mapped = [l for l in bank_links if l.account_id is not None]
         days = connection_days_left(conn) if conn else None
+        hint: Optional[Problem] = None
         if conn is None or conn.status == BankConnectionStatus.FAILED:
             status_label = "Not connected"
         elif conn.status == BankConnectionStatus.PENDING:
             status_label = "Waiting for you to approve in the bank's app"
-        elif conn.status == BankConnectionStatus.EXPIRED or (days is not None and days <= 0):
+            hint = msg.waiting_for_approval(bank_name)
+        elif conn.status == BankConnectionStatus.EXPIRED or consent_ended(conn, now):
             status_label = "Access has ended"
+            hint = msg.consent_expired(bank_name)
         elif len(mapped) < len(bank_links):
             status_label = "Needs account mapping"
+            hint = msg.account_not_linked(bank_name)
         else:
             status_label = "Connected"
         last_update = max((l.last_synced_at for l in bank_links if l.last_synced_at), default=None)
@@ -66,10 +75,12 @@ async def connections_page(request: Request, session: Session = Depends(get_sess
         rows.append({
             "key": bank_key, "name": bank_name, "connection": conn,
             "status": status_label, "days_left": days, "last_update": last_update,
-            "links": bank_links, "error": errors[0] if errors else None,
+            "links": bank_links, "hint": hint,
+            # An ended access explains itself through the hint; the stored sync error only adds noise there.
+            "error": errors[0] if errors and hint is None else None,
         })
     return templates.TemplateResponse(request, "bank/connections.html", {
-        "rows": rows, "now": _utcnow(), "notices": bank_notices(session),
+        "rows": rows, "now": now, "notices": bank_notices(session),
     })
 
 
@@ -81,11 +92,13 @@ async def connect(bank_key: str, request: Request,
     try:
         url = await begin_connection(session, client, bank_key,
                                      redirect_url=f"{public_base}/financials/bank/callback")
-    except BankApiError:
-        return _friendly_error_page(
-            request, "We couldn't start the bank connection.",
-            "The bank didn't accept our request. Please try again in a moment; if it keeps happening, tell Pedro.",
-        )
+    except ValueError as exc:
+        return _friendly_error_page(request, msg.unknown_bank(), technical=str(exc), status_code=400)
+    except (BankApiError, httpx.HTTPError) as exc:
+        reached = isinstance(exc, BankApiError)
+        reason = ("The bank said it couldn't start the connection right now." if reached
+                  else "The Hub couldn't reach the bank to start the connection.")
+        return _friendly_error_page(request, msg.connect_not_started(reason), technical=str(exc) or repr(exc))
     return RedirectResponse(url, status_code=303)
 
 
@@ -94,21 +107,13 @@ async def callback(request: Request, state: str = "", code: str = "", error: str
                    session: Session = Depends(get_session),
                    client: EnableBankingClient = Depends(get_bank_client)):
     if error:
-        return _friendly_error_page(
-            request,
-            "The bank sent you back without finishing — nothing was connected. Try again when you're ready.",
-        )
+        return _friendly_error_page(request, msg.returned_without_finishing(), technical=f"The bank returned: {error}")
     try:
         connection = await complete_connection(session, client, state=state, code=code)
-    except ValueError:
-        return _friendly_error_page(
-            request, "That bank link has expired or was already used — start again", status_code=400,
-        )
-    except BankApiError:
-        return _friendly_error_page(
-            request,
-            "The bank didn't finish the connection. Nothing was saved — try connecting again.",
-        )
+    except ValueError as exc:
+        return _friendly_error_page(request, msg.link_used_or_expired(), technical=str(exc), status_code=400)
+    except (BankApiError, httpx.HTTPError) as exc:
+        return _friendly_error_page(request, msg.connection_not_finished(), technical=str(exc) or repr(exc))
     unmapped = session.exec(
         select(BankAccountLink).where(
             BankAccountLink.connection_id == connection.id,
@@ -120,10 +125,16 @@ async def callback(request: Request, state: str = "", code: str = "", error: str
     return RedirectResponse("/financials/bank/", status_code=303)
 
 
-def _friendly_error_page(request: Request, message: str, detail: str = "", status_code: int = 200):
+def _friendly_error_page(request: Request, problem: Problem, technical: str = "", status_code: int = 200):
     return templates.TemplateResponse(request, "bank/error.html", {
-        "message": message, "detail": detail,
+        "problem": problem, "technical": technical,
     }, status_code=status_code)
+
+
+def _no_such_connection() -> dict:
+    return {"what": "Couldn't open that bank connection.",
+            "why": "The Hub has no bank connection with that number; the link may be out of date.",
+            "next_step": "Go back to Bank connections and choose it from there.", "link": msg.BANK_PAGE}
 
 
 @router.get("/{connection_id}/map")
@@ -131,7 +142,7 @@ async def map_page(request: Request, connection_id: int,
                    session: Session = Depends(get_session)):
     connection = session.get(BankConnection, connection_id)
     if connection is None:
-        raise HTTPException(status_code=404, detail="No such bank connection")
+        raise HTTPException(status_code=404, detail=_no_such_connection())
     links = session.exec(
         select(BankAccountLink).where(BankAccountLink.connection_id == connection_id)
     ).all()
@@ -148,16 +159,17 @@ async def map_one(connection_id: int, link_id: int, request: Request,
     raw = form.get("account_id")
     link = session.get(BankAccountLink, link_id)
     if link is None or link.connection_id != connection_id:
-        raise HTTPException(status_code=404, detail="No such bank account on this connection")
+        raise HTTPException(status_code=404, detail={
+            "what": "Couldn't open that bank account.",
+            "why": "It isn't one of the accounts on this bank connection; the page may be out of date.",
+            "next_step": "Go back to Bank connections and open “Map accounts” again.", "link": msg.BANK_PAGE})
     if raw:
         try:
             account = session.get(Account, int(raw))
         except (TypeError, ValueError):
             account = None
         if account is None:
-            return _friendly_error_page(
-                request, "Pick one of the listed Hub accounts", status_code=400,
-            )
+            return _friendly_error_page(request, msg.unknown_account_choice(connection_id), status_code=400)
         link.account_id = account.id
     else:
         link.account_id = None  # "— not tracked —"
@@ -174,85 +186,92 @@ async def sync_now(connection_id: int, request: Request,
                    client: EnableBankingClient = Depends(get_bank_client)):
     connection = session.get(BankConnection, connection_id)
     if connection is None:
-        raise HTTPException(status_code=404, detail="No such bank connection")
+        raise HTTPException(status_code=404, detail=_no_such_connection())
     links = session.exec(
         select(BankAccountLink).where(
             BankAccountLink.connection_id == connection_id,
             BankAccountLink.account_id.is_not(None),  # type: ignore[attr-defined]
         )
     ).all()
-    created = already = 0
-    errors = []
-    results = []
+    if not links:
+        return _back(msg.nothing_linked(connection.bank_name).text)
+    created = already = synced = 0
+    problems: list[Problem] = []
     for link in links:
+        account = msg.label(connection.bank_name, link.display_name)
         try:
             result = await sync_link(session, client, link, scheduled=False)
         except OperationalError:
             session.rollback()
-            return RedirectResponse(
-                f"/financials/bank/?msg={quote_plus('The Hub is busy right now — try again in a minute.')}",
-                status_code=303,
-            )
-        results.append(result)
-        if result.error:
-            errors.append(result.error)
-        created += result.created
-        already += result.already_synced + result.matched_existing
+            return _back(msg.hub_busy().text)
+        except Exception as exc:        # never a bare 500 on a button press; the Problems page keeps the details
+            session.rollback()
+            logger.exception("Sync now failed for link %s", link.id)
+            problem = msg.unexpected_failure(account)
+            try:
+                record_problem(session, area=msg.AREA, problem=problem, ref=msg.link_ref(link.id),
+                               technical=traceback.format_exc())
+            except Exception:
+                logger.exception("could not record the sync problem")
+            problems.append(problem)
+            continue
+        if result.problem is not None:
+            problems.append(result.problem)
+        else:
+            synced += 1
+            created += result.created
+            already += result.already_synced + result.matched_existing
     parts = []
-    if any(r.skipped_quota for r in results):
-        parts.append("Daily limit reached for this bank — try again tomorrow.")
-    else:
-        parts.append(f"{created} new transaction{'s' if created != 1 else ''}")
-        parts.append(f"{already} already there")
-    if errors:
-        parts.append(errors[0])
-    return RedirectResponse(f"/financials/bank/?msg={quote_plus('. '.join(parts))}", status_code=303)
+    if synced or not problems:
+        parts.append(f"{created} new transaction{'s' if created != 1 else ''}. {already} already there.")
+    parts.extend(dict.fromkeys(p.text for p in problems))   # each distinct message once
+    return _back(" ".join(parts))
 
 
-def bank_notices(session: Session, now: Optional[datetime] = None) -> list[str]:
-    """Plain-language banners for the Financials pages."""
+def _back(message: str):
+    return RedirectResponse(f"/financials/bank/?msg={quote_plus(message)}", status_code=303)
+
+
+def bank_notices(session: Session, now: Optional[datetime] = None) -> list[Problem]:
+    """What/why/what-to-do banners for the Financials pages: an access that has expired or soon will,
+    and accounts that haven't updated."""
     now = now or _utcnow()
-    notices: list[str] = []
-    connections = session.exec(select(BankConnection)).all()
-    links = session.exec(select(BankAccountLink)).all()
-    latest = {}
-    for conn in connections:
-        if conn.bank_name not in latest or conn.created_at > latest[conn.bank_name].created_at:
-            latest[conn.bank_name] = conn
-    for bank_name, conn in latest.items():
-        days = connection_days_left(conn, now=now)
-        if conn.status == BankConnectionStatus.EXPIRED:
-            notices.append(f"{bank_name} access has ended — renew it to keep updates coming")
-        elif days is not None and 0 < days <= 14:
-            notices.append(f"{bank_name} access ends in {days} days — renew it")
-    for link in links:
-        link_conn = latest.get(session.get(BankConnection, link.connection_id).bank_name)
+    notices: list[Problem] = []
+    latest = latest_connections(session)
+    for conn in latest.values():
+        warning = consent_warning(conn, now)
+        if warning is not None:
+            notices.append(warning)
+    for link in session.exec(select(BankAccountLink)).all():
+        link_conn = session.get(BankConnection, link.connection_id)
         # Only the current connection's links can be stale; after a renewal
         # the superseded connection must stay silent.
-        if link_conn is None or link_conn.id != link.connection_id \
+        if link_conn is None or latest.get(link_conn.bank_name) is None \
+                or latest[link_conn.bank_name].id != link.connection_id \
                 or link_conn.status != BankConnectionStatus.ACTIVE:
             continue
+        account = msg.label(link_conn.bank_name, link.display_name)
         if link.last_error:
-            notices.append(_stale_notice(session, link, latest, now))
+            notices.append(_failure_notice(session, link, account, link_conn.bank_name))
         elif link.last_synced_at is not None and (now - link.last_synced_at) > timedelta(days=2):
-            notices.append(_stale_notice(session, link, latest, now))
+            notices.append(msg.not_updated_for_days(account, link.last_synced_at))
     seen = set()
     unique = []
     for n in notices:
-        if n not in seen:
-            seen.add(n)
+        if n.text not in seen:
+            seen.add(n.text)
             unique.append(n)
     return unique
 
 
-def _stale_notice(session: Session, link: BankAccountLink, latest: dict, now: datetime) -> str:
-    conn = latest.get(session.get(BankConnection, link.connection_id).bank_name)
-    if conn is not None and conn.status == BankConnectionStatus.ACTIVE:
-        if link.last_synced_at is None or link.last_error:
-            return f"{conn.bank_name} hasn't updated — will retry later"
-        return (f"{conn.bank_name} hasn't updated since "
-                f"{lisbon_datetime(link.last_synced_at)} — will retry later")
-    return "The bank hasn't updated — will retry later"
+def _failure_notice(session: Session, link: BankAccountLink, account: str, bank_name: str) -> Problem:
+    """The reason this account failed, in the words the sync logged on the Problems page."""
+    entry = session.exec(select(ProblemEntry).where(
+        ProblemEntry.ref == msg.link_ref(link.id), ProblemEntry.area == msg.AREA,
+        ProblemEntry.resolved_at == None).order_by(ProblemEntry.at.desc())).first()   # noqa: E711
+    if entry is not None:
+        return Problem(entry.what, entry.why, entry.next_step, entry.link)
+    return msg.last_attempt_failed(account, bank_name)
 
 
 def _notices_for_request() -> list[str]:

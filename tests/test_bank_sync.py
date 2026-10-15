@@ -171,7 +171,7 @@ def test_rate_limit_sets_friendly_error_and_keeps_window(session):
             raise BankApiError(429, "ASPSP_RATE_LIMIT_EXCEEDED", "slow down")
 
     result = _run(sync_link(session, RateLimitedClient(), link, today=date(2026, 10, 4)))
-    assert result.error == "The bank asked us to wait; will retry later"
+    assert "4 requests per day" in result.error and "next automatic sync" in result.error
     assert link.last_error == result.error
     assert link.last_synced_at is None
 
@@ -185,7 +185,7 @@ def test_session_error_expires_the_connection(session):
             raise BankApiError(401, "SESSION_NOT_FOUND", "gone")
 
     result = _run(sync_link(session, DeadSessionClient(), link, today=date(2026, 10, 4)))
-    assert result.error == "Bank access has ended; renew it"
+    assert "access has expired" in result.error and "nothing will sync until you renew" in result.error
     assert session.get(BankConnection, link.connection_id).status == BankConnectionStatus.EXPIRED
 
 
@@ -275,7 +275,7 @@ def test_unexpected_row_error_stops_cleanly(session, monkeypatch):
     monkeypatch.setattr(sync_mod, "_provider", exploding_provider)
     result = _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4),
                             classify=fake_classify))
-    assert result.error == "Something went wrong saving the bank transactions; some may be missing"
+    assert "only partly updated" in result.error and "fetches them again" in result.error
     txns = session.query(Transaction).all()
     assert len(txns) == 1 and txns[0].external_id == "r1"  # row 1 kept
     assert link.last_synced_at is None  # window not advanced

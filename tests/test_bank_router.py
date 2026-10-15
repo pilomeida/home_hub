@@ -154,7 +154,7 @@ def test_bank_notices_renewal_warning_at_14_days(session):
     conn.valid_until = now + timedelta(days=14)
     session.add(conn); session.commit()
     notices = bank_notices(session, now=now)
-    assert any("Santander Totta access ends in 14 days" in n for n in notices)
+    assert any("Santander Totta access expires in 14 days" in n.text for n in notices)
 
 
 def test_bank_notices_silent_at_15_days(session):
@@ -172,7 +172,7 @@ def test_bank_notices_expired(session):
     conn.status = BankConnectionStatus.EXPIRED
     session.add(conn); session.commit()
     notices = bank_notices(session)
-    assert any("Santander Totta access has ended" in n for n in notices)
+    assert any("Santander Totta access has expired" in n.text for n in notices)
 
 
 def test_bank_notices_stale_last_synced(session):
@@ -181,16 +181,16 @@ def test_bank_notices_stale_last_synced(session):
     link.last_synced_at = datetime.utcnow() - timedelta(days=3)
     session.add(link); session.commit()
     notices = bank_notices(session)
-    assert any("hasn't updated since" in n for n in notices)
+    assert any("hasn't updated since" in n.text for n in notices)
 
 
 def test_bank_notices_on_error(session):
     from app.routers.bank import bank_notices
     conn, link = _sync_now_seed(session)
-    link.last_error = "The bank asked us to wait; will retry later"
+    link.last_error = "stored by an earlier sync"
     session.add(link); session.commit()
     notices = bank_notices(session)
-    assert any("hasn't updated" in n for n in notices)
+    assert any("hasn't updated" in n.text for n in notices)
 
 
 def test_banner_shows_on_financials_pages_not_others(client, session):
@@ -202,9 +202,9 @@ def test_banner_shows_on_financials_pages_not_others(client, session):
     doc = Document(filename="s.pdf", file_path="/x", content_hash="b1",
                    source=DocumentSource.API, domain=Domain.FINANCIALS)
     session.add(doc); session.commit()
-    assert "ends in 5 days" in client.get("/financials/bank/").text
-    assert "ends in 5 days" in client.get("/financials/bills").text
-    assert "ends in 5 days" not in client.get("/wiki").text
+    assert "expires in 5 days" in client.get("/financials/bank/").text
+    assert "expires in 5 days" in client.get("/financials/bills").text
+    assert "expires in 5 days" not in client.get("/wiki").text
 
 
 def test_pending_connection_shows_try_again(client, session):
@@ -291,7 +291,7 @@ def test_sync_now_daily_limit_message(client, session, bank_client):
     session.commit()
     r = client.post(f"/financials/bank/{conn.id}/sync", follow_redirects=True)
     assert r.status_code == 200
-    assert "Daily limit reached for this bank — try again tomorrow." in r.text
+    assert "4 requests per account per day" in r.text and "nothing is lost" in r.text
 
 
 def _bank_connect_complete(session, client, *, state, code):

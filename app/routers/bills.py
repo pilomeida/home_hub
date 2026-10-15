@@ -63,6 +63,7 @@ async def upload_bill(
 async def bill_detail(request: Request, document_id: int, session: Session = Depends(get_session)):
     document = session.get(Document, document_id)
     if document is None:
+        # "<thing> not found" is turned into what / why / what to do by the central handler (app/problems.py).
         raise HTTPException(status_code=404, detail="Document not found")
     transactions = session.exec(
         select(Transaction)

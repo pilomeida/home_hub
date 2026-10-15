@@ -1,7 +1,8 @@
+{% from "bank/_macros.html" import problem %}
 {% if notices %}
 <div class="bank-banners">
   {% for notice in notices %}
-  <p class="bank-banner">{{ notice }}</p>
+  <p class="bank-banner">{{ problem(notice) }}</p>
   {% endfor %}
 </div>
 {% endif %}
