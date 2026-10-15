@@ -277,3 +277,87 @@ def for_http(status: int, detail: object) -> Problem:
     if status == 409:
         return Problem("Not done.", text or "It conflicts with the current state of the data.", "Reload the page and try again.")
     return Problem("Not done.", text or "The request wasn't accepted.", "Correct what is on the page and try again.")
+
+
+# --- added by pages-other agent ---
+# Refusals the services raise as plain English (inline notices on the Transactions, House, Insurance and
+# Documents pages), with the wording for each. A row is (what, why, next step). A text not listed here still
+# gets all three parts through explain(); its own text is then kept as the reason.
+
+_NOTICE_TEXT: dict[str, tuple[str, str, str]] = {
+    # lending or borrowing from a payment (Needs Review, "Link Debt")
+    "Transaction not found": ("Not linked.", "The transaction isn't in the Hub any more; it may have been deleted, or the page is out of date.", "Reload Needs Review and try again."),
+    "Debt not found": ("Not linked.", "The loan you picked no longer exists; it may have been deleted, or the list is out of date.", "Reload Needs Review and choose the loan again."),
+    "The role must be advance or repayment": ("Not linked.", "The role has to be either an advance (more lent or borrowed) or a repayment.", "Choose one of the two and press Link Debt again."),
+    "This transaction is already linked to a debt": ("Not linked.", "This transaction already belongs to a loan, and one transaction can only be on one loan.", "Nothing to do here: reload Needs Review to see what is still waiting."),
+    "This transaction is already linked to another debt": ("Not linked.", "This transaction already belongs to a different loan, and one transaction can only be on one loan.", "Leave it where it is; moving it to another loan isn't possible from this page."),
+    "Unknown direction": ("Not linked.", "The direction isn't one the Hub knows: a loan is either money we lent or money we borrowed.", "Choose one of the two and press Link Debt again."),
+    "Choose the direction: a transfer does not say whether you lent or borrowed": ("Not linked.", "A transfer doesn't say whether the money was lent or borrowed, so the Hub needs you to choose.", "In the new-loan box choose “we lent” or “we borrowed”, then press Link Debt again."),
+    "The name is at most 80 characters": ("Not linked.", "The person's name is longer than 80 characters.", "Shorten the name and press Link Debt again."),
+    "Give the person's name": ("Not linked.", "A new loan needs the name of the person it is with.", "Type their name in the new-loan box and press Link Debt again."),
+    "Choose a direction": ("Not linked.", "A new loan needs a direction: money we lent, or money we borrowed.", "Choose one of the two and press Link Debt again."),
+    "Choose a role (advance or repayment): a transfer has no reliable direction": ("Not linked.", "A transfer doesn't say whether money was lent or borrowed, so the role can't be worked out by itself.", "Choose advance or repayment in the role box and press Link Debt again."),
+    "The role does not fit this transaction and direction: money going out starts a loan we gave, money coming in starts a loan we received": ("Not linked.", "The role doesn't fit this payment: money going out starts a loan we gave, and money coming in starts a loan we received.", "Choose the role that matches, or leave it on automatic, and press Link Debt again."),
+    # files and records (House, Insurance, Documents)
+    "No file was chosen to upload": ("Nothing was uploaded.", "No file was chosen, so there was nothing to send.", "Choose a file, then press Upload again."),
+    "Choose a file to upload": ("Nothing was uploaded.", "The Hub doesn't recognise this kind of file.", "Choose a PDF or a photo of it, then press Upload again."),
+    "No file was chosen to attach": ("Nothing was attached.", "No file was chosen, so there was nothing to attach.", "Choose a file, then press Attach again."),
+    "This file is already filed elsewhere": ("Not filed.", "The Hub already has this exact file, filed under something else, and keeps one copy of each file.", "Find it under its current place, or choose a different file."),
+    "This file is attached to a hand-entered record; edit the record instead.": ("Not saved.", "This file belongs to a record typed in by hand, and changes are made on that record.", "Open the record and edit it there."),
+    "This file is attached to a hand-entered record; re-file the record instead.": ("Not moved.", "This file belongs to a record typed in by hand, so the record is what has to move.", "Open the record and re-file it from there."),
+    "This record already has a file attached.": ("Not attached.", "A record holds one file, and this one already has a file.", "Open the record to see the file it has."),
+    "This record was already re-filed.": ("Not saved.", "This record has already been moved to another category or area, so this page is out of date.", "Reload the page and open the record again."),
+    "A hand-entered record can only become a document if it has a file attached.": ("Not moved.", "A record typed in by hand has no file, and a document needs one.", "Attach a file to the record first, then move it."),
+}
+_KIND_NAMES = {"pdf": "PDF", "image": "photo", "video": "video"}
+_NOTICE_PATTERNS: list[tuple[re.Pattern, callable]] = [
+    (re.compile(r"^(.+) accepts (.+) files only$"),
+     lambda m: ("Not saved.", f"{m[1]} takes only {' or '.join(_KIND_NAMES.get(k.strip(), k.strip()) for k in m[2].split(','))} files, and this file is another kind.",
+                "Choose a file of one of those kinds, then try again.")),
+    (re.compile(r"^(.+) does not accept this file type$"),
+     lambda m: ("Not attached.", f"{m[1]} does not accept this kind of file.", "Choose a file of a type this category takes (usually a PDF or a photo), then try again.")),
+    (re.compile(r"^Unknown (.+) category$"),
+     lambda m: ("Not saved.", f"The {m[1]} category you chose doesn't exist (the list may have changed since the page was opened).",
+                "Reload the page and choose again.")),
+    (re.compile(r"^(.+) is filed from a document, not entered by hand$"),
+     lambda m: ("Not saved.", f"{m[1]} is filled in from its document, so it can't be typed in by hand.", "Upload the document instead.")),
+    (re.compile(r"^(\d+) transaction\(s\) from this document are linked to a commitment, debt or transfer\."),
+     lambda m: ("Not moved.", f"{m[1]} transaction(s) from this document are linked to a commitment, debt or transfer, and moving the file would discard those links.", "Remove those links in Transactions first, then move the file again.")),
+]
+
+
+def _notice_row(text: str) -> Optional[tuple[str, str, str]]:
+    row = _NOTICE_TEXT.get(text)
+    if row is None:
+        for pattern, build in _NOTICE_PATTERNS:
+            m = pattern.match(text)
+            if m:
+                return build(m)
+    return row
+
+
+def notice_problem(text: str, what: str = "Not saved.") -> Problem:
+    """The three-part message for a refusal a service raised as plain English. Not classified as a technical
+    failure on purpose: a file-type refusal mentions "PDF" and must not be read as a damaged file."""
+    row = _notice_row(text)
+    if row is None:
+        return Problem(what, text.rstrip(".") + ".", "Check what is on the page and try again; if it repeats, tell Pedro.")
+    return Problem(*row)
+
+
+def notice(text: str, what: str = "Not saved.") -> str:
+    """The same message as one line of text, for an inline notice on a page."""
+    return notice_problem(text, what).text
+
+
+def file_notices(errors: dict) -> dict:
+    """The errors dict for a template with file refusals written out in three parts. A category hint is
+    rewritten only when it is a known refusal; instructions such as "Choose a category" stay as they are."""
+    out = {}
+    for key, value in errors.items():
+        if isinstance(value, str) and (key == "file" or (key == "category" and _notice_row(value) is not None)):
+            out[key] = notice(value)
+        else:
+            out[key] = value
+    return out
+# --- end pages-other agent ---

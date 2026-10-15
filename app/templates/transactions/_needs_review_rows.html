@@ -129,7 +129,8 @@
   <h2>Could not classify</h2>
   {% for t in queue.unclassified_transactions %}
   <div class="needs-attention">
-    <p>{{ t.description }} — {{ "%.2f"|format(t.amount) }} EUR — flagged for manual attention</p>
+    <p>{{ t.description }} — {{ "%.2f"|format(t.amount) }} EUR</p>
+    <p class="loan-sub">Not filed yet: the Hub couldn't match this payment to a merchant, so it can't pick a category by itself. Select it under All transactions and set its category with “Apply to selected”.</p>
   </div>
   {% else %}
   <p>Nothing unclassified.</p>

@@ -15,6 +15,7 @@ from app.domains.registry import document_url, get_spec, implemented_domains, is
 from app.models.document import Document
 from app.models.domain import Domain
 from app.models.record import Record
+from app.problems import file_notices, notice
 from app.services.ingestion import Classification, RefileRefusedError, refile_document, refile_record
 from app.templating import templates
 
@@ -41,7 +42,7 @@ def _context(session: Session, *, action: str, title: str, has_file: bool, filen
         "domains": implemented_domains(), "domain": domain, "category": category,
         "categories": spec.categories if spec else (),
         "form_fields": build_form_fields(session, spec, category, values, errors, media_kind=media_kind) if spec and category else [],
-        "errors": errors, "refused": refused,
+        "errors": file_notices(errors), "refused": notice(refused) if refused else None,
     }
 
 

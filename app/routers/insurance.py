@@ -15,6 +15,7 @@ from app.domains.insurance.policies import policy_sections
 from app.domains.registry import document_url, get_spec
 from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
+from app.problems import file_notices
 from app.services.ingestion import Classification, IncomingFile, ingest, update_document_fields
 from app.services.wiki_store import PageRef, find_page, normalize_entity_key
 from app.templating import templates
@@ -28,7 +29,7 @@ def _upload_context(session: Session, category: Optional[str], values: dict, err
     spec = get_spec(Domain.INSURANCE)
     known = category if category and any(c.value == category for c in spec.categories) else None
     return {
-        "categories": spec.categories, "category": known, "errors": errors,
+        "categories": spec.categories, "category": known, "errors": file_notices(errors),
         "form_fields": build_form_fields(session, spec, known, values, errors) if known else [],
     }
 
@@ -78,7 +79,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
     if upload_file is None or isinstance(upload_file, str) or not upload_file.filename:
         return templates.TemplateResponse(
             request, "insurance/upload.html",
-            _upload_context(session, category, values, {"file": "Choose a file to upload"}), status_code=400)
+            _upload_context(session, category, values, {"file": "No file was chosen to upload"}), status_code=400)
     try:
         result = await ingest(
             session,

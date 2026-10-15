@@ -17,9 +17,9 @@
   <input type="file" id="f-attach" name="file" accept="application/pdf,image/*">
     <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ scan_notice }}</small>
   <button type="submit">Attach</button>
-  {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
 </form>
 {% endif %}
+{% if errors.get("file") %}<p class="needs-attention">{{ errors["file"] }}</p>{% endif %}
 
 <h2>Details</h2>
 <form action="/house/records/{{ record.id }}/fields" method="post">

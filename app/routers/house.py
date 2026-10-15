@@ -20,6 +20,7 @@ from app.domains.registry import document_url, get_spec, record_url
 from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
 from app.models.record import Record
+from app.problems import file_notices, notice_problem
 from app.services.ingestion import (
     Classification, IncomingFile, RecordInput, RefileRefusedError, attach_file, create_record, ingest,
     update_document_fields, update_record_fields,
@@ -40,7 +41,7 @@ def _upload_context(session: Session, category: Optional[str], values: dict, err
         "categories": spec.categories,
         "category": known,
         "form_fields": build_form_fields(session, spec, known, values, errors) if known else [],
-        "errors": errors,
+        "errors": file_notices(errors),
         "optional_file_labels": [c.label for c in spec.categories if c.kind == SourceKind.RECORD],
     }
 
@@ -68,7 +69,7 @@ def _record_context(session: Session, record: Record, values: dict, errors: dict
         "attachment": attachment, "attachment_description": describe_document(attachment) if attachment else None,
         "media_kind": media_kind.value if media_kind else None,
         "form_fields": build_form_fields(session, spec, record.category, values, errors, media_kind=media_kind),
-        "errors": errors,
+        "errors": file_notices(errors),
     }
 
 
@@ -144,7 +145,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
     if upload_file is None or isinstance(upload_file, str) or not upload_file.filename:
         return templates.TemplateResponse(
             request, "house/upload.html",
-            _upload_context(session, category, values, {"file": "Choose a file to upload"}), status_code=400,
+            _upload_context(session, category, values, {"file": "No file was chosen to upload"}), status_code=400,
         )
     content = await upload_file.read()
     try:
@@ -182,6 +183,9 @@ async def update_fields(request: Request, document_id: int, session: Session = D
         return templates.TemplateResponse(
             request, "house/detail.html", _detail_context(session, document, values, exc.errors), status_code=400,
         )
+    except RefileRefusedError as exc:
+        p = notice_problem(str(exc), "Not saved.")
+        raise HTTPException(status_code=409, detail={"what": p.what, "why": p.why, "next_step": p.next_step}) from exc
     return RedirectResponse(f"/house/documents/{document.id}", status_code=303)
 
 
@@ -208,11 +212,12 @@ async def attach(request: Request, record_id: int, session: Session = Depends(ge
     upload_file = (await request.form()).get("file")
     if upload_file is None or isinstance(upload_file, str) or not upload_file.filename:
         return templates.TemplateResponse(request, "house/record.html",
-                                          _record_context(session, record, load_fields(record), {"file": "Choose a file"}), status_code=400)
+                                          _record_context(session, record, load_fields(record), {"file": "No file was chosen to attach"}), status_code=400)
     try:
         await attach_file(session, record, IncomingFile(upload_file.filename, await upload_file.read(),
                                                         DocumentSource.MANUAL, getattr(request.state, "user_email", None)))
     except (InvalidClassification, RefileRefusedError) as exc:
+        # The record context writes the file notice out in three parts (file_notices), so the raw text goes in here.
         errors = exc.errors if isinstance(exc, InvalidClassification) else {"file": str(exc)}
         return templates.TemplateResponse(request, "house/record.html",
                                           _record_context(session, record, load_fields(record), errors), status_code=400)

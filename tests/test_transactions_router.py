@@ -843,7 +843,7 @@ def test_link_debt_derives_the_direction_when_missing(client, session):
 def test_link_debt_transfer_type_needs_direction_and_role(client, session):
     t = _mk(session, "TRF MBWAY TEST PERSON", 600.0, TransactionType.TRANSFER)
     r = client.post(f"/financials/transactions/{t.id}/link-debt", data={"person_name": "Test Person"})
-    assert r.status_code == 400 and "direction" in r.text.lower()
+    assert r.status_code == 400 and r.text.startswith("Not linked.") and "we lent" in r.text and "Link Debt again" in r.text
     # existing debt: role is required
     from app.services.debt_ledger import create_informal_debt
     debt = create_informal_debt(session, "Test Person", DebtDirection.OWED_TO_US, opening_amount=1000.0)
@@ -919,13 +919,15 @@ def test_link_debt_errors_are_plain_text(client, session):
     t = _mk(session, "TRF MBWAY P/ TEST PERSON", 600.0, TransactionType.TRANSFER)
     r = client.post(f"/financials/transactions/{t.id}/link-debt", data={"person_name": "Test Person"})
     assert r.status_code == 400 and r.headers["content-type"].startswith("text/plain")
-    assert r.text == "Choose the direction: a transfer does not say whether you lent or borrowed"
+    assert r.text == ("Not linked. A transfer doesn't say whether the money was lent or borrowed, so the Hub needs you to choose. "
+                      "In the new-loan box choose “we lent” or “we borrowed”, then press Link Debt again.")
     from app.services.debt_ledger import create_informal_debt
     debt = create_informal_debt(session, "Test Person", DebtDirection.OWED_TO_US, opening_amount=10.0)
     session.commit()
     r = client.post(f"/financials/transactions/{t.id}/link-debt", data={"existing_debt_id": str(debt.id)})
     assert r.status_code == 400 and r.headers["content-type"].startswith("text/plain")
-    assert r.text == "Choose a role (advance or repayment): a transfer has no reliable direction"
+    assert r.text == ("Not linked. A transfer doesn't say whether money was lent or borrowed, so the role can't be worked out by itself. "
+                      "Choose advance or repayment in the role box and press Link Debt again.")
 
 
 def test_needs_review_page_has_error_handler_and_required_role_for_transfers(client, session):
