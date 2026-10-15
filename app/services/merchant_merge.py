@@ -64,6 +64,7 @@ def merge_merchants(session: Session, source_ids: list[int], target_id: int, *,
     ids = [m.id for m in sources]
     if ids:
         marks = ",".join(str(i) for i in ids)
+        # keeps held rows: merging merchants moves every row
         report.moved_ids = [r[0] for r in session.execute(text(f"SELECT id FROM transactions WHERE merchant_id IN ({marks})")).all()]
     report.merchants_merged = len(sources)
     report.transactions_moved = len(report.moved_ids)

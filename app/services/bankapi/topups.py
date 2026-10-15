@@ -37,6 +37,7 @@ def link_revolut_topups(session: Session) -> int:
         return 0
 
     debits = [
+        # keeps held rows: pairs top-ups with their debits: matching moves rows
         t for t in session.exec(select(Transaction).where(
             Transaction.account_id.in_(santander_ids),  # type: ignore[attr-defined]
             Transaction.transaction_type == TransactionType.DEBIT,
@@ -46,6 +47,7 @@ def link_revolut_topups(session: Session) -> int:
         if "revolut" in t.description.lower()
     ]
     credits = [
+        # keeps held rows: pairs top-ups with their debits: matching moves rows
         t for t in session.exec(select(Transaction).where(
             Transaction.account_id.in_(revolut_ids),  # type: ignore[attr-defined]
             Transaction.transaction_type == TransactionType.CREDIT,

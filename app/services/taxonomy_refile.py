@@ -34,6 +34,7 @@ def refile_all(session: Session, dry_run: bool = True) -> RefileReport:
             if not dry_run:
                 m.default_category_id = derived[m.id]
                 session.add(m)
+    # keeps held rows: migration refiles every row so a held line is right once confirmed
     for t in session.exec(select(Transaction)).all():
         if t.category_id is not None:
             report.already_filed += 1
@@ -126,6 +127,7 @@ async def reclassify_unsorted(
     report = ReclassifyReport()
     emit = progress or (lambda _line: None)
     unsorted = get_node(session, UNSORTED_SLUG)
+    # keeps held rows: reclassifying unsorted rows includes held lines so they are filed when confirmed
     txns = session.exec(select(Transaction).where(
         Transaction.category_id == unsorted.id, Transaction.merchant_id.is_not(None))).all()
     by_merchant: dict[int, list[Transaction]] = {}

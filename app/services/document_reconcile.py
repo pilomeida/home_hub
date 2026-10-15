@@ -69,6 +69,7 @@ def reconcile_quietly(session: Session) -> None:
 
 def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDocsReport:
     report = ReconcileDocsReport()
+    # keeps held rows: matches bills to bank rows: matching moves rows, so held rows stay in the pool
     rows = session.exec(select(Transaction, Document).join(Document, Document.id == Transaction.document_id)
                         .where(Transaction.transaction_type == TransactionType.DEBIT)).all()
     names = {m.id: m.canonical_name for m in session.exec(select(Merchant)).all()}

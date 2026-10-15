@@ -135,6 +135,7 @@ def direction_matches(txn: Transaction, node: CategoryNode) -> bool:
 def merchant_has_purchases(session: Session, merchant_id: Optional[int]) -> bool:
     if merchant_id is None:
         return False
+    # keeps held rows: classification rule (is this credit a refund?), not a total
     return session.exec(select(Transaction.id).where(
         Transaction.merchant_id == merchant_id,
         Transaction.transaction_type == TransactionType.DEBIT).limit(1)).first() is not None

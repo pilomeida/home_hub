@@ -105,7 +105,7 @@ def _insurance_debits(session: Session, debt_id: int) -> tuple[float, Optional[f
     rows = session.exec(
         select(Transaction).where(
             Transaction.debt_id == debt_id, Transaction.transaction_type == TransactionType.DEBIT,
-            Transaction.category_id.in_(node_ids),
+            Transaction.counts(), Transaction.category_id.in_(node_ids),
         ).order_by(Transaction.paid_date, Transaction.id)
     ).all()
     if not rows:

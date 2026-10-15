@@ -37,6 +37,7 @@ def apply_merchant_category(session: Session, merchant_id: int, credit_slug: Opt
             merchant.default_category_id = debit.id
             merchant.default_category = legacy_category_for(session, debit)
         session.add(merchant)
+    # keeps held rows: re-files a merchant's history, held lines included
     for t in session.exec(select(Transaction).where(Transaction.merchant_id == merchant_id)).all():
         if t.debt_id is not None or t.settled_by_id is not None:
             continue

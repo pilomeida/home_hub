@@ -232,6 +232,7 @@ def rebuild_entries_from_links(session: Session) -> int:
         created = 0
         had_entries = session.exec(select(DebtEntry).where(DebtEntry.debt_id == debt.id)).first() is not None
         linked = session.exec(
+            # keeps held rows: backfill of ledger lines from links a person already made
             select(Transaction).where(Transaction.debt_id == debt.id).order_by(Transaction.id)
         ).all()
         pending = [t for t in linked

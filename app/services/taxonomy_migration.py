@@ -83,6 +83,7 @@ def remap_to_current_tree(session: Session) -> RemapReport:
     keep = seed_slugs()
     stale = [n for n in by_slug.values() if n.slug not in keep]
     for node in sorted(stale, key=lambda n: -n.level):
+        # keeps held rows: a category node may only be dropped when no row, held or not, points at it
         refs = (_count(session, "SELECT count(*) FROM transactions WHERE category_id = :i", i=node.id)
                 + _count(session, "SELECT count(*) FROM merchants WHERE default_category_id = :i", i=node.id)
                 + _count(session, "SELECT count(*) FROM budgets WHERE node_id = :i", i=node.id)

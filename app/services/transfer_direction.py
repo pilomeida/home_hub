@@ -36,6 +36,7 @@ class DirectionReport:
 def recover_transfer_directions(session: Session, dry_run: bool = True) -> DirectionReport:
     report = DirectionReport()
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
+    # keeps held rows: repairs the direction of transfer rows, held ones too
     for t in session.exec(select(Transaction).where(Transaction.transaction_type == TransactionType.TRANSFER)).all():
         node = nodes.get(t.category_id) if t.category_id else None
         if node is not None and node.kind == "neutral":

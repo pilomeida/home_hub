@@ -104,6 +104,7 @@ def _filtered_transactions(
     tag: Optional[str] = None,
     q: Optional[str] = None,
 ):
+    # keeps held rows: the Transactions page is the full ledger: it shows every row (settled ones with a marker) and adds up nothing
     statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
@@ -124,6 +125,7 @@ def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tupl
     linked_ids = {t.linked_transaction_id for t in transactions if t.linked_transaction_id is not None}
     linked_transactions = {
         lt.id: lt
+        # keeps held rows: display lookup of a row's transfer counterpart
         for lt in (session.exec(select(Transaction).where(Transaction.id.in_(linked_ids))).all() if linked_ids else [])
     }
     account_ids = {t.account_id for t in transactions if t.account_id is not None}
@@ -154,6 +156,7 @@ def _count_filtered_transactions(
     tag: Optional[str] = None,
     q: Optional[str] = None,
 ) -> int:
+    # keeps held rows: page count of the full ledger list above
     statement = select(Transaction)
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
@@ -192,6 +195,7 @@ def _attached_documents(session: Session, transactions: list[Transaction]) -> di
         return {}
     out: dict[int, list[tuple[int, str]]] = {}
     for settled, document in session.exec(
+            # keeps held rows: display lookup of the documents a bank row settled
             select(Transaction, Document).join(Document, Document.id == Transaction.document_id)
             .where(Transaction.settled_by_id.in_(ids))).all():
         out.setdefault(settled.settled_by_id, []).append((document.id, document.filename))
@@ -320,6 +324,7 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
 
     if transaction_ids:
         transactions = session.exec(
+            # keeps held rows: bulk edit acts on the rows a person ticked, held or not
             select(Transaction).where(Transaction.id.in_(transaction_ids))
         ).all()
         target_node = None
@@ -530,6 +535,7 @@ async def create_commitment_from_merchant(
     session.refresh(commitment)
 
     linked_transactions = session.exec(
+        # keeps held rows: linking a merchant's rows to a new commitment (bookkeeping, not a total)
         select(Transaction).where(Transaction.merchant_id == merchant_id)
     ).all()
     for t in linked_transactions:

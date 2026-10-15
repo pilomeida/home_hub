@@ -36,7 +36,7 @@ def _spending(session: Session, args: dict) -> ToolOutput:
     date_from, date_to = date.fromisoformat(args["date_from"]), date.fromisoformat(args["date_to"])
     group_by, category = args.get("group_by", "category"), args.get("category")
     statement = select(Transaction).where(Transaction.transaction_type == TransactionType.DEBIT,
-                                          Transaction.settled_by_id.is_(None),
+                                          Transaction.counts(),
                                           Transaction.paid_date >= date_from, Transaction.paid_date <= date_to)
     if category:
         statement = statement.where(Transaction.category == Category(category))
@@ -61,7 +61,7 @@ def _spending(session: Session, args: dict) -> ToolOutput:
 
 def _find_transactions(session: Session, args: dict) -> ToolOutput:
     needle = (args.get("query") or "").lower()
-    statement = select(Transaction).where(Transaction.settled_by_id.is_(None))
+    statement = select(Transaction).where(Transaction.counts())
     if args.get("date_from"):
         statement = statement.where(Transaction.paid_date >= date.fromisoformat(args["date_from"]))
     if args.get("date_to"):

@@ -345,6 +345,7 @@ def detect_recurring_candidates(session: Session) -> list[Merchant]:
     if not merchant_ids:
         return []
 
+    # keeps held rows: recurring-payment detection looks at every row of a merchant
     all_transactions = session.exec(
         select(Transaction).where(Transaction.merchant_id.in_(merchant_ids))
     ).all()
@@ -366,6 +367,7 @@ def detect_debt_candidates(session: Session) -> list[Transaction]:
     above the threshold, and provider text matching a Portuguese
     bank-transfer-to-a-named-individual pattern. Never auto-linked to a
     Debt — surfaced for a human decision only."""
+    # keeps held rows: debt-candidate detection shows a person every candidate line
     statement = (
         select(Transaction)
         .where(Transaction.category.in_(_DEBT_CANDIDATE_CATEGORIES))
@@ -393,6 +395,7 @@ class NeedsReviewQueue:
 def unsorted_transactions_query():
     """Transactions with no node yet, or filed under the Unsorted group."""
     unsorted_ids = select(CategoryNode.id).where(CategoryNode.slug.like("unsorted%"))
+    # keeps held rows: classification queue, a held line is still classified so it is filed right once confirmed (settled rows were left out before D17)
     return select(Transaction).where(
         Transaction.category_id.is_(None) | Transaction.category_id.in_(unsorted_ids),
         Transaction.settled_by_id.is_(None),  # a document's record of a payment the bank already shows
@@ -408,6 +411,7 @@ def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
     unconfirmed = session.exec(
         select(Merchant).where(Merchant.confirmed == False, Merchant.merged_into_id.is_(None))  # noqa: E712
     ).all()
+    # keeps held rows: classification queue (see unsorted_transactions_query)
     unclassified = session.exec(
         select(Transaction).where(Transaction.merchant_id.is_(None), Transaction.settled_by_id.is_(None))
     ).all()
@@ -483,6 +487,7 @@ def get_needs_review_page(
     queue = get_needs_review_queue(session)
     counts: dict[int, int] = {}
     for mid, n in session.exec(
+        # keeps held rows: orders the review list by how many entries a merchant has
         select(Transaction.merchant_id, func.count(Transaction.id)).group_by(Transaction.merchant_id)
     ).all():
         if mid is not None:
