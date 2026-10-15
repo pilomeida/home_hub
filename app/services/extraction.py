@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
@@ -168,6 +169,13 @@ object, no prose, matching this shape exactly:
 
 {
   "statement_period": "YYYY-MM",
+  "opening_balance": 0.00 or null, the account balance printed at the START \
+of the statement period (saldo inicial / saldo anterior), signed (negative \
+if overdrawn); null when the statement prints none — never work it out \
+yourself,
+  "closing_balance": 0.00 or null, the account balance printed at the END of \
+the statement period (saldo final / saldo atual), signed; null when none is \
+printed — never work it out yourself,
   "transactions": [
     {
       "date": "YYYY-MM-DD",
@@ -189,7 +197,17 @@ transfer in the other direction (Revolut back to Santander) is a \
 transfer too.",
       "category_hint": "one lowercase word: electricity, water, gas, \
 telecom, insurance, subscriptions, groceries, health, home, income, \
-transfer, atm_withdrawal, restaurants, shopping, or other_expense"
+transfer, atm_withdrawal, restaurants, shopping, or other_expense",
+      "page": 1, the 1-based page of the document this line is printed on, \
+or null if you cannot tell,
+      "balance_after": 0.00 or null, the running balance the statement \
+prints right after this line (saldo), signed; null when the statement \
+prints no running balance for this line — copy only what is printed, never \
+calculate it,
+      "unclear": true only when the amount, date or description of this \
+line is smudged, cut off, faint or ambiguous so that you are not sure you \
+read it correctly; otherwise false. Do NOT guess: still give your best \
+reading in the other fields, but mark the line unclear
     }
   ]
 }
@@ -202,15 +220,20 @@ _TRANSACTION_CATEGORIES = [
     "restaurants", "shopping", "other_expense",
 ]
 
-# Parser: data["transactions"] indexed directly (required); statement_period
-# via .get (not required). Inside items: date/description/amount/type are
-# indexed directly (required); currency/category_hint are .get-defaulted
-# (optional, but null still tolerated — no stricter than the parser).
+# Parser: data["transactions"] indexed directly (required); statement_period,
+# opening_balance and closing_balance via .get (not required). Inside items:
+# date/description/amount/type are indexed directly (required);
+# currency/category_hint/page/balance_after/unclear are .get-defaulted
+# (optional, but null still tolerated — no stricter than the parser). The
+# parser reads the check fields (D17) leniently: a missing, null or
+# unreadable value there means "not printed", never a failure.
 _STATEMENT_SCHEMA = {
     "type": "object",
     "required": ["transactions"],
     "properties": {
         "statement_period": {"type": ["string", "null"]},
+        "opening_balance": {"type": ["number", "null"]},
+        "closing_balance": {"type": ["number", "null"]},
         "transactions": {
             "type": "array",
             "items": {
@@ -229,6 +252,9 @@ _STATEMENT_SCHEMA = {
                         "type": ["string", "null"],
                         "enum": [*_TRANSACTION_CATEGORIES, None],
                     },
+                    "page": {"type": ["integer", "null"]},
+                    "balance_after": {"type": ["number", "null"]},
+                    "unclear": {"type": ["boolean", "null"]},
                 },
             },
         },
@@ -250,12 +276,44 @@ class ExtractedTransaction:
     currency: str
     transaction_type: str
     category_hint: str
+    # Optional proof fields (decision D17); every one may be absent.
+    page: Optional[int] = None              # 1-based page of the document the line is on
+    balance_after: Optional[float] = None   # running balance printed after this line, if any
+    unclear: bool = False                   # the model says the line is smudged/cut off/ambiguous
 
 
 @dataclass
 class ExtractedStatement:
     statement_period: Optional[str]
     transactions: list[ExtractedTransaction]
+    opening_balance: Optional[float] = None
+    closing_balance: Optional[float] = None
+
+
+def _optional_number(value) -> Optional[float]:
+    """A number the statement may or may not print. Missing, null, text that is not a number, a
+    boolean, NaN or infinity all mean "not printed" -- an unreadable optional figure must never
+    fail the whole statement."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _optional_page(value) -> Optional[int]:
+    number = _optional_number(value)
+    if number is None or number < 1 or number != int(number):
+        return None
+    return int(number)
+
+
+def _optional_flag(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "yes", "1")
+    return value is True
 
 
 async def extract_statement_transactions(file_path: str, gateway=None) -> ExtractedStatement:
@@ -287,10 +345,18 @@ async def extract_statement_transactions(file_path: str, gateway=None) -> Extrac
                 currency=item.get("currency") or "EUR",
                 transaction_type=item["type"],
                 category_hint=item.get("category_hint", "other_expense"),
+                page=_optional_page(item.get("page")),
+                balance_after=_optional_number(item.get("balance_after")),
+                unclear=_optional_flag(item.get("unclear")),
             )
             for item in data["transactions"]
         ]
-        return ExtractedStatement(statement_period=data.get("statement_period"), transactions=transactions)
+        return ExtractedStatement(
+            statement_period=data.get("statement_period"),
+            transactions=transactions,
+            opening_balance=_optional_number(data.get("opening_balance")),
+            closing_balance=_optional_number(data.get("closing_balance")),
+        )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise StatementExtractionError(f"Could not parse statement extraction response: {exc}") from exc
 

@@ -17,7 +17,7 @@ from app.models.document import Document, DocumentStatus
 from app.models.merchant import Merchant
 from app.models.position import PositionExtraction
 from app.models.todo import Todo
-from app.models.transaction import Transaction, TransactionType
+from app.models.transaction import StatementCheck, Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.debt_ledger import detach_entries_for_transactions
 from app.services.categorization import normalize_category
@@ -32,6 +32,7 @@ from app.services.extraction import (
     extract_utility_detail,
 )
 from app.services.ingestion import mark_needs_attention
+from app.services.statement_check import apply_statement_check
 from app.services.position_store import (
     detach_positions, process_loan_history_document, process_positions_document,
 )
@@ -106,6 +107,8 @@ class FinancialsHandler(DomainHandler):
         ids = [t.id for t in transactions]
         for reading in session.exec(select(UtilityReading).where(UtilityReading.document_id == document.id)).all():
             session.delete(reading)
+        for check in session.exec(select(StatementCheck).where(StatementCheck.document_id == document.id)).all():
+            session.delete(check)
         if ids:
             for todo in session.exec(select(Todo).where(Todo.transaction_id.in_(ids))).all():
                 if todo.done:
@@ -314,6 +317,11 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
                 # must not affect the statement's own ingestion outcome.
                 session.rollback()
                 print(f"classification failed for transaction {transaction.id}: {exc}")
+        # Does the statement add up? Holds doubtful lines and records the check (decision D17). Inside this
+        # try so that a failure here undoes the lines like any other failure; a statement that adds up, or
+        # holds nothing; one that prints no balances holds only lines the model called unclear.
+        apply_statement_check(session, document.id, created_transactions, extracted)
+        session.commit()
     except Exception as exc:
         # Roll back any staged-but-uncommitted state, then explicitly
         # delete any line items (and any brand-new Merchants they created)
