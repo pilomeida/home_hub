@@ -112,9 +112,11 @@ async def main() -> int:
     from app.db import engine
     with Session(engine) as session:
         runs = await run_due(session)
-    for r in runs:
-        logger.info("%s: %s — %s", r.job, r.outcome, r.summary)
-    return 1 if any(r.outcome == "failed" for r in runs) else 0
+        # Read the results while the session is still open: the rows are detached once it closes.
+        results = [(r.job, r.outcome, r.summary) for r in runs]
+    for job, outcome, summary in results:
+        logger.info("%s: %s — %s", job, outcome, summary)
+    return 1 if any(outcome == "failed" for _, outcome, _ in results) else 0
 
 
 if __name__ == "__main__":

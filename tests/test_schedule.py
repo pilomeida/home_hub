@@ -241,3 +241,23 @@ def test_run_now_starts_the_job_and_records_it(client, session, fake_job):
     client.post("/schedules/fake/run")
     run = session.exec(select(JobRun)).one()
     assert (run.job, run.trigger, run.outcome) == ("fake", "manual", "ok")
+
+
+# --- the real entry point (a bug the unit tests missed: results were read after the session closed) ---
+
+@pytest.mark.asyncio
+async def test_main_runs_due_jobs_and_reports_them_after_its_session_closes(engine, monkeypatch, fake_job, caplog):
+    import logging
+    monkeypatch.setattr("app.db.engine", engine)           # main() opens its own session on the real engine
+    with caplog.at_level(logging.INFO, logger="scheduler"):
+        code = await scheduler.main()
+    assert code == 0
+    assert any("fake: ok" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_main_exits_1_when_a_job_failed_but_still_does_not_crash(engine, monkeypatch, fake_job):
+    monkeypatch.setattr("app.db.engine", engine)
+    _, result = fake_job
+    result["outcome"] = JobOutcome("failed", "Not done. Because.")
+    assert await scheduler.main() == 1
