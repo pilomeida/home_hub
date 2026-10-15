@@ -257,7 +257,8 @@ def test_script_rejects_truncated_garbage_and_long_header(factory, tmp_path, cap
              _put(tmp_path, "l.pdf", b"\x00" * 200 + CLEAN)]
     assert _run(factory, fake, "--statements", *files) == 0
     out = _lines(capsys)
-    assert all(l.startswith("REJECTED") for l in out) and "truncated" in out[0] and fake.requests == []
+    assert all(l.startswith("REJECTED") for l in out) and "looks cut off" in out[0] and fake.requests == []
+    assert "Download it again from the bank" in out[0]  # what to do is printed too
 
 
 def test_dry_run_reports_wrapped(factory, tmp_path, capsys):

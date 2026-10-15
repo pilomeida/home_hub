@@ -35,7 +35,8 @@ from app.services.position_store import (
     assign_history_to_loan, create_loan_from_assignment, extraction_summary, loan_number_conflict,
     process_loan_history_document, process_positions_document,
 )
-from app.services.pdf_bytes import NOT_PDF, inspect_pdf
+from app.problems import Problem, classify_reason
+from app.services.pdf_bytes import TRUNCATED, inspect_pdf
 from app.services.statement_reminder import UPLOAD_URL
 from app.templating import templates
 
@@ -63,6 +64,9 @@ class FileResult:
     outcome: str  # read | already_read | failed | needs_loan | rejected | other
     message: str = ""
     extraction_id: Optional[int] = None
+    problem: Optional[Problem] = None  # what / why / next step, for every outcome that did not work
+    technical: Optional[str] = None  # the raw stored text, shown only under "Technical details"
+    warnings: list = field(default_factory=list)  # Problems for a read that left something out
 
 
 @dataclass
@@ -175,18 +179,87 @@ def _extraction_for(session: Session, document: Document) -> Optional[PositionEx
     return session.exec(select(PositionExtraction).where(PositionExtraction.document_id == document.id)).first()
 
 
+# --- messages for a file that could not be used (what / why / what to do) ---
+
+_MB = 1024 * 1024
+_RETRY_NEXT = "Try again. If it repeats, tell Pedro; the technical details below will help."
+_CHECK_NEXT = "Check that this is the complete, right file, then upload it again."
+# Text that is technical rather than a plain reason: never shown as the "why" itself.
+_NOT_PLAIN = re.compile(r"Error|Exception|Traceback|https?://|[:{}\[\]]", re.I)
+_CROPPED_NOTE = re.compile(r"oldest instalment nº (\d+) ignored")
+_DISAGREE_NOTE = re.compile(r"(\d+) instalment\(s\) disagree with data already stored")
+
+
+def _sentence(text: str) -> str:
+    text = text.strip()
+    text = text[:1].upper() + text[1:]
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+def _explain(what: str, raw: Optional[str], actionable: Optional[str] = None) -> tuple[Problem, Optional[str]]:
+    """(problem, technical). The reason in plain words is always the "why"; the raw stored text is only
+    ever returned as `technical`, which the page shows under "Technical details"."""
+    if not raw:
+        return Problem(what, "The Hub stopped without recording why.", actionable or _RETRY_NEXT), None
+    cause = classify_reason(raw)
+    if cause is not None:
+        return Problem(what, cause.why, actionable or cause.next_step), raw
+    if len(raw.split()) >= 4 and not _NOT_PLAIN.search(raw):
+        return Problem(what, _sentence(raw), actionable or _CHECK_NEXT), None
+    return Problem(what, "An unexpected problem stopped the Hub while it was doing this.",
+                   actionable or _RETRY_NEXT), raw
+
+
+def _warnings(note: Optional[str]) -> list[Problem]:
+    """A read that worked but left something out: what the stored note says, in plain words."""
+    found = []
+    for part in (note or "").split("; "):
+        if m := _CROPPED_NOTE.search(part):
+            found.append(Problem(
+                f"Instalment nº {m[1]} was not recorded.",
+                "The printout is cut off at its edge, so that instalment's amounts are incomplete.",
+                "Upload a complete loan-history printout from Netbanco to record it."))
+        elif m := _DISAGREE_NOTE.search(part):
+            found.append(Problem(
+                "Some instalments were not updated.",
+                f"{m[1]} instalment(s) on this printout have different amounts from the ones already stored, "
+                "so the stored figures were kept.",
+                "Compare the two printouts with the bank to see which figures are right."))
+        elif part.strip():
+            found.append(_explain("Part of it was left out.", part)[0])
+    return found
+
+
+def _needs_loan(name: str, slot: str, extraction_id: Optional[int]) -> FileResult:
+    return FileResult(name, slot, "needs_loan", extraction_id=extraction_id, problem=Problem(
+        "Not assigned yet.", "This printout doesn't match any loan the Hub knows yet.",
+        "Choose the loan it belongs to below, or enter a new loan's account number and name."))
+
+
+def _not_pdf(name: str, problem: Optional[str]) -> Problem:
+    if not name.lower().endswith(".pdf"):
+        return Problem("Not uploaded.", "Only PDF files can be read, and this file isn't named as one.",
+                       "Download it from the bank as a PDF, then upload that.")
+    if problem == TRUNCATED:
+        return Problem("Not uploaded.", "The file looks cut off: it doesn't end the way a complete PDF does.",
+                       "Download it again from the bank, then upload it again.")
+    return Problem("Not uploaded.", "The contents aren't a PDF, so they can't be read.",
+                   "Download it from the bank as a PDF, then upload that.")
+
+
 def _from_extraction(session: Session, name: str, slot: str, extraction: Optional[PositionExtraction],
                      document: Document, *, already: bool) -> FileResult:
     if extraction is None or extraction.status == "failed":
-        reason = (extraction.error if extraction else None) or document.failure_reason or "could not be read"
-        return FileResult(name, slot, "failed", reason, extraction.id if extraction else None)
+        raw = (extraction.error if extraction else None) or document.failure_reason
+        problem, technical = _explain("Not read.", raw)
+        return FileResult(name, slot, "failed", extraction_id=extraction.id if extraction else None,
+                          problem=problem, technical=technical)
     if extraction.status == "needs_loan":
-        return FileResult(name, slot, "needs_loan",
-                          "this printout does not match any loan I know yet", extraction.id)
-    summary = extraction_summary(session, extraction)
-    if extraction.error:
-        summary = f"{summary} ({extraction.error})" if summary else extraction.error
-    return FileResult(name, slot, "already_read" if already else "read", summary, extraction.id)
+        result = _needs_loan(name, slot, extraction.id)
+        result.warnings = _warnings(extraction.error)
+        return result
+    return FileResult(name, slot, "already_read" if already else "read", extraction_summary(session, extraction),
+                      extraction.id, warnings=_warnings(extraction.error))
 
 
 async def _handle_file(session: Session, request: Request, upload: UploadFile, slot_key: str) -> FileResult:
@@ -194,11 +267,13 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
     name = upload.filename or "file"
     content = await upload.read(MAX_FILE_BYTES + 1)
     if len(content) > MAX_FILE_BYTES:
-        return FileResult(name, slot["label"], "rejected",
-                          f"file too large (the limit is {MAX_FILE_BYTES // (1024 * 1024)} MB per file)")
+        limit = f"{MAX_FILE_BYTES // _MB} MB" if MAX_FILE_BYTES >= _MB else f"{MAX_FILE_BYTES} bytes"
+        return FileResult(name, slot["label"], "rejected", problem=Problem(
+            "Not uploaded.", f"The file is larger than the {limit} limit for one file.",
+            "Split it into smaller files (one month at a time), then upload them again."))
     clean, _, problem = inspect_pdf(content)
     if not name.lower().endswith(".pdf") or clean is None:
-        return FileResult(name, slot["label"], "rejected", problem or NOT_PDF)
+        return FileResult(name, slot["label"], "rejected", problem=_not_pdf(name, problem))
     content = clean  # a wrapped bank download is stored (and hashed) as the clean PDF
     label = slot["label"]
     try:
@@ -212,7 +287,10 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
             return _from_extraction(session, name, label, _extraction_for(session, document), document, already=False)
         if document.category not in slot["compatible"]:
             shown = document.category or "an unfiled document"
-            return FileResult(name, label, "other", f"this file was already uploaded as {shown}")
+            return FileResult(name, label, "other", problem=Problem(
+                "Not read again.",
+                f"This exact file was already uploaded as {shown}, so it isn't read again as a {label}.",
+                "Nothing is lost. Upload the right printout for this box if this is a different one."))
         previous = _extraction_for(session, document)
         if previous is not None and previous.status == "ok":
             return _from_extraction(session, name, label, previous, document, already=True)
@@ -223,18 +301,20 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
         return _from_extraction(session, name, label, extraction, document, already=False)
     except InvalidClassification as exc:
         session.rollback()
-        return FileResult(name, label, "failed", str(exc))
+        problem, technical = _explain("Not read.", "; ".join(exc.errors.values()), _CHECK_NEXT)
+        return FileResult(name, label, "failed", problem=problem, technical=technical or str(exc))
     except Exception as exc:  # one bad file never aborts the rest
         log.exception("loan upload: %s failed", name)
         session.rollback()
-        return FileResult(name, label, "failed", str(exc) or exc.__class__.__name__)
+        problem, technical = _explain("Not read.", str(exc) or exc.__class__.__name__)
+        return FileResult(name, label, "failed", problem=problem, technical=technical)
 
 
 def _existing_loans(session: Session) -> list[Debt]:
     return list(session.exec(select(Debt).where(Debt.external_number.isnot(None)).order_by(Debt.name)).all())
 
 
-def _results_page(request: Request, session: Session, results: list[FileResult], error: Optional[str] = None,
+def _results_page(request: Request, session: Session, results: list[FileResult], error: Optional[Problem] = None,
                   status_code: int = 200):
     return templates.TemplateResponse(
         request, "loans/results.html",
@@ -285,38 +365,52 @@ async def assign_history(
     if extraction is None:
         raise HTTPException(status_code=404, detail="Upload not found")
     if extraction.status != "needs_loan":
-        raise HTTPException(status_code=400, detail="This printout does not need a loan assignment")
+        raise HTTPException(status_code=400, detail="This printout is not waiting for a loan")
     document = session.get(Document, extraction.document_id)
     shown = document.filename if document else "printout"
-    pending = FileResult(shown, _SLOT[HISTORIES]["label"], "needs_loan",
-                         "this printout does not match any loan I know yet", extraction.id)
+    pending = _needs_loan(shown, _SLOT[HISTORIES]["label"], extraction.id)
 
-    def reject(message: str):
-        return _results_page(request, session, [pending], error=message, status_code=400)
+    def reject(problem: Problem):
+        return _results_page(request, session, [pending], error=problem, status_code=400)
 
+    no_loan_picked = Problem(
+        "Not assigned.", "The loan picked is no longer in the list (it may have been removed, or this page is out of date).",
+        "Reload the page and choose the loan again.")
     if debt_id == "new":
         digits = re.sub(r"\s+", "", number)
         if not re.fullmatch(r"\d{8,}", digits):
-            return reject("The account number must be digits only, at least 8 of them.")
+            return reject(Problem(
+                "Not assigned.", "An account number is made of at least 8 digits, with no letters or symbols.",
+                "Copy the digits from the COB.REC.31 text of its bank transactions (spaces are fine), then assign again."))
         if not name.strip():
-            return reject("Give the loan a name.")
+            return reject(Problem(
+                "Not assigned.", "The loan needs a name, so it can be told apart from the others in the list.",
+                "Type a name such as “Car loan”, then assign again."))
         if loan_type not in LOAN_TYPES:
-            return reject("Choose mortgage, personal or other.")
+            return reject(Problem(
+                "Not assigned.", "The loan type isn't one of the three the Hub knows.",
+                "Choose mortgage, personal or other, then assign again."))
         debt = session.exec(select(Debt).where(Debt.external_number == digits)).first()
         if debt is None:
-            problem = loan_number_conflict(session, digits)
-            if problem:
-                return reject(problem)
+            conflict = loan_number_conflict(session, digits)
+            if conflict:
+                return reject(Problem(
+                    "Not assigned.", conflict,
+                    "Choose that existing loan from the list if this printout is for it. Otherwise check the "
+                    "account number on the printout and try again."))
             debt = create_loan_from_assignment(session, digits, name.strip(), loan_type)
     else:
         debt = session.get(Debt, int(debt_id)) if debt_id.isdigit() else None
         if debt is None or debt.external_number is None:
-            return reject("Choose one of the existing loans, or a new loan.")
+            return reject(no_loan_picked)
     try:
         assign_history_to_loan(session, extraction, debt)
     except ValueError as exc:
         session.rollback()
-        return reject(str(exc))
+        problem, _ = _explain("Not assigned.", str(exc),
+                              "Choose the loan this printout really belongs to from the list, or create a new loan "
+                              "with its own account number.")
+        return reject(problem)
     session.refresh(extraction)
     result = _from_extraction(session, shown, _SLOT[HISTORIES]["label"], extraction, document, already=False)
     return _results_page(request, session, [result])

@@ -10,7 +10,8 @@
     <div class="fc-period"><a href="/financials/loans">← Loans &amp; Savings</a></div>
   </div>
   <div class="fc-section">
-    <div class="loan-head"><span class="loan-big">{% if s.balance_known %}{{ m.eur0(s.capital_remaining) }}{% else %}balance unknown{% endif %}</span><span class="loan-rate">{{ m.rate(row) }}</span></div>
+    <div class="loan-head"><span class="loan-big">{% if s.balance_known %}{{ m.eur0(s.capital_remaining) }}{% else %}balance not known yet{% endif %}</span><span class="loan-rate">{{ m.rate(row) }}</span></div>
+    {% if not s.balance_known %}<div class="loan-sub loan-warn">Not in the totals. No statement or loan history has shown the balance yet. Upload one with the + button.</div>{% endif %}
     <div class="loan-sub">{% if row.from_statements %}from statements{% else %}from loan history (online banking){% endif %}{% if s.as_of %} · as of {{ m.date(s.as_of) }}{% endif %}</div>
     {% if row.payoff_text %}<div class="loan-sub">Payoff {{ row.payoff_text }}</div>{% endif %}
     {{ m.insurance_line(row) }}
@@ -29,7 +30,7 @@
       <thead><tr><th>As of</th><th>Indexante</th><th>Spread</th><th>TAN</th></tr></thead>
       <tbody>
       {% for h in rate_history %}
-      <tr class="loan-rate-row"><td>{{ m.date(h.as_of) }}</td><td>{{ m.pct(h.indexante) }}</td><td{% if h.spread_changed %} class="loan-spread-bad" title="differs from the baseline spread {{ '%.3f'|format(baseline_spread) }}%"{% endif %}>{{ m.pct(h.spread) }}</td><td>{{ m.pct(h.tan) }}</td></tr>
+      <tr class="loan-rate-row"><td>{{ m.date(h.as_of) }}</td><td>{{ m.pct(h.indexante) }}</td><td{% if h.spread_changed %} class="loan-spread-bad" title="Differs from the baseline spread {{ '%.3f'|format(baseline_spread) }}%, which should never change. Check it against the contract, and acknowledge it under Red flags once explained."{% endif %}>{{ m.pct(h.spread) }}</td><td>{{ m.pct(h.tan) }}</td></tr>
       {% endfor %}
       </tbody>
     </table>

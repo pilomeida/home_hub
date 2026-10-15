@@ -142,7 +142,7 @@ def loan_number_conflict(session: Session, digits: str) -> Optional[str]:
         return f"loan number {digits!r} has fewer than {MIN_LOAN_DIGITS} digits"
     for other in session.exec(select(Debt.external_number).where(Debt.external_number.isnot(None))).all():
         if other != digits and (other in digits or digits in other):
-            return f"loan number {digits} overlaps the existing loan number {other}"
+            return f"The loan number {digits} overlaps the existing loan number {other}, and two loans can't share one."
     return None
 
 
@@ -491,8 +491,8 @@ def assign_history_to_loan(session: Session, extraction: PositionExtraction, deb
         movement = existing.get(inst.number)
         if movement is not None and not _agree(movement, inst.capital, inst.interest):
             raise ValueError(
-                f"instalment {inst.number} of this printout has different amounts from instalment "
-                f"{inst.number} already recorded for this loan - it looks like another loan"
+                f"Instalment {inst.number} on this printout has different amounts from the same instalment "
+                f"already recorded for this loan, so it looks like another loan's printout."
             )
     counts = apply_loan_history(session, document, debt, instalments)
     crop = (extraction.error or "").split("; ")[0]

@@ -220,6 +220,16 @@ _HTTP_EXACT: dict[str, tuple[str, str, str]] = {
     "The previous question is still being answered": ("Question not sent.", "The answer to your previous question isn't finished yet, and Ask handles one question at a time.", "Wait for the answer to appear, then ask again."),
     "Only answered questions can be saved": ("Not saved to the wiki.", "This question has no finished answer yet, so there is nothing to save.", "Wait for the answer (or ask again if it failed), then save it."),
     "Unknown utility tab": ("Couldn't open that page.", "There is no such utility tab.", "Go back to Utilities and pick one from the list."),
+    # --- added by pages-loans-utilities agent ---
+    "Unknown alert kind": ("Not acknowledged.", "That kind of red flag doesn't exist, so the Hub can't tell which ones to acknowledge.", "Reload the Loans page and try again."),
+    "The amount must be a number": ("Not saved.", "The amount has letters or symbols in it, so the Hub can't read it as money.", "Type the amount as a number, for example 250.00, then save again."),
+    "The amount must be greater than zero": ("Not saved.", "An amount of zero or less can't be recorded: the kind you pick (advance, repayment, adjustment) already sets the direction.", "Type the size of the amount as a positive number, then save again."),
+    "The date must look like 2026-01-31": ("Not saved.", "The date isn't in the year-month-day form the Hub reads.", "Pick the date from the calendar, or type it as 2026-01-31, then save again."),
+    "Give the person's name": ("Not saved.", "The loan needs the name of the person it is with, so it can be found later.", "Type their name, then create the loan again."),
+    "Choose who owes whom": ("Not saved.", "The Hub needs to know whether they owe you or you owe them, and no choice was made.", "Choose one of the two options, then create the loan again."),
+    "Choose advance, repayment or an adjustment": ("Not saved.", "The kind of entry wasn't one of the four choices in the list.", "Pick advance, repayment, or an adjustment up or down, then save again."),
+    "An entry made from a bank transaction cannot be deleted": ("Not deleted.", "It was copied from a bank transaction, and the Hub keeps those so the loan matches the bank.", "To correct the amount, add an adjustment entry here instead."),
+    "This printout is not waiting for a loan": ("Not assigned.", "Its figures were already read, or it could not be read, so there is no loan to choose.", "Nothing to do here. To retry an unreadable printout, upload it again."),
 }
 _HTTP_PATTERNS: list[tuple[re.Pattern, callable]] = [
     (re.compile(r"^Upload at most (\d+) files at a time$"),
@@ -232,6 +242,9 @@ _HTTP_PATTERNS: list[tuple[re.Pattern, callable]] = [
      lambda m: ("Couldn't open that.", f"The Hub has no {m[1].lower()} with that number; it may have been deleted or the link is out of date.", "Go back and choose it from the list again.")),
     (re.compile(r"^No such (.+)$", re.I),
      lambda m: ("Couldn't open that.", f"There is no {m[1]} with that number; it may have been removed.", "Go back and choose it from the list again.")),
+    # --- added by pages-loans-utilities agent ---
+    (re.compile(r"^The name is at most (\d+) characters$"),
+     lambda m: ("Not saved.", f"It is longer than {m[1]} characters.", "Shorten it and save again.")),
 ]
 
 

@@ -43,6 +43,6 @@
 {{ charts_macro.bar_chart("VAT per month (€)", charts.vat_cost, " €") }}
 
 {% else %}
-<p>No data yet.</p>
+<p>No readings yet: nothing has been read from a {{ active_tab }} bill. Upload one and it will appear here once it has been read.</p>
 {% endif %}
 {% endblock %}

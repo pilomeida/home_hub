@@ -1,3 +1,4 @@
+import html
 from app.models.document import Document, DocumentSource
 from app.models.utility_reading import UtilityReading, UtilityType
 
@@ -27,7 +28,9 @@ def test_unknown_tab_returns_404(client):
 def test_water_tab_renders_empty_state_with_no_data(client):
     response = client.get("/financials/utilities/water")
     assert response.status_code == 200
-    assert "No data yet" in response.text
+    text = html.unescape(response.text)
+    assert "No readings yet: nothing has been read from a water bill." in text
+    assert "Upload one and it will appear here once it has been read." in text
 
 
 def test_electricity_tab_renders_readings(client, session):

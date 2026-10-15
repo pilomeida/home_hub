@@ -33,7 +33,7 @@
       </div>
     </div>
     {{ m.freshness(totals.as_of, totals.stale_days, stale_after) }}
-    {% if unknown_count %}<div class="loan-note">totals exclude {{ unknown_count }} loan(s) with unknown balance</div>{% endif %}
+    {% if unknown_count %}<div class="loan-note">Not in the totals: {{ unknown_count }} loan(s) whose balance isn't known yet. Upload a statement or a longer loan history with the + button to add them.</div>{% endif %}
   </div>
 
   <div class="fc-section">
@@ -51,7 +51,7 @@
       </div>
       {% if r.remaining_pct is not none %}<div class="loan-track"><div class="loan-fill" style="width: {{ '%.1f'|format(r.remaining_pct) }}%"></div></div>{% endif %}
       {% else %}
-      <div class="loan-sub loan-warn">balance unknown — upload a statement or a longer loan history</div>
+      <div class="loan-sub loan-warn">Balance not known yet. The Hub hasn't read a statement or loan history that shows it. Upload one with the + button.</div>
       {% endif %}
       <div class="loan-grid">
         {% if s.next_instalment is not none and s.next_due_date %}

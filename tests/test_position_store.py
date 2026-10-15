@@ -594,7 +594,7 @@ async def test_assign_history_rejects_disagreeing_overlap_and_changes_nothing(se
     session.add(other)
     session.commit()
     before = len(session.exec(select(LoanMovement)).all())
-    with pytest.raises(ValueError, match="instalment 37"):
+    with pytest.raises(ValueError, match="Instalment 37 on this printout"):
         assign_history_to_loan(session, other, debt)
     session.refresh(other)
     assert other.status == "needs_loan" and len(session.exec(select(LoanMovement)).all()) == before

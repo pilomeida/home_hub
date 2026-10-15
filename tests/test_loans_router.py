@@ -1,5 +1,6 @@
 """Loans & Savings page. All data is synthetic, built through the production
 store (apply_positions) and the link_debt route."""
+import html as _html
 from datetime import date
 from decimal import Decimal
 
@@ -113,7 +114,9 @@ def test_stale_days_and_marker(session):
     t = position_totals(session, date(2026, 12, 31))
     assert t.stale_days == 153
     macros = templates.env.get_template("loans/_macros.html").module
-    assert "loan-stale" in str(macros.freshness(t.as_of, 153))
+    stale = str(macros.freshness(t.as_of, 153))
+    assert "loan-stale" in stale
+    assert "Not up to date." in stale and "31 Jul 2026, 153 days ago" in stale and "Upload newer statements with the + button" in stale
     assert "loan-stale" not in str(macros.freshness(t.as_of, 150))
     assert "Data as of 31 Jul 2026" in str(macros.freshness(t.as_of, 10))
 
@@ -127,8 +130,8 @@ def test_unknown_balance_loan_listed_and_excluded(client, session):
     session.commit()
     html = client.get("/financials/loans").text
     assert "Mystery loan" in html
-    assert "balance unknown" in html
-    assert "totals exclude 1 loan(s) with unknown balance" in html
+    assert "Balance not known yet." in html and "Upload one with the + button." in html
+    assert "Not in the totals: 1 loan(s) whose balance isn't known yet." in _html.unescape(html)
     assert position_totals(session, date(2026, 8, 1)).debt_total == 693.0
 
 
@@ -315,7 +318,9 @@ def test_duplicate_of_incompatible_document_is_reported_not_processed(client, se
     session.commit()
     fake = gateway([])
     r = client.post("/financials/loans/upload", files=[("statements", ("bill.pdf", content, "application/pdf"))])
-    assert r.status_code == 200 and "already uploaded as bill" in r.text and fake.requests == []
+    text = _html.unescape(r.text)
+    assert r.status_code == 200 and "Not read again." in text and "already uploaded as bill" in text
+    assert "isn't read again as a monthly statement" in text and "Nothing is lost" in text and fake.requests == []
 
 
 def test_same_printout_twice_reports_already_read_and_changes_nothing(client, session, gateway):
@@ -332,7 +337,9 @@ def test_same_printout_twice_reports_already_read_and_changes_nothing(client, se
 def test_unmatched_printout_needs_a_loan_with_assignment_form(client, session, gateway):
     gateway([_hist([35, 36, 37])])
     r = client.post("/financials/loans/upload", files=[("histories", _file("h9.pdf"))])
-    assert "needs a loan" in r.text.lower()
+    text = _html.unescape(r.text)
+    assert "Not assigned yet." in text and "doesn't match any loan the Hub knows yet" in text
+    assert "Choose the loan it belongs to below" in text
     ext = session.exec(select(PositionExtraction)).one()
     assert ext.status == "needs_loan"
     assert 'action="/financials/loans/assign"' in r.text and f'value="{ext.id}"' in r.text
@@ -422,14 +429,20 @@ def test_non_pdf_is_rejected_per_file_without_crashing(client, session, gateway)
         ("statements", _file("s1.pdf")),
     ])
     assert r.status_code == 200
-    assert "notes.txt" in r.text and "fake.pdf" in r.text and "rejected" in r.text.lower()
+    text = _html.unescape(r.text)
+    assert "notes.txt" in text and "fake.pdf" in text and "Not uploaded." in text
+    assert "isn't named as one" in text and "The contents aren't a PDF" in text
+    assert "Download it from the bank as a PDF" in text
     assert len(session.exec(select(LoanMovement)).all()) == 2   # the good file still processed
 
 
 def test_one_failing_file_does_not_abort_the_rest(client, session, gateway):
     gateway([_reply("not json"), STMT_A])
     r = client.post("/financials/loans/upload", files=[("statements", _file("bad.pdf")), ("statements", _file("s1.pdf"))])
-    assert r.status_code == 200 and "failed" in r.text.lower()
+    text = _html.unescape(r.text)
+    assert r.status_code == 200 and "Not read." in text
+    assert "wasn't in the form the Hub expects" in text and "correct them by hand" in text
+    assert "Technical details" in text  # the raw text is kept, but secondary
     assert len(session.exec(select(LoanMovement)).all()) == 2
 
 
@@ -495,7 +508,7 @@ def test_failed_positions_read_never_flips_an_ordinary_statement_document(client
     doc, content = _dup_doc(session, "old.pdf", "statement", DocumentStatus.PROCESSED)
     gateway([_reply("not json")])
     r = client.post("/financials/loans/upload", files=[("statements", ("old.pdf", content, "application/pdf"))])
-    assert r.status_code == 200 and "failed" in r.text.lower()
+    assert r.status_code == 200 and "Not read." in _html.unescape(r.text)
     session.expire_all()
     assert session.get(Document, doc.id).status == DocumentStatus.PROCESSED
     assert session.exec(select(PositionExtraction)).one().status == "failed"
@@ -526,7 +539,9 @@ def test_assign_rejects_overlapping_instalments_that_disagree(client, session, g
     ext = session.exec(select(PositionExtraction)).one()
     before = _counts(session)
     r = client.post("/financials/loans/assign", data={"extraction_id": ext.id, "debt_id": str(debt.id)})
-    assert r.status_code == 400 and "instalment" in r.text.lower() and "different" in r.text.lower()
+    text = _html.unescape(r.text)
+    assert r.status_code == 400 and "Not assigned." in text and "different amounts" in text
+    assert "looks like another loan's printout" in text and "Choose the loan this printout really belongs to" in text
     assert 'action="/financials/loans/assign"' in r.text  # pending row re-rendered
     assert _counts(session) == before
     session.expire_all()
@@ -543,7 +558,9 @@ def test_oversized_file_is_rejected_per_file_and_the_rest_still_processed(client
     big = ("big.pdf", PDF + b"x" * 500, "application/pdf")
     r = client.post("/financials/loans/upload", files=[("statements", big), ("statements", _file("s1.pdf"))])
     assert r.status_code == 200
-    assert "big.pdf" in r.text and "too large" in r.text.lower()
+    text = _html.unescape(r.text)
+    assert "big.pdf" in text and "Not uploaded." in text and "larger than the 200 bytes limit" in text
+    assert "Split it into smaller files" in text
     assert len(session.exec(select(LoanMovement)).all()) == 2
 
 
@@ -934,8 +951,161 @@ def test_wrapped_download_is_stored_clean_and_clean_copy_is_duplicate(client, se
 
 def test_wrapped_truncated_garbage_and_long_header_are_rejected(client, session, gateway):
     fake = gateway([])
-    for name, data, msg in (("t.pdf", _HEAD + b"%PDF-1.7 cut", "truncated"), ("g.pdf", b"\x07" * 400, "only PDF"),
-                            ("l.pdf", b"\x00" * 200 + _CLEAN, "only PDF")):
+    for name, data, msg in (("t.pdf", _HEAD + b"%PDF-1.7 cut", "looks cut off"),
+                            ("g.pdf", b"\x07" * 400, "The contents aren't a PDF"),
+                            ("l.pdf", b"\x00" * 200 + _CLEAN, "The contents aren't a PDF")):
         r = client.post("/financials/loans/upload", files=[("statements", (name, data, "application/pdf"))])
-        assert msg in r.text
+        assert msg in _html.unescape(r.text)
     assert fake.requests == []
+
+
+# --- messages: what did not happen, why, and what to do (decision D14) ----------------------------
+
+def _text(response):
+    return _html.unescape(response.text)
+
+
+def _bank_transaction(session, amount=50.0):
+    doc = Document(filename="bank-links.pdf", file_path="/tmp/bank-links.pdf", content_hash="bank-links-1",
+                   source=DocumentSource.MANUAL)
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+    txn = Transaction(document_id=doc.id, description="TRF SEPA+ P/ TEST PERSON", amount=amount,
+                      transaction_type=TransactionType.DEBIT, paid_date=date(2026, 1, 10))
+    session.add(txn)
+    session.commit()
+    session.refresh(txn)
+    return txn
+
+
+@pytest.mark.parametrize("data,why,nxt", [
+    ({"person_name": "", "direction": "owed_to_us"},
+     "the name of the person it is with", "Type their name, then create the loan again."),
+    ({"person_name": "Ana", "direction": ""},
+     "they owe you or you owe them", "Choose one of the two options, then create the loan again."),
+    ({"person_name": "Ana", "direction": "owed_to_us", "opening_amount": "abc"},
+     "letters or symbols in it", "Type the amount as a number, for example 250.00, then save again."),
+    ({"person_name": "Ana", "direction": "owed_to_us", "opening_amount": "0"},
+     "zero or less can't be recorded", "Type the size of the amount as a positive number, then save again."),
+    ({"person_name": "Ana", "direction": "owed_to_us", "entry_date": "31/01/2026"},
+     "year-month-day form", "type it as 2026-01-31, then save again."),
+    ({"person_name": "x" * 81, "direction": "owed_to_us"},
+     "It is longer than 80 characters.", "Shorten it and save again."),
+])
+def test_new_informal_loan_refusals_say_what_why_and_next(client, session, data, why, nxt):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    before = len(session.exec(select(Debt)).all())
+    r = client.post("/financials/loans/debts/new", data=data)
+    text = _text(r)
+    assert r.status_code == 400 and "Not saved." in text
+    assert why in text and nxt in text
+    assert len(session.exec(select(Debt)).all()) == before
+
+
+def test_entry_with_an_unknown_kind_says_what_why_and_next(client, session):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    debt = _informal_debt(session)
+    r = client.post(f"/financials/loans/debts/{debt.id}/entries",
+                    data={"kind": "boss", "amount": "10", "entry_date": "2026-01-05"})
+    text = _text(r)
+    assert r.status_code == 400 and "Not saved." in text
+    assert "wasn't one of the four choices in the list" in text
+    assert "Pick advance, repayment, or an adjustment up or down, then save again." in text
+
+
+def test_a_bank_linked_entry_says_why_it_stays_and_what_to_do(client, session):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    from app.models.position import DebtEntry
+    from app.services import debt_ledger
+    debt = _informal_debt(session)
+    entry = debt_ledger.link_transaction_as_entry(session, debt, _bank_transaction(session), None)
+    session.commit()
+    r = client.post(f"/financials/loans/debts/{debt.id}/entries/{entry.id}/delete")
+    text = _text(r)
+    assert r.status_code == 400 and "Not deleted." in text
+    assert "copied from a bank transaction" in text and "add an adjustment entry here instead" in text
+    assert session.get(DebtEntry, entry.id) is not None
+
+
+def test_red_flag_refusals_say_what_why_and_next(client, session):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    debt = _seed(session)
+    flag = _flag(session, debt)
+    r = client.post("/financials/loans/alerts/ack-group", data={"debt_id": debt.id, "kind": "bogus", "note": ""})
+    text = _text(r)
+    assert r.status_code == 400 and "Not acknowledged." in text
+    assert "doesn't exist" in text and "Reload the Loans page and try again." in text
+    r = client.post(f"/financials/loans/alerts/{flag.id}/ack", data={"note": "x" * 301})
+    text = _text(r)
+    assert r.status_code == 400 and "Note not saved." in text
+    assert "It is longer than 300 characters." in text and "Shorten it and save again." in text
+
+
+def test_red_flags_say_why_it_matters_and_what_to_do(client, session):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    debt = _seed(session)
+    _flag(session, debt)
+    text = client.get("/financials/loans").text
+    assert "Instalment 3 (02 Mar 2026): interest only" in text
+    assert "A normal instalment repays some capital" in text and "check it with the bank" in text
+    assert "A normal instalment repays some capital" in client.get(f"/financials/loans/{debt.id}").text
+
+
+@pytest.mark.parametrize("data,why,nxt", [
+    ({"debt_id": "new", "number": "123", "name": "X", "loan_type": "mortgage"},
+     "An account number is made of at least 8 digits", "Copy the digits from the COB.REC.31 text of its bank transactions"),
+    ({"debt_id": "new", "number": "12345678", "name": " ", "loan_type": "mortgage"},
+     "The loan needs a name", "Type a name such as “Car loan”, then assign again."),
+    ({"debt_id": "new", "number": "12345678", "name": "X", "loan_type": "boat"},
+     "isn't one of the three the Hub knows", "Choose mortgage, personal or other, then assign again."),
+    ({"debt_id": "new", "number": "9001002007", "name": "X", "loan_type": "mortgage"},
+     "overlaps the existing loan number 900100200", "Choose that existing loan from the list if this printout is for it."),
+    ({"debt_id": "99999", "number": "", "name": "", "loan_type": "mortgage"},
+     "no longer in the list", "Reload the page and choose the loan again."),
+])
+def test_assign_refusals_say_what_why_and_next(client, session, gateway, data, why, nxt):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    _seed(session)
+    gateway([_hist([30, 31, 32], capital=150.0, first=30)])
+    client.post("/financials/loans/upload", files=[("histories", _file("hx.pdf"))])
+    ext = session.exec(select(PositionExtraction)).one()
+    r = client.post("/financials/loans/assign", data={"extraction_id": ext.id, **data})
+    text = _text(r)
+    assert r.status_code == 400 and "Not assigned." in text
+    assert why in text and nxt in text
+    assert 'action="/financials/loans/assign"' in text  # the pending printout is shown again
+    session.expire_all()
+    assert session.get(PositionExtraction, ext.id).status == "needs_loan"
+
+
+def test_a_cropped_printout_says_which_instalment_was_left_out(client, session, gateway, monkeypatch):
+    client.headers["accept"] = "text/html"  # a browser sees the page, not the JSON
+    from app.services import position_store as _ps
+    complete = _ps.extract_loan_history
+
+    async def cropped(*args, **kwargs):
+        history = await complete(*args, **kwargs)
+        history.complete = False
+        return history
+
+    monkeypatch.setattr(_ps, "extract_loan_history", cropped)
+    gateway([_hist([35, 36, 37])])
+    r = client.post("/financials/loans/upload", files=[("histories", _file("hc.pdf"))])
+    text = _text(r)
+    assert r.status_code == 200 and "Instalment nº 35 was not recorded." in text
+    assert "cut off at its edge" in text
+    assert "Upload a complete loan-history printout from Netbanco to record it." in text
+
+
+def test_a_statement_that_disagrees_with_stored_figures_says_so_and_keeps_them(client, session, gateway):
+    _seed(session)  # instalments 36 and 37 are stored (capital 300 and 307)
+    gateway([_stmt("2026-01-31", 700.0, _srows(36, 900.0), 900.0, number="900100200")])  # same numbers, other amounts
+    r = client.post("/financials/loans/upload", files=[("statements", _file("sd.pdf"))])
+    text = _text(r)
+    assert r.status_code == 200 and "Some instalments were not updated." in text
+    assert ("2 instalment(s) on this printout have different amounts from the ones already stored, "
+            "so the stored figures were kept.") in text
+    assert "Compare the two printouts with the bank" in text
+    session.expire_all()
+    assert session.exec(select(LoanMovement).where(LoanMovement.instalment_number == 37)).one().capital == 307.0
