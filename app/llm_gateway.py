@@ -21,6 +21,9 @@ _TIMEOUT_S = 600  # long generations are normal; the gateway owns the real budge
 # caller (extraction, ask engine, wiki, lint, classifier) imports them
 # from here, never from a service module.
 VISION_EXTRACTION = "vision_extraction"
+# Health papers get their own job in the gateway (low reasoning effort): GLM thinks at length by default and
+# a long paper then never reaches its answer. Created on the gateway 2026-10-16 (docs/SYSADMIN.md).
+HEALTH_EXTRACTION = "health_extraction"
 VISION_CLASSIFICATION = "vision_classification"
 CLASSIFICATION = "classification"
 CRITIQUE_REVIEW = "critique_review"

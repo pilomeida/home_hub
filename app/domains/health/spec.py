@@ -57,6 +57,7 @@ SPEC = DomainSpec(
         FieldSpec("amount_reimbursed", "Amount reimbursed (EUR)", FieldKind.TEXT),
         FieldSpec("amount_owed", "Amount still owed (EUR)", FieldKind.TEXT),
         FieldSpec("summary", "Summary", FieldKind.LONGTEXT, private=True),
+        FieldSpec("details", "Other details printed on the paper", FieldKind.LONGTEXT, private=True),
         FieldSpec("notes", "Notes", FieldKind.LONGTEXT, private=True),
     ),
     handler=HealthHandler(),

@@ -35,8 +35,12 @@ def parse_amount(text) -> Optional[float]:
 
 
 def measurement_needs_check(m: ExtractedMeasurement) -> bool:
-    """Doubtful: the reader was unsure, the number is missing, or a number has no unit."""
-    return bool(m.uncertain or m.value is None or not (m.unit or "").strip())
+    """Doubtful: the reader was unsure, there is no result at all, or a number has neither a unit nor a reference
+    range (a bare number could be anything; pH, a density or a ratio carry a range). A limit ("<3") or a non-numeric
+    result ("não detectável") is a result, not a doubt."""
+    no_result = m.value is None and not (m.value_text or "").strip()
+    bare_number = m.value is not None and not (m.unit or "").strip() and m.ref_low is None and m.ref_high is None
+    return bool(m.uncertain or no_result or bare_number)
 
 
 def _out_of_range(m: ExtractedMeasurement) -> Optional[bool]:
@@ -97,6 +101,7 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
     _fill(fields, "provider_address", extracted.provider_address)
     _fill(fields, "record_kind", extracted.record_kind)
     _fill(fields, "summary", extracted.summary)
+    _fill(fields, "details", extracted.details)
     _fill(fields, "appointment_date", extracted.appointment_date)
     _fill(fields, "appointment_time", extracted.appointment_time)
     for key, value in (("amount_billed", extracted.amount_billed), ("amount_reimbursed", extracted.amount_reimbursed),

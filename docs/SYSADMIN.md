@@ -368,3 +368,6 @@ side door.
 Vicente's Revolut current accounts/pockets (same source PDF, different page ranges, never
 extracted); the Overview dashboard redesign (sub-project 2 of the Financial OS decomposition —
 mockups/spec exist, no implementation).
+
+## Gateway job for Health papers (2026-10-16)
+Health papers are read through their own gateway job, `health_extraction` (rows in llmsel's `workload_types` and `worker_task_bindings`, worker `hub`): low reasoning effort, output ceiling 32000, same privacy rules as `vision_extraction`. Reason: GLM 5.3 Flash on Privatemode, at the medium effort `vision_extraction` carries, spent its whole output budget thinking and returned an empty answer (three gateway retries, ~10 minutes, nothing filed); at low effort a 3-page lab report reads in about a minute. Bank statements and the other readers still use `vision_extraction`, unchanged. The rows were added directly in `/opt/llmsel-data/llmsel.db` (the admin API sits behind Cloudflare Access); backup taken first: `/root/llmsel_pre_health_extraction_20261016.db` on the VPS. If the gateway database is ever rebuilt from seeds, re-create the job (POST `/admin/api/workload-types` with `effort: low`, `privacy_tier: private`, modalities text+image, then POST `/admin/api/bindings?worker=hub&workload_type=health_extraction`).

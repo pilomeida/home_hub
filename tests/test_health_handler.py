@@ -57,6 +57,28 @@ async def test_a_lab_result_is_read_stored_tagged_and_in_the_wiki_all_at_high(se
 
 
 @pytest.mark.asyncio
+async def test_every_printed_data_point_is_kept_limits_words_history_and_the_other_details(session):
+    reply = dict(REPLY, details="NIF: 123456789\nRequisitada por: Dra. Ana Silva\nData de saída: 2024-11-11")
+    reply["measurements"] = REPLY["measurements"] + [
+        {"test": "Microalbuminúria", "value": None, "value_text": "<3", "unit": "mg/L", "ref_low": None, "ref_high": 20,
+         "measured_on": "2024-11-11", "uncertain": False, "source_text": "Microalbuminúria <3 mg/L (<20)"},
+        {"test": "Nitritos", "value": None, "value_text": "Não detectável", "unit": None, "ref_low": None, "ref_high": None,
+         "measured_on": "2024-11-11", "uncertain": False, "source_text": "Nitritos Não detectável"},
+        {"test": "Colesterol Total", "value": 222, "value_text": None, "unit": "mg/dL", "ref_low": None, "ref_high": 190,
+         "measured_on": "2021-05-10", "uncertain": False, "source_text": "[hist 10-05-2021: 222]"}]
+    doc = (await _file(session, pw.Wire(), reply=reply)).document
+    entry = store.entry_for(session, doc.id)
+    ms = {(m.test, m.measured_on.year): m for m in session.exec(
+        select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all()}
+    assert ms[("Microalbuminúria", 2024)].value is None and ms[("Microalbuminúria", 2024)].value_text == "<3"
+    assert ms[("Nitritos", 2024)].value_text == "Não detectável"
+    assert not ms[("Microalbuminúria", 2024)].needs_check and not ms[("Nitritos", 2024)].needs_check
+    assert ms[("Colesterol Total", 2021)].value == 222                      # the printed history is data too
+    from app.domains.fields import load_fields
+    assert "NIF: 123456789" in load_fields(doc)["details"]
+
+
+@pytest.mark.asyncio
 async def test_what_a_person_typed_is_not_overwritten_by_the_reading(session):
     wire = pw.Wire()
     wire.script = [gateway_text_result(json.dumps(REPLY)), gateway_text_result(json.dumps(WIKI_REPLY))]

@@ -12,7 +12,7 @@ from datetime import date
 from typing import Optional, Sequence
 
 from app.domains.health.categories import ALL_CATEGORIES, RECORD_KINDS
-from app.llm_gateway import VISION_EXTRACTION, get_gateway
+from app.llm_gateway import HEALTH_EXTRACTION, get_gateway
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
 
@@ -46,6 +46,7 @@ class ExtractedHealth:
     areas: list[str] = field(default_factory=list)
     conditions: list[str] = field(default_factory=list)
     summary: str = ""
+    details: str = ""
     amount_billed: Optional[float] = None
     amount_reimbursed: Optional[float] = None
     amount_owed: Optional[float] = None
@@ -65,15 +66,27 @@ Fields:
 - category: what kind of paper this is, one of {_CATEGORIES}; null if it is not a medical paper or you cannot tell.
 - person_name: the patient the paper is about (full name as printed).
 - document_date: the date printed on the paper, YYYY-MM-DD.
-- provider: the doctor, clinic, lab, hospital, pharmacy or insurer that issued it; provider_phone, provider_address if printed.
+- provider: the doctor, clinic, lab, hospital, pharmacy or insurer that issued it, named once as printed; provider_phone, provider_address if printed.
 - record_kind: one of {_KINDS}.
 - areas: body areas/systems it concerns (e.g. Eyes, Skin, Heart and circulation, Digestive system, Teeth).
 - conditions: named conditions or diagnoses it concerns (e.g. Stroke, Diabetes). [] if none.
-- summary: two sentences, plain words, what this paper is and its main finding.
+  For areas and conditions, reuse an existing name exactly when it fits; write a new name in the language of the paper.
+- summary: two sentences, plain words, what this paper is and its main finding. Write it in the language of the paper.
+- details: EVERY other item printed on the paper that has no field above, one per line as "Label: value", using the
+  paper's own labels and language: the patient's identification, tax, health-service and beneficiary numbers, age,
+  the dates of collection, entry and release, requisition and internal numbers, the requesting doctor, the
+  laboratory's director, specialists and technicians, accreditations, methods, and any printed note or comment.
 - amount_billed, amount_reimbursed, amount_owed: euros as numbers, for bills and reimbursement statements.
 - appointment_date (YYYY-MM-DD) and appointment_time (HH:MM, 24h): only for an appointment confirmation.
-- measurements: EVERY measured value (test, value as a number, unit, reference range low/high, date measured).
-  If a value is unclear or you are unsure of it, set uncertain=true. source_text is the line as printed.
+- measurements: EVERY result printed on the paper, numeric or not, none left out. For each: test, value, value_text,
+  unit, ref_low, ref_high, measured_on (YYYY-MM-DD), source_text (the line as printed).
+  * A number: value as a number, unit as printed.
+  * A limit such as "<3" or ">60": value null, value_text exactly as printed, unit.
+  * A non-numeric result such as "não detectável", "negativo", "ausente": value null, value_text as printed.
+  * A reference range goes in ref_low / ref_high (one-sided: the other is null).
+  * A previous result the paper prints for comparison (e.g. "histórico 10-05-2021: 222") is its own entry with
+    that earlier date in measured_on.
+  If a value is unclear or you are unsure of it, set uncertain=true.
 - full_text: the paper's text, transcribed.
 
 Respond with ONLY the JSON object."""
@@ -85,7 +98,7 @@ _SCHEMA = {
     "required": ["summary"],
     "properties": {
         "category": _STR, "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
-        "provider_address": _STR, "record_kind": _STR,
+        "provider_address": _STR, "record_kind": _STR, "details": _STR,
         "areas": {"type": "array", "items": {"type": "string"}},
         "conditions": {"type": "array", "items": {"type": "string"}},
         "summary": {"type": "string"},
@@ -138,7 +151,7 @@ async def extract_health_document(
         system += "\nExisting conditions (reuse a name exactly when it fits): " + "; ".join(existing_conditions)
     gw = gateway or get_gateway()
     result = await gw.run(
-        VISION_EXTRACTION, system, f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON.",
+        HEALTH_EXTRACTION, system, f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON.",
         attachments=[build_content_block(file_path)], response_schema=_SCHEMA,
     )
     try:
@@ -161,7 +174,8 @@ async def extract_health_document(
             provider=_text(data.get("provider")), provider_phone=_text(data.get("provider_phone")),
             provider_address=_text(data.get("provider_address")), record_kind=kind if kind in kinds else None,
             areas=_names(data.get("areas")), conditions=_names(data.get("conditions")),
-            summary=_text(data.get("summary")) or "", amount_billed=_num(data.get("amount_billed")),
+            summary=_text(data.get("summary")) or "", details=_text(data.get("details")) or "",
+            amount_billed=_num(data.get("amount_billed")),
             amount_reimbursed=_num(data.get("amount_reimbursed")), amount_owed=_num(data.get("amount_owed")),
             appointment_date=_date(data.get("appointment_date")), appointment_time=_text(data.get("appointment_time")),
             measurements=measurements, full_text=_text(data.get("full_text")) or "")

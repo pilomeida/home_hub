@@ -40,7 +40,7 @@ async def test_the_reply_is_parsed_into_typed_values(tmp_path):
     assert (ldl.value, ldl.unit, ldl.ref_high) == (162.0, "mg/dL", 100.0)
     assert glu.value is None and glu.uncertain is True
     req = fake.requests[0]
-    assert req["workload_type"] == "vision_extraction" and req["attachments"]
+    assert req["workload_type"] == "health_extraction" and req["attachments"]
     assert "Eyes" in req["system"] and "Stroke" in req["system"]               # reuse the existing names
 
 
@@ -68,10 +68,20 @@ def test_amounts_accept_portuguese_and_english_formats():
     assert parse_amount("") is None and parse_amount(None) is None and parse_amount("abc") is None
 
 
-def test_a_measurement_needs_checking_when_unsure_unreadable_or_without_a_unit():
+def test_a_measurement_needs_checking_when_unsure_empty_or_a_bare_number():
     from app.domains.health.extraction import ExtractedMeasurement as M
     ok = M("LDL", 162.0, None, "mg/dL", None, 100.0, None, False, "")
     assert not measurement_needs_check(ok)
     assert measurement_needs_check(M("LDL", 162.0, None, "mg/dL", None, 100.0, None, True, ""))
-    assert measurement_needs_check(M("Glucose", None, "illegible", None, 70.0, 99.0, None, False, ""))
-    assert measurement_needs_check(M("LDL", 162.0, None, None, None, 100.0, None, False, ""))
+    assert measurement_needs_check(M("Glucose", None, None, None, 70.0, 99.0, None, False, ""))      # no result at all
+    assert measurement_needs_check(M("LDL", 162.0, None, None, None, None, None, False, ""))         # bare number
+    # a result that is a limit, a word, or a unitless number with a range is data, not a doubt
+    assert not measurement_needs_check(M("Microalbuminúria", None, "<3", "mg/L", None, 20.0, None, False, ""))
+    assert not measurement_needs_check(M("Nitritos", None, "não detectável", None, None, None, None, False, ""))
+    assert not measurement_needs_check(M("pH", 6.0, None, None, 5.0, 7.5, None, False, ""))
+
+
+def test_the_prompt_asks_for_every_data_point_and_the_papers_language():
+    from app.domains.health.extraction import _SYSTEM
+    assert "language of the paper" in _SYSTEM and "não detectável" in _SYSTEM and '"<3"' in _SYSTEM
+    assert "previous result" in _SYSTEM and "details" in _SYSTEM
