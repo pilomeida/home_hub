@@ -411,6 +411,25 @@ async def refile_record(session: Session, record: Record, classification: Classi
     return await _file_under(session, attachment, validated)
 
 
+def file_for_later(session: Session, incoming: IncomingFile, classification: Classification) -> ReceiveResult:
+    """Store the file and file it under its domain at once (status PENDING), without reading it: the caller
+    then runs finalize_document in the background, so a slow reading never holds up the person's page."""
+    validated = validate_classification(session, classification, incoming.filename)
+    require_ready(session, classification.domain, validated.category)   # held types are not even stored
+    received = receive_file(session, incoming)
+    if received.duplicate:
+        return received
+    document = received.document
+    document.domain = validated.spec.domain
+    document.category = validated.category
+    document.sensitivity_tier = configured_tier(session, validated.spec.domain, validated.category)
+    document.fields_json = dump_fields(validated.fields)
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+    return ReceiveResult(document=document, duplicate=False)
+
+
 async def ingest(
     session: Session, incoming: IncomingFile, classification: Classification
 ) -> ReceiveResult:

@@ -3,22 +3,24 @@ and the outbound channels may read, not about who may look."""
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 
-from app.db import get_session
+from app.db import get_session, get_session_factory
 from app.domains.fields import (
     InvalidClassification, build_form_fields, describe_document, load_fields, media_kind_for,
 )
 from app.domains.health import areas as areas_svc
 from app.domains.health import browse, people as people_svc, store
 from app.domains.registry import document_url, get_spec
-from app.models.document import Document, DocumentSource
+from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.health import HealthArea, HealthMeasurement
 from app.problems import Problem, file_notices, record_problem
-from app.services.ingestion import Classification, IncomingFile, ingest, update_document_fields
+from app.services.ingestion import (
+    Classification, IncomingFile, file_for_later, finalize_document, mark_needs_attention, update_document_fields,
+)
 from app.templating import templates
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -52,11 +54,30 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
             "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind)}
 
 
+async def _read_in_background(session_factory, document_id: int) -> None:
+    """Read and file one paper. Runs after the response, in its own session: the reading can take minutes."""
+    with session_factory() as session:
+        document = session.get(Document, document_id)
+        if document is None or document.status == DocumentStatus.PROCESSED:
+            return
+        try:
+            await finalize_document(session, document, Classification(Domain.HEALTH, document.category, load_fields(document)))
+        except BaseException as exc:      # also a cancelled task: the paper must never be left looking unread
+            session.rollback()
+            session.refresh(document)
+            mark_needs_attention(session, document, f"Health processing failed: {type(exc).__name__} {exc}".strip())
+            if not isinstance(exc, Exception):
+                raise
+
+
 @router.get("/records")
 async def landing(request: Request, session: Session = Depends(get_session)):
     f = browse.parse_filters(request.query_params)
+    waiting = list(session.exec(select(Document).where(
+        Document.domain == Domain.HEALTH,
+        Document.status.in_([DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION])).order_by(Document.id)))
     return templates.TemplateResponse(request, "health/landing.html", {
-        "rows": browse.rows(session, f), "f": f, "facets": browse.facets(session)})
+        "rows": browse.rows(session, f), "f": f, "facets": browse.facets(session), "waiting": waiting})
 
 
 @router.get("/upload")
@@ -65,7 +86,8 @@ async def upload_form(request: Request):
 
 
 @router.post("/upload")
-async def upload(request: Request, session: Session = Depends(get_session)):
+async def upload(request: Request, background_tasks: BackgroundTasks, session: Session = Depends(get_session),
+                 session_factory=Depends(get_session_factory)):
     form = await request.form()
     category = (form.get("category") or "").strip() or None
     values = {k: v for k, v in form.items() if k not in _NON_FIELD_KEYS and isinstance(v, str)}
@@ -74,12 +96,30 @@ async def upload(request: Request, session: Session = Depends(get_session)):
         return templates.TemplateResponse(request, "health/upload.html", _upload_context(
             {"file": "No file was chosen to upload"}), status_code=400)
     try:
-        result = await ingest(session, IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
-                                                    getattr(request.state, "user_email", None)),
-                              Classification(domain=Domain.HEALTH, category=category, fields=values))
+        result = file_for_later(session, IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
+                                                      getattr(request.state, "user_email", None)),
+                                Classification(domain=Domain.HEALTH, category=category, fields=values))
     except InvalidClassification as exc:
         return templates.TemplateResponse(request, "health/upload.html", _upload_context(exc.errors), status_code=400)
+    if not result.duplicate:       # the reading takes minutes: the person lands on the paper's page, which shows its progress
+        background_tasks.add_task(_read_in_background, session_factory, result.document.id)
     return RedirectResponse(document_url(result.document) or "/health/records", status_code=303)
+
+
+@router.post("/documents/{document_id}/reread")
+async def reread(document_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session),
+                 session_factory=Depends(get_session_factory)):
+    document = _document_or_404(session, document_id)
+    if document.status not in (DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION):
+        raise HTTPException(status_code=409, detail={
+            "what": "Not read again.", "why": "This paper has already been read successfully.",
+            "next_step": "Correct anything that is wrong on the paper's page instead."})
+    document.status = DocumentStatus.PENDING
+    document.failure_reason = None
+    session.add(document)
+    session.commit()
+    background_tasks.add_task(_read_in_background, session_factory, document.id)
+    return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
 
 
 @router.get("/documents/{document_id}")

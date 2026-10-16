@@ -7,6 +7,13 @@
   {% if facets.unsorted %} · <a href="/health/records?unsorted=1">{{ facets.unsorted }} unsorted</a>{% endif %}
   {% if facets.proposed_areas %} · <a href="/health/areas">{{ facets.proposed_areas }} new area{{ "s" if facets.proposed_areas != 1 }} to approve</a>{% endif %}
   {% if facets.unconfirmed_people %} · <a href="/health/people">{{ facets.unconfirmed_people }} {{ "person" if facets.unconfirmed_people == 1 else "people" }} to confirm</a>{% endif %}</p>
+{% if waiting %}
+<div style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
+  <strong>{{ waiting|length }} paper{{ "s" if waiting|length != 1 }} not finished:</strong>
+  {% for d in waiting %}<div><a href="/health/documents/{{ d.id }}">{{ d.filename }}</a>
+    {% if d.status.value == "pending" %}— being read{% else %}— <span class="needs-attention">not read, needs you</span>{% endif %}</div>{% endfor %}
+</div>
+{% endif %}
 <form method="get" action="/health/records" class="field" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
   <label>Person <select name="person"><option value="">All</option>
     {% for p in facets.people %}<option value="{{ p.id }}"{% if f.person == p.id %} selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></label>

@@ -3,8 +3,24 @@
 {% block content %}
 <p><a href="/health/records">← Health</a></p>
 <h1>{{ description.filename }}</h1>
-<p>{{ description.category_label or "Kind of paper not known yet" }} (<a href="/documents/{{ document.id }}/edit">change</a>) · {{ entry.entry_date if entry and entry.entry_date else "undated" }}
-  {% if document.status.value == "needs_attention" %}<span class="needs-attention"> · {{ document.failure_reason|friendly_reason }}</span>{% endif %}</p>
+<p>{{ description.category_label or "Kind of paper not known yet" }} (<a href="/documents/{{ document.id }}/edit">change</a>) · {{ entry.entry_date if entry and entry.entry_date else "undated" }}</p>
+{% if document.status.value == "pending" %}
+<meta http-equiv="refresh" content="10">
+<div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
+  <strong>Being read.</strong> The Hub is reading this paper at the highest privacy level (Privatemode). A long paper can
+  take several minutes. This page refreshes by itself; the empty boxes below fill in when it is done.
+  <form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
+    <small>Still like this after 15 minutes? It was interrupted.</small> <button type="submit">Read again</button>
+  </form>
+</div>
+{% elif document.status.value == "needs_attention" %}
+<div class="needs-attention" style="border:1px solid #d96a6a;background:#fdecea;padding:10px 14px;margin:12px 0;">
+  <strong>Not read.</strong> {{ document.failure_reason|friendly_reason }}
+  <form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
+    <button type="submit">Read again</button> <small>or fill the boxes below by hand, or delete the paper.</small>
+  </form>
+</div>
+{% endif %}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
   <section>
     <h2>The paper</h2>

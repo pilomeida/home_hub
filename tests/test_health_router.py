@@ -264,3 +264,55 @@ def test_a_paper_the_reading_cannot_place_waits_for_a_person_to_choose_its_kind(
     assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"]          # nothing went out below High
     page = client.get(r.headers["location"]).text
     assert "Kind of paper not known yet" in page and f"/documents/{doc.id}/edit" in page
+
+
+def _stored_health_paper(session, status, reason=None):
+    from app.models.document import DocumentStatus
+    from app.models.domain import Domain
+    from tests.knowledge_factories import make_document
+    doc = make_document(session, domain=Domain.HEALTH, category=None)
+    doc.status, doc.failure_reason = DocumentStatus(status), reason
+    session.add(doc)
+    session.commit()
+    return doc
+
+
+def test_a_paper_still_being_read_says_so_and_refreshes_itself(client, session):
+    doc = _stored_health_paper(session, "pending")
+    page = client.get(f"/health/documents/{doc.id}").text
+    assert "Being read." in page and 'http-equiv="refresh"' in page and "Read again" in page
+    assert "being read" in client.get("/health/records").text
+
+
+def test_a_paper_that_failed_shows_why_and_can_be_read_again(client, session, tmp_path):
+    from app.llm_gateway import GatewayError
+    from app.models.document import Document, DocumentStatus
+    from tests.test_health_extraction import REPLY
+    from tests.test_health_handler import WIKI_REPLY
+    reason = f"Health processing failed: {GatewayError(502, 'schema_rejected: output cut off')}"
+    doc = _stored_health_paper(session, "needs_attention", reason)
+    paper = tmp_path / "paper.png"
+    paper.write_bytes(b"\x89PNG\r\n\x1a\nzz")
+    doc.filename, doc.file_path = "paper.png", str(paper)
+    session.add(doc)
+    session.commit()
+    page = client.get(f"/health/documents/{doc.id}").text
+    assert "Not read." in page and "Read again" in page
+    assert "being read" not in client.get("/health/records").text and "needs you" in client.get("/health/records").text
+    # pressing the button reads it again through the real pipeline
+    import json
+    from app.llm_gateway import set_gateway_provider
+    from tests import privacy_world as pw
+    from tests.fakes.fake_gateway import gateway_text_result
+    wire = pw.Wire()
+    wire.script = [gateway_text_result(json.dumps(dict(REPLY, category="lab_result"))), gateway_text_result(json.dumps(WIKI_REPLY))]
+    set_gateway_provider(lambda: wire.client())
+    try:
+        r = client.post(f"/health/documents/{doc.id}/reread", follow_redirects=False)
+    finally:
+        set_gateway_provider(None)
+    assert r.status_code == 303
+    session.expire_all()
+    doc = session.get(Document, doc.id)
+    assert doc.status == DocumentStatus.PROCESSED and doc.category == "lab_result" and doc.failure_reason is None
+    assert client.post(f"/health/documents/{doc.id}/reread").status_code == 409     # nothing to redo once read

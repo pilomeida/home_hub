@@ -139,7 +139,7 @@ async def extract_health_document(
     gw = gateway or get_gateway()
     result = await gw.run(
         VISION_EXTRACTION, system, f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON.",
-        attachments=[build_content_block(file_path)], response_schema=_SCHEMA, max_tokens=12000,
+        attachments=[build_content_block(file_path)], response_schema=_SCHEMA,
     )
     try:
         data = json.loads(strip_json_fences(result.text))
