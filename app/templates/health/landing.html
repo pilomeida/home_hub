@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Health{% endblock %}
+{% block content %}
+<h1>Health</h1>
+<p><a href="/health/upload">+ Add a paper</a>
+  {% if facets.needs_check %} · <a href="/health/records?check=1" class="needs-attention">{{ facets.needs_check }} to check</a>{% endif %}
+  {% if facets.unsorted %} · <a href="/health/records?unsorted=1">{{ facets.unsorted }} unsorted</a>{% endif %}
+  {% if facets.proposed_areas %} · <a href="/health/areas">{{ facets.proposed_areas }} new area{{ "s" if facets.proposed_areas != 1 }} to approve</a>{% endif %}
+  {% if facets.unconfirmed_people %} · <a href="/health/people">{{ facets.unconfirmed_people }} {{ "person" if facets.unconfirmed_people == 1 else "people" }} to confirm</a>{% endif %}</p>
+<form method="get" action="/health/records" class="field" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+  <label>Person <select name="person"><option value="">All</option>
+    {% for p in facets.people %}<option value="{{ p.id }}"{% if f.person == p.id %} selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></label>
+  <label>Area <select name="area"><option value="">All</option>
+    {% for a in facets.areas %}<option value="{{ a.id }}"{% if f.area == a.id %} selected{% endif %}>{{ a.name }}</option>{% endfor %}</select></label>
+  <label>Condition <select name="condition"><option value="">All</option>
+    {% for a in facets.conditions %}<option value="{{ a.id }}"{% if f.condition == a.id %} selected{% endif %}>{{ a.name }}</option>{% endfor %}</select></label>
+  <label>Year <select name="year"><option value="">All</option>
+    {% for y in facets.years %}<option value="{{ y }}"{% if f.year == y %} selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
+  <label>Kind <select name="kind"><option value="">All</option>
+    {% for value, label in facets.kinds %}<option value="{{ value }}"{% if f.kind == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label>Search <input type="text" name="q" value="{{ f.q }}"></label>
+  <button type="submit">Filter</button> <a href="/health/records">Clear</a>
+</form>
+<table class="review-table">
+  <thead><tr><th>Date</th><th>Person</th><th>Paper</th><th>Provider</th><th>Kind</th><th>Areas</th><th>Conditions</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.entry.entry_date if r.entry and r.entry.entry_date else "—" }}</td>
+    <td>{{ r.person.name if r.person else "—" }}{% if r.person and not r.person.confirmed %} <small>(new)</small>{% endif %}</td>
+    <td><a href="/health/documents/{{ r.document.id }}">{{ r.document.filename }}</a>
+      {% if r.entry is none %}<span class="needs-attention">couldn't be read</span>{% elif r.entry.needs_check %}<span class="needs-attention">to check</span>{% endif %}</td>
+    <td>{{ r.entry.provider if r.entry and r.entry.provider else "—" }}</td>
+    <td>{{ r.entry.kind|humanize_key if r.entry and r.entry.kind else "—" }}</td>
+    <td>{% for a in r.areas %}<a href="/health/records?area={{ a.id }}">{{ a.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+      {% for a in r.proposed %}<em title="Proposed, not approved yet">{{ a.name }}?</em> {% endfor %}
+      {% if not r.areas %}<small>unsorted</small>{% endif %}</td>
+    <td>{% for a in r.conditions %}<a href="/health/records?condition={{ a.id }}">{{ a.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7">No papers match. {% if not facets.people %}Add the first one with “Add a paper”.{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

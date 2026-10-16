@@ -23,6 +23,7 @@ from app.config import settings
 from app.domains.base import MediaKind
 from app.domains.fields import media_kind_for
 from app.models.document import DocumentSource, DocumentStatus
+from app.privacy.channels import channel_label
 from app.privacy.notices import SCAN_NOTICE, is_image_name
 from app.services.inbox_service import InboxReceipt, describe, is_confident, receive_document, suggested_domain
 from app.services.ingestion import IncomingFile
@@ -75,7 +76,9 @@ def pick_file(message) -> Optional[PickedFile]:
     return None
 
 
-def reply_for(receipt: InboxReceipt, base_url: str) -> str:
+def reply_for(receipt: InboxReceipt, base_url: str, session: Session) -> str:
+    """The reply to a filed message. `session` is required: the type's label may only be named if its type is
+    not private (decision D20), and that cannot be known without it."""
     inbox_url = f"{base_url.rstrip('/')}/inbox"
     if receipt.duplicate:
         if receipt.document.status == DocumentStatus.PENDING_REVIEW:
@@ -83,7 +86,9 @@ def reply_for(receipt: InboxReceipt, base_url: str) -> str:
         return "I already have this one — nothing to do."
     item = receipt.inbox_item
     if item is not None and is_confident(item):
-        label = describe(suggested_domain(item), item.suggested_category)
+        domain = suggested_domain(item)
+        label = describe(domain, item.suggested_category)
+        label = channel_label(session, domain, item.suggested_category, label)
         return f"Got it — looks like {label}. Approve it in the Inbox: {inbox_url}"
     return f"Got it — I'm not sure where this belongs. Please sort it in the Inbox: {inbox_url}"
 
@@ -107,7 +112,7 @@ async def file_to_inbox(
             context_text=f"Telegram caption: {caption}" if caption else None,
             external_ref=message_ref,
         )
-        reply = reply_for(receipt, base_url)
+        reply = reply_for(receipt, base_url, session=session)
         if is_image_name(filename) and not receipt.duplicate:
             reply += f"\n\n{SCAN_NOTICE}"
         return reply

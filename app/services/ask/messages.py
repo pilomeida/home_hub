@@ -10,6 +10,7 @@ from typing import Optional
 from app.models.ask import AskTurn
 from app.privacy.reach import LeftOut
 from app.problems import Problem, classify_reason, compose, explain
+from app.services.ask.private import private_notices
 
 WHAT = "I couldn't answer that question."
 
@@ -62,6 +63,7 @@ def failure(turn: AskTurn) -> Optional[tuple[Problem, Optional[str]]]:
 
 
 def notices(turn: AskTurn) -> list[Problem]:
-    """Notes under an answer: documents that weren't available, earlier answers that weren't reused."""
+    """Notes under an answer: it turned private, documents that weren't available, earlier answers that weren't reused."""
     left = LeftOut.from_json(turn.left_out_json)
-    return [p for p in (left.problem("answer"), left.history_problem()) if p is not None]
+    return [*private_notices(turn),
+            *[p for p in (left.problem("answer"), left.history_problem()) if p is not None]]

@@ -9,13 +9,20 @@ from app.models.ask import AskStatus, AskTurn
 from app.models.document import Document
 from app.models.record import Record
 from app.models.wiki import ANSWER_PAGE_TYPE, WikiOperation, WikiPage
+from app.problems import Problem
 from app.services.ask.citations import cited_refs, known_from_turn, plain_text
 from app.services.ask.conversation import turns_of
+from app.services.ask.private import turn_is_private
 from app.services.wiki_store import ClaimInput, PageRef, add_link, apply_claims
 
 
 class AnswerNotSaveable(Exception):
-    pass
+    """An answer that can't be filed. Carries a three-part Problem when it has one of its own (str() is the
+    whole sentence); a plain string is mapped to its three parts by app.problems."""
+
+    def __init__(self, message):
+        self.problem = message if isinstance(message, Problem) else None
+        super().__init__(message.text if self.problem else message)
 
 
 def _ids(refs: list[str], prefix: str) -> list[int]:
@@ -31,6 +38,12 @@ def save_answer_as_wiki_page(session: Session, turn_id: int, title: str) -> Wiki
     turn = session.get(AskTurn, turn_id)
     if turn is None or turn.status != AskStatus.ANSWERED or not turn.answer_text:
         raise AnswerNotSaveable("Only answered questions can be saved")
+    if turn_is_private(turn):
+        raise AnswerNotSaveable(Problem(
+            "Not saved to the wiki.",
+            "This answer used private records, and a saved answer would be readable by every kind of question, "
+            "including ones sent below the private level.",
+            "Keep it in this chat; it is shown only here in the Hub."))
     if turn.saved_wiki_page_id:
         return session.get(WikiPage, turn.saved_wiki_page_id)
 

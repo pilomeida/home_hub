@@ -42,6 +42,9 @@ class AskTurn(SQLModel, table=True):
     # NULL = answered while levels were not binding. Otherwise what was left out of this answer
     # (app.privacy.reach.LeftOut): the notice shown to the person and the snapshot of withheld types.
     left_out_json: Optional[str] = None
+    # NULL = the answer never touched a private record and did not start private. Otherwise the ratchet's log
+    # (app.privacy.ratchet.RatchetLog): where the run turned High, or that it started High (decision D18).
+    escalation_json: Optional[str] = None
     input_tokens: int = Field(default=0)
     output_tokens: int = Field(default=0)
     saved_wiki_page_id: Optional[int] = Field(default=None, foreign_key="wiki_pages.id")

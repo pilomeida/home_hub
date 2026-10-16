@@ -52,10 +52,21 @@ def _pending_count(session: Session, reach: Reach) -> int:
     return sum(1 for domain, category in rows if reach.includes_type(domain, category))
 
 
-def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOut] = None) -> tuple[str, list[Citable]]:
+_PRIVATE_NOTE = (
+    "Private records: some of the household's records (Health, and any type the family marked High) are private "
+    "and are NOT listed above. Tools such as health_find_records read them; read_wiki_pages, find_sources and "
+    "read_document_file can also return them if you ask for an id you were given. Using any of them makes this "
+    "whole answer private: from then on it is handled only on a separate, encrypted route, and the person is "
+    "told. Use them only when the question needs them. If it does not, answer without them."
+)
+
+
+def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOut] = None,
+                        reach: Optional[Reach] = None) -> tuple[str, list[Citable]]:
     """Everything the model is told about the household. While levels are binding (app/privacy/reach.py)
-    the domain counts, the wiki index and the pending-review note cover only what the AI may read."""
-    reach = reach_for(session)
+    the domain counts, the wiki index and the pending-review note cover only what the AI may read. The engine
+    passes `reach.without_private()` here: the first call never names, counts or summarises a private record."""
+    reach = reach or reach_for(session)
     sections = [_RULES, f"Today is {today.isoformat()}."]
     if reach.binding:
         left_out = left_out or reach.left_out(session)
@@ -66,8 +77,13 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
 
     domain_lines = ["Domains:"]
     for spec in implemented_domains():
+        if reach.domain_is_private(spec.domain):
+            domain_lines.append(f"- {spec.domain.value} ({spec.label}): PRIVATE. Nothing is listed here; use the "
+                                f"{spec.domain.value}_* tools if the question needs it (this makes the answer private).")
+            continue
+        public = [c for c in spec.categories if not reach.is_private_type(spec.domain, c.value)]
         counts = Counter(e.category or "uncategorised" for e in settled_entries(session, spec.domain, reach=reach))
-        categories = ", ".join(f"{c.value} ({c.label})" for c in spec.categories)
+        categories = ", ".join(f"{c.value} ({c.label})" for c in public)
         fields = ", ".join(f.label for f in spec.fields) or "none"
         on_file = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"
         domain_lines.append(f"- {spec.domain.value} ({spec.label}): categories [{categories}]; "
@@ -89,4 +105,6 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
     if pending:
         sections.append(f"Note: {pending} document(s) are awaiting review in the Inbox (/inbox) and are not part "
                         "of the records yet. If they could matter, say the answer may change once they are reviewed.")
+    if reach.has_private():
+        sections.append(_PRIVATE_NOTE)
     return "\n\n".join(sections), citables

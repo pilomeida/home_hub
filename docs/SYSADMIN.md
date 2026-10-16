@@ -271,6 +271,20 @@ Santander Portugal and Revolut are read through **Enable Banking** (Restricted P
 
 ---
 
+## 6c. Google Calendar (appointments)
+
+Appointment letters filed as Health papers become events on the family Google Calendar (decision D21: when, where, who, how to reach them, reminders, and a link back to the Hub; never the reason). Code: `app/integrations/google_calendar.py`, `app/domains/health/appointments.py`; sign-in helper `scripts/google_calendar_auth.py`. The Hub writes events with the `calendar.events` scope only. Until all four settings below are set, the calendar is off and nothing is sent.
+
+1. **Google Cloud Console:** create a project, enable the **Google Calendar API**, configure the **OAuth consent screen** (External), then **publish it before going on**: on the consent screen page press *Publish app* so that *Publishing status* reads **In production**. Google then shows an "unverified app" warning when you sign in; that is fine for personal use (press *Advanced*, then *Go to … (unsafe)*). Do not leave it in *Testing*: in Testing mode Google expires the token after 7 days and the calendar silently stops working. Then create an **OAuth client** of type **Desktop app**. Note its client ID and client secret.
+2. **On Pedro's computer (only after the consent screen is published):** run `python scripts/google_calendar_auth.py <client_id> <client_secret>`. Sign in with the Google account that can edit the family calendar. The script prints a line `GOOGLE_OAUTH_REFRESH_TOKEN=...`; copy it.
+3. **In Google Calendar:** open the family calendar → *Settings and sharing* → *Integrate calendar*, and copy the **Calendar ID**.
+4. **On the VPS:** add `GOOGLE_CALENDAR_ID`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and `GOOGLE_OAUTH_REFRESH_TOKEN` to `/srv/home-hub/app/.env`, the same file as `HUB_TELEGRAM_BOT_TOKEN`. Then `sudo systemctl restart home-hub`.
+5. **Check:** file an appointment letter. The event should appear on the calendar, with reminders at 1 day and 2 hours before. The Problems page should show no "Calendar" entry.
+
+Treat the client secret and the refresh token as secrets (see §6). Revoke the refresh token from the Google account's security settings if it leaks.
+
+---
+
 ## 7. Costs
 
 - **Anthropic API**: the only recurring per-use cost. Sonnet 5 for document/statement extraction
@@ -310,6 +324,7 @@ scheduled job; every run so far has been triggered by hand.
 | `backfill_transaction_classification.py` | Runs the shared `classify_transaction()` over every Transaction/Document currently missing classification | Yes — filters on `merchant_id IS NULL` | Run **3 times** against production: (1) full historical Santander backfill after sub-project 3 merged, (2) a resumed continuation after an SSH-drop interrupted run 1 partway through, (3) after the Revolut import, to classify the 1,122 new transactions (1 error both times: transaction #3092, `'parking' is not a valid Category` — pre-existing, not caused by any classification-engine bug; still open, see §9) |
 | `merge_duplicate_merchants.py` | Merges exact-case-insensitive-`canonical_name` duplicate `Merchant` rows (repoints their transactions, deletes the duplicate) | Yes, by construction | Run **twice**: after the Santander backfill (503 merged, 761 repointed, 0 errors), and again after the Revolut import (227 merged, 313 repointed, 0 errors) — expected to need re-running after any future large import, since each institution's provider-string format tends to slip past `normalize_provider()`'s rules tier in its own way |
 | `backfill_revolut_pedro_account.py` | Chunked import of Pedro's own Revolut current account (Jan 2024–present) out of a 221-page combined 5-sub-account family statement, sliced into per-month PDF page ranges and run through the normal extraction pipeline once per month (the whole statement is far too large for one extraction call) | Yes — skips any `(year, month)` that already has a `Document` row | Run once: 32/32 months succeeded, 1,122 transactions created, 0 errors. **⚠ Currently exists only on the VPS filesystem** (`/srv/home-hub/app/scripts/`), uploaded by `scp` — **not yet committed to the local git repo**. Should be added to the repo to match how the other scripts here are version-controlled; it's the one loose end from this import. Explicitly does **not** cover Matias's or Vicente's Revolut sub-accounts/pockets — out of scope by deliberate user decision, not yet started |
+| `backfill_health.py` | Bulk-ingests a folder of existing health reports through the Inbox, the same path as Telegram and email. With `--auto-approve`, only papers the Hub is confident are Health are filed (at High); everything else waits in the Inbox. `.txt`, `.md` and `.DS_Store` files are skipped | Yes — files already received are skipped by content hash | Not run yet |
 
 **`pypdf`** was `pip install`ed directly into the VPS's `home-hub` venv to support the Revolut
 chunking script — deliberately **not** added to `requirements.txt`, since it's not an application

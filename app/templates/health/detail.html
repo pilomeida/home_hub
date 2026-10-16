@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ description.filename }} — Health{% endblock %}
+{% block content %}
+<p><a href="/health/records">← Health</a></p>
+<h1>{{ description.filename }}</h1>
+<p>{{ description.category_label }} · {{ entry.entry_date if entry and entry.entry_date else "undated" }}
+  {% if document.status.value == "needs_attention" %}<span class="needs-attention"> · {{ document.failure_reason|friendly_reason }}</span>{% endif %}</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <section>
+    <h2>The paper</h2>
+    {% if media_kind == "image" %}<img src="{{ description.file_url }}" alt="" style="max-width:100%;">
+    {% else %}<iframe src="{{ description.file_url }}" style="width:100%;height:70vh;border:1px solid #ddd;"></iframe>
+    <p><a href="{{ description.file_url }}">Open the file</a></p>{% endif %}
+  </section>
+  <section>
+    <h2>What the Hub read</h2>
+    <form method="post" action="/health/documents/{{ document.id }}/fields">
+      {% include "domains/_field_inputs.html" %}
+      <button type="submit">Save</button>
+    </form>
+    <h3>Areas and conditions</h3>
+    <form method="post" action="/health/documents/{{ document.id }}/tags">
+      <div class="field"><label>Areas (comma-separated) <input type="text" name="areas" value="{{ area_names }}"></label></div>
+      <div class="field"><label>Conditions (comma-separated) <input type="text" name="conditions" value="{{ condition_names }}"></label></div>
+      <button type="submit">Save tags</button>
+    </form>
+  </section>
+</div>
+<h2>Measurements</h2>
+{% if measurements %}
+<table class="review-table">
+  <thead><tr><th>Date</th><th>Test</th><th>Value</th><th>Reference</th><th>As printed on the paper</th><th></th></tr></thead>
+  <tbody>
+  {% for m in measurements %}
+  <tr{% if m.needs_check %} class="needs-attention"{% endif %}>
+    <td>{{ m.measured_on or "—" }}</td><td>{{ m.test }}</td>
+    <td>{% if m.value is not none %}{{ "%g"|format(m.value) }} {{ m.unit or "" }}{% else %}{{ m.value_text or "?" }}{% endif %}
+      {% if m.out_of_range %}<strong>out of range</strong>{% endif %}</td>
+    <td>{{ m.ref_low if m.ref_low is not none else "" }}–{{ m.ref_high if m.ref_high is not none else "" }}</td>
+    <td><code>{{ m.source_text or "" }}</code></td>
+    <td>{% if m.needs_check %}<form method="post" action="/health/documents/{{ document.id }}/measurements/{{ m.id }}/ok">
+      <button type="submit" title="I looked at the paper and this value is right">It's right</button></form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>No measurements on this paper.</p>{% endif %}
+{% if entry and entry.full_text %}<details><summary>Full text as read</summary><pre style="white-space:pre-wrap;">{{ entry.full_text }}</pre></details>{% endif %}
+<form method="post" action="/health/documents/{{ document.id }}/delete" style="margin-top:24px;"
+      onsubmit="return confirm('Delete this paper and everything read from it? The original file is kept on the server but is no longer used anywhere.');">
+  <button type="submit">Delete this paper</button>
+</form>
+{% endblock %}

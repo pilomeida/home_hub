@@ -47,8 +47,9 @@ def _active(session, page_id):
     ).all()}
 
 
-def test_registry_lists_financials_house_then_insurance():
-    assert [s.domain for s in registry.implemented_domains()] == [Domain.FINANCIALS, Domain.HOUSE, Domain.INSURANCE]
+def test_registry_lists_financials_house_insurance_then_health():
+    assert [s.domain for s in registry.implemented_domains()] == [
+        Domain.FINANCIALS, Domain.HOUSE, Domain.INSURANCE, Domain.HEALTH]
     spec = registry.get_spec(Domain.HOUSE)
     assert spec.home_url == "/house"
     assert [c.value for c in spec.categories] == [

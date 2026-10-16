@@ -2,6 +2,39 @@
 
 Newest first. Technical choices are Claude's; Pedro decides only what he sees/does.
 
+## 2026-10-16 — D18. The ratchet: a run's level only rises (Pedro's rule; mechanism by Claude)
+- **One way.** A run (an Ask question, the weekly wiki check, an intake read) has a level. It rises to High the moment a tool returns content of a private type, and every later call the run makes goes out at High only, until the run ends. It never falls, and nothing an explicit level says can lower it. Built in `app/privacy/ratchet.py` (`ratchet_scope`, `apply_ratchet`); the gateway applies it to every call (`app/llm_gateway.py`).
+- **The person is told** what was opened, at which step, and that nothing went to another AI service afterwards (the "This answer turned private" notice on the answer, `app/services/ask/private.py`).
+- **The first call is blind to private content.** It is built from `Reach.without_private()`: no private record is named, counted or summarised in it. Tools use the full reach and raise the run.
+- **Every tool that returns private content reports `tier=HIGH`**, including when nothing matches (the Health tools always do), so the rise is recorded even when the answer is empty.
+- **A chat that has had a private answer starts every later answer High**, because the replayed history carries that content. An answer that cites a source now private counts too.
+- **Private answers are not saved to the wiki** (`app/services/ask/save.py`), and they are shown only in the Hub, never in Telegram or email.
+- **Fails closed.** A run's stored log (`AskTurn.escalation_json`) is read by `RatchetLog.from_json`. A non-empty log that does not parse reads as private, so a damaged record never opens a lower level.
+
+## 2026-10-16 — D19. Health is always High (Pedro)
+- Forced in `app/privacy/settings.py::FORCED_TIERS` (`{"health": Tier.HIGH}`), independent of "Levels are binding". Not configurable.
+- On the Privacy page the Health row is shown locked at High, with no redaction switch and no Save button.
+
+## 2026-10-16 — D20. Unrecognised papers are read once privately (Claude; supersedes D13 for the AI-read path)
+- Recognition by rule (D13) is unchanged and sends nothing. A paper that no rule recognises is read once by the classifier **inside a High ratchet** (`receive_document` in `app/services/inbox_service.py`), because it may turn out to be a private Health paper and so never goes to a lower level first. This replaces D13's "held until a human says what it is" for the AI-read path; a person still decides what it is in the Inbox.
+- If the classifier fails, the document still arrives in the Inbox without a suggestion.
+- Ask and the wiki check may read High types under D18. This supersedes the "High types stay excluded" wording of D16: such types are reachable but private, so reading one raises the run.
+
+## 2026-10-16 — D21. Administrative vs health-record (Pedro)
+- **Administrative facts may leave the Hub:** the person, provider name, phone and address, dates, amounts, insurer and policy facts, appointments.
+- **Health-record facts never leave the Hub:** the kind of event, the summary, areas, conditions, measurements, anything clinical.
+- Enforced by `FieldSpec.private` (`app/domains/base.py`) and `app/privacy/channels.py` (`channel_label`, `channel_fields`). Telegram and email name a private type only as "a private document".
+- **Appointments** go on the family Google Calendar with when, where, who and how to reach them, reminders at 1 day and 2 hours, and a link back to the Hub. Never the reason (`app/domains/health/appointments.py`).
+
+## 2026-10-16 — D22. Health insurance split (Pedro)
+- **Insurance (Mid)** keeps the policy, its terms, premium notices and renewal letters.
+- **Health (High)** takes reimbursement and claim statements, medical bills, results, prescriptions, referrals, vaccinations and appointment letters. The Insurance health category says so in its description: a reimbursement statement is not an Insurance document.
+
+## Backlog (open, per Pedro)
+- Backups of health data: they must follow the document and data tiers; a separate discussion.
+- Share a person's records with a doctor (export).
+- Hard deletion of the stored file. Withdrawing everything derived and hiding the record is built; "raw sources are immutable" stays.
+
 ## 2026-10-15 — D16. Ask and the wiki check under levels (built; coordinator's rules, Claude's mechanism)
 Closes known gap (1) of D13. **Only when "Levels are binding" is on; with it off both behave, and send, exactly as before (checked byte-for-byte against the previous code).**
 - **Reachable set** (`app/privacy/reach.py`, snapshot taken when a run starts): a document type is **left out** if its level is High, or it has no level, or its "hide personal details" switch is on (hiding cannot work when the AI also looks things up or reads files). Every other type is **readable**. The level of every AI call is the **strictest level among the readable types** (Low < Mid); with none readable, Mid is the floor. A document whose category is not a registered type counts as "no level".

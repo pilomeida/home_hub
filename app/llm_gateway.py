@@ -91,6 +91,9 @@ class GatewayClient:
             if scope is not None:
                 sensitivity = scope.tier.value
                 redaction = redaction or scope.redaction
+        # The run's ratchet (app/privacy/ratchet.py) can only raise the level, never lower it.
+        from app.privacy.ratchet import apply_ratchet
+        sensitivity, redaction = apply_ratchet(sensitivity, redaction)
         out = prepare(system=system, user=user, messages=messages, tools=tools,
                       attachments=attachments, sensitivity=sensitivity, redaction=redaction)
         payload: dict = {

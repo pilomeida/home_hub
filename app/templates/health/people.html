@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Health people{% endblock %}
+{% block content %}
+<p><a href="/health/records">← Health</a></p>
+<h1>People</h1>
+<p>The Hub adds a person the first time a name appears on a paper. Confirm each one, or merge it into someone already listed.</p>
+{% if error %}<p class="needs-attention"><strong>{{ error.what }}</strong> {{ error.why }} {{ error.next_step }}</p>{% endif %}
+<table class="review-table">
+  <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for p in people %}
+  <tr><td><a href="/health/records?person={{ p.id }}">{{ p.name }}</a></td><td>{{ "confirmed" if p.confirmed else "new" }}</td>
+    <td style="display:flex;gap:8px;">
+      {% if not p.confirmed %}<form method="post" action="/health/people/{{ p.id }}/confirm"><button type="submit">Confirm</button></form>{% endif %}
+      {% set others = people|rejectattr("id", "equalto", p.id)|list %}
+      {% if others %}<form method="post" action="/health/people/{{ p.id }}/merge"><select name="into">
+        {% for q in others %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}
+      </select><button type="submit">Merge into</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="3">Nobody yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

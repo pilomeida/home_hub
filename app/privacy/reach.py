@@ -3,13 +3,14 @@
 Ask and the wiki check read documents of EVERY type, so no single type's level can govern their
 AI calls. Instead, while levels are binding the household has a "reachable set" of types:
 
-  EXCLUDED  a type whose level is High (Ask and the wiki check do not read it), or has no level yet, or whose
-            "hide personal details" switch is on (hiding cannot work when the AI also looks
-            things up or reads files);
-  INCLUDED  every other type.
+  EXCLUDED  a type with no level yet, or whose "hide personal details" switch is on (hiding cannot
+            work when the AI also looks things up or reads files);
+  INCLUDED  every other type. A type at High is INCLUDED but *private*: reading it raises the run to
+            High (app/privacy/ratchet.py), so the first model call is built from `without_private()`
+            and every tool reports the tier of what it returns.
 
-The AI call level for Ask and the wiki check is the STRICTEST level among the included types
-(Low < Mid; if nothing is included, Mid is the floor). Excluded content must never reach the AI:
+The AI call level for the first call of Ask and the wiki check is the STRICTEST level among the
+included, non-private types (Low < Mid; if nothing is included, Mid is the floor). Excluded content must never reach the AI:
 every place that lists or reads documents, records, wiki claims, wiki pages, transactions or to-dos
 for Ask / the wiki check asks the Reach here.
 
@@ -61,8 +62,9 @@ class TypeAccess:
     category: str
     label: str
     included: bool
-    reason: Optional[str]            # HIGH | UNSET | HIDES when excluded
+    reason: Optional[str]            # UNSET | HIDES when excluded (HIGH is no longer an exclusion, see `private`)
     tier: Optional[Tier]             # the saved level (None = not set)
+    private: bool = False            # High: reachable, but reading it raises the run to High (app/privacy/ratchet.py)
 
 
 # --- what was left out, in plain words ----------------------------------------------------------
@@ -178,15 +180,77 @@ class WikiView:
 class Reach:
     binding: bool
     access: dict = field(default_factory=dict)          # (domain, category) -> TypeAccess
-    tier: Optional[Tier] = None                           # level of every AI call (None = not binding)
+    tier: Optional[Tier] = None                           # level of the FIRST AI call (None = not binding)
+    hide_private: bool = False                            # the view used to build the first call
     _cache: dict = field(default_factory=dict, repr=False)
+
+    @property
+    def filtering(self) -> bool:
+        """Does this view remove anything? (binding levels, or private types hidden for the first call)"""
+        return self.binding or self.hide_private
 
     @property
     def excluded_keys(self) -> frozenset:
         return frozenset(type_key(a.domain, a.category) for a in self.access.values() if not a.included)
 
+    # tiers
+    def type_tier(self, domain: object, category: Optional[str]) -> Optional[Tier]:
+        forced = ps.forced_tier(domain)
+        if forced is not None:
+            return forced
+        if not self.binding or domain is None or category is None:
+            return None
+        a = self.access.get((ps._s(domain), category))
+        return a.tier if a else None
+
+    def is_private_type(self, domain: object, category: Optional[str]) -> bool:
+        return self.type_tier(domain, category) == Tier.HIGH
+
+    def has_private(self) -> bool:
+        return any(a.private for a in self.access.values()) or any(
+            i.domain in ps.FORCED_TIERS for i in ps.known_types())
+
+    def domain_has_private(self, domain: object) -> bool:
+        return any(self.is_private_type(domain, i.category) for i in ps.known_types() if i.domain == ps._s(domain))
+
+    def domain_is_private(self, domain: object) -> bool:
+        cats = [i.category for i in ps.known_types() if i.domain == ps._s(domain)]
+        return bool(cats) and all(self.is_private_type(domain, c) for c in cats)
+
+    def tier_of_source(self, source: object) -> Optional[Tier]:
+        return None if source is None else self.type_tier(source.domain, source.category)
+
+    def private_tier(self, sources: "Iterable") -> Optional[Tier]:
+        """HIGH if any of these sources is of a private type, else None."""
+        return Tier.HIGH if any(self.tier_of_source(s) == Tier.HIGH for s in sources) else None
+
+    def tier_of_todo(self, session: Session, todo: "Todo") -> Optional[Tier]:
+        if ps.forced_tier(todo.domain) == Tier.HIGH:       # e.g. a Health to-do, even with no linked source
+            return Tier.HIGH
+        sources = []
+        if todo.document_id is not None:
+            sources.append(session.get(Document, todo.document_id))
+        if todo.record_id is not None:
+            sources.append(session.get(Record, todo.record_id))
+        if todo.transaction_id is not None:
+            txn = session.get(Transaction, todo.transaction_id)
+            if txn is not None:
+                sources.append(session.get(Document, txn.document_id))
+        return self.private_tier(s for s in sources if s is not None)
+
+    def without_private(self) -> "Reach":
+        """The view the FIRST model call of a run is built from: private types are left out, so nothing
+        High reaches a lower-level provider. Tools use the full reach and raise the run's ratchet."""
+        return replace(self, hide_private=True, _cache={})
+
+    def private_claim_ids(self, session: Session) -> frozenset:
+        """Wiki claims this view lets the AI read only at High: visible here, hidden from the first call's view."""
+        return self.without_private().wiki_view(session).hidden_claims - self.wiki_view(session).hidden_claims
+
     # types
     def includes_type(self, domain: object, category: Optional[str]) -> bool:
+        if self.hide_private and self.is_private_type(domain, category):
+            return False
         if not self.binding:
             return True
         if domain is None or category is None:
@@ -205,7 +269,7 @@ class Reach:
 
     # ids (None = no filtering; a document not in the set is excluded, so a newly filed one fails closed)
     def included_document_ids(self, session: Session) -> Optional[set]:
-        if not self.binding:
+        if not self.filtering:
             return None
         if "docs" not in self._cache:
             self._cache["docs"] = {i for i, d, c in session.exec(select(Document.id, Document.domain, Document.category))
@@ -213,7 +277,7 @@ class Reach:
         return self._cache["docs"]
 
     def included_record_ids(self, session: Session) -> Optional[set]:
-        if not self.binding:
+        if not self.filtering:
             return None
         if "recs" not in self._cache:
             self._cache["recs"] = {i for i, d, c in session.exec(select(Record.id, Record.domain, Record.category))
@@ -224,7 +288,7 @@ class Reach:
         """May this document's file be shown to the AI? Its own type, and the type of the record it is attached to."""
         if doc is None:
             return False
-        if not self.binding:
+        if not self.filtering:
             return True
         if not self.includes_document(doc):
             return False
@@ -232,7 +296,7 @@ class Reach:
         return attached is None or self.includes_record(attached)
 
     def includes_todo(self, session: Session, todo: "Todo") -> bool:
-        if not self.binding:
+        if not self.filtering:
             return True
         if todo.document_id is not None and todo.document_id not in self.included_document_ids(session):
             return False
@@ -247,7 +311,7 @@ class Reach:
     def filter_entries(self, entries: "Iterable[SourceEntry]") -> "list[SourceEntry]":
         """Settled entries the AI may see. A record whose attached file is of an excluded type stays,
         without the file (its title would otherwise be the file's name)."""
-        if not self.binding:
+        if not self.filtering:
             return list(entries)
         out = []
         for e in entries:
@@ -263,7 +327,7 @@ class Reach:
 
     # the wiki
     def wiki_view(self, session: Session) -> WikiView:
-        if not self.binding:
+        if not self.filtering:
             return WikiView()
         doc_ok, rec_ok = self.included_document_ids(session), self.included_record_ids(session)
         bad = set()
@@ -287,6 +351,8 @@ class Reach:
         counts: dict[tuple, list] = {}
 
         def bump(domain: object, category: Optional[str], is_record: bool) -> None:
+            if self.is_private_type(domain, category):
+                return              # private is reachable (hidden only from the first call): never "left out", never "no level"
             c = counts.setdefault((ps._s(domain), category), [0, 0])
             c[1 if is_record else 0] += 1
 
@@ -313,8 +379,8 @@ def compute_reach(session: Session) -> Reach:
     access = {}
     for info in ps.known_types():
         row = saved.get((info.domain, info.category))
-        tier: Optional[Tier] = None
-        if row is not None and row.tier is not None:
+        tier: Optional[Tier] = ps.forced_tier(info.domain)
+        if tier is None and row is not None and row.tier is not None:
             try:
                 tier = parse_tier(row.tier)
             except TierBlocked:
@@ -322,13 +388,11 @@ def compute_reach(session: Session) -> Reach:
         reason = None
         if tier is None:
             reason = UNSET
-        elif tier == Tier.HIGH:
-            reason = HIGH
-        elif row.redact:
+        elif tier != Tier.HIGH and row is not None and row.redact:
             reason = HIDES
-        access[(info.domain, info.category)] = TypeAccess(info.domain, info.category, info.label,
-                                                          reason is None, reason, tier)
-    levels = [a.tier for a in access.values() if a.included]
+        access[(info.domain, info.category)] = TypeAccess(
+            info.domain, info.category, info.label, reason is None, reason, tier, private=(tier == Tier.HIGH))
+    levels = [a.tier for a in access.values() if a.included and not a.private]
     call_tier = max(levels, key=_ORDER.__getitem__) if levels else Tier.MID
     return Reach(binding=True, access=access, tier=call_tier)
 

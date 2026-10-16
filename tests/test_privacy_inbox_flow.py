@@ -55,13 +55,14 @@ async def test_unrecognised_document_still_gets_the_ai_suggestion_while_levels_a
     assert spy.calls == 1 and r.inbox_item.suggested_category == "manual"
 
 
-async def test_unrecognised_document_is_not_read_by_ai_once_levels_are_binding(session):
+async def test_unrecognised_document_is_classified_in_a_high_run_once_levels_are_binding(session):
     ps.set_enforcing(session, True, None)
     spy = SpyClassifier()
     r = await _receive(session, "c.pdf", spy)
-    assert spy.calls == 0
-    assert r.inbox_item.suggested_domain is None and "nothing has read it yet" in r.inbox_item.classifier_note
-    assert not inbox_service.is_confident(r.inbox_item)
+    assert spy.calls == 1
+    assert (r.inbox_item.suggested_domain, r.inbox_item.suggested_category) == ("house", "manual")
+    assert r.inbox_item.classifier_note == "ai guess"
+    assert inbox_service.is_confident(r.inbox_item)
 
 
 async def test_a_recognised_document_needs_no_ai_even_when_levels_are_binding(session):

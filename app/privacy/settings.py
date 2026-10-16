@@ -45,6 +45,14 @@ SUGGESTED_TIERS: dict[tuple[str, str], Tier] = {
 }
 FALLBACK_SUGGESTION = Tier.MID      # a type added later: cautious middle until Pedro decides
 
+# Domains whose types are ALWAYS at this level, whether or not levels are binding and whatever the
+# settings table says (decision D19). Health is the only one: nothing about it may ever be read below High.
+FORCED_TIERS: dict[str, Tier] = {"health": Tier.HIGH}
+
+
+def forced_tier(domain: object) -> Optional[Tier]:
+    return None if domain is None else FORCED_TIERS.get(_s(domain))
+
 
 class TierHeld(Exception):
     """Enforcement is on and this document type has no tier yet: the document waits."""
@@ -71,6 +79,7 @@ class TypeRow:
     redact: bool
     shown_tier: Tier                  # what the dropdown shows: saved, else suggestion
     is_saved: bool
+    locked: bool = False              # forced level (Health): shown, not editable
 
 
 @dataclass(frozen=True)
@@ -89,8 +98,8 @@ def known_types() -> list[TypeInfo]:
     for spec in implemented_domains():
         for c in spec.categories:
             key = (spec.domain.value, c.value)
-            out.append(TypeInfo(spec.domain.value, spec.label, c.value, c.label, c.description,
-                                SUGGESTED_TIERS.get(key, FALLBACK_SUGGESTION)))
+            suggested = FORCED_TIERS.get(spec.domain.value) or SUGGESTED_TIERS.get(key, FALLBACK_SUGGESTION)
+            out.append(TypeInfo(spec.domain.value, spec.label, c.value, c.label, c.description, suggested))
     return out
 
 
@@ -103,6 +112,9 @@ def configured_tier(session: Session, domain: object, category: Optional[str]) -
     """The tier saved for a type, whether or not levels are binding yet (None = not set)."""
     if domain is None or category is None:
         return None
+    forced = forced_tier(domain)
+    if forced is not None:
+        return forced.value
     row = _setting(session, domain, category)
     return row.tier if row is not None else None
 
@@ -113,6 +125,9 @@ def enforcing(session: Session) -> bool:
 
 
 def resolve(session: Session, domain: object, category: Optional[str]) -> Resolution:
+    forced = forced_tier(domain)
+    if forced is not None:
+        return Resolution("ready", forced, False)
     if not enforcing(session):
         return Resolution("off")
     row = _setting(session, domain, category) if domain is not None and category is not None else None
@@ -133,6 +148,10 @@ def type_rows(session: Session) -> list[TypeRow]:
     saved = {(r.domain, r.category): r for r in session.exec(select(DocumentTypeSetting))}
     rows = []
     for info in known_types():
+        forced = FORCED_TIERS.get(info.domain)
+        if forced is not None:
+            rows.append(TypeRow(info, forced, False, forced, True, locked=True))
+            continue
         row = saved.get((info.domain, info.category))
         tier = parse_tier(row.tier) if row is not None and row.tier else None
         rows.append(TypeRow(info, tier, bool(row and row.redact), tier or info.suggested, row is not None and tier is not None))
@@ -149,6 +168,8 @@ def save_type(session: Session, domain: str, category: str, tier: object, redact
     documents and records already filed under the type are re-tiered at once."""
     if (domain, category) not in {(i.domain, i.category) for i in known_types()}:
         raise TierBlocked(f"unknown document type {domain}/{category}")
+    if forced_tier(domain) is not None:
+        raise TierBlocked("Health is always High and cannot be given another level.")
     new_tier = parse_tier(tier).value if tier not in (None, "") else None
     row = _setting(session, domain, category)
     old_tier, old_redact = (row.tier, row.redact) if row else (None, False)

@@ -69,7 +69,8 @@ async def test_classifier_failure_still_lands_in_inbox(session):
     receipt = await _receive(session, classify=boom)
     assert receipt.document.status == DocumentStatus.PENDING_REVIEW
     assert receipt.inbox_item.suggested_domain is None
-    assert "credit balance too low" in receipt.inbox_item.classifier_note
+    note = receipt.inbox_item.classifier_note
+    assert note.startswith("Automatic sorting didn't work.") and "run out of credit" in note and "Tell me what it is" in note
 
 
 @pytest.mark.asyncio

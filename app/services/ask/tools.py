@@ -28,6 +28,7 @@ from app.models.record import Record
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
 from app.privacy.reach import Reach, reach_for
+from app.privacy.tiers import Tier
 from app.services.ask.contracts import AskTool, ToolOutput
 from app.services.ask.refs import (
     Source, citable_for_source, citable_for_todo, citable_for_wiki_page, source_ref,
@@ -88,6 +89,14 @@ def entry_fields_text(entry: SourceEntry) -> str:
     return "; ".join(f"{labels.get(k, k.replace('_', ' '))}: {v}" for k, v in fields.items() if v not in (None, ""))
 
 
+def _opened(reach: Reach, sources, pages: int = 0) -> str:
+    """Plain words for the notice: how many private records (and linked private pages) the output opened."""
+    n = sum(1 for s in sources if reach.tier_of_source(s) == Tier.HIGH)
+    parts = ([f"{n} private record{'s' if n != 1 else ''}"] if n or not pages else []) + \
+            ([f"{pages} private wiki page{'s' if pages != 1 else ''}"] if pages else [])
+    return " and ".join(parts)
+
+
 def _parse_domain(value) -> Optional[Domain]:
     return Domain(value) if value else None  # ValueError -> tool error via engine
 
@@ -103,7 +112,11 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
     if not page_ids:
         return ToolOutput(text="No page_ids given.", is_error=True)
     parts, citables = [], []
-    view = reach_for(session).wiki_view(session)          # claims and pages the AI may not see
+    reach = reach_for(session)
+    view = reach.wiki_view(session)                       # claims and pages the AI may not see
+    shown_sources: list = []
+    first_call_view = reach.without_private().wiki_view(session)   # what the first call may see
+    private_pages: set[int] = set()
     for page_id in page_ids:
         page = session.get(WikiPage, page_id)
         if page is None or not view.page_visible(page.id):
@@ -114,6 +127,7 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
         history = [c for c in superseded_claims(session, page.id) if view.claim_visible(c.id)]
         sources = claim_sources(session, [c.id for c in current + history])   # withdrawn links excluded
         for source in {source_ref(s): s for ss in sources.values() for s in ss}.values():
+            shown_sources.append(source)
             if is_settled_source(source):
                 citables.append(citable_for_source(source))
         lines = [f"## wiki:{page.id} — {page.topic} ({page.domain.value if page.domain else 'general'}, {page.page_type})",
@@ -125,11 +139,14 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
             lines += [f"- {c.key}: {c.value} (superseded {c.superseded_at:%Y-%m-%d})" for c in history]
         neighbours = {p.id: p for p in links_from(session, page.id) + links_to(session, page.id)
                       if view.page_visible(p.id)}
+        private_pages |= {i for i in neighbours if not first_call_view.page_visible(i)}   # listed by title: private
         if neighbours:
             lines.append("Linked pages: " + "; ".join(f"wiki:{p.id} {p.topic}" for p in neighbours.values()))
             citables += [citable_for_wiki_page(p.id, p.topic) for p in neighbours.values()]
         parts.append("\n".join(lines))
-    return ToolOutput(text="\n\n".join(parts), citables=citables)
+    tier = Tier.HIGH if private_pages else reach.private_tier(shown_sources)
+    return ToolOutput(text="\n\n".join(parts), citables=citables,
+                      tier=tier, opened=_opened(reach, shown_sources, len(private_pages)) if tier else "")
 
 
 def _find_sources(session: Session, args: dict) -> ToolOutput:
@@ -138,7 +155,8 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
     limit = max(1, min(int(args.get("limit", 30)), 60))
     query_tokens = tokens(args.get("query") or "")
     scored = []
-    for entry in settled_entries(session, domain, reach=reach_for(session)):
+    reach = reach_for(session)
+    for entry in settled_entries(session, domain, reach=reach):
         if category and entry.category != category:
             continue
         source = _entry_source(entry)
@@ -156,8 +174,12 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
                       if entry.kind == SourceKind.RECORD and entry.document is not None else "")
         lines.append(f"{source_ref(source)} | {spec.label} | {spec.category_label(entry.category) or '-'} | "
                      f"{entry.title} | added {entry.created_at:%Y-%m-%d} | {fields_text or 'no details'}{attachment}")
+    # The header counts every match, so the level is judged on every match, not only the ones shown.
+    touched = [s for _, e, src, _, _ in scored for s in (src, e.document if e.document is not src else None)
+               if s is not None]                                            # a record AND its attached file
+    tier = reach.private_tier(touched)
     return ToolOutput(text="\n".join(lines), citables=[citable_for_source(s) for _, _, s, _, _ in shown],
-                      used_raw_sources=True)
+                      used_raw_sources=True, tier=tier, opened=_opened(reach, touched) if tier else "")
 
 
 def _read_document_file(session: Session, args: dict) -> ToolOutput:
@@ -173,8 +195,12 @@ def _read_document_file(session: Session, args: dict) -> ToolOutput:
         block = build_content_block(str(path))
     except UnsupportedFileTypeError:
         return ToolOutput(text=f"doc:{doc.id} can't be read (e.g. a video); use its details instead.", is_error=True)
+    attached = session.exec(select(Record).where(Record.document_id == doc.id)).first()
+    sources = [doc] + ([attached] if attached is not None else [])
+    tier = reach.private_tier(sources)
     return ToolOutput(text=f"Contents of doc:{doc.id} ({doc.filename}) attached below.",
-                      citables=[citable_for_source(doc)], content_blocks=[block], used_raw_sources=True)
+                      citables=[citable_for_source(doc)], content_blocks=[block], used_raw_sources=True,
+                      tier=tier, opened=_opened(reach, sources) if tier else "")
 
 
 def _list_todos(session: Session, args: dict) -> ToolOutput:
@@ -187,10 +213,13 @@ def _list_todos(session: Session, args: dict) -> ToolOutput:
     reach = reach_for(session)
     todos = session.exec(statement.order_by(Todo.due_date)).all()
     todos = [t for t in todos if reach.includes_todo(session, t)][:100]
+    n = sum(1 for t in todos if reach.tier_of_todo(session, t) == Tier.HIGH)
+    tier = Tier.HIGH if n else None
     lines = [f"{len(todos)} to-dos:"] + [
         f"todo:{t.id} | {t.title} | due {t.due_date or '-'} | {'done' if t.done else 'open'} | "
         f"{t.domain.value if t.domain else 'general'}" for t in todos]
-    return ToolOutput(text="\n".join(lines), citables=[citable_for_todo(t) for t in todos], used_raw_sources=True)
+    return ToolOutput(text="\n".join(lines), citables=[citable_for_todo(t) for t in todos], used_raw_sources=True,
+                      tier=tier, opened=f"{n} private to-do{'s' if n != 1 else ''}" if tier else "")
 
 
 def core_tools() -> list[AskTool]:

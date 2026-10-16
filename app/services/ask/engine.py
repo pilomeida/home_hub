@@ -24,14 +24,17 @@ from typing import Optional
 from sqlmodel import Session
 
 from app.models.ask import AskConversation, AskStatus, AskTurn
+from app.privacy.ratchet import Ratchet, highest, ratchet_scope
 from app.privacy.reach import LeftOut, Reach
 from app.privacy.scope import reachable_scope
+from app.privacy.tiers import Tier
 from app.problems import Problem, record_problem
 from app.services.ask import messages as ask_messages
 from app.services.ask.citations import cited_refs
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 from app.services.ask.context import build_system_prompt
 from app.services.ask.conversation import build_history, privacy_dropped
+from app.services.ask.private import chat_is_private
 from app.services.ask.tools import READ_FILE_TOOL, available_tools
 from app.llm_gateway import GatewayError, INTERACTIVE_RESEARCH, get_gateway
 
@@ -50,7 +53,8 @@ def _run_tool(session: Session, tool: Optional[AskTool], name: str, args: dict) 
     except Exception as exc:  # a tool bug must not kill the answer
         logger.exception("Ask tool %s failed", name)
         session.rollback()
-        return ToolOutput(text=f"Tool failed: {exc}", is_error=True)
+        # A fixed text: the exception message may hold record content, and this result goes out untiered.
+        return ToolOutput(text="That look-up failed, so nothing was returned. Answer without it.", is_error=True)
 
 
 def _tool_result(block_id: str, output: ToolOutput) -> dict:
@@ -60,13 +64,18 @@ def _tool_result(block_id: str, output: ToolOutput) -> dict:
 
 async def run_turn(session: Session, turn_id: int, gateway=None,
                    today: Optional[date] = None) -> AskTurn:
-    """Answer one turn. The scope is entered HERE, inside the code that actually runs (the router runs
-    this in a background task with its own session), so the gateway picks up the level on every call."""
+    """Answer one turn. The scopes are entered HERE, inside the code that actually runs (the router runs
+    this in a background task with its own session): the privacy scope gives the first call its level, and
+    the ratchet makes sure that once a tool returns private content nothing is sent below High (D18)."""
     with reachable_scope(session) as reach:
-        return await _answer(session, turn_id, gateway, today, reach)
+        turn = session.get(AskTurn, turn_id)
+        start = Tier.HIGH if chat_is_private(session, turn) else reach.tier
+        with ratchet_scope(start) as ratchet:
+            return await _answer(session, turn_id, gateway, today, reach, ratchet)
 
 
-async def _answer(session: Session, turn_id: int, gateway, today: Optional[date], reach: Reach) -> AskTurn:
+async def _answer(session: Session, turn_id: int, gateway, today: Optional[date], reach: Reach,
+                  ratchet: Ratchet) -> AskTurn:
     turn = session.get(AskTurn, turn_id)
     left_out = LeftOut(reach.binding, tuple(sorted(reach.excluded_keys)))
     known: dict[str, Citable] = {}
@@ -78,7 +87,8 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
     try:
         gw = gateway or get_gateway()
         left_out = reach.left_out(session, history_dropped=privacy_dropped(session, turn))
-        system, index_citables = build_system_prompt(session, today or date.today(), left_out)
+        system, index_citables = build_system_prompt(session, today or date.today(), left_out,
+                                                     reach=reach.without_private())
         history, history_citables = build_history(session, turn)
         tools = available_tools()
         by_name = {t.name: t for t in tools}
@@ -86,7 +96,7 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
         known.update(history_citables)
         messages: list[dict] = [*history, {"role": "user", "content": turn.question}]
         tool_specs = [t.to_api() for t in tools]  # same tools, same order, every turn
-        for _ in range(_MAX_TURNS):
+        for round_no in range(1, _MAX_TURNS + 1):
             result = await gw.run(
                 INTERACTIVE_RESEARCH, system,
                 messages=messages, tools=tool_specs, job_id=job_id,
@@ -106,6 +116,7 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
                 break
             messages.append({"role": "assistant", "content": result.assistant_content})
             results = []
+            raised: list[ToolOutput] = []
             for call in result.tool_calls:
                 name, block_id, call_input = call["name"], call["id"], call.get("input") or {}
                 if name == READ_FILE_TOOL and file_reads >= _MAX_FILE_READS:
@@ -114,9 +125,14 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
                     output = _run_tool(session, by_name.get(name), name, call_input)
                     if name == READ_FILE_TOOL and not output.is_error:
                         file_reads += 1
+                if output.tier is not None:
+                    raised.append(output)
                 known.update({c.ref: c for c in output.citables})
                 used_raw = used_raw or output.used_raw_sources
                 results.append(_tool_result(block_id, output))
+            if raised:        # one escalation per round, naming everything this round opened
+                ratchet.raise_to(highest(o.tier for o in raised), step=round_no,
+                                 label=" and ".join(o.opened or "private records" for o in raised))
             messages.append({"role": "user", "content": results})
         else:
             failure = (ask_messages.out_of_steps(_MAX_TURNS), None)
@@ -132,6 +148,7 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
     turn = session.get(AskTurn, turn_id)
     turn.input_tokens, turn.output_tokens, turn.used_raw_sources = in_tokens, out_tokens, used_raw
     turn.left_out_json = left_out.to_json() if reach.binding else None
+    turn.escalation_json = ratchet.to_json() if (ratchet.escalations or ratchet.started_private) else None
     if answer:
         turn.status, turn.answer_text = AskStatus.ANSWERED, answer
         turn.citations_json = json.dumps([asdict(known[r]) for r in cited_refs(answer, known)])

@@ -18,6 +18,7 @@ _SPEC_MODULES: tuple[str, ...] = (
     "app.domains.financials.spec",
     "app.domains.house.spec",
     "app.domains.insurance.spec",
+    "app.domains.health.spec",
 )
 
 _specs_cache: Optional[dict[Domain, DomainSpec]] = None

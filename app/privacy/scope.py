@@ -62,6 +62,9 @@ def known_terms(session: Session) -> dict[str, list[str]]:
 
 
 def resolve_strictest(session: Session, domain: object, category: Optional[str]) -> ps.Resolution:
+    forced = ps.forced_tier(domain)          # a forced domain (Health) is High on every path, binding or not
+    if forced is not None:
+        return ps.Resolution("ready", forced, False)
     if category is not None:
         return ps.resolve(session, domain, category)
     if not ps.enforcing(session):

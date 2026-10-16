@@ -4,7 +4,7 @@
 <p><a href="/ask">← All conversations</a> · <a href="/ask" class="ask-new">New chat</a></p>
 <h1>{{ conversation.title }}</h1>
 <div id="turns">
-  {% for view in turns %}{% with turn=view.turn, rendered=view.rendered, failure=view.failure, failure_technical=view.failure_technical, notices=view.notices %}{% include "ask/_turn.html" %}{% endwith %}{% endfor %}
+  {% for view in turns %}{% with turn=view.turn, rendered=view.rendered, failure=view.failure, failure_technical=view.failure_technical, notices=view.notices, private=view.private %}{% include "ask/_turn.html" %}{% endwith %}{% endfor %}
 </div>
 <form method="post" action="/ask/c/{{ conversation.id }}/turns"
       hx-post="/ask/c/{{ conversation.id }}/turns" hx-target="#turns" hx-swap="beforeend"

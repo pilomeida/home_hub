@@ -36,7 +36,9 @@ from app.services.ingestion import (
     receive_file,
     validate_classification,
 )
-from app.privacy import settings as privacy_settings
+from app.privacy.ratchet import ratchet_scope
+from app.privacy.tiers import Tier
+from app.problems import Problem, explain, record_problem
 from app.privacy.recognise import original_sender, recognise, remember
 from app.privacy.scope import require_ready
 from app.services.wiki_store import append_log
@@ -83,19 +85,24 @@ async def receive_document(
     if recognised is not None:
         suggestion = DomainSuggestion(Domain(recognised.domain), recognised.category, 1.0,
                                       "Recognised from " + "; ".join(recognised.reasons))
-    elif privacy_settings.enforcing(session):
-        # 2. Levels are binding and this is a new kind of document: nothing may read it
-        #    until a human says what it is (its level depends on that).
-        suggestion = DomainSuggestion(None, None, 0.0, "A new kind of document — nothing has read it yet. Tell me what it is.")
     else:
-        # 3. Levels not binding yet: today's behaviour (an AI suggests).
+        # 2. A paper no rule recognises is read ONCE, inside a High run, to decide what it is (decision D20):
+        #    it may turn out to be a private Health paper, so it never goes to a lower level first.
         try:
-            suggestion = await classify(document.file_path, context_text)
+            with ratchet_scope(Tier.HIGH):
+                suggestion = await classify(document.file_path, context_text)
         except Exception as exc:
-            # Broad by design: a classifier failure (API down, credits, bad
-            # response) must never lose the document -- it arrives without a
-            # suggestion and a human chooses.
-            suggestion = DomainSuggestion(None, None, 0.0, f"Automatic sorting failed: {exc}")
+            # Broad by design: a classifier failure (route down, credits, bad response) must never lose the
+            # document -- it arrives without a suggestion and a human chooses.
+            problem = explain("Automatic sorting didn't work.", str(exc))
+            note = problem.text + " Tell me what it is."
+            suggestion = DomainSuggestion(None, None, 0.0, note)
+            try:    # nobody is watching this step: keep it on the Problems page too (a down private route shows there)
+                record_problem(session, area="Reading documents", ref=f"document:{document.id}",
+                               problem=Problem(problem.what, problem.why, problem.next_step, "/inbox"),
+                               technical=str(exc))
+            except Exception:
+                pass    # reporting a problem must never create another one
 
     item = InboxItem(
         document_id=document.id, context_text=context_text, external_ref=external_ref,

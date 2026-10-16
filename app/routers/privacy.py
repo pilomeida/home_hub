@@ -14,6 +14,7 @@ from app.llm_gateway import GatewayClient, GatewayError, get_gateway
 from app.privacy.jobs import PRIVACY_LABELS, QUALITY_LABELS, job_label
 from app.models.privacy import DocumentFingerprint
 from app.privacy import settings as ps
+from app.problems import Problem
 from app.privacy.recognise import KINDS
 from app.privacy.tiers import Tier, TierBlocked
 from app.templating import templates
@@ -42,7 +43,7 @@ def _back() -> RedirectResponse:
 
 @router.get("")
 async def settings_page(request: Request, session: Session = Depends(get_session),
-                        gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = ""):
+                        gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = "", refused: str = ""):
     rows = ps.type_rows(session)
     type_names = {(r.info.domain, r.info.category): f"{r.info.domain_label} › {r.info.label}" for r in rows}
     groups: dict[str, list] = {}
@@ -56,7 +57,7 @@ async def settings_page(request: Request, session: Session = Depends(get_session
     except GatewayError:
         jobs_error = "Can't reach the AI gateway right now, so the AI jobs can't be shown. Try again in a minute."
     return templates.TemplateResponse(request, "privacy/settings.html", {
-        "groups": groups,
+        "groups": groups, "refused": _refusal(refused),
         "tier_labels": TIER_LABELS,
         "enforcing": ps.enforcing(session),
         "unset_count": sum(1 for r in rows if r.tier is None),
@@ -69,6 +70,17 @@ async def settings_page(request: Request, session: Session = Depends(get_session
     })
 
 
+def _refusal(code: str) -> Optional[Problem]:
+    """The three-part message for a level change the Hub refused (the code comes from our own redirect)."""
+    if code == "forced":
+        return Problem("Not saved.", "Health papers are always High, so their level cannot be changed.",
+                       "Nothing to do: they are already as private as the Hub can make them.")
+    if code == "stale":
+        return Problem("Not saved.", "This page was out of date: that kind of document or level is not known any more.",
+                       "Reload the Privacy page and try the change again.")
+    return None
+
+
 @router.post("/types")
 def save_type(request: Request, domain: str = Form(...), category: str = Form(...),
               tier: str = Form(""), redact: Optional[str] = Form(None),
@@ -76,7 +88,9 @@ def save_type(request: Request, domain: str = Form(...), category: str = Form(..
     try:
         ps.save_type(session, domain, category, tier, redact is not None, _by(request))
     except TierBlocked:
-        pass   # an unknown type or tier from a stale form: nothing saved
+        # nothing was saved: either Health (forced High) or an unknown type or tier from a stale form
+        return RedirectResponse("/privacy?" + urlencode({"refused": "forced" if ps.forced_tier(domain) else "stale"}),
+                                status_code=303)
     return _back()
 
 

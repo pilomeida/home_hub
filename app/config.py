@@ -52,6 +52,17 @@ class Settings:
     def bank_configured(self) -> bool:
         return bool(self.ENABLE_BANKING_APP_ID and self.ENABLE_BANKING_KEY_PATH)
 
+    # --- Google Calendar (appointments from Health papers go on the family calendar) ---
+    GOOGLE_CALENDAR_ID: str = os.environ.get("GOOGLE_CALENDAR_ID") or ""
+    GOOGLE_OAUTH_CLIENT_ID: str = os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET") or ""
+    GOOGLE_OAUTH_REFRESH_TOKEN: str = os.environ.get("GOOGLE_OAUTH_REFRESH_TOKEN") or ""
+
+    @property
+    def calendar_configured(self) -> bool:
+        return bool(self.GOOGLE_CALENDAR_ID and self.GOOGLE_OAUTH_CLIENT_ID
+                    and self.GOOGLE_OAUTH_CLIENT_SECRET and self.GOOGLE_OAUTH_REFRESH_TOKEN)
+
     @property
     def imap_configured(self) -> bool:
         return bool(self.HUB_IMAP_HOST and self.HUB_IMAP_USER and self.HUB_IMAP_PASSWORD)

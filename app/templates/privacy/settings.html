@@ -4,6 +4,8 @@
 <h1>Privacy</h1>
 <p>Every kind of document has a privacy level. The level decides which AI services may read it. You can change any of them here; documents already filed change with it.</p>
 
+{% if refused %}<p class="needs-attention"><strong>{{ refused.what }}</strong> {{ refused.why }} {{ refused.next_step }}</p>{% endif %}
+
 <section>
   <h2>Levels are {% if enforcing %}binding{% else %}not binding yet{% endif %}</h2>
   {% if enforcing %}
@@ -37,15 +39,20 @@
         <input type="hidden" name="domain" value="{{ r.info.domain }}"><input type="hidden" name="category" value="{{ r.info.category }}">
       </form></td>
     <td>
+      {% if r.locked %}
+      <strong>High (always)</strong>
+      <div style="font-size:12px;color:#666;">Health papers are always private. This cannot be changed.</div>
+      {% else %}
       <select name="tier" form="{{ fid }}">
         {% for value, text in tier_labels.items() %}
         <option value="{{ value }}"{% if value == r.shown_tier.value %} selected{% endif %}>{{ text }}</option>
         {% endfor %}
       </select>
       {% if not r.is_saved %}<div style="font-size:12px;color:#b36b00;">Suggested, not set yet</div>{% endif %}
+      {% endif %}
     </td>
-    <td><label><input type="checkbox" name="redact" value="1" form="{{ fid }}"{% if r.redact %} checked{% endif %}> on</label></td>
-    <td><button form="{{ fid }}">Save</button></td>
+    <td>{% if r.locked %}<span style="color:#999;">not applicable</span>{% else %}<label><input type="checkbox" name="redact" value="1" form="{{ fid }}"{% if r.redact %} checked{% endif %}> on</label>{% endif %}</td>
+    <td>{% if not r.locked %}<button form="{{ fid }}">Save</button>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>

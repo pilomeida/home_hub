@@ -47,13 +47,19 @@ def _receipt(confident=True, duplicate=False, status=DocumentStatus.PENDING_REVI
     return InboxReceipt(document=doc, inbox_item=item, duplicate=duplicate)
 
 
-def test_replies():
-    assert "Fake › Manual" in reply_for(_receipt(), "https://hub.example")
-    assert "https://hub.example/inbox" in reply_for(_receipt(), "https://hub.example")
-    assert "not sure" in reply_for(_receipt(confident=False), "https://h")
-    assert "waiting in the Inbox" in reply_for(_receipt(duplicate=True), "https://h")
-    filed = reply_for(_receipt(duplicate=True, status=DocumentStatus.PROCESSED), "https://h")
+def test_replies(session):
+    assert "Fake › Manual" in reply_for(_receipt(), "https://hub.example", session)
+    assert "https://hub.example/inbox" in reply_for(_receipt(), "https://hub.example", session)
+    assert "not sure" in reply_for(_receipt(confident=False), "https://h", session)
+    assert "waiting in the Inbox" in reply_for(_receipt(duplicate=True), "https://h", session)
+    filed = reply_for(_receipt(duplicate=True, status=DocumentStatus.PROCESSED), "https://h", session)
     assert "already have" in filed and "waiting" not in filed
+
+
+def test_a_reply_cannot_be_built_without_a_session(session):
+    """No silent fallback to the raw label: without the session the type's privacy cannot be checked."""
+    with pytest.raises(TypeError):
+        reply_for(_receipt(), "https://hub.example")
 
 
 @pytest.mark.asyncio

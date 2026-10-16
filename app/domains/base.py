@@ -73,6 +73,9 @@ class FieldSpec:
     choices: tuple[tuple[str, str], ...] = ()        # CHOICE: static (value, label) options
     choices_provider: Optional[Callable[[Session], list[tuple[str, str]]]] = None  # CHOICE: dynamic options
     help: str = ""
+    # True: a health-record field (what was wrong, what was done). It stays in the Hub: it is never put in
+    # a Telegram message, an email or a calendar entry (decision D21, app/privacy/channels.py).
+    private: bool = False
 
     def applies_to(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> bool:
         if self.categories is not None and category not in self.categories:

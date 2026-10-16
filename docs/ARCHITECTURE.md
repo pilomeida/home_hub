@@ -545,6 +545,46 @@ Standard Alembic bookkeeping, single row, current head at time of writing: see `
 
 ---
 
+## Health
+
+The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the family's medical papers: lab results, imaging and medical reports, prescriptions, referrals, medical bills, health-insurance reimbursement statements, vaccinations and appointment letters. It is always High (D19, `app/privacy/settings.py::FORCED_TIERS`): extraction, the wiki assessment and every Ask tool go out at High only. The ratchet (below) governs what Ask may do with these papers.
+
+**Access:** everyone with Hub access sees all health papers. There is no per-person access control.
+
+**Where each piece lives**
+
+| Piece | Location |
+|---|---|
+| Tab pages | `app/routers/health.py` under `/health/*`: `/health/records` is the landing list, plus `/upload`, `/documents/{id}`, `/areas`, `/people`. `/health` alone is the unauthenticated liveness endpoint (`app/routers/dashboard.py`) |
+| Templates | `app/templates/health/` (landing, document, areas, people, upload) |
+| Domain spec, categories | `app/domains/health/spec.py` (`SPEC`), `categories.py` (`HealthCategory`, `RECORD_KINDS`, `PERSON_PAGE_TYPE`) |
+| Filing a paper | `handler.py` (`HealthHandler`, runs inside the High scope), `extraction.py` (`extract_health_document`, vision, High), `store.py` (`apply_extraction`, `purge_derived`, `discard_document`) |
+| People, areas, text | `people.py` (discovery, matching, merge), `areas.py` (resolve, approve, rename, merge, tags), `text.py` (`fold`, `match_key`) |
+| Browse, overview | `browse.py` (filters and facets for the tab), `overview.py` (Overview card) |
+| Ask tools | `ask.py`: `health_find_records`, `health_measurements`, `health_spending` (each reports `tier=HIGH`, even when nothing matches) |
+| Calendar | `appointments.py` (`appointment_event`, `sync_appointment`, `remove_appointment`) builds the event from administrative fields only; `app/integrations/google_calendar.py` is the REST client; `scripts/google_calendar_auth.py` is the one-time sign-in |
+| Privacy | `app/privacy/ratchet.py` (the ratchet), `app/privacy/channels.py` (what may leave the Hub), `app/services/ask/private.py` (private answers and their notices) |
+| Migrations | `alembic/versions/a1d4e8b72c93_ask_turn_escalation.py` (`ask_turns.escalation_json`), `b2e5f9c83d04_health_tables.py` (the five tables) |
+| Backfill | `scripts/backfill_health.py` (bulk-ingests existing reports through the Inbox, same path as Telegram and email) |
+
+**Tables** (`app/models/health.py`; each filed paper is one `health_entries` row linked to its `documents` row by `document_id`):
+
+| Table | Model | Holds |
+|---|---|---|
+| `health_people` | `HealthPerson` | a family member, with a match key used to recognise names on papers; `confirmed` once a person approves it; `merged_into_id` when the row was merged away: it stays as an alias so a paper that still holds that spelling resolves to the person kept |
+| `health_areas` | `HealthArea` | a body area or a condition (`kind` = `area` or `condition`), proposed by the AI and approved by a person; `merged_into_id` for merges |
+| `health_entries` | `HealthEntry` | one row per paper: person, date, year, kind, provider, summary, amounts billed/reimbursed/owed, `needs_check`, `calendar_event_id` |
+| `health_entry_tags` | `HealthEntryTag` | which areas a paper is tagged with |
+| `health_measurements` | `HealthMeasurement` | values read from a paper (test, value, unit, date measured) |
+
+**The ratchet (D18).** A run has a level that only rises. It goes High the moment a tool returns private content (a Health record or a Health-type source). From then on every call the run makes is High only. The first call of a run is built from `Reach.without_private()`, so no private record is named or counted in it. A chat that has had a private answer starts every later answer High. Private answers are not saved to the wiki. A stored run log that does not parse reads as private (fails closed).
+
+**Classification of new papers (D20).** A paper that no rule recognises is read once by the classifier inside a High ratchet (`receive_document` in `app/services/inbox_service.py`). Papers recognised by rule (sender, issuer words, filename) are suggested with no AI read at all; a person still approves them in the Inbox.
+
+**Outbound rule (D21).** Telegram and email name a private type only as "a private document". Appointments go on the family Google Calendar with when, where, who and how to reach them, reminders at 1 day and 2 hours, and a link back to the Hub; the reason never leaves the Hub.
+
+---
+
 ## Design Decisions
 
 **No SQLModel `Relationship` declarations anywhere.** Every cross-table reference (`Transaction.merchant_id`, `.account_id`, etc.) is a plain FK column, resolved via explicit `{id: value}` lookup dicts built in the router when a template needs a related row's display name (see `_lookup_dicts_for` in `transactions.py`). This was a deliberate choice made when the Transactions list needed to show merchant/account *names* rather than raw IDs: since no model in this codebase had ever used `Relationship`, the fix followed that established convention rather than introducing ORM relationships for the first time in one isolated spot.

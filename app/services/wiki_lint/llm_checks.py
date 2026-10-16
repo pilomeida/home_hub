@@ -15,7 +15,9 @@ from app.domains.base import DomainSpec, SourceKind
 from app.domains.registry import implemented_domains
 from app.models.wiki import ANSWER_PAGE_TYPE, WikiClaim, WikiPage
 from app.models.wiki_lint import LintFindingKind
-from app.privacy.reach import reach_for
+from app.privacy.ratchet import ratchet_scope
+from app.privacy.reach import Reach, reach_for
+from app.privacy.tiers import Tier
 from app.services.ask.refs import source_ref
 from app.services.ask.tools import entry_fields_text, settled_entries
 from app.services.json_utils import strip_json_fences
@@ -92,11 +94,12 @@ def _schema_text(spec: DomainSpec) -> str:
     return "\n".join(lines)
 
 
-def build_domain_payload(session: Session, spec: DomainSpec) -> DomainPayload:
+def build_domain_payload(session: Session, spec: DomainSpec, reach: Optional[Reach] = None) -> DomainPayload:
     """What the AI audit is shown. While levels are binding (app/privacy/reach.py) that is only the pages,
     claims and sources of types the audit may read: a claim derived from any withheld source is left out,
-    a page whose claims are all left out is left out, and the audit's ids can only name what it was shown."""
-    reach = reach_for(session)
+    a page whose claims are all left out is left out, and the audit's ids can only name what it was shown.
+    `reach` is the view the audit may read; default = the run's reach."""
+    reach = reach or reach_for(session)
     view = reach.wiki_view(session)
     pages = [p for p in session.exec(select(WikiPage).where(WikiPage.domain == spec.domain,
                                                             WikiPage.page_type != ANSWER_PAGE_TYPE)
@@ -128,14 +131,19 @@ def build_domain_payload(session: Session, spec: DomainSpec) -> DomainPayload:
 
 
 async def check_domain(session: Session, spec: DomainSpec, gateway=None) -> list[FindingDraft]:
-    payload = build_domain_payload(session, spec)
+    reach = reach_for(session)
+    private = reach.domain_has_private(spec.domain)
+    # A domain that holds private records is audited as a whole at High; every other domain is audited
+    # from a view without them (a claim with any private source is left out, D16/D18).
+    payload = build_domain_payload(session, spec, reach=reach if private else reach.without_private())
     if not payload.page_ids and not payload.document_ids and not payload.record_ids:
         return []
     gw = gateway or get_gateway()
-    result = await gw.run(
-        CRITIQUE_REVIEW, _SYSTEM_PROMPT, payload.text,
-        max_tokens=_MAX_TOKENS, response_schema=_FINDINGS_SCHEMA,
-    )
+    with ratchet_scope(Tier.HIGH if private else None):
+        result = await gw.run(
+            CRITIQUE_REVIEW, _SYSTEM_PROMPT, payload.text,
+            max_tokens=_MAX_TOKENS, response_schema=_FINDINGS_SCHEMA,
+        )
     if result.stop_reason == "refusal":
         raise RuntimeError("the model declined the audit")
     data = json.loads(strip_json_fences(result.text))

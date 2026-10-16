@@ -6,14 +6,17 @@ into Ask through its registry entry without editing Ask.
 PRIVACY: a tool that returns anything read from a document, record, wiki claim, transaction or to-do
 MUST limit it to what `app.privacy.reach.reach_for(session)` allows (see app/privacy/reach.py); while
 levels are binding, content of a type the AI may not read must never be returned. The tripwire test
-(tests/test_privacy_reach.py) calls every registered tool and fails when excluded content gets out."""
+(tests/test_privacy_reach.py) calls every registered tool and fails when excluded content gets out.
+A tool whose output contains content of a private (High) type MUST set `tier=Tier.HIGH`."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Optional
 
 from sqlmodel import Session
+
+from app.privacy.tiers import Tier
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,8 @@ class ToolOutput:
     content_blocks: list[dict] = field(default_factory=list)  # extra Claude blocks (document/image)
     used_raw_sources: bool = False  # True when the output came from outside the wiki
     is_error: bool = False
+    tier: Optional[Tier] = None   # HIGH: the output holds private content; the engine raises the run's ratchet
+    opened: str = ""              # plain words for the notice, e.g. "3 private records"
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,7 @@ told. Everything is captured at the wire with the real GatewayClient (see tests/
 Synthetic data only."""
 
 import base64
+import json
 from datetime import date, datetime
 
 import httpx
@@ -42,16 +43,38 @@ async def ask(session, wire, w, question="What do we have?"):
     return await run_turn(session, turn.id, gateway=wire.client(), today=TODAY)
 
 
+PRIVATE_DERIVED, STILL_EXCLUDED, STILL_EXCLUDED_FILES, TODO_FROM_REC = (
+    pw.PRIVATE_DERIVED, pw.STILL_EXCLUDED, pw.STILL_EXCLUDED_FILES, pw.TODO_FROM_REC)
+
+
+def assert_private_only_at_high(wire, private=PRIVATE_DERIVED):
+    """The ratchet rule over the wire: no private sentinel in any request below house_high, and once the run
+    turned private every later request is house_high. Returns the bodies that were sent at house_high."""
+    bodies = wire.parsed()
+    assert bodies, "nothing was sent"
+    for body in bodies:
+        if body.get("sensitivity") != "house_high":
+            text = json.dumps(body)
+            assert [s for s in private if s in text] == [], body.get("sensitivity")
+            assert pw.leaks([text], sentinels=[], files=pw.PRIVATE_FILES) == [], body.get("sensitivity")
+    levels = [b.get("sensitivity") for b in bodies]
+    assert "house_high" in levels, f"the run never went to house_high: {levels}"
+    first_high = levels.index("house_high")
+    assert first_high > 0, "the first call must not be at house_high"
+    assert all(level == "house_high" for level in levels[first_high:]), levels
+    return [b for b in bodies if b.get("sensitivity") == "house_high"]
+
+
 # --- the rules: which types are reachable, and at which level --------------------------------------
 
-def test_a_type_is_excluded_if_high_or_unset_or_hides_personal_details(session):
+def test_a_type_is_excluded_if_unset_or_hides_personal_details(session):
     pw.set_levels(session, low=["house/house_appliance"], mid=["financials/bill"],
                   high=["insurance/home_insurance"], hides=["house/ownership_document"])
     reach = compute_reach(session)
     got = {k: (a.included, a.reason) for k, a in reach.access.items()}
     assert got[("house", "house_appliance")] == (True, None)
     assert got[("financials", "bill")] == (True, None)
-    assert got[("insurance", "home_insurance")] == (False, R_HIGH)
+    assert got[("insurance", "home_insurance")] == (True, None)             # High: reachable (but private)
     assert got[("house", "ownership_document")] == (False, R_HIDES)         # Mid, but hiding cannot work with look-ups
     assert got[("financials", "statement")] == (False, R_UNSET)
     assert reach.includes_type("house", "no_such_type") is False            # not a registered type: no level
@@ -61,7 +84,7 @@ def test_a_type_is_excluded_if_high_or_unset_or_hides_personal_details(session):
 @pytest.mark.parametrize("levels,expected", [
     (dict(low=["house/house_appliance"]), Tier.LOW),
     (dict(low=["house/house_appliance"], mid=["financials/bill"]), Tier.MID),      # strictest included
-    (dict(mid=["financials/bill"], high=["insurance/home_insurance"]), Tier.MID),  # High is excluded, not "strictest"
+    (dict(mid=["financials/bill"], high=["insurance/home_insurance"]), Tier.MID),  # High is private, not part of the starting level
     (dict(high=["insurance/home_insurance"]), Tier.MID),                           # nothing included: Mid floor
     (dict(), Tier.MID),
 ])
@@ -99,7 +122,15 @@ async def test_tripwire_nothing_from_an_excluded_type_leaves_the_server_in_a_ful
     # The turn uses EVERY tool Ask has (a new tool, core or domain, fails here until the tripwire covers it).
     called = {b["name"] for b in wire.parsed()[1]["messages"][1]["content"]}
     assert called == {t.name for t in available_tools()}
-    assert pw.leaks(wire.bodies, files=pw.EXCLUDED_FILES) == []
+    assert pw.leaks(wire.bodies, sentinels=STILL_EXCLUDED, files=STILL_EXCLUDED_FILES) == []
+    # The private (High) types: reachable, but absent from the first call and present only in the call at High.
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_mid", "house_high"]
+    (high_call,) = assert_private_only_at_high(wire)
+    sent = json.dumps(high_call)
+    for sentinel in (pw.HIGH, pw.REC, pw.PAGE, pw.MIXED, pw.NEIGHBOUR, TODO_FROM_REC):
+        assert sentinel in sent, sentinel                                   # positive control: they were readable
+    assert base64.b64encode(pw.PRIVATE_FILES[0]).decode() in wire.bodies[1]   # the High file, read at High
+    assert pw.leaks(wire.bodies[:1], sentinels=PRIVATE_DERIVED, files=pw.PRIVATE_FILES) == []
     # Positive controls: the included types DID reach the AI, so the tripwire is not vacuous.
     last = wire.bodies[1]
     for clean in (pw.CLEAN_ROOM, pw.CLEAN_PAYEE, pw.CLEAN_TODO, pw.CLEAN_ANSWER, "boiler-manual.png", "Aguas"):
@@ -112,7 +143,8 @@ async def test_with_levels_on_every_call_carries_the_strictest_included_level(se
     pw.set_levels(session, **pw.STANDARD)                                   # included: Low (appliance) and Mid (bill)
     wire = pw.Wire()
     await ask(session, wire, world)
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_mid", "house_mid"]
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_mid", "house_high"]    # the High types were read: from then on High
+    assert_private_only_at_high(wire)
 
 
 @pytest.mark.asyncio
@@ -120,7 +152,9 @@ async def test_only_low_types_included_means_a_low_call(session, world):
     pw.set_levels(session, low=["house/house_appliance", "financials/bill"])
     wire = pw.Wire()
     await ask(session, wire, world)
-    assert {b["sensitivity"] for b in wire.parsed()} == {"house_low"}
+    # The first call is Low; the Health tools in the same script always report High, so the run goes High after it.
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_low", "house_high"]
+    assert_private_only_at_high(wire)
 
 
 @pytest.mark.asyncio
@@ -130,7 +164,9 @@ async def test_with_levels_off_the_outbound_body_is_exactly_todays(session, worl
     await ask(session, wire, world, "Anything?")
 
     first = wire.parsed()[0]
-    assert all("sensitivity" not in b for b in wire.parsed())
+    assert "sensitivity" not in first                                       # the first call carries no level
+    assert [b.get("sensitivity") for b in wire.parsed()] == [None, "house_high"]   # the Health result raises the run
+    assert pw.HEALTH_PAPER in wire.bodies[1] and pw.HEALTH_PAPER not in json.dumps(first)   # Health went only in the High call
     expected_system = build_system_prompt(session, TODAY)[0]                # outside any scope, levels off
     assert first == {"workload_type": "interactive_research", "system": expected_system, "max_tokens": 16000,
                      "response_schema": None, "job_id": first["job_id"],
@@ -150,6 +186,8 @@ async def test_the_system_prompt_counts_wiki_index_and_pending_note_cover_only_w
     await ask(session, wire, world)
     system = wire.parsed()[0]["system"]
     domains = system.split("Wiki index:")[0]
+    assert [s for s in PRIVATE_DERIVED if s in system] == []                # the first call never names a private record
+    assert "Private records:" in system                                     # ... but says that private records exist
     assert "withheld from you" in system                                    # the model is told the records are incomplete
     assert "[bill: 1]" in domains and "[house_appliance: 1]" in domains
     for hidden in ("statement:", "home_insurance:", "ownership_document:", "maintenance_log:", "legacy_kind:"):
@@ -166,19 +204,30 @@ async def test_a_hidden_page_looks_like_a_missing_one_and_hidden_neighbours_are_
     pw.set_levels(session, **pw.STANDARD)
     wire = pw.Wire()
     await ask(session, wire, world)
+    assert_private_only_at_high(wire)
     tool_results = wire.parsed()[1]["messages"][-1]["content"]
     wiki = next(r for r in tool_results if r["tool_use_id"] == "t1")["content"]
-    assert f"wiki:{world.page_high.id}: not found" in wiki and "wiki:9999: not found" in wiki
-    assert "Linked pages" not in wiki                                       # the only neighbour is hidden
-    assert "Aguas" in wiki and pw.MIXED not in wiki and pw.HISTORY not in wiki
-    unreadable = next(r for r in tool_results if r["tool_use_id"] == "t4")
+    assert "wiki:9999: not found" in wiki                                   # a missing page
+    # The page made only from the High insurance document is private, not hidden: readable, in the call at High.
+    assert f"wiki:{world.page_high.id}: not found" not in wiki and pw.PAGE in wiki
+    assert f"wiki:{world.page_neighbour.id} " in wiki and "Linked pages" in wiki
+    assert "Aguas" in wiki and pw.MIXED in wiki                             # its High-sourced claim too
+    assert pw.HISTORY not in wiki                                           # history from a type with no level stays hidden
+    private_file = next(r for r in tool_results if r["tool_use_id"] == "t4")
+    assert not private_file["is_error"]                                     # the High document's file is readable now
+    unreadable = next(r for r in tool_results if r["tool_use_id"] == "t5")  # the statement: no level
     missing = "That document is not available (not found, or not filed yet)."
     assert unreadable["is_error"] and unreadable["content"] == missing      # a withheld file reads like a missing one
 
 
 def test_a_claim_with_any_excluded_source_is_hidden_even_if_another_source_is_included(session, world):
     pw.set_levels(session, **pw.STANDARD)
-    view = compute_reach(session).wiki_view(session)
+    full = compute_reach(session)
+    # High is reachable (private), so on the full reach a claim backed by a High document is visible ...
+    assert world.claim_mixed.id not in full.wiki_view(session).hidden_claims
+    assert world.page_high.id not in full.wiki_view(session).hidden_pages
+    # ... and hidden in the view the first model call is built from.
+    view = full.without_private().wiki_view(session)
     assert world.claim_mixed.id in view.hidden_claims                       # sources: bill (included) AND insurance (High)
     assert world.claim_mixed_clean.id not in view.hidden_claims
     assert world.claim_history.id in view.hidden_claims                     # superseded history counts too
@@ -186,6 +235,8 @@ def test_a_claim_with_any_excluded_source_is_hidden_even_if_another_source_is_in
     assert world.page_mixed.id in view.trimmed_pages and world.page_mixed.id not in view.hidden_pages
     assert world.page_answer.id not in view.hidden_pages and world.page_clean.id not in view.hidden_pages  # no excluded source
     assert world.claim_clean.id not in view.hidden_claims
+    # a claim whose source has NO level is hidden on the full reach too
+    assert world.claim_history.id in full.wiki_view(session).hidden_claims
 
 
 def test_a_withdrawn_link_to_an_excluded_document_no_longer_hides_a_claim(session, world):
@@ -195,7 +246,7 @@ def test_a_withdrawn_link_to_an_excluded_document_no_longer_hides_a_claim(sessio
     link.withdrawn_at = datetime(2026, 5, 1)
     session.add(link)
     session.commit()
-    assert world.claim_mixed.id not in compute_reach(session).wiki_view(session).hidden_claims
+    assert world.claim_mixed.id not in compute_reach(session).without_private().wiki_view(session).hidden_claims
 
 
 @pytest.mark.asyncio
@@ -204,6 +255,7 @@ async def test_a_type_set_later_brings_its_content_back(session, world):
     wire = pw.Wire()
     await ask(session, wire, world)
     assert pw.UNSET not in "".join(wire.bodies)
+    assert_private_only_at_high(wire)
 
     ps.save_type(session, "financials", "statement", "house_mid", False, "pedro")      # the unset type gets a level
     wire2 = pw.Wire()
@@ -211,7 +263,7 @@ async def test_a_type_set_later_brings_its_content_back(session, world):
     assert any(f"{pw.UNSET}-statement.pdf" in b for b in wire2.bodies)                 # its document is listed now
     assert any(f"{pw.TXN}-payee" in b for b in wire2.bodies)                           # and its transactions
     assert any(f"{pw.HISTORY}-old" in b for b in wire2.bodies)                         # and the history it supported
-    assert pw.HIGH not in "".join(wire2.bodies)                                        # High stays out
+    assert_private_only_at_high(wire2)                                                 # High: only in calls at High
     left = LeftOut.from_json(turn.left_out_json)
     assert "financials/statement" not in left.excluded and "Bank statement" not in [t.label for t in left.types]
 
@@ -219,6 +271,7 @@ async def test_a_type_set_later_brings_its_content_back(session, world):
     wire3 = pw.Wire()
     await ask(session, wire3, world)
     assert pw.UNSET not in "".join(wire3.bodies) and pw.TXN not in "".join(wire3.bodies)
+    assert_private_only_at_high(wire3)
 
 
 def test_a_record_follows_its_own_type_and_its_attached_file_is_checked_separately(session, inbox_documents_dir):
@@ -235,15 +288,16 @@ def test_a_record_follows_its_own_type_and_its_attached_file_is_checked_separate
 
     ps.save_type(session, "house", "maintenance_log", "house_high", False, "pedro")
     reach = compute_reach(session)
-    assert settled_entries(session, reach=reach) == []
-    assert reach.left_out(session).records == 1
+    assert [e.record.id for e in settled_entries(session, reach=reach)] == [record.id]      # High: reachable (private) ...
+    assert reach.left_out(session).records == 0
+    assert settled_entries(session, reach=reach.without_private()) == []                    # ... but not in the first call's view
 
     # A file of a readable type that is attached to a record of a left-out type is not readable either.
     receipt = make_document(session, domain=Domain.HOUSE, category="house_appliance", filename="receipt.pdf",
                             file_path=str(inbox_documents_dir / "receipt.pdf"))
     make_record(session, domain=Domain.HOUSE, category="maintenance_log", document_id=receipt.id)
     ps.save_type(session, "house", "house_appliance", "house_low", False, "pedro")
-    reach = compute_reach(session)
+    reach = compute_reach(session).without_private()
     assert reach.includes_document(receipt) and not reach.includes_file_of(session, receipt)
 
 
@@ -256,14 +310,16 @@ async def test_each_answer_says_how_many_documents_were_left_out_why_and_what_to
 
     left = LeftOut.from_json(turn.left_out_json)
     problem = left.problem("answer")
-    # settled and excluded: statement (no level), policy (High), deed (hides), unknown kind (no level), 1 High record
-    assert (left.documents, left.records) == (4, 1)
-    assert problem.what == "5 documents and records weren't available to this answer."
-    for part in ("Home insurance", "Maintenance log", "set to High", "Bank statement", "no level yet",
-                 "Ownership document hides personal details", "Nothing from them was sent to the AI"):
+    # settled and excluded: statement (no level), deed (hides), unknown kind (no level). High is reachable now.
+    assert (left.documents, left.records) == (3, 0)
+    assert problem.what == "3 documents weren't available to this answer."
+    for part in ("Bank statement", "no level yet", "Ownership document hides personal details",
+                 "Nothing from them was sent to the AI"):
         assert part in problem.why, part
+    assert "Home insurance" not in problem.why and "set to High" not in problem.why
     assert problem.next_step == "Change that on the Privacy page, then ask again." and problem.link == "/privacy"
-    assert ask_messages.notices(turn)[0] == problem
+    notes = ask_messages.notices(turn)
+    assert notes[0].what == "This answer turned private." and notes[1] == problem   # the High types were read
 
 
 def test_the_notice_wording_is_singular_and_plural_correctly():
@@ -285,10 +341,13 @@ def test_the_conversation_page_shows_the_note_and_the_background_task_carries_th
     finally:
         client.app.dependency_overrides.pop(get_ask_gateway, None)
     assert r.status_code == 200
-    assert "5 documents and records weren" in r.text and "available to this answer" in r.text
-    assert "Home insurance" in r.text and 'href="/privacy"' in r.text
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_mid", "house_mid"]
-    assert pw.leaks(wire.bodies, files=pw.EXCLUDED_FILES) == []
+    assert "3 documents weren" in r.text and "available to this answer" in r.text
+    assert "Bank statement" in r.text and 'href="/privacy"' in r.text
+    assert "This answer turned private." in r.text and "Private answer" in r.text     # the person is told
+    assert "Save to wiki" not in r.text                                              # and cannot file it away
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_mid", "house_high"]
+    assert_private_only_at_high(wire)
+    assert pw.leaks(wire.bodies, sentinels=STILL_EXCLUDED, files=STILL_EXCLUDED_FILES) == []
 
     pw.set_levels(session, on=False)
     wire2 = pw.Wire()
@@ -298,7 +357,8 @@ def test_the_conversation_page_shows_the_note_and_the_background_task_carries_th
         r2 = client.post("/ask", data={"question": "Again?"}, follow_redirects=True)
     finally:
         client.app.dependency_overrides.pop(get_ask_gateway, None)
-    assert "available to this answer" not in r2.text and all("sensitivity" not in b for b in wire2.parsed())
+    assert "available to this answer" not in r2.text
+    assert [b.get("sensitivity") for b in wire2.parsed()] == [None, "house_high"]   # only after the Health result
 
 
 # --- earlier answers in the same chat ----------------------------------------------------------------------

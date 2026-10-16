@@ -5,13 +5,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
+from typing import Optional
 from urllib.parse import urlencode
 
 from sqlmodel import Session, select
 
+from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
 from app.privacy.reach import reach_for
+from app.privacy.tiers import Tier
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 
 _TOP_N = 25
@@ -28,6 +31,15 @@ def _readable(session: Session, transactions: list) -> list:
     return list(transactions) if allowed is None else [t for t in transactions if t.document_id in allowed]
 
 
+def _private(session: Session, transactions: list) -> tuple[Optional[Tier], str]:
+    """HIGH (and plain words for the notice) when any of these transactions was read from a document of a
+    private type: the run must then go on at High."""
+    reach = reach_for(session)
+    docs = {t.document_id: session.get(Document, t.document_id) for t in transactions}
+    n = sum(1 for t in transactions if reach.tier_of_source(docs[t.document_id]) == Tier.HIGH)
+    return (Tier.HIGH, f"{n} private transaction{'s' if n != 1 else ''}") if n else (None, "")
+
+
 def _merchant_names(session: Session) -> dict[int, str]:
     return {m.id: m.canonical_name for m in session.exec(select(Merchant)).all()}
 
@@ -42,7 +54,8 @@ def _spending(session: Session, args: dict) -> ToolOutput:
         statement = statement.where(Transaction.category == Category(category))
     merchants = _merchant_names(session) if group_by == "merchant" else {}
     totals: dict[str, list] = defaultdict(lambda: [0.0, 0])
-    for t in _readable(session, session.exec(statement).all()):
+    readable = _readable(session, session.exec(statement).all())
+    for t in readable:
         key = (merchants.get(t.merchant_id, t.description) if group_by == "merchant"
                else f"{t.paid_date:%Y-%m}" if group_by == "month" else t.category.value)
         totals[key][0] += t.amount
@@ -56,7 +69,8 @@ def _spending(session: Session, args: dict) -> ToolOutput:
         label=f"Transactions {date_from} to {date_to}" + (f" ({category})" if category else ""),
         url=_txn_url(transaction_type="debit", date_from=date_from.isoformat(), date_to=date_to.isoformat(),
                      category=category))
-    return ToolOutput(text="\n".join(lines), citables=[citable], used_raw_sources=True)
+    tier, opened = _private(session, readable)
+    return ToolOutput(text="\n".join(lines), citables=[citable], used_raw_sources=True, tier=tier, opened=opened)
 
 
 def _find_transactions(session: Session, args: dict) -> ToolOutput:
@@ -75,7 +89,8 @@ def _find_transactions(session: Session, args: dict) -> ToolOutput:
         f"{t.transaction_type.value} €{t.amount:,.2f} | {t.category.value}" for t in shown]
     citables = [Citable(ref=f"financials:txn:{t.id}", label=f"Transaction: {t.description} ({t.paid_date})",
                         url=_txn_url(transaction_id=t.id)) for t in shown]
-    return ToolOutput(text="\n".join(lines), citables=citables, used_raw_sources=True)
+    tier, opened = _private(session, matches)       # the total and the count cover every match, not only those shown
+    return ToolOutput(text="\n".join(lines), citables=citables, used_raw_sources=True, tier=tier, opened=opened)
 
 
 FINANCIALS_ASK_TOOLS: tuple[AskTool, ...] = (

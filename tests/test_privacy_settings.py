@@ -23,13 +23,17 @@ def test_every_registry_type_is_listed_with_a_suggestion_and_none_is_saved_yet(s
     rows = ps.type_rows(session)
     keys = {(r.info.domain, r.info.category) for r in rows}
     assert ("financials", "statement") in keys and ("insurance", "home_insurance") in keys
-    assert all(r.tier is None and not r.is_saved for r in rows)
-    assert {r.shown_tier for r in rows} <= {Tier.LOW, Tier.MID}          # never suggests house_high
+    open_rows = [r for r in rows if not r.locked]
+    assert all(r.tier is None and not r.is_saved for r in open_rows)
+    assert {r.shown_tier for r in open_rows} <= {Tier.LOW, Tier.MID}     # never suggests house_high
+    health = [r for r in rows if r.info.domain == "health"]               # Health is locked High, not suggested
+    assert len(health) == 9 and all(r.locked and r.tier == Tier.HIGH and r.is_saved for r in health)
+    assert {r.info.domain for r in rows if r.locked} == {"health"}
     assert all(s != Tier.HIGH for s in ps.SUGGESTED_TIERS.values())
 
 
 def test_suggestions_cover_every_registry_type():
-    assert {(i.domain, i.category) for i in ps.known_types()} == set(ps.SUGGESTED_TIERS)
+    assert {(i.domain, i.category) for i in ps.known_types() if i.domain not in ps.FORCED_TIERS} == set(ps.SUGGESTED_TIERS)
 
 
 def test_off_by_default_so_the_live_hub_is_unchanged(session):
@@ -61,7 +65,7 @@ def test_unsetting_a_tier_holds_the_type_again(session):
 
 def test_confirming_suggestions_saves_each_unset_type_once(session):
     n = ps.confirm_suggestions(session, "pedro@example.com")
-    assert n == len(ps.known_types())
+    assert n == len([i for i in ps.known_types() if i.domain not in ps.FORCED_TIERS])   # Health is locked: never saved
     assert ps.confirm_suggestions(session, "pedro@example.com") == 0
     saved = {(s.domain, s.category): s.tier for s in session.exec(select(DocumentTypeSetting))}
     assert saved[("financials", "statement")] == "house_mid" and saved[("house", "floor_plan")] == "house_low"

@@ -17,6 +17,8 @@ from types import SimpleNamespace
 import httpx
 from sqlmodel import select
 
+from app.domains.health.extraction import ExtractedHealth, ExtractedMeasurement
+from app.domains.health.store import apply_extraction
 from app.llm_gateway import GatewayClient
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
@@ -41,8 +43,19 @@ TXN = "SENTINEL-TXN"             # a transaction read from an excluded statement
 TODO = "SENTINEL-TODO"           # a to-do made from an excluded document
 NEIGHBOUR = "SENTINEL-NEIGHBOUR"  # title of a hidden page linked from a visible one
 FILE_BYTES = "SENTINEL-FILEBYTES"
+HEALTH_PAPER = "SENTINEL-HEALTHPAPER"  # a Health paper: always High, read into Health's tables (summary)
 
-EXCLUDED = [HIGH, UNSET, HIDES, REC, UNKNOWN, PAGE, MIXED, SUMMARY, HISTORY, TXN, TODO, NEIGHBOUR, FILE_BYTES]
+# High (private) types are reachable, but never in the first request of a run: absent from the first
+# request body, present only in requests with sensitivity == "house_high" (see app/privacy/ratchet.py).
+PRIVATE = [HIGH, REC, HEALTH_PAPER]
+EXCLUDED = [UNSET, HIDES, UNKNOWN, PAGE, MIXED, SUMMARY, HISTORY, TXN, TODO, NEIGHBOUR, FILE_BYTES]
+
+# Read from the High (private) insurance document and record, and what build_world derives from them: readable
+# by the AI, but only in calls at house_high. (The to-do made from the High record, and the High file's bytes.)
+TODO_FROM_REC = f"{TODO}-from-rec"
+PRIVATE_DERIVED = [*PRIVATE, PAGE, MIXED, NEIGHBOUR, TODO_FROM_REC]    # file bytes: see PRIVATE_FILES (they travel as base64)
+# Still withheld from every call at every level, with STANDARD levels.
+STILL_EXCLUDED = [*(s for s in EXCLUDED if s not in PRIVATE_DERIVED and s not in (TODO, FILE_BYTES)), f"{TODO}-from-doc", f"{TODO}-from-txn"]
 
 CLEAN_ROOM = "Kitchen"
 CLEAN_PAYEE = "CLEAN-PAYEE-EDP"
@@ -146,6 +159,17 @@ def build_world(session, docs_dir) -> SimpleNamespace:
                      Todo(title=f"{TODO}-from-rec", record_id=w.rec.id)])
     session.commit()
 
+    # Health: always High. One filed paper, read into Health's tables (its summary carries HEALTH_PAPER).
+    health = make_document(session, domain=Domain.HEALTH, category="lab_result", filename="health-lab.pdf",
+                           file_path=file("health-lab.pdf", b"%PDF-1.4 " + HEALTH_PAPER.encode()))
+    apply_extraction(session, health, ExtractedHealth(
+        person_name="Maria Santos Almeida", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",
+        areas=["Heart and circulation"], conditions=[], summary=f"Maria: lipid panel, {HEALTH_PAPER}",
+        amount_billed=45.5, amount_reimbursed=0.0,
+        measurements=[ExtractedMeasurement("LDL cholesterol", 162.0, None, "mg/dL", None, 100.0,
+                                           date(2026, 3, 12), False, "LDL")]))
+    w.health_paper = health
+
     # Waiting in the Inbox: one suggested as an excluded type, one as an included type.
     for suggested in ("insurance/home_insurance", "financials/bill"):
         d = Document(filename=f"pending-{suggested.split('/')[1]}.pdf", file_path="/nonexistent", content_hash=suggested,
@@ -173,6 +197,9 @@ def ask_script(w, final="The boiler is in the kitchen [[wiki:%d]]."):
         {"id": "t9", "name": "list_todos", "input": {"include_done": True}},
         {"id": "t10", "name": "financials_spending", "input": {"date_from": "2026-01-01", "date_to": "2026-12-31", "group_by": "merchant"}},
         {"id": "t11", "name": "financials_find_transactions", "input": {"query": ""}},
+        {"id": "t12", "name": "health_find_records", "input": {"person": "Maria", "query": "Maria"}},
+        {"id": "t13", "name": "health_measurements", "input": {"person": "Maria", "test": "LDL"}},
+        {"id": "t14", "name": "health_spending", "input": {"person": "Maria", "year": 2026}},
     ]
     return [gateway_tool_result(calls), gateway_text_result(final % w.page_clean.id)]
 
@@ -186,4 +213,6 @@ def leaks(bodies: list[str], sentinels=EXCLUDED, files=()) -> list[str]:
     return sorted(set(found))
 
 
-EXCLUDED_FILES = [b"\x89PNG\r\n\x1a\n" + FILE_BYTES.encode(), b"%PDF " + UNSET.encode(), b"%PDF " + HIDES.encode()]
+PRIVATE_FILES = [b"\x89PNG\r\n\x1a\n" + FILE_BYTES.encode()]              # the High insurance file
+EXCLUDED_FILES = [*PRIVATE_FILES, b"%PDF " + UNSET.encode(), b"%PDF " + HIDES.encode()]
+STILL_EXCLUDED_FILES = EXCLUDED_FILES[len(PRIVATE_FILES):]

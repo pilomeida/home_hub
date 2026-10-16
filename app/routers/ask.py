@@ -11,6 +11,7 @@ from app.services.ask import messages as ask_messages
 from app.services.ask.citations import render_turn
 from app.services.ask.conversation import TurnInProgress, add_turn, recent_conversations, start_conversation, turns_of
 from app.services.ask.engine import run_turn
+from app.services.ask.private import turn_is_private
 from app.services.ask.save import AnswerNotSaveable, save_answer_as_wiki_page
 from app.templating import templates
 
@@ -35,7 +36,8 @@ def _turn_view(turn: AskTurn) -> dict:
     failed = ask_messages.failure(turn) if turn.status == AskStatus.FAILED else None
     return {"turn": turn, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
             "failure": failed[0] if failed else None, "failure_technical": failed[1] if failed else None,
-            "notices": [] if turn.status == AskStatus.PENDING else ask_messages.notices(turn)}
+            "notices": [] if turn.status == AskStatus.PENDING else ask_messages.notices(turn),
+            "private": turn_is_private(turn)}
 
 
 async def _answer_in_background(session_factory, turn_id: int, gateway) -> None:
@@ -99,5 +101,7 @@ async def save_turn(turn_id: int, title: str = Form(""), session: Session = Depe
     try:
         page = save_answer_as_wiki_page(session, turn_id, title)
     except AnswerNotSaveable as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        p = exc.problem
+        raise HTTPException(status_code=400, detail=(
+            {"what": p.what, "why": p.why, "next_step": p.next_step} if p else str(exc)))
     return RedirectResponse(f"/wiki/{page.id}", status_code=303)
