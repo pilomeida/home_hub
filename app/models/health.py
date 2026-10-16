@@ -79,3 +79,11 @@ class HealthMeasurement(SQLModel, table=True):
     out_of_range: Optional[bool] = None
     needs_check: bool = Field(default=False)
     source_text: Optional[str] = None                   # the line as printed, shown beside the value
+    # Where the result sits on the paper (Pedro, 2026-10-16): the headings above it, outermost first, joined with " › "
+    # (e.g. "Estudo da urina › Urina tipo II › Caracteres gerais"), its order on the paper, and everything printed
+    # beside it as reference (interval, limits, risk levels), as printed.
+    group_path: str = Field(default="")
+    position: int = Field(default=0)
+    reference_text: Optional[str] = None
+    method: Optional[str] = None                        # '(Mét.Jaffé cinético)' on the paper: data, but not part of the test's name
+    is_previous: bool = Field(default=False)            # printed on this paper as an EARLIER result of the same test

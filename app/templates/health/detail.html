@@ -42,25 +42,28 @@
     </form>
   </section>
 </div>
-<h2>Measurements</h2>
+<h2>Results</h2>
 {% if measurements %}
 <table class="review-table">
-  <thead><tr><th>Date</th><th>Test</th><th>Value</th><th>Reference</th><th>As printed on the paper</th><th></th></tr></thead>
+  <thead><tr><th>Test</th><th>Result</th><th>Reference</th><th>Earlier, printed on this paper</th><th></th></tr></thead>
   <tbody>
-  {% for m in measurements %}
+  {% for row in measurements %}{% set m = row.m %}
+  {% for depth, name in row.headings %}
+  <tr class="group-row"><th colspan="5" style="text-align:left;padding-left:{{ depth * 18 + 6 }}px;{% if depth == 0 %}background:#e9e9e9;{% else %}background:#f4f4f4;font-weight:600;{% endif %}">{{ name }}</th></tr>
+  {% endfor %}
   <tr{% if m.needs_check %} class="needs-attention"{% endif %}>
-    <td>{{ m.measured_on or "—" }}</td><td>{{ m.test }}</td>
-    <td>{% if m.value is not none %}{{ "%g"|format(m.value) }} {{ m.unit or "" }}{% else %}{{ m.value_text or "?" }}{% endif %}
+    <td style="padding-left:{{ (m.group_path.split(" › ")|length if m.group_path else 0) * 18 + 6 }}px;">{{ m.test }}{% if m.method %}<br><small style="color:#777;padding-left:0;">{{ m.method }}</small>{% endif %}</td>
+    <td>{% if m.value is not none %}{{ "%g"|format(m.value) }} {{ m.unit or "" }}{% else %}{{ m.value_text or "?" }}{% if m.value_text and m.unit %} {{ m.unit }}{% endif %}{% endif %}
       {% if m.out_of_range %}<strong>out of range</strong>{% endif %}</td>
-    <td>{{ m.ref_low if m.ref_low is not none else "" }}–{{ m.ref_high if m.ref_high is not none else "" }}</td>
-    <td><code>{{ m.source_text or "" }}</code></td>
+    <td>{{ row.reference }}</td>
+    <td>{% for e in row.earlier %}{{ e.measured_on|display_date if e.measured_on else "?" }}: {% if e.value is not none %}{{ "%g"|format(e.value) }}{% else %}{{ e.value_text or "?" }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td>{% if m.needs_check %}<form method="post" action="/health/documents/{{ document.id }}/measurements/{{ m.id }}/ok">
       <button type="submit" title="I looked at the paper and this value is right">It's right</button></form>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
-{% else %}<p>No measurements on this paper.</p>{% endif %}
+{% else %}<p>No results on this paper.</p>{% endif %}
 {% if entry and entry.full_text %}<details><summary>Full text as read</summary><pre style="white-space:pre-wrap;">{{ entry.full_text }}</pre></details>{% endif %}
 <form method="post" action="/health/documents/{{ document.id }}/delete" style="margin-top:24px;"
       onsubmit="return confirm('Delete this paper and everything read from it? The original file is kept on the server but is no longer used anywhere.');">

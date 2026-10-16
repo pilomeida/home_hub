@@ -13,6 +13,7 @@ from app.domains.fields import (
 )
 from app.domains.health import areas as areas_svc
 from app.domains.health import browse, people as people_svc, store
+from app.domains.health.text import PATH_SEP, reference_for_display
 from app.domains.registry import document_url, get_spec
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
@@ -40,11 +41,35 @@ def _upload_context(errors: dict) -> dict:
     return {"errors": file_notices(errors)}
 
 
+def _measurement_view(rows: list[HealthMeasurement]) -> list[dict]:
+    """The paper's results in the paper's own order and grouping: before a result, the headings (outermost first)
+    that differ from the previous result's; after its value, the earlier results the paper printed for it."""
+    earlier: dict[int, list[HealthMeasurement]] = {}
+    for m in rows:
+        if m.is_previous:
+            earlier.setdefault(m.position, []).append(m)
+    view: list[dict] = []
+    last: list[str] = []
+    for m in rows:
+        if m.is_previous:
+            continue
+        path = [h for h in m.group_path.split(PATH_SEP) if h] if m.group_path else []
+        common = 0
+        while common < len(path) and common < len(last) and path[common] == last[common]:
+            common += 1
+        view.append({"m": m, "headings": [(depth, path[depth]) for depth in range(common, len(path))],
+                     "earlier": earlier.get(m.position, []),
+                     "reference": reference_for_display(m.reference_text, m.ref_low, m.ref_high)})
+        last = path
+    return view
+
+
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
     spec = get_spec(Domain.HEALTH)
     entry = store.entry_for(session, document.id)
-    measurements = list(session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
-                                     .order_by(HealthMeasurement.measured_on, HealthMeasurement.test))) if entry else []
+    measurements = _measurement_view(list(session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
+                                          .order_by(HealthMeasurement.position, HealthMeasurement.is_previous,
+                                                    HealthMeasurement.measured_on)))) if entry else []
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     media_kind = media_kind_for(document.filename)
     return {"document": document, "description": describe_document(document), "media_kind": media_kind.value,

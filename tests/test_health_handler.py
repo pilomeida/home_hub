@@ -49,7 +49,7 @@ async def test_a_lab_result_is_read_stored_tagged_and_in_the_wiki_all_at_high(se
     assert entry.person_id is not None and entry.amount_billed == 45.5
     ms = session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all()
     assert {m.test for m in ms} == {"LDL cholesterol", "Glucose"}
-    ldl = next(m for m in ms if m.test_key == "ldl cholesterol")
+    ldl = next(m for m in ms if m.test_key == "ldl cholesterol mg/dl")      # the key carries the unit
     assert ldl.out_of_range is True and ldl.needs_check is False
     assert next(m for m in ms if m.test == "Glucose").needs_check is True
     assert entry.needs_check is True                                              # because one value is doubtful

@@ -1,18 +1,25 @@
-"""Reading a health paper (vision model, always at High: the caller's privacy scope carries the level).
+"""Reading a health paper (always at High: the caller's privacy scope carries the level). A PDF that carries its own
+text goes to the model as that text; a scan or photo goes as page images.
 
 Returns what the paper says, structured: whose it is, when, who issued it, what kind of event, which areas
-and conditions it touches, a short summary, amounts, an appointment if there is one, and EVERY measurement
-as a number with its unit and reference range. Nothing here decides what leaves the Hub."""
+and conditions it touches, a short summary, amounts, an appointment if there is one, and EVERY result,
+grouped under the headings the paper prints it under, with its unit and the reference printed beside it. Nothing here decides what leaves the Hub."""
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional, Sequence
 
 from app.domains.health.categories import ALL_CATEGORIES, RECORD_KINDS
+from app.domains.health.text import PATH_SEP, limits_from_reference, spaced_intervals, split_method
 from app.llm_gateway import HEALTH_EXTRACTION, get_gateway
+from app.privacy.tiers import Tier
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
 
@@ -32,6 +39,11 @@ class ExtractedMeasurement:
     measured_on: Optional[date]
     uncertain: bool
     source_text: str
+    group_path: str = ""            # the headings above it on the paper, outermost first, joined with " › "
+    position: int = 0               # order on the paper (an earlier result shares its test's position)
+    reference_text: Optional[str] = None    # everything printed as reference beside it, as printed
+    method: Optional[str] = None            # the method the lab names, kept apart from the test's name
+    is_previous: bool = False       # an earlier result of the same test, printed on this paper for comparison
 
 
 @dataclass
@@ -60,7 +72,7 @@ _KINDS = ", ".join(v for v, _ in RECORD_KINDS)
 _CATEGORIES = ", ".join(sorted(ALL_CATEGORIES))
 
 _SYSTEM = f"""You read a family's medical paper (Portuguese or English) and return what it says as JSON.
-Be faithful: never invent a value, a date or a name. Use null when the paper does not say.
+Be faithful: never invent a value, a date or a name. Leave out any key the paper does not support.
 
 Fields:
 - category: what kind of paper this is, one of {_CATEGORIES}; null if it is not a medical paper or you cannot tell.
@@ -68,46 +80,74 @@ Fields:
 - document_date: the date printed on the paper, YYYY-MM-DD.
 - provider: the doctor, clinic, lab, hospital, pharmacy or insurer that issued it, named once as printed; provider_phone, provider_address if printed.
 - record_kind: one of {_KINDS}.
-- areas: body areas/systems it concerns (e.g. Eyes, Skin, Heart and circulation, Digestive system, Teeth).
+- areas: every body area/system it concerns, as many as apply (a lab panel usually touches several) (e.g. Eyes, Skin, Heart and circulation, Digestive system, Teeth).
 - conditions: named conditions or diagnoses it concerns (e.g. Stroke, Diabetes). [] if none.
   For areas and conditions, reuse an existing name exactly when it fits; write a new name in the language of the paper.
 - summary: two sentences, plain words, what this paper is and its main finding. Write it in the language of the paper.
-- details: EVERY other item printed on the paper that has no field above, one per line as "Label: value", using the
+- details: ONE string with EVERY other item printed on the paper that has no field here, one per line (separated by \\n) as "Label: value", using the
   paper's own labels and language: the patient's identification, tax, health-service and beneficiary numbers, age,
   the dates of collection, entry and release, requisition and internal numbers, the requesting doctor, the
   laboratory's director, specialists and technicians, accreditations, methods, and any printed note or comment.
 - amount_billed, amount_reimbursed, amount_owed: euros as numbers, for bills and reimbursement statements.
 - appointment_date (YYYY-MM-DD) and appointment_time (HH:MM, 24h): only for an appointment confirmation.
-- measurements: EVERY result printed on the paper, numeric or not, none left out. For each: test, value, value_text,
-  unit, ref_low, ref_high, measured_on (YYYY-MM-DD), source_text (the line as printed).
-  * A number: value as a number, unit as printed.
-  * A limit such as "<3" or ">60": value null, value_text exactly as printed, unit.
-  * A non-numeric result such as "não detectável", "negativo", "ausente": value null, value_text as printed.
-  * A reference range goes in ref_low / ref_high (one-sided: the other is null).
-  * A previous result the paper prints for comparison (e.g. "histórico 10-05-2021: 222") is its own entry with
-    that earlier date in measured_on.
-  If a value is unclear or you are unsure of it, set uncertain=true.
-- full_text: the paper's text, transcribed.
-
+- sections: EVERY result printed on the paper, numeric or not, none left out, grouped exactly as the paper groups them.
+  A section is {{"path": [...], "results": [...]}}. path = the headings the results are printed under, outermost
+  first (e.g. ["Estudo da urina", "Urina tipo II", "Caracteres gerais"] for pH and Densidade); a result with no
+  heading goes in a section with path []. Keep the paper's order. A line that has results indented beneath it is a
+  heading and belongs in path, even if it is a test's own name: "Resultado (NGSP/DCCT)" and "Resultado (IFCC)" sit
+  under the heading "Hemoglobina glicada A1c", which sits under "Bioquímica"; "Doseamento" sits under "Proteína C reativa".
+  Results continue under the same heading until the paper shows another heading.
+  Keep a method note such as "(Mét.CF/COL)" inside the heading or test name exactly as printed.
+  Write every heading and test name in normal capitalisation, not in capitals: "Hematologia" not "HEMATOLOGIA",
+  "Creatinina" not "CREATININA", "Gama glutamil transpeptidase" not "GAMA GLUTAMIL TRANSPEPTIDASE"; acronyms stay
+  as they are (AST, ALT, HDL, VGM, PSA, TSH).
+  A result is {{"test", "value", "value_text", "unit", "reference", "measured_on", "previous", "uncertain"}}:
+  * test: its name as printed, without the headings (those belong in path).
+  * a number: value as a number, unit as printed.
+  * a limit such as "< 3" or a non-numeric result such as "não detectável": value_text exactly as printed, no value.
+  * reference: everything the paper prints beside THAT result as its reference, as one string: the interval, a
+    one-sided limit, and risk levels, e.g. "13,0 - 17,0", "< 20", "Risco elevado: < 40; Risco baixo: > 60".
+    Write every interval as "a - b" with a space either side of the dash. A reference belongs to the result in its
+    own unit. A line can print two results (a percentage and an absolute count, e.g. Neutrófilos 76,5 % and
+    5,42 x10^9/L): return BOTH, as two results; a reference printed once belongs to the one in its unit.
+  * measured_on (YYYY-MM-DD): only when it differs from the paper's date.
+  * previous: earlier results the paper prints for the same test, for comparison: [{{"date": "YYYY-MM-DD", "value": n}}]
+    or [{{"date": "YYYY-MM-DD", "value_text": "..."}}]. A column headed by an earlier date (e.g. 10-05-2021) holds
+    previous results, not references: that includes words such as "não detectável".
+  * uncertain: true if a value is unclear or you are unsure of it.
+  Omit every key that does not apply (no nulls). Answer in compact JSON: no indentation, no line breaks inside it.
+{{full_text_rule}}
 Respond with ONLY the JSON object."""
+
+_TEXT_AND_PAGES_RULE = (
+    "The paper is given twice: as page images, which show its visual structure (grey bands, headings, indentation,\n"
+    "which values sit in which column), and as its exact text. Take every number and word from the TEXT; take the\n"
+    "headings and how the results are grouped from the IMAGES.\n")
+_FULL_TEXT_RULE = '- full_text: the paper\'s text, transcribed.\n'
+_TEXT_GIVEN_RULE = "The paper's text is given to you, so do not return full_text.\n"
 
 _NUM = {"type": ["number", "null"]}
 _STR = {"type": ["string", "null"]}
+_PREVIOUS = {"type": "array", "items": {"type": "object", "properties": {
+    "date": _STR, "value": _NUM, "value_text": _STR}}}
 _SCHEMA = {
     "type": "object",
     "required": ["summary"],
     "properties": {
         "category": _STR, "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
-        "provider_address": _STR, "record_kind": _STR, "details": _STR,
+        "provider_address": _STR, "record_kind": _STR,
+        "details": {"type": ["string", "array", "null"], "items": {"type": "string"}},       # one string; a list of lines is accepted too
         "areas": {"type": "array", "items": {"type": "string"}},
         "conditions": {"type": "array", "items": {"type": "string"}},
         "summary": {"type": "string"},
         "amount_billed": _NUM, "amount_reimbursed": _NUM, "amount_owed": _NUM,
         "appointment_date": _STR, "appointment_time": _STR,
-        "measurements": {"type": "array", "items": {"type": "object", "required": ["test"], "properties": {
-            "test": {"type": "string"}, "value": _NUM, "value_text": _STR, "unit": _STR, "ref_low": _NUM,
-            "ref_high": _NUM, "measured_on": _STR, "uncertain": {"type": ["boolean", "null"]},
-            "source_text": _STR}}},
+        "sections": {"type": "array", "items": {"type": "object", "required": ["results"], "properties": {
+            "path": {"type": "array", "items": {"type": "string"}},
+            "results": {"type": "array", "items": {"type": "object", "required": ["test"], "properties": {
+                "test": {"type": "string"}, "value": _NUM, "value_text": _STR, "unit": _STR, "reference": _STR,
+                "measured_on": _STR, "previous": _PREVIOUS,
+                "uncertain": {"type": ["boolean", "null"]}}}}}}},
         "full_text": _STR,
     },
 }
@@ -130,6 +170,8 @@ def _num(value) -> Optional[float]:
 
 
 def _text(value) -> Optional[str]:
+    if isinstance(value, (list, tuple)):          # a list of lines where one string was asked for: join, never drop
+        value = "\n".join(str(v).strip() for v in value if str(v).strip())
     text = str(value).strip() if value is not None else ""
     return text or None
 
@@ -138,46 +180,117 @@ def _names(values) -> list[str]:
     return [t for t in (str(v).strip() for v in (values or [])) if t]
 
 
+def _measurements(data: dict) -> list[ExtractedMeasurement]:
+    """Flatten the sections into rows: each result in the paper's order, its earlier results right after it."""
+    rows: list[ExtractedMeasurement] = []
+    position = 0
+
+    def add(item, path: str, heading_method: Optional[str] = None) -> None:
+        nonlocal position
+        test, own_method = split_method(str(item.get("test") or ""))
+        if not test:
+            return
+        if path.rsplit(PATH_SEP, 1)[-1].casefold() == test.casefold():      # "Doseamento" under "Doseamento"
+            path = path.rsplit(PATH_SEP, 1)[0] if PATH_SEP in path else ""
+        position += 1
+        ref_text = spaced_intervals(_text(item.get("reference") or item.get("reference_text")))
+        low, high = limits_from_reference(ref_text)
+        low = _num(item.get("ref_low")) if _num(item.get("ref_low")) is not None else low      # a stated number wins
+        high = _num(item.get("ref_high")) if _num(item.get("ref_high")) is not None else high
+        unit = _text(item.get("unit"))
+        rows.append(ExtractedMeasurement(
+            test=test, value=_num(item.get("value")), value_text=_text(item.get("value_text")), unit=unit,
+            ref_low=low, ref_high=high, measured_on=_date(item.get("measured_on")),
+            uncertain=bool(item.get("uncertain")), source_text=_text(item.get("source_text")) or "",
+            group_path=path, position=position, reference_text=ref_text, method=own_method or heading_method))
+        for earlier in item.get("previous") or []:
+            if not isinstance(earlier, dict):
+                continue
+            rows.append(ExtractedMeasurement(
+                test=test, value=_num(earlier.get("value")), value_text=_text(earlier.get("value_text")), unit=unit,
+                ref_low=None, ref_high=None, measured_on=_date(earlier.get("date")), uncertain=False, source_text="",
+                group_path=path, position=position, reference_text=None, method=own_method or heading_method,
+                is_previous=True))
+
+    for section in data.get("sections") or []:
+        headings, methods = [], []
+        for raw in section.get("path") or []:
+            name, method = split_method(str(raw))
+            if name:
+                headings.append(name)
+            if method:
+                methods.append(method)
+        for item in section.get("results") or []:
+            add(item, PATH_SEP.join(headings), methods[-1] if methods else None)
+    for item in data.get("measurements") or []:      # an older, flat reading: no headings
+        add(item, "")
+    return rows
+
+
+def paper_text(file_path: str) -> Optional[str]:
+    """The text a PDF carries itself (layout kept), or None when it has none worth using (a scan, a photo):
+    then the page images go to the reader instead. Taking the text from the file is instant and exact."""
+    if not file_path.lower().endswith(".pdf"):
+        return None
+    text: Optional[str] = None
+    exe = shutil.which("pdftotext")
+    if exe is not None:
+        try:
+            done = subprocess.run([exe, "-layout", file_path, "-"], capture_output=True, timeout=30, check=False)
+            if done.returncode == 0:
+                text = done.stdout.decode("utf-8", errors="replace")
+        except (OSError, subprocess.SubprocessError):
+            text = None
+    if text is None:
+        try:
+            from pypdf import PdfReader
+            text = "\f".join(page.extract_text(extraction_mode="layout") or "" for page in PdfReader(file_path).pages)
+        except Exception:
+            return None
+    pages = max(text.count("\f"), 1)
+    cleaned = re.sub(r"[ \t]{3,}", "  ", text.replace("\f", "\n\n"))
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned if len(re.sub(r"\s", "", cleaned)) >= 200 * pages else None
+
+
 async def extract_health_document(
     file_path: str, category: Optional[str], *, existing_areas: Sequence[str] = (),
     existing_conditions: Sequence[str] = (), gateway=None,
 ) -> ExtractedHealth:
     if not is_model_readable(file_path):
         raise HealthExtractionError("This file type can't be read automatically (only PDFs and photos).")
-    system = _SYSTEM
+    text = await asyncio.to_thread(paper_text, file_path)
+    system = _SYSTEM.replace("{full_text_rule}", (_TEXT_AND_PAGES_RULE + _TEXT_GIVEN_RULE) if text else _FULL_TEXT_RULE)
     if existing_areas:
         system += "\n\nExisting areas (reuse a name exactly when it fits): " + "; ".join(existing_areas)
     if existing_conditions:
         system += "\nExisting conditions (reuse a name exactly when it fits): " + "; ".join(existing_conditions)
     gw = gateway or get_gateway()
-    result = await gw.run(
-        HEALTH_EXTRACTION, system, f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON.",
-        attachments=[build_content_block(file_path)], response_schema=_SCHEMA,
-    )
+    user = f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON."
+    if text:
+        user += "\n\nThe paper's exact text, taken from its PDF (the order of lines may be scrambled):\n\n" + text
+    # Always High, stated here and not left to the caller's privacy scope: a health paper must never be routable
+    # anywhere else, however this reader is reached (an explicit sensitivity always wins over the scope).
+    result = await gw.run(HEALTH_EXTRACTION, system, user, sensitivity=Tier.HIGH.value,
+                          attachments=[build_content_block(file_path)], response_schema=_SCHEMA)
     try:
         data = json.loads(strip_json_fences(result.text))
         if not isinstance(data, dict):
             raise ValueError("not an object")
         kinds = {v for v, _ in RECORD_KINDS}
-        measurements = [
-            ExtractedMeasurement(
-                test=str(m["test"]).strip(), value=_num(m.get("value")), value_text=_text(m.get("value_text")),
-                unit=_text(m.get("unit")), ref_low=_num(m.get("ref_low")), ref_high=_num(m.get("ref_high")),
-                measured_on=_date(m.get("measured_on")), uncertain=bool(m.get("uncertain")),
-                source_text=_text(m.get("source_text")) or "")
-            for m in data.get("measurements") or [] if str(m.get("test") or "").strip()
-        ]
         kind = _text(data.get("record_kind"))
-        category = _text(data.get("category"))
+        category_read = _text(data.get("category"))
         return ExtractedHealth(
-            category=category if category in ALL_CATEGORIES else None, person_name=_text(data.get("person_name")), document_date=_date(data.get("document_date")),
+            category=category_read if category_read in ALL_CATEGORIES else None,
+            person_name=_text(data.get("person_name")), document_date=_date(data.get("document_date")),
             provider=_text(data.get("provider")), provider_phone=_text(data.get("provider_phone")),
             provider_address=_text(data.get("provider_address")), record_kind=kind if kind in kinds else None,
             areas=_names(data.get("areas")), conditions=_names(data.get("conditions")),
             summary=_text(data.get("summary")) or "", details=_text(data.get("details")) or "",
-            amount_billed=_num(data.get("amount_billed")),
-            amount_reimbursed=_num(data.get("amount_reimbursed")), amount_owed=_num(data.get("amount_owed")),
+            amount_billed=_num(data.get("amount_billed")), amount_reimbursed=_num(data.get("amount_reimbursed")),
+            amount_owed=_num(data.get("amount_owed")),
             appointment_date=_date(data.get("appointment_date")), appointment_time=_text(data.get("appointment_time")),
-            measurements=measurements, full_text=_text(data.get("full_text")) or "")
+            measurements=_measurements(data), full_text=text or _text(data.get("full_text")) or "")
     except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise HealthExtractionError(f"Could not parse the reading of the paper: {exc}") from exc

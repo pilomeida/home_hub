@@ -116,10 +116,17 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
         session.delete(old)
     for m in extracted.measurements:
         session.add(HealthMeasurement(
-            entry_id=entry.id, person_id=entry.person_id, measured_on=m.measured_on or entry.entry_date,
-            test=m.test, test_key=match_key(m.test), value=m.value, value_text=m.value_text, unit=m.unit,
-            ref_low=m.ref_low, ref_high=m.ref_high, out_of_range=_out_of_range(m),
-            needs_check=measurement_needs_check(m), source_text=m.source_text or None))
+            entry_id=entry.id, person_id=entry.person_id, measured_on=m.measured_on or (None if m.is_previous else entry.entry_date),
+            test=m.test,
+            # the key carries the headings and the unit: "Resultado" under two different tests is two different things, as are
+            # Neutrófilos in % and in x10^9/L; and the
+            # same test on a later paper from the same lab lands on the same key, so trends line up
+            test_key=match_key(" ".join(p for p in (m.group_path, m.test, m.unit or "") if p)),
+            value=m.value, value_text=m.value_text, unit=m.unit, ref_low=m.ref_low, ref_high=m.ref_high,
+            out_of_range=None if m.is_previous else _out_of_range(m),
+            needs_check=False if m.is_previous else measurement_needs_check(m), source_text=m.source_text or None,
+            group_path=m.group_path, position=m.position, reference_text=m.reference_text, method=m.method,
+            is_previous=m.is_previous))
     session.commit()
     areas_svc.set_tags(session, entry, extracted.areas, extracted.conditions)
     return sync_entry_from_fields(session, document)

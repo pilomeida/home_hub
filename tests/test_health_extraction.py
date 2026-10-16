@@ -81,7 +81,8 @@ def test_a_measurement_needs_checking_when_unsure_empty_or_a_bare_number():
     assert not measurement_needs_check(M("pH", 6.0, None, None, 5.0, 7.5, None, False, ""))
 
 
-def test_the_prompt_asks_for_every_data_point_and_the_papers_language():
+def test_the_prompt_asks_for_every_data_point_their_headings_references_and_the_papers_language():
     from app.domains.health.extraction import _SYSTEM
-    assert "language of the paper" in _SYSTEM and "não detectável" in _SYSTEM and '"<3"' in _SYSTEM
-    assert "previous result" in _SYSTEM and "details" in _SYSTEM
+    assert "language of the paper" in _SYSTEM and "não detectável" in _SYSTEM and '"< 3"' in _SYSTEM
+    assert "previous" in _SYSTEM and "details" in _SYSTEM
+    assert "path" in _SYSTEM and "headings" in _SYSTEM and "Risco elevado" in _SYSTEM and '"a - b"' in _SYSTEM

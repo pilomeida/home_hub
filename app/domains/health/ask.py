@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from app.domains.health import areas as areas_svc
 from app.domains.health.categories import KIND_LABELS
-from app.domains.health.text import match_key
+from app.domains.health.text import match_key, reference_for_display
 from app.models.document import Document
 from app.models.domain import Domain
 from app.models.health import HealthEntry, HealthMeasurement, HealthPerson
@@ -110,14 +110,15 @@ def _measurements(session: Session, args: dict) -> ToolOutput:
     for when, m, e in rows[:200]:
         person = people.get(m.person_id)
         value = f"{m.value:g} {m.unit or ''}".strip() if m.value is not None else (m.value_text or "?")
-        rng = f" (reference {m.ref_low if m.ref_low is not None else ''}–{m.ref_high if m.ref_high is not None else ''})" \
-            if (m.ref_low is not None or m.ref_high is not None) else ""
+        shown_ref = reference_for_display(m.reference_text, m.ref_low, m.ref_high)
+        rng = f" (reference {shown_ref})" if shown_ref else ""
         flag = ""
         if m.out_of_range is True:
             flag = " — above range" if m.ref_high is not None and m.value is not None and m.value > m.ref_high else " — below range"
         check = " [doubtful reading]" if m.needs_check else ""
         lines.append(f"{when if when != date.min else 'undated'} | {person.name if person else 'unknown'} | "
-                     f"{m.test} | {value}{rng}{flag}{check} | doc:{e.document_id}")
+                     f"{m.group_path + ' › ' if m.group_path else ''}{m.test}{' (earlier result on that paper)' if m.is_previous else ''}"
+                     f" | {value}{rng}{flag}{check} | doc:{e.document_id}")
         docs.append(e.document_id)
     cites = [citable_for_document(d) for d in session.exec(select(Document).where(Document.id.in_(set(docs)))).all()] if docs else []
     return _output("\n".join(lines), len(rows[:200]), cites)
