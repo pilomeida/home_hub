@@ -60,6 +60,7 @@ SPEC = DomainSpec(
         FieldSpec("notes", "Notes", FieldKind.LONGTEXT, private=True),
     ),
     handler=HealthHandler(),
+    infers_category=True,       # the upload page asks only for the file; the reading proposes the kind of paper
     ask_tools=HEALTH_TOOLS,
     nav_links=(NavLink("Records", "/health/records"), NavLink("Areas", "/health/areas"), NavLink("People", "/health/people")),
     overview_card=health_overview_card,

@@ -3,25 +3,16 @@
 {% block content %}
 <p><a href="/health/records">← Health</a></p>
 <h1>Add a health paper</h1>
+<p>Choose the file and press Upload. The Hub reads it and fills in what kind of paper it is, whose it is, the date,
+  the doctor or lab and the values. You check and correct it afterwards, on the paper's own page.</p>
 <form action="/health/upload" method="post" enctype="multipart/form-data">
-  <div class="field">
-    <label for="f-category">What kind of paper *</label>
-    <select id="f-category" name="category" hx-get="/health/upload/fields" hx-target="#health-fields" hx-trigger="change">
-      <option value="">— choose —</option>
-      {% for c in categories %}
-      <option value="{{ c.value }}"{% if c.value == category %} selected{% endif %}>{{ c.label }}</option>
-      {% endfor %}
-    </select>
-    {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
-  </div>
-  <div id="health-fields">
-    {% include "domains/_field_inputs.html" %}
-  </div>
   <div class="field">
     <label for="f-file">File *</label>
     <input type="file" id="f-file" name="file" accept="application/pdf,image/*">
     <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ scan_notice }}</small>
+    <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ health_notice }}</small>
     {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
+    {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
   </div>
   <button type="submit">Upload</button>
 </form>

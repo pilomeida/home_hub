@@ -34,11 +34,8 @@ def _document_or_404(session: Session, document_id: int) -> Document:
     return document
 
 
-def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.HEALTH)
-    known = category if category and any(c.value == category for c in spec.categories) else None
-    return {"categories": spec.categories, "category": known, "errors": file_notices(errors),
-            "form_fields": build_form_fields(session, spec, known, values, errors) if known else []}
+def _upload_context(errors: dict) -> dict:
+    return {"errors": file_notices(errors)}
 
 
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
@@ -63,13 +60,8 @@ async def landing(request: Request, session: Session = Depends(get_session)):
 
 
 @router.get("/upload")
-async def upload_form(request: Request, category: Optional[str] = None, session: Session = Depends(get_session)):
-    return templates.TemplateResponse(request, "health/upload.html", _upload_context(session, category, {}, {}))
-
-
-@router.get("/upload/fields")
-async def upload_fields(request: Request, category: Optional[str] = None, session: Session = Depends(get_session)):
-    return templates.TemplateResponse(request, "domains/_field_inputs.html", _upload_context(session, category, {}, {}))
+async def upload_form(request: Request):
+    return templates.TemplateResponse(request, "health/upload.html", _upload_context({}))
 
 
 @router.post("/upload")
@@ -80,14 +72,13 @@ async def upload(request: Request, session: Session = Depends(get_session)):
     upload_file = form.get("file")
     if upload_file is None or isinstance(upload_file, str) or not upload_file.filename:
         return templates.TemplateResponse(request, "health/upload.html", _upload_context(
-            session, category, values, {"file": "No file was chosen to upload"}), status_code=400)
+            {"file": "No file was chosen to upload"}), status_code=400)
     try:
         result = await ingest(session, IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
                                                     getattr(request.state, "user_email", None)),
                               Classification(domain=Domain.HEALTH, category=category, fields=values))
     except InvalidClassification as exc:
-        return templates.TemplateResponse(request, "health/upload.html",
-                                          _upload_context(session, category, values, exc.errors), status_code=400)
+        return templates.TemplateResponse(request, "health/upload.html", _upload_context(exc.errors), status_code=400)
     return RedirectResponse(document_url(result.document) or "/health/records", status_code=303)
 
 

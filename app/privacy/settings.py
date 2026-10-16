@@ -110,11 +110,13 @@ def _setting(session: Session, domain: object, category: str) -> Optional[Docume
 
 def configured_tier(session: Session, domain: object, category: Optional[str]) -> Optional[str]:
     """The tier saved for a type, whether or not levels are binding yet (None = not set)."""
-    if domain is None or category is None:
+    if domain is None:
         return None
     forced = forced_tier(domain)
     if forced is not None:
         return forced.value
+    if category is None:
+        return None
     row = _setting(session, domain, category)
     return row.tier if row is not None else None
 

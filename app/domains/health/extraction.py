@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional, Sequence
 
-from app.domains.health.categories import RECORD_KINDS
+from app.domains.health.categories import ALL_CATEGORIES, RECORD_KINDS
 from app.llm_gateway import VISION_EXTRACTION, get_gateway
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
@@ -36,6 +36,7 @@ class ExtractedMeasurement:
 
 @dataclass
 class ExtractedHealth:
+    category: Optional[str] = None
     person_name: Optional[str] = None
     document_date: Optional[date] = None
     provider: Optional[str] = None
@@ -55,11 +56,13 @@ class ExtractedHealth:
 
 
 _KINDS = ", ".join(v for v, _ in RECORD_KINDS)
+_CATEGORIES = ", ".join(sorted(ALL_CATEGORIES))
 
 _SYSTEM = f"""You read a family's medical paper (Portuguese or English) and return what it says as JSON.
 Be faithful: never invent a value, a date or a name. Use null when the paper does not say.
 
 Fields:
+- category: what kind of paper this is, one of {_CATEGORIES}; null if it is not a medical paper or you cannot tell.
 - person_name: the patient the paper is about (full name as printed).
 - document_date: the date printed on the paper, YYYY-MM-DD.
 - provider: the doctor, clinic, lab, hospital, pharmacy or insurer that issued it; provider_phone, provider_address if printed.
@@ -81,7 +84,7 @@ _SCHEMA = {
     "type": "object",
     "required": ["summary"],
     "properties": {
-        "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
+        "category": _STR, "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
         "provider_address": _STR, "record_kind": _STR,
         "areas": {"type": "array", "items": {"type": "string"}},
         "conditions": {"type": "array", "items": {"type": "string"}},
@@ -135,7 +138,7 @@ async def extract_health_document(
         system += "\nExisting conditions (reuse a name exactly when it fits): " + "; ".join(existing_conditions)
     gw = gateway or get_gateway()
     result = await gw.run(
-        VISION_EXTRACTION, system, f"Paper type: {category or 'unknown'}. Read it as JSON.",
+        VISION_EXTRACTION, system, f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON.",
         attachments=[build_content_block(file_path)], response_schema=_SCHEMA, max_tokens=12000,
     )
     try:
@@ -152,8 +155,9 @@ async def extract_health_document(
             for m in data.get("measurements") or [] if str(m.get("test") or "").strip()
         ]
         kind = _text(data.get("record_kind"))
+        category = _text(data.get("category"))
         return ExtractedHealth(
-            person_name=_text(data.get("person_name")), document_date=_date(data.get("document_date")),
+            category=category if category in ALL_CATEGORIES else None, person_name=_text(data.get("person_name")), document_date=_date(data.get("document_date")),
             provider=_text(data.get("provider")), provider_phone=_text(data.get("provider_phone")),
             provider_address=_text(data.get("provider_address")), record_kind=kind if kind in kinds else None,
             areas=_names(data.get("areas")), conditions=_names(data.get("conditions")),

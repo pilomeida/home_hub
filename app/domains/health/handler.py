@@ -9,9 +9,10 @@ from app.domains.health import areas as areas_svc
 from app.domains.health import store
 from app.config import settings
 from app.domains.health.appointments import appointment_event, remove_appointment, sync_appointment
-from app.domains.health.extraction import extract_health_document
+from app.domains.health.extraction import HealthExtractionError, extract_health_document
 from app.models.document import Document, DocumentStatus
 from app.models.wiki import WikiOperation
+from app.privacy.settings import configured_tier
 from app.services.wiki_engine import ingest_into_wiki
 
 
@@ -24,6 +25,15 @@ class HealthHandler(DomainHandler):
             document.file_path, document.category,
             existing_areas=areas_svc.names_for_prompt(session, "area"),
             existing_conditions=areas_svc.names_for_prompt(session, "condition"))
+        if document.category is None:       # the upload asked only for the file: the reading proposes the kind of paper
+            if extracted.category is None:
+                raise HealthExtractionError(
+                    "The Hub could not tell what kind of health paper this is (or whether it is one). "
+                    "Choose the kind on the paper's page, or delete it.")
+            document.category = extracted.category
+            document.sensitivity_tier = configured_tier(session, document.domain, document.category)
+            session.add(document)
+            session.commit()
         store.apply_extraction(session, document, extracted)
         await ingest_into_wiki(session, document, context=store.wiki_context(extracted),
                                operation=WikiOperation.INGEST)

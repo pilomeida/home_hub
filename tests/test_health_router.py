@@ -211,3 +211,56 @@ def test_the_upload_page_shows_the_scan_notice_from_the_template_globals(client)
     from markupsafe import escape
     from app.privacy.notices import SCAN_NOTICE
     assert str(escape(SCAN_NOTICE)) in client.get("/health/upload").text
+
+
+def _upload_only_the_file(client, replies):
+    """The page asks for the file alone; the reading (scripted, as the model would return it) proposes the rest."""
+    import json
+    from app.llm_gateway import set_gateway_provider
+    from tests import privacy_world as pw
+    from tests.fakes.fake_gateway import gateway_text_result
+    wire = pw.Wire()
+    wire.script = [gateway_text_result(json.dumps(r)) for r in replies]
+    set_gateway_provider(lambda: wire.client())
+    try:
+        r = client.post("/health/upload", files={"file": ("paper.png", b"\x89PNG\r\n\x1a\nyy", "image/png")},
+                        follow_redirects=False)
+    finally:
+        set_gateway_provider(None)
+    return r, wire
+
+
+def test_the_upload_page_asks_only_for_the_file_and_states_the_level(client):
+    from markupsafe import escape
+    from app.privacy.notices import HEALTH_NOTICE, SCAN_NOTICE
+    page = client.get("/health/upload").text
+    assert 'name="file"' in page and 'name="category"' not in page and 'name="person"' not in page
+    assert str(escape(SCAN_NOTICE)) in page and str(escape(HEALTH_NOTICE)) in page
+    assert "house_high" in page and "Privatemode" in page
+
+
+def test_the_reading_proposes_the_kind_of_paper_and_it_is_filed_at_high(client, session):
+    from app.models.document import Document, DocumentStatus
+    from tests.test_health_extraction import REPLY
+    from tests.test_health_handler import WIKI_REPLY
+    r, wire = _upload_only_the_file(client, [dict(REPLY, category="lab_result"), WIKI_REPLY])
+    assert r.status_code == 303
+    session.expire_all()
+    doc = session.exec(select(Document)).one()
+    assert doc.category == "lab_result" and doc.sensitivity_tier == "house_high"
+    assert doc.status == DocumentStatus.PROCESSED
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]
+
+
+def test_a_paper_the_reading_cannot_place_waits_for_a_person_to_choose_its_kind(client, session):
+    from app.models.document import Document, DocumentStatus
+    from tests.test_health_extraction import REPLY
+    r, wire = _upload_only_the_file(client, [dict(REPLY, category=None)])
+    assert r.status_code == 303
+    session.expire_all()
+    doc = session.exec(select(Document)).one()
+    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.category is None
+    assert "what kind of health paper" in doc.failure_reason
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"]          # nothing went out below High
+    page = client.get(r.headers["location"]).text
+    assert "Kind of paper not known yet" in page and f"/documents/{doc.id}/edit" in page

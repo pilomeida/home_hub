@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.domains.registry import get_spec, implemented_domains, is_implemented
 from app.models.domain import Domain
-from app.privacy.notices import SCAN_NOTICE
+from app.privacy.notices import HEALTH_NOTICE, SCAN_NOTICE
 from app.services.presentation import (
     claim_label, display_date, display_datetime, friendly_reason, humanize_key, lisbon_datetime,
 )
@@ -27,6 +27,7 @@ def domain_label(domain: Optional[Domain]) -> str:
 templates.env.globals["domain_nav"] = implemented_domains
 templates.env.globals["domain_label"] = domain_label
 templates.env.globals["scan_notice"] = SCAN_NOTICE
+templates.env.globals["health_notice"] = HEALTH_NOTICE
 from app.problems import open_count as _open_problem_count  # noqa: E402
 templates.env.globals["open_problem_count"] = _open_problem_count
 from app.services.to_check import menu_count as _to_check_count  # noqa: E402
