@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import date, datetime
 from typing import Optional
@@ -49,6 +50,15 @@ def _out_of_range(m: ExtractedMeasurement) -> Optional[bool]:
     return bool((m.ref_low is not None and m.value < m.ref_low) or (m.ref_high is not None and m.value > m.ref_high))
 
 
+def notes_of(entry: HealthEntry) -> list[str]:
+    """What the check of the reading against the paper could not settle (plain words); [] when nothing."""
+    try:
+        notes = json.loads(entry.check_notes) if entry.check_notes else []
+    except ValueError:
+        return []
+    return [str(n) for n in notes] if isinstance(notes, list) else []
+
+
 def entry_for(session: Session, document_id: int) -> Optional[HealthEntry]:
     return session.exec(select(HealthEntry).where(HealthEntry.document_id == document_id)).first()
 
@@ -84,7 +94,7 @@ def sync_entry_from_fields(session: Session, document: Document, *, full_text: O
     for m in session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all():
         m.person_id = entry.person_id
         session.add(m)
-    entry.needs_check = bool(entry.person_id is None or entry.entry_date is None or any(
+    entry.needs_check = bool(entry.person_id is None or entry.entry_date is None or notes_of(entry) or any(
         m.needs_check for m in session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id))))
     session.add(entry)
     session.commit()
@@ -112,6 +122,9 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
     session.commit()
 
     entry = sync_entry_from_fields(session, document, full_text=extracted.full_text)
+    entry.check_notes = json.dumps(extracted.check_notes, ensure_ascii=False) if extracted.check_notes else None
+    session.add(entry)
+    session.commit()
     for old in session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all():
         session.delete(old)
     for m in extracted.measurements:
@@ -129,7 +142,17 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
             is_previous=m.is_previous))
     session.commit()
     areas_svc.set_tags(session, entry, extracted.areas, extracted.conditions)
-    return sync_entry_from_fields(session, document)
+    return sync_entry_from_fields(session, document)           # also counts the notes as "to check"
+
+
+def clear_notes(session: Session, document: Document) -> None:
+    """A person has looked at the paper's check notes: they stop counting as "to check"."""
+    entry = entry_for(session, document.id)
+    if entry is not None:
+        entry.check_notes = None
+        session.add(entry)
+        session.commit()
+        sync_entry_from_fields(session, document)
 
 
 def wiki_context(extracted: ExtractedHealth) -> str:

@@ -15,6 +15,7 @@ from app.domains.health import areas as areas_svc
 from app.domains.health import browse, people as people_svc, store
 from app.domains.health.text import PATH_SEP, reference_for_display
 from app.domains.registry import document_url, get_spec
+from app.services.wiki_engine import withdraw_from_wiki
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.health import HealthArea, HealthMeasurement
@@ -26,6 +27,10 @@ from app.templating import templates
 
 router = APIRouter(prefix="/health", tags=["health"])
 _NON_FIELD_KEYS = {"file", "category"}
+
+
+def spec_for_health():
+    return get_spec(Domain.HEALTH)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:
@@ -73,7 +78,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     media_kind = media_kind_for(document.filename)
     return {"document": document, "description": describe_document(document), "media_kind": media_kind.value,
-            "entry": entry, "measurements": measurements,
+            "entry": entry, "measurements": measurements, "check_notes": store.notes_of(entry) if entry else [],
             "area_names": ", ".join(t.name for t in tags if t.kind == "area"),
             "condition_names": ", ".join(t.name for t in tags if t.kind == "condition"),
             "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind)}
@@ -135,10 +140,16 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
 async def reread(document_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session),
                  session_factory=Depends(get_session_factory)):
     document = _document_or_404(session, document_id)
-    if document.status not in (DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION):
+    if document.status == DocumentStatus.PROCESSED:
+        # a paper read before: take back everything read from it (calendar entry, wiki claims, results, tags) and read it
+        # afresh with the current reader; fields start again from the new reading
+        await spec_for_health().handler.withdraw(session, document)
+        await withdraw_from_wiki(session, document, description=f"{document.filename} read again")
+        document.fields_json = "{}"
+    elif document.status not in (DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION):
         raise HTTPException(status_code=409, detail={
-            "what": "Not read again.", "why": "This paper has already been read successfully.",
-            "next_step": "Correct anything that is wrong on the paper's page instead."})
+            "what": "Not read again.", "why": "This paper was deleted, so there is nothing to read.",
+            "next_step": "Upload it again if you need it."})
     document.status = DocumentStatus.PENDING
     document.failure_reason = None
     session.add(document)
@@ -177,6 +188,13 @@ async def update_tags(document_id: int, areas: str = Form(""), conditions: str =
             "next_step": "Wait for it to finish, or fix its problem on the Problems page, then try again."})
     split = lambda raw: [p.strip() for p in raw.split(",") if p.strip()]
     areas_svc.set_tags(session, entry, split(areas), split(conditions))
+    return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
+
+
+@router.post("/documents/{document_id}/notes/ok")
+async def notes_ok(document_id: int, session: Session = Depends(get_session)):
+    document = _document_or_404(session, document_id)
+    store.clear_notes(session, document)
     return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
 
 

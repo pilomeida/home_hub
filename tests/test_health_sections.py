@@ -178,3 +178,13 @@ async def test_details_given_as_a_list_of_lines_are_kept_not_rejected(tmp_path):
 def test_the_real_shape_of_a_reply_satisfies_the_schema_the_gateway_enforces():
     from jsonschema import validate
     validate(SECTIONS_REPLY, ex._SCHEMA)
+
+
+@pytest.mark.asyncio
+async def test_a_test_name_that_repeats_its_heading_is_stored_without_it_so_every_reading_looks_alike(tmp_path):
+    reply = dict(SECTIONS_REPLY, sections=[{"path": ["Bioquímica", "Hemoglobina glicada A1c"], "results": [
+        {"test": "Hemoglobina glicada A1c - Resultado (IFCC)", "value": 35, "unit": "mmol/mol"},
+        {"test": "Resultado (NGSP/DCCT)", "value": 5.3, "unit": "%"},
+        {"test": "Hemoglobina glicada A1c total", "value": 1, "unit": "x"}]}])      # no separator: a real name, kept
+    got = await ex.extract_health_document(_png(tmp_path), None, gateway=FakeGateway([gateway_text_result(json.dumps(reply))]))
+    assert [m.test for m in got.measurements] == ["Resultado (IFCC)", "Resultado (NGSP/DCCT)", "Hemoglobina glicada A1c total"]

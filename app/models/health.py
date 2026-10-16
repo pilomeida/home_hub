@@ -50,6 +50,7 @@ class HealthEntry(SQLModel, table=True):
     amount_reimbursed: Optional[float] = None
     amount_owed: Optional[float] = None
     needs_check: bool = Field(default=False)
+    check_notes: Optional[str] = None                   # JSON list: what the check against the paper could not settle
     calendar_event_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

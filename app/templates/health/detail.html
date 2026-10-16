@@ -42,6 +42,19 @@
     </form>
   </section>
 </div>
+{% if document.status.value == "processed" %}
+<form method="post" action="/health/documents/{{ document.id }}/reread" style="margin:8px 0;"
+      onsubmit="return confirm('Read this paper again with the latest reader? What was read from it is redone, and changes you typed into its fields are lost.');">
+  <small>Read with an older version of the reader?</small> <button type="submit">Read again</button>
+</form>
+{% endif %}
+{% if check_notes %}
+<div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
+  <strong>{{ check_notes|length }} thing{{ "s" if check_notes|length != 1 }} to look at.</strong> The Hub compared what it read with the paper's own text and could not settle:
+  <ul style="margin:6px 0;">{% for n in check_notes %}<li>{{ n }}</li>{% endfor %}</ul>
+  <form method="post" action="/health/documents/{{ document.id }}/notes/ok"><button type="submit" title="I looked at the paper and these are fine">I've looked</button></form>
+</div>
+{% endif %}
 <h2>Results</h2>
 {% if measurements %}
 <table class="review-table">

@@ -59,6 +59,7 @@ class ExtractedHealth:
     conditions: list[str] = field(default_factory=list)
     summary: str = ""
     details: str = ""
+    check_notes: list[str] = field(default_factory=list)    # what the check against the paper could not settle (reading.py)
     amount_billed: Optional[float] = None
     amount_reimbursed: Optional[float] = None
     amount_owed: Optional[float] = None
@@ -190,8 +191,13 @@ def _measurements(data: dict) -> list[ExtractedMeasurement]:
         test, own_method = split_method(str(item.get("test") or ""))
         if not test:
             return
-        if path.rsplit(PATH_SEP, 1)[-1].casefold() == test.casefold():      # "Doseamento" under "Doseamento"
+        leaf = path.rsplit(PATH_SEP, 1)[-1]
+        if leaf and leaf.casefold() == test.casefold():                      # "Doseamento" under "Doseamento"
             path = path.rsplit(PATH_SEP, 1)[0] if PATH_SEP in path else ""
+        elif leaf:                                                           # "Hemoglobina glicada A1c - Resultado (IFCC)" under that heading
+            prefixed = re.match(rf"^{re.escape(leaf)}\s*[-–—:]\s*(.+)$", test, re.IGNORECASE)
+            if prefixed:
+                test = prefixed.group(1).strip()
         position += 1
         ref_text = spaced_intervals(_text(item.get("reference") or item.get("reference_text")))
         low, high = limits_from_reference(ref_text)

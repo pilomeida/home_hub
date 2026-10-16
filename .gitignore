@@ -9,3 +9,6 @@ app/static/documents/*
 Bills & Bank Statements/
 Utilities/
 .superpowers/
+
+# Real health papers and their expected readings (the Health benchmark): private, never committed
+data/health_benchmark/

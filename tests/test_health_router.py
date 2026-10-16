@@ -2,6 +2,7 @@ from datetime import date
 
 from app.domains.health import areas as areas_svc
 from app.models.health import HealthMeasurement
+import pytest
 from sqlmodel import select
 from tests.test_health_browse import _paper
 
@@ -315,4 +316,34 @@ def test_a_paper_that_failed_shows_why_and_can_be_read_again(client, session, tm
     session.expire_all()
     doc = session.get(Document, doc.id)
     assert doc.status == DocumentStatus.PROCESSED and doc.category == "lab_result" and doc.failure_reason is None
-    assert client.post(f"/health/documents/{doc.id}/reread").status_code == 409     # nothing to redo once read
+
+
+@pytest.mark.asyncio
+async def test_a_paper_read_before_can_be_read_again_and_the_new_reading_replaces_the_old(client, session, tmp_path, monkeypatch):
+    import json
+    from app.domains.health import store
+    from app.llm_gateway import set_gateway_provider
+    from app.models.document import Document, DocumentStatus
+    from app.models.health import HealthEntry, HealthMeasurement
+    from tests import privacy_world as pw
+    from tests.fakes.fake_gateway import gateway_text_result
+    from tests.test_health_handler import WIKI_REPLY, _file
+    from tests.test_health_sections import SECTIONS_REPLY
+    doc = (await _file(session, pw.Wire())).document                      # first read: the old flat reply
+    assert store.entry_for(session, doc.id) is not None
+    assert "Read again" in client.get(f"/health/documents/{doc.id}").text      # offered on a read paper too
+    wire = pw.Wire()
+    wire.script = [gateway_text_result(json.dumps(SECTIONS_REPLY)), gateway_text_result(json.dumps(WIKI_REPLY))]
+    set_gateway_provider(lambda: wire.client())
+    try:
+        r = client.post(f"/health/documents/{doc.id}/reread", follow_redirects=False)
+    finally:
+        set_gateway_provider(None)
+    assert r.status_code == 303
+    session.expire_all()
+    doc = session.get(Document, doc.id)
+    assert doc.status == DocumentStatus.PROCESSED
+    assert len(session.exec(select(HealthEntry)).all()) == 1               # replaced, not doubled
+    ms = session.exec(select(HealthMeasurement)).all()
+    assert {m.test for m in ms} == {"Neutrófilos", "Colesterol HDL", "Doseamento", "Nitritos"} and all(m.group_path or m.test for m in ms)
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]

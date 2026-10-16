@@ -371,3 +371,12 @@ mockups/spec exist, no implementation).
 
 ## Gateway job for Health papers (2026-10-16)
 Health papers are read through their own gateway job, `health_extraction` (rows in llmsel's `workload_types` and `worker_task_bindings`, worker `hub`): low reasoning effort, output ceiling 32000, same privacy rules as `vision_extraction`. Reason: GLM 5.3 Flash on Privatemode, at the medium effort `vision_extraction` carries, spent its whole output budget thinking and returned an empty answer (three gateway retries, ~10 minutes, nothing filed); at low effort a 3-page lab report reads in about a minute. Bank statements and the other readers still use `vision_extraction`, unchanged. The rows were added directly in `/opt/llmsel-data/llmsel.db` (the admin API sits behind Cloudflare Access); backup taken first: `/root/llmsel_pre_health_extraction_20261016.db` on the VPS. If the gateway database is ever rebuilt from seeds, re-create the job (POST `/admin/api/workload-types` with `effort: low`, `privacy_tier: private`, modalities text+image, then POST `/admin/api/bindings?worker=hub&workload_type=health_extraction`).
+
+## Health reading: checks and the benchmark (2026-10-16)
+**Checks.** Every Health reading of a PDF that carries text is compared with that text (`app/domains/health/checks.py`, run by `reading.py`): a value not printed on the paper marks that result doubtful; printed numbers the reading has nowhere trigger ONE short second model call about exactly those lines (at `house_high`, ~0.5 s). Whatever is still doubtful is stored in `health_entries.check_notes` and shown on the paper's page ("N things to look at", button "I've looked"). A scan or photo has no text to compare with, so it is not checked.
+
+**Benchmark.** Real papers plus their confirmed readings live in `data/health_benchmark/<case>/{paper.*,expected.json}` on the VPS. The folder is git-ignored; never commit it. Run it before and after any change to the reader, prompt or gateway job (about 35 s per case, goes out at `house_high`):
+```
+cd /srv/home-hub/app && sudo -u home-hub /srv/home-hub/venv/bin/python scripts/health_benchmark.py run
+```
+Add a case from a paper in the Hub, after a person has corrected it on the paper's page: `... scripts/health_benchmark.py promote DOCUMENT_ID NAME`, then check `expected.json` and set `"reviewed": true`. `cintramedica-lab-2024-11` is provisional (seeded from a reading, not yet reviewed). Two runs on the same paper can differ in how the model groups a few ambiguous rows; the benchmark shows exactly which.

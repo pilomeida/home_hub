@@ -9,7 +9,8 @@ from app.domains.health import areas as areas_svc
 from app.domains.health import store
 from app.config import settings
 from app.domains.health.appointments import appointment_event, remove_appointment, sync_appointment
-from app.domains.health.extraction import HealthExtractionError, extract_health_document
+from app.domains.health.extraction import HealthExtractionError
+from app.domains.health.reading import read_health_document
 from app.models.document import Document, DocumentStatus
 from app.models.wiki import WikiOperation
 from app.privacy.settings import configured_tier
@@ -21,7 +22,7 @@ class HealthHandler(DomainHandler):
     assessment both go out at house_high only."""
 
     async def process(self, session: Session, document: Document) -> Document:
-        extracted = await extract_health_document(
+        extracted = await read_health_document(
             document.file_path, document.category,
             existing_areas=areas_svc.names_for_prompt(session, "area"),
             existing_conditions=areas_svc.names_for_prompt(session, "condition"))
