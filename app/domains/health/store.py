@@ -177,7 +177,8 @@ def purge_derived(session: Session, document: Document) -> None:
         session.delete(m)
     for t in session.exec(select(HealthEntryTag).where(HealthEntryTag.entry_id == entry.id)).all():
         session.delete(t)
-    session.delete(entry)
+    session.flush()          # children first, explicitly: these tables have no declared relationship, so the unit of
+    session.delete(entry)    # work does not order them, and the entry could be deleted while still referenced
     session.commit()
 
 

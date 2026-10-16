@@ -108,3 +108,24 @@ def test_health_not_found_messages_are_three_part(client, session):
     r = client.post(f"/health/documents/{doc.id}/measurements/9999/ok")
     assert r.status_code == 404
     assert "Value not found." in r.text and "Reload the paper" in r.text
+
+
+@pytest.mark.asyncio
+async def test_taking_back_a_reading_deletes_the_results_and_tags_before_their_entry(session, monkeypatch):
+    """The tables have no declared relationship, so the order is ours to keep: with foreign keys enforced, an entry
+    deleted while results still point at it fails (it did, on the first real paper, 2026-10-16)."""
+    from sqlalchemy import event
+    from app.domains.health import store
+    from tests import privacy_world as pw
+    from tests.test_health_handler import _file
+    from tests.test_health_sections import SECTIONS_REPLY
+    doc = (await _file(session, pw.Wire(), reply=SECTIONS_REPLY)).document
+    seen = []
+    @event.listens_for(session.get_bind(), "before_cursor_execute")
+    def record(conn, cursor, statement, *a):
+        if statement.lstrip().upper().startswith("DELETE FROM HEALTH_"):
+            seen.append(statement.split()[2])
+    store.purge_derived(session, doc)
+    tables = [t for i, t in enumerate(seen) if t not in seen[:i]]
+    assert tables.index("health_entries") == len(tables) - 1, tables              # the entry goes last
+    assert store.entry_for(session, doc.id) is None
