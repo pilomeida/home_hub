@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ description.filename }} — Health{% endblock %}
 {% block content %}
+<style>
+  .oor { color:#b3261e; font-weight:700; white-space:nowrap; }
+  tr.oor-row td { background:#fff1f0; }
+  tr.oor-row td:first-child { box-shadow: inset 3px 0 0 #b3261e; }
+</style>
 <p><a href="/health/records">← Health</a></p>
 <h1>{{ description.filename }}</h1>
 <p>{{ description.category_label or "Kind of paper not known yet" }} (<a href="/documents/{{ document.id }}/edit">change</a>) · {{ entry.entry_date if entry and entry.entry_date else "undated" }}</p>
@@ -64,10 +69,10 @@
   {% for depth, name in row.headings %}
   <tr class="group-row"><th colspan="5" style="text-align:left;padding-left:{{ depth * 18 + 6 }}px;{% if depth == 0 %}background:#e9e9e9;{% else %}background:#f4f4f4;font-weight:600;{% endif %}">{{ name }}</th></tr>
   {% endfor %}
-  <tr{% if m.needs_check %} class="needs-attention"{% endif %}>
+  <tr{% if m.needs_check %} class="needs-attention"{% elif m.out_of_range %} class="oor-row"{% endif %}>
     <td style="padding-left:{{ (m.group_path.split(" › ")|length if m.group_path else 0) * 18 + 6 }}px;">{{ m.test }}{% if m.method %}<br><small style="color:#777;padding-left:0;">{{ m.method }}</small>{% endif %}</td>
     <td>{% if m.value is not none %}{{ "%g"|format(m.value) }} {{ m.unit or "" }}{% else %}{{ m.value_text or "?" }}{% if m.value_text and m.unit %} {{ m.unit }}{% endif %}{% endif %}
-      {% if m.out_of_range %}<strong>out of range</strong>{% endif %}</td>
+      {% if m.out_of_range %}<span class="oor" title="Outside the reference range">⚠ {% if row.flag == "high" %}▲ high{% elif row.flag == "low" %}▼ low{% else %}out of range{% endif %}</span>{% endif %}</td>
     <td>{{ row.reference }}</td>
     <td>{% for e in row.earlier %}{{ e.measured_on|display_date if e.measured_on else "?" }}: {% if e.value is not none %}{{ "%g"|format(e.value) }}{% else %}{{ e.value_text or "?" }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     <td>{% if m.needs_check %}<form method="post" action="/health/documents/{{ document.id }}/measurements/{{ m.id }}/ok">

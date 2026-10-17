@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Health{% endblock %}
 {% block content %}
+<style>.oor { color:#b3261e; font-weight:700; white-space:nowrap; margin-left:6px; }</style>
 <h1>Health</h1>
 <p><a href="/health/upload">+ Add a paper</a>
   {% if facets.needs_check %} · <a href="/health/records?check=1" class="needs-attention">{{ facets.needs_check }} to check</a>{% endif %}
@@ -36,7 +37,8 @@
     <td>{{ r.entry.entry_date if r.entry and r.entry.entry_date else "—" }}</td>
     <td>{{ r.person.name if r.person else "—" }}{% if r.person and not r.person.confirmed %} <small>(new)</small>{% endif %}</td>
     <td><a href="/health/documents/{{ r.document.id }}">{{ r.document.filename }}</a>
-      {% if r.entry is none %}<span class="needs-attention">couldn't be read</span>{% elif r.entry.needs_check %}<span class="needs-attention">to check</span>{% endif %}</td>
+      {% if r.entry is none %}<span class="needs-attention">couldn't be read</span>{% elif r.entry.needs_check %}<span class="needs-attention">to check</span>{% endif %}
+      {% if r.out_of_range %}<span class="oor" title="{{ r.out_of_range }} result{{ 's' if r.out_of_range != 1 }} outside the reference range">⚠ {{ r.out_of_range }} out of range</span>{% endif %}</td>
     <td>{{ r.entry.provider if r.entry and r.entry.provider else "—" }}</td>
     <td>{{ r.entry.kind|humanize_key if r.entry and r.entry.kind else "—" }}</td>
     <td>{% for a in r.areas %}<a href="/health/records?area={{ a.id }}">{{ a.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}

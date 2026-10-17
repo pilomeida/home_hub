@@ -12,7 +12,7 @@ from app.domains.health.categories import RECORD_KINDS
 from app.domains.health.text import match_key
 from app.models.document import Document, DocumentStatus
 from app.models.domain import Domain
-from app.models.health import HealthArea, HealthEntry, HealthPerson
+from app.models.health import HealthArea, HealthEntry, HealthMeasurement, HealthPerson
 
 
 @dataclass
@@ -51,6 +51,7 @@ class Row:
     areas: list[HealthArea] = field(default_factory=list)       # approved areas
     conditions: list[HealthArea] = field(default_factory=list)  # approved conditions
     proposed: list[HealthArea] = field(default_factory=list)    # proposed, not yet approved
+    out_of_range: int = 0                                       # results on this paper outside their reference
 
 
 @dataclass
@@ -72,10 +73,14 @@ def _all_rows(session: Session) -> list[Row]:
         Document.status.in_([DocumentStatus.PROCESSED, DocumentStatus.NEEDS_ATTENTION]))).all()
     entries = {e.document_id: e for e in session.exec(select(HealthEntry)).all()}
     people = {p.id: p for p in session.exec(select(HealthPerson)).all()}
+    flagged: dict[int, int] = {}
+    for entry_id in session.exec(select(HealthMeasurement.entry_id).where(
+            HealthMeasurement.out_of_range.is_(True), HealthMeasurement.is_previous.is_(False))).all():
+        flagged[entry_id] = flagged.get(entry_id, 0) + 1
     out = []
     for d in docs:
         e = entries.get(d.id)
-        row = Row(d, e, people.get(e.person_id) if e else None)
+        row = Row(d, e, people.get(e.person_id) if e else None, out_of_range=flagged.get(e.id, 0) if e else 0)
         if e is not None:
             for t in areas_svc.tags_of(session, e.id):
                 if t.merged_into_id is not None:

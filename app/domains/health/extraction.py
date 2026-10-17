@@ -113,8 +113,10 @@ Fields:
     5,42 x10^9/L): return BOTH, as two results; a reference printed once belongs to the one in its unit.
   * measured_on (YYYY-MM-DD): only when it differs from the paper's date.
   * previous: earlier results the paper prints for the same test, for comparison: [{{"date": "YYYY-MM-DD", "value": n}}]
-    or [{{"date": "YYYY-MM-DD", "value_text": "..."}}]. A column headed by an earlier date (e.g. 10-05-2021) holds
-    previous results, not references: that includes words such as "não detectável".
+    or [{{"date": "YYYY-MM-DD", "value_text": "..."}}]. However the paper lays them out (a history column headed by
+    an earlier date such as 10-05-2021, several dated columns, a trend table, a note such as "last year: 5,2"),
+    every result with a date other than the paper's is a previous result with that date, not a reference: that
+    includes words such as "não detectável".
   * uncertain: true if a value is unclear or you are unsure of it.
   Omit every key that does not apply (no nulls). Answer in compact JSON: no indentation, no line breaks inside it.
 {{full_text_rule}}

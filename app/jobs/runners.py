@@ -277,6 +277,13 @@ async def run_mailbox_check(session: Session, trigger: str) -> JobOutcome:
     text = ""
     if report.processed:
         text = f"Done: {_plural(report.documents_created, 'document', 'documents')} filed in the Inbox from {_plural(report.processed, 'email', 'emails')}."
+        notes = []
+        if report.duplicates:
+            notes.append(f"{_plural(report.duplicates, 'attachment was an exact copy', 'attachments were exact copies')} of documents already in the Hub")
+        if report.decorative:
+            notes.append(f"{_plural(report.decorative, 'image was a logo or banner', 'images were logos or banners')}")
+        if notes:
+            text += " Not added: " + " and ".join(notes) + " (listed under “Not added” on the Inbox page)."
     if report.ignored:
         text += f"{' ' if text else ''}{_plural(report.ignored, 'email was', 'emails were')} set aside (unknown sender, or nothing to file); they are in the mailbox's Hub-Ignored folder."
     return JobOutcome("ok", text)

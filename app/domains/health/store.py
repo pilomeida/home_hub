@@ -13,7 +13,7 @@ from app.domains.fields import dump_fields, load_fields
 from app.domains.health import areas as areas_svc
 from app.domains.health import people as people_svc
 from app.domains.health.extraction import ExtractedHealth, ExtractedMeasurement
-from app.domains.health.text import match_key
+from app.domains.health.text import match_key, reference_for_display
 from app.models.document import Document
 from app.models.health import HealthEntry, HealthEntryTag, HealthMeasurement
 
@@ -163,7 +163,12 @@ def wiki_context(extracted: ExtractedHealth) -> str:
              f"Summary: {extracted.summary}"]
     for m in extracted.measurements:
         value = m.value if m.value is not None else (m.value_text or "?")
-        lines.append(f"- {m.test}: {value} {m.unit or ''} (reference {m.ref_low}–{m.ref_high})")
+        ref = reference_for_display(m.reference_text, m.ref_low, m.ref_high)
+        where = f"{m.group_path} › " if m.group_path else ""
+        if m.is_previous:
+            lines.append(f"- {where}{m.test} on {m.measured_on or 'an earlier date'} (earlier result): {value} {m.unit or ''}".rstrip())
+        else:
+            lines.append(f"- {where}{m.test}: {value} {m.unit or ''}".rstrip() + (f" (reference {ref})" if ref else ""))
     return "\n".join(lines)
 
 

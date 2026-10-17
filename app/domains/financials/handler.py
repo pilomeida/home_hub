@@ -163,7 +163,8 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         return mark_needs_attention(session, document, str(exc))
 
     duplicate = find_duplicate_transaction(
-        session, description=extracted.provider, statement_period=extracted.statement_period
+        session, description=extracted.provider, statement_period=extracted.statement_period,
+        amount=extracted.amount, issue_date=extracted.issue_date,
     )
     if duplicate is not None:
         await _log_ingest_without_assessment(session, document)

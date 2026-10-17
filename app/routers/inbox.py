@@ -83,8 +83,11 @@ async def inbox_page(request: Request, session: Session = Depends(get_session)):
          "label": inbox_service.describe(document.domain, document.category)}
         for item, document in inbox_service.recently_reviewed(session)
     ]
+    skipped = [{"skip": s, "document": d, "href": (document_url(d) if d is not None and d.domain is not None else "/inbox")}
+               for s, d in inbox_service.recent_skips(session)]
     return templates.TemplateResponse(request, "inbox/list.html",
-                                      {"cards": cards, "recent": recent, "to_check_section": to_check_section(session)})
+                                      {"cards": cards, "recent": recent, "skipped": skipped,
+                                       "to_check_section": to_check_section(session)})
 
 
 @router.get("/{document_id}/fields")

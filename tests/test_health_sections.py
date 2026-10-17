@@ -188,3 +188,52 @@ async def test_a_test_name_that_repeats_its_heading_is_stored_without_it_so_ever
         {"test": "Hemoglobina glicada A1c total", "value": 1, "unit": "x"}]}])      # no separator: a real name, kept
     got = await ex.extract_health_document(_png(tmp_path), None, gateway=FakeGateway([gateway_text_result(json.dumps(reply))]))
     assert [m.test for m in got.measurements] == ["Resultado (IFCC)", "Resultado (NGSP/DCCT)", "Hemoglobina glicada A1c total"]
+
+
+@pytest.mark.asyncio
+async def test_a_result_outside_its_reference_has_a_visible_cue_on_the_paper_and_in_the_list(client, session):
+    reply = dict(SECTIONS_REPLY, sections=[{"path": ["Bioquímica"], "results": [
+        {"test": "Colesterol total", "value": 258, "unit": "mg/dL", "reference": "Risco elevado: > 240; Risco baixo: < 190"},
+        {"test": "Glicose", "value": 87, "unit": "mg/dL", "reference": "60 - 110"},
+        {"test": "Ferro", "value": 30, "unit": "ug/dL", "reference": "60 - 170"}]}])
+    doc = (await _file(session, pw.Wire(), reply=reply)).document
+    page = client.get(f"/health/documents/{doc.id}").text
+    assert page.count('class="oor"') == 2                                  # cholesterol (high) and iron (low), not glucose
+    assert "⚠ ▲ high" in page and "⚠ ▼ low" in page and 'class="oor-row"' in page
+    listing = client.get("/health/records").text
+    assert "⚠ 2 out of range" in listing
+
+
+@pytest.mark.asyncio
+async def test_ask_gets_the_whole_history_of_a_test_once_each_point_with_its_own_date(session):
+    from app.domains.health.ask import HEALTH_TOOLS
+    from app.privacy.scope import reachable_scope
+    pw.set_levels(session, on=False)
+
+    def paper(date_of, value, earlier):
+        return dict(SECTIONS_REPLY, document_date=date_of, sections=[{"path": ["Bioquímica"], "results": [
+            {"test": "Colesterol total", "value": value, "unit": "mg/dL", "reference": "< 190",
+             "previous": [{"date": d, "value": v} for d, v in earlier]}]}])
+    await _file(session, pw.Wire(), name="a.png", content=b"\x89PNG\r\n\x1a\na", reply=paper("2024-11-11", 258, [("2021-05-10", 222)]))
+    await _file(session, pw.Wire(), name="b.png", content=b"\x89PNG\r\n\x1a\nb",
+                reply=paper("2026-11-02", 240, [("2024-11-11", 258), ("2021-05-10", 222)]))     # reprints both earlier points
+    tool = next(t for t in HEALTH_TOOLS if t.name == "health_measurements")
+    with reachable_scope(session):
+        out = tool.run(session, {"test": "colesterol"})
+    lines = [l for l in out.text.splitlines() if "|" in l]
+    assert [l.split(" | ")[0] for l in lines] == ["2021-05-10", "2024-11-11", "2026-11-02"]      # each point once, oldest first
+    assert [l.split(" | ")[3].split(" (")[0] for l in lines] == ["222 mg/dL", "258 mg/dL", "240 mg/dL"]
+    assert "history" in tool.description and "earlier results" in tool.description
+
+
+def test_the_wiki_gets_each_earlier_result_with_its_date_and_each_reference_as_printed():
+    from datetime import date as d
+    x = ex.ExtractedHealth(person_name="Maria", document_date=d(2024, 11, 11), summary="s")
+    x.measurements = [
+        ex.ExtractedMeasurement("Colesterol HDL", 60.0, None, "mg/dL", 60.0, None, d(2024, 11, 11), False, "",
+                                group_path="Bioquímica", position=1, reference_text="Risco baixo: > 60"),
+        ex.ExtractedMeasurement("Colesterol HDL", 54.0, None, "mg/dL", None, None, d(2021, 5, 10), False, "",
+                                group_path="Bioquímica", position=1, is_previous=True)]
+    text = store.wiki_context(x)
+    assert "- Bioquímica › Colesterol HDL: 60.0 mg/dL (reference Risco baixo: > 60)" in text
+    assert "- Bioquímica › Colesterol HDL on 2021-05-10 (earlier result): 54.0 mg/dL" in text

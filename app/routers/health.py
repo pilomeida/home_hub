@@ -62,7 +62,10 @@ def _measurement_view(rows: list[HealthMeasurement]) -> list[dict]:
         common = 0
         while common < len(path) and common < len(last) and path[common] == last[common]:
             common += 1
-        view.append({"m": m, "headings": [(depth, path[depth]) for depth in range(common, len(path))],
+        flag = None
+        if m.out_of_range and m.value is not None:
+            flag = "high" if (m.ref_high is not None and m.value > m.ref_high) else "low"
+        view.append({"m": m, "flag": flag, "headings": [(depth, path[depth]) for depth in range(common, len(path))],
                      "earlier": earlier.get(m.position, []),
                      "reference": reference_for_display(m.reference_text, m.ref_low, m.ref_high)})
         last = path

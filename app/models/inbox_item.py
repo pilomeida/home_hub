@@ -27,3 +27,19 @@ class InboxItem(SQLModel, table=True):
     received_at: datetime = Field(default_factory=datetime.utcnow)
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[datetime] = None
+
+
+class InboxSkip(SQLModel, table=True):
+    """A file that arrived through a channel and was NOT added to the Inbox, with the reason in plain words:
+    an exact copy of a document the Hub already holds, or a decorative image (logo, banner, signature).
+    Nothing that arrives is dropped silently: the Inbox page lists these."""
+    __tablename__ = "inbox_skips"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    filename: str
+    source: str                                       # "email" | "telegram"
+    reason: str = Field(index=True)                   # "duplicate" | "decorative"
+    detail: str                                       # what happened and why, for a person
+    document_id: Optional[int] = Field(default=None, foreign_key="documents.id")   # the existing document, for a duplicate
+    external_ref: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

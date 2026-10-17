@@ -22,7 +22,7 @@ from sqlmodel import Session
 from app.channels.email_parsing import ParsedEmail, parse_email
 from app.config import settings
 from app.models.document import DocumentSource
-from app.services.inbox_service import receive_document
+from app.services.inbox_service import receive_document, record_skip
 from app.services.ingestion import IncomingFile
 
 from app.problems import Problem  # noqa: E402
@@ -86,6 +86,8 @@ class PollReport:
     ignored: int = 0
     failed: int = 0
     documents_created: int = 0
+    duplicates: int = 0                 # attachments that were exact copies of documents already held
+    decorative: int = 0                 # logos, banners and signature images that were not taken
 
 
 def _note(session_factory, problem, ref: str, technical=None) -> None:
@@ -156,6 +158,10 @@ async def poll_once(
 
         try:
             with session_factory() as session:
+                for skipped in parsed.skipped:
+                    record_skip(session, filename=skipped.filename, source="email", reason="decorative",
+                                detail=skipped.detail, external_ref=f"email:{parsed.message_id}")
+                    report.decorative += 1
                 for index, attachment in enumerate(parsed.attachments):
                     receipt = await receive(
                         session,
@@ -164,7 +170,9 @@ async def poll_once(
                         context_text=parsed.context_text,
                         external_ref=f"email:{parsed.message_id}#{index}",
                     )
-                    if not receipt.duplicate:
+                    if receipt.duplicate:
+                        report.duplicates += 1
+                    else:
                         report.documents_created += 1
         except Exception:
             # Content-hash dedup makes a later retry (moving the mail back to

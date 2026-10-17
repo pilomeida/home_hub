@@ -13,7 +13,7 @@ runs the domain handler and the wiki Ingest. Nothing here touches the wiki
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Mapping, Optional
 
 from sqlmodel import Session, select
@@ -22,7 +22,7 @@ from app.domains.fields import InvalidClassification
 from app.domains.registry import get_spec, is_implemented
 from app.models.document import Document, DocumentStatus
 from app.models.domain import Domain
-from app.models.inbox_item import InboxItem
+from app.models.inbox_item import InboxItem, InboxSkip
 from app.models.wiki import WikiOperation
 from app.services.domain_classifier import (
     CONFIDENT_THRESHOLD,
@@ -63,6 +63,26 @@ class InboxEntry:
     suggestion_label: Optional[str]
 
 
+def record_skip(session: Session, *, filename: str, source: str, reason: str, detail: str,
+                document_id: Optional[int] = None, external_ref: Optional[str] = None) -> InboxSkip:
+    """Keep a file that was not added findable: the Inbox page lists it with the reason. Never raises."""
+    skip = InboxSkip(filename=filename, source=source, reason=reason, detail=detail, document_id=document_id,
+                     external_ref=external_ref)
+    try:
+        session.add(skip)
+        session.commit()
+    except Exception:
+        session.rollback()          # keeping a note must never stop the arrival being handled
+    return skip
+
+
+def recent_skips(session: Session, days: int = 30, limit: int = 50) -> list[tuple[InboxSkip, Optional[Document]]]:
+    since = datetime.utcnow() - timedelta(days=days)
+    rows = session.exec(select(InboxSkip).where(InboxSkip.created_at >= since)
+                        .order_by(InboxSkip.created_at.desc()).limit(limit)).all()
+    return [(s, session.get(Document, s.document_id) if s.document_id else None) for s in rows]
+
+
 def item_for(session: Session, document_id: int) -> Optional[InboxItem]:
     return session.exec(select(InboxItem).where(InboxItem.document_id == document_id)).first()
 
@@ -78,6 +98,12 @@ async def receive_document(
     received = receive_file(session, incoming, initial_status=DocumentStatus.PENDING_REVIEW)
     document = received.document
     if received.duplicate:
+        where = ("it is still waiting in the Inbox" if document.status == DocumentStatus.PENDING_REVIEW
+                 else f"it is already filed ({describe(document.domain, document.category) or 'in the Hub'})")
+        record_skip(session, filename=incoming.filename, source=incoming.source.value, reason="duplicate",
+                    detail=f"An exact copy of “{document.filename}”, which the Hub already holds: {where}. "
+                           "Nothing was added; if you meant a different document, send that one.",
+                    document_id=document.id, external_ref=external_ref)
         return InboxReceipt(document=document, inbox_item=item_for(session, document.id), duplicate=True)
 
     # 1. Known, recurring documents are recognised by rules, with no AI (D13).

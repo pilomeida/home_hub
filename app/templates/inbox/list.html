@@ -11,6 +11,24 @@
 
 {% if to_check_section %}{{ to_check_section | safe }}{% endif %}
 
+{% if skipped %}
+<h2>Not added</h2>
+<p>Files that arrived but were not added, and why (last 30 days).</p>
+<table class="review-table">
+  <thead><tr><th>File</th><th>Arrived by</th><th>Why it was not added</th><th>When</th></tr></thead>
+  <tbody>
+  {% for row in skipped %}
+    <tr>
+      <td>{{ row.skip.filename }}</td>
+      <td>{{ row.skip.source }}</td>
+      <td>{{ row.skip.detail }}{% if row.document %} <a href="{{ row.href }}">Open “{{ row.document.filename }}”</a>{% endif %}</td>
+      <td>{{ row.skip.created_at | display_datetime }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 {% if recent %}
 <h2>Recently handled</h2>
 <table class="review-table">

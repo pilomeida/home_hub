@@ -104,7 +104,15 @@ def _measurements(session: Session, args: dict) -> ToolOutput:
         if (start and (when is None or when < start)) or (end and (when is None or when > end)):
             continue
         rows.append((when or date.min, m, e))
-    rows.sort(key=lambda r: r[0])
+    # One data point per (person, test, date, value): a later paper reprints earlier results as history, and the same
+    # point must not be counted twice. The paper that measured it (not a reprint) is the one cited.
+    best: dict[tuple, tuple] = {}
+    for row in rows:
+        when, m, e = row
+        key = (m.person_id, m.test_key, when, m.value, (m.value_text or "").casefold())
+        if key not in best or (best[key][1].is_previous and not m.is_previous):
+            best[key] = row
+    rows = sorted(best.values(), key=lambda r: (r[0], r[1].position))
     lines = [f"{len(rows)} measurements, oldest first:"]
     docs = []
     for when, m, e in rows[:200]:
@@ -117,7 +125,7 @@ def _measurements(session: Session, args: dict) -> ToolOutput:
             flag = " — above range" if m.ref_high is not None and m.value is not None and m.value > m.ref_high else " — below range"
         check = " [doubtful reading]" if m.needs_check else ""
         lines.append(f"{when if when != date.min else 'undated'} | {person.name if person else 'unknown'} | "
-                     f"{m.group_path + ' › ' if m.group_path else ''}{m.test}{' (earlier result on that paper)' if m.is_previous else ''}"
+                     f"{m.group_path + ' › ' if m.group_path else ''}{m.test}{' (printed as history on that paper)' if m.is_previous else ''}"
                      f" | {value}{rng}{flag}{check} | doc:{e.document_id}")
         docs.append(e.document_id)
     cites = [citable_for_document(d) for d in session.exec(select(Document).where(Document.id.in_(set(docs)))).all()] if docs else []
@@ -166,6 +174,8 @@ HEALTH_TOOLS = (
         name="health_measurements",
         description=("PRIVATE. Measured values (lab values, blood pressure, weight...) oldest first, with unit, "
                      "reference range and whether the reading was doubtful. Filter by person, test name and dates. "
+                     "Includes the earlier results that newer papers print for comparison (history columns), "
+                     "each with its own date, so one call gives the whole history of a test. "
                      "Use for trends. Using this makes the whole answer private."),
         input_schema={"type": "object", "properties": {
             "person": _PERSON, "test": {"type": "string"},
