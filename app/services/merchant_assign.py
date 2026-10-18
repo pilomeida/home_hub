@@ -96,7 +96,8 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
     # keeps held rows: classification workbench (bulk page): counts and totals size the work over EVERY entry, the same rows that will be filed; not a spending figure
     stmt = (select(Merchant.id, Merchant.canonical_name, Merchant.default_category_id, Merchant.confirmed, Merchant.default_credit_category_id,
                    func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount), 0.0))
-            .join(Transaction, Transaction.merchant_id == Merchant.id).group_by(Merchant.id))
+            .join(Transaction, Transaction.merchant_id == Merchant.id).where(Transaction.after_baseline())
+            .group_by(Merchant.id))
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(Merchant.canonical_name.ilike(like) | Transaction.description.ilike(like))
@@ -127,7 +128,7 @@ def list_merchants(session: Session, q: str = "", scope: str = "all", sort: str 
         for mid, default_id, n in session.exec(
                 select(Merchant.id, Merchant.default_category_id, func.count(Transaction.id))
                 .join(Transaction, Transaction.merchant_id == Merchant.id)
-                .where(Merchant.id.in_(ids), Transaction.debt_id.is_(None),
+                .where(Merchant.id.in_(ids), Transaction.debt_id.is_(None), Transaction.after_baseline(),
                        Transaction.transaction_type != TransactionType.TRANSFER,
                        (Transaction.category_id.is_(None)) | (Transaction.category_id != Merchant.default_category_id))
                 .group_by(Merchant.id)).all():

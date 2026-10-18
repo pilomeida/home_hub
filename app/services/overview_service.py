@@ -137,6 +137,16 @@ def _cash_transactions(session: Session, account_ids: list[int]) -> list[Transac
         Transaction.account_id.in_(account_ids), Transaction.counts())).all()
 
 
+def _cash_opening(session: Session, account_ids: list[int]) -> float:
+    """What the cash accounts held on the baseline day (app/baseline.py); the flow after it is added on top."""
+    from app.models.baseline import BaselinePosition
+    if not account_ids:
+        return 0.0
+    rows = session.exec(select(BaselinePosition).where(
+        BaselinePosition.kind == "cash", BaselinePosition.account_id.in_(account_ids))).all()
+    return sum(r.amount for r in rows)
+
+
 def _cash_balance_as_of(transactions: list[Transaction], as_of: date) -> float:
     """Cumulative net (CREDIT - DEBIT) across every transaction dated on or
     before `as_of`. This is a tracked net cash flow since ingestion began,
@@ -164,17 +174,19 @@ def _month_end(period: str) -> date:
 def get_cash_kpi(session: Session, today: date) -> KpiCard:
     account_ids = _cash_account_ids(session)
     transactions = _cash_transactions(session, account_ids)
-    now_value = _cash_balance_as_of(transactions, today)
+    opening = _cash_opening(session, account_ids)
+    now_value = opening + _cash_balance_as_of(transactions, today)
 
     monthly = {
-        period: _cash_balance_as_of(transactions, _month_end(period))
+        period: opening + _cash_balance_as_of(transactions, _month_end(period))
         for period in _complete_months_before(today, _TREND_MONTHS_BACK)
         if any(t.paid_date and t.paid_date <= _month_end(period) for t in transactions)
     }
     chart = build_trend_chart(monthly, today, now_value)
     return KpiCard(
         label="Cash", value=now_value, color="green", drill_down_url="/financials/transactions", chart=chart,
-        caption="Net tracked flow since first statement — not a live bank balance",
+        caption=("Opening balance on the baseline day plus tracked flow since; not a live bank balance" if opening
+                 else "Net tracked flow since first statement — not a live bank balance"),
     )
 
 

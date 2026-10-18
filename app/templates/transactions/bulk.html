@@ -7,6 +7,7 @@
   <a href="/financials/transactions/needs-review">Needs Review</a>
   <a href="/financials/transactions/bulk" class="active">Bulk classify</a>
 </nav>
+{% if baseline_note %}<p class="muted baseline-note">{{ baseline_note }}</p>{% endif %}
 {% if banner %}
 <p class="loan-flags" role="status">Done: {{ banner.n }} {{ "description" if banner.by == "provider" else "merchant" }}{{ "s" if banner.n != 1 }} &mdash;
   {{ banner.filed }} unsorted entr{{ "ies" if banner.filed != 1 else "y" }} filed, {{ banner.moved }} moved from another category{% if banner.rules %}, {{ banner.rules }} rule{{ "s" if banner.rules != 1 }} saved for future entries{% endif %}.</p>

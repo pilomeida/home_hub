@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from sqlmodel import Session, select
 
+from app.baseline import BASELINE_DATE
 from app.db import get_session
 from app.domains.fields import InvalidClassification
 from app.models.category_node import CategoryNode
@@ -554,7 +555,7 @@ async def loan_detail(debt_id: int, request: Request, session: Session = Depends
     if debt is None or debt.external_number is None:
         raise HTTPException(status_code=404, detail="Loan not found")
     movements = session.exec(
-        select(LoanMovement).where(LoanMovement.debt_id == debt.id)
+        select(LoanMovement).where(LoanMovement.debt_id == debt.id, LoanMovement.movement_date >= BASELINE_DATE)
         .order_by(LoanMovement.movement_date.desc(), LoanMovement.instalment_number.desc())
     ).all()
     series = [m.balance_after for m in reversed(movements) if m.balance_after is not None]

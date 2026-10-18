@@ -88,7 +88,18 @@ class Transaction(SQLModel, table=True):
         already settled and rows waiting for, or failed, a person's check."""
         from sqlalchemy import and_, or_
         return and_(cls.settled_by_id.is_(None),
-                    or_(cls.review_status.is_(None), cls.review_status == "confirmed"))
+                    or_(cls.review_status.is_(None), cls.review_status == "confirmed"),
+                    cls.after_baseline())
+
+    @classmethod
+    def after_baseline(cls):
+        """SQL condition: dated on or after the baseline day (app/baseline.py). Older rows are kept but
+        shown and counted nowhere. A row with no date at all is not provably old, so it stays."""
+        from sqlalchemy import func, or_
+
+        from app.baseline import BASELINE_DATE
+        when = func.coalesce(cls.paid_date, cls.due_date, cls.issue_date)
+        return or_(when.is_(None), when >= BASELINE_DATE)
 
 
 class StatementCheck(SQLModel, table=True):

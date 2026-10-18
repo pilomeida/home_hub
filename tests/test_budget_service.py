@@ -117,9 +117,8 @@ def test_yearly_line_visibility_and_expected(session):
 def test_income_month_view_uses_seasonality(session):
     ensure_taxonomy(session)
     _txn(session, PSI, 1000.0, TransactionType.CREDIT, date(2025, 10, 10))
-    _txn(session, PSI, 1400.0, TransactionType.CREDIT, date(2024, 10, 10))
     ov = get_budget_overview(session, TODAY)
-    assert (ov.income.low, ov.income.expected, ov.income.high) == (1000.0, 1200.0, 1400.0)
+    assert (ov.income.low, ov.income.expected, ov.income.high) == (1000.0, 1000.0, 1000.0)  # the books start 10 Oct 2025: one October on record
     assert ov.income.low <= ov.income.expected <= ov.income.high
     assert ov.income_received == 0.0
     _txn(session, PSI, 1100.0, TransactionType.CREDIT, date(2026, 10, 2))
@@ -205,10 +204,10 @@ def test_transfer_filed_under_in_node_counts_as_income(session):
 
 def test_income_history_is_zero_filled_for_seasonal_gaps(session):
     ensure_taxonomy(session)
-    _txn(session, PSI, 300.0, TransactionType.CREDIT, date(2024, 8, 10))
-    _txn(session, PSI, 500.0, TransactionType.CREDIT, date(2025, 3, 10))
+    _txn(session, PSI, 300.0, TransactionType.CREDIT, date(2025, 8, 10))   # before the baseline: not on record
+    _txn(session, PSI, 500.0, TransactionType.CREDIT, date(2025, 11, 10))
     ov = get_budget_overview(session, date(2026, 8, 15))
-    assert (ov.income.low, ov.income.expected, ov.income.high) == (0.0, 150.0, 300.0)
+    assert (ov.income.low, ov.income.expected, ov.income.high) == (0.0, 0.0, 0.0)
 
 
 def test_income_source_without_data_stays_out(session):

@@ -2,6 +2,8 @@
 
 `Transaction.counts()` (`app/models/transaction.py`) is the one definition: `settled_by_id IS NULL AND (review_status IS NULL OR review_status = 'confirmed')`. A line waiting for a check (`needs_check`) or rejected counts nowhere.
 
+**Baseline (2026-10-17):** `counts()` also requires `Transaction.after_baseline()`: dated (paid, else due, else issue date) on or after 10 Oct 2025 (`app/baseline.py`). Older rows are kept but shown and counted nowhere. The screens that list rows (Transactions, Needs Review, bulk classify, loan history) and the classification queue add `after_baseline()` explicitly. Dedup, matching and bank-sync sites still see old rows on purpose. Tests: `tests/test_baseline.py`.
+
 - **(a)** a figure, chart, budget, forecast, count or Ask answer a person reads as money: uses `Transaction.counts()`, and has a test in `tests/test_counts_sites.py` (the test name is in the last column).
 - **(b)** processing, matching, display lookup or hygiene: a held row must stay visible to it. Marked in the code with `# keeps held rows: <why>` on the line above the query.
 

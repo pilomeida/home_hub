@@ -83,7 +83,7 @@ def filtered_transactions(session: Session, q: str = "", node_slug: str = "", da
                           date_to: Optional[date] = None) -> list[Transaction]:
     from app.services.taxonomy import descendant_ids
     # keeps held rows: classification workbench (bulk page): groups EVERY entry so the totals shown are the rows apply_to_providers will file; not a spending figure
-    stmt = select(Transaction)
+    stmt = select(Transaction).where(Transaction.after_baseline())
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(Transaction.description.ilike(like)

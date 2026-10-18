@@ -347,7 +347,7 @@ def detect_recurring_candidates(session: Session) -> list[Merchant]:
 
     # keeps held rows: recurring-payment detection looks at every row of a merchant
     all_transactions = session.exec(
-        select(Transaction).where(Transaction.merchant_id.in_(merchant_ids))
+        select(Transaction).where(Transaction.merchant_id.in_(merchant_ids), Transaction.after_baseline())
     ).all()
     transactions_by_merchant: dict[int, list[Transaction]] = {}
     for t in all_transactions:
@@ -374,6 +374,7 @@ def detect_debt_candidates(session: Session) -> list[Transaction]:
         .where(Transaction.amount > _DEBT_CANDIDATE_MIN_AMOUNT)
         .where(Transaction.debt_id.is_(None))
         .where(Transaction.debt_candidate_reviewed.isnot(True))
+        .where(Transaction.after_baseline())
     )
     transactions = session.exec(statement).all()
     return [t for t in transactions if _DEBT_TRANSFER_MARKER_RE.search(t.description)]
@@ -399,6 +400,7 @@ def unsorted_transactions_query():
     return select(Transaction).where(
         Transaction.category_id.is_(None) | Transaction.category_id.in_(unsorted_ids),
         Transaction.settled_by_id.is_(None),  # a document's record of a payment the bank already shows
+        Transaction.after_baseline(),
     )
 
 
@@ -409,11 +411,15 @@ def get_needs_review_queue(session: Session) -> NeedsReviewQueue:
     Merchant at all (merchant_id left NULL), and transactions still unfiled
     or in Unsorted (grouped by merchant)."""
     unconfirmed = session.exec(
-        select(Merchant).where(Merchant.confirmed == False, Merchant.merged_into_id.is_(None))  # noqa: E712
+        select(Merchant).where(Merchant.confirmed == False, Merchant.merged_into_id.is_(None),  # noqa: E712
+                               Merchant.id.not_in(select(Transaction.merchant_id).where(
+                                   Transaction.merchant_id.is_not(None), ~Transaction.after_baseline())
+                                   .except_(select(Transaction.merchant_id).where(Transaction.after_baseline()))))
     ).all()
     # keeps held rows: classification queue (see unsorted_transactions_query)
     unclassified = session.exec(
-        select(Transaction).where(Transaction.merchant_id.is_(None), Transaction.settled_by_id.is_(None))
+        select(Transaction).where(Transaction.merchant_id.is_(None), Transaction.settled_by_id.is_(None),
+                                  Transaction.after_baseline())
     ).all()
     unsorted = session.exec(unsorted_transactions_query().order_by(Transaction.id)).all()
     by_merchant: dict[int, list[Transaction]] = {}
@@ -488,7 +494,8 @@ def get_needs_review_page(
     counts: dict[int, int] = {}
     for mid, n in session.exec(
         # keeps held rows: orders the review list by how many entries a merchant has
-        select(Transaction.merchant_id, func.count(Transaction.id)).group_by(Transaction.merchant_id)
+        select(Transaction.merchant_id, func.count(Transaction.id)).where(Transaction.after_baseline())
+        .group_by(Transaction.merchant_id)
     ).all():
         if mid is not None:
             counts[mid] = n

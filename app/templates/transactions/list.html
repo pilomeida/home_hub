@@ -7,6 +7,7 @@
   <a href="/financials/transactions/needs-review">Needs Review</a>
   <a href="/financials/transactions/bulk">Bulk classify</a>
 </nav>
+{% if baseline_note %}<p class="muted baseline-note">{{ baseline_note }}</p>{% endif %}
 {% if merchant_filter_name %}
 <p>Showing transactions for merchant: <strong>{{ merchant_filter_name }}</strong> — <a href="/financials/transactions">clear</a></p>
 {% endif %}

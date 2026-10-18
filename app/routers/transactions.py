@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
+from app.baseline import baseline_note
 from app.db import get_session
 from app.models.account import Account
 from app.models.category_node import CategoryNode
@@ -105,7 +106,8 @@ def _filtered_transactions(
     q: Optional[str] = None,
 ):
     # keeps held rows: the Transactions page is the full ledger: it shows every row (settled ones with a marker) and adds up nothing
-    statement = select(Transaction).order_by(Transaction.paid_date.desc(), Transaction.id.desc())
+    statement = (select(Transaction).where(Transaction.after_baseline())
+                 .order_by(Transaction.paid_date.desc(), Transaction.id.desc()))
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
@@ -157,7 +159,7 @@ def _count_filtered_transactions(
     q: Optional[str] = None,
 ) -> int:
     # keeps held rows: page count of the full ledger list above
-    statement = select(Transaction)
+    statement = select(Transaction).where(Transaction.after_baseline())
     statement = _apply_transaction_filters(
         session, statement, category=category, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
@@ -274,6 +276,7 @@ async def list_transactions(
         request,
         "transactions/list.html",
         {
+            "baseline_note": baseline_note(session),
             "transactions": transactions,
             "accounts": accounts,
             "categories": list(Category),
@@ -436,7 +439,8 @@ def _review_rows(request: Request, session: Session, source=None):
 async def needs_review(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request, "transactions/needs_review.html",
-        _needs_review_context(session, _review_offsets(request.query_params)),
+        {**_needs_review_context(session, _review_offsets(request.query_params)),
+         "baseline_note": baseline_note(session)},
     )
 
 
@@ -669,6 +673,7 @@ async def bulk_page(request: Request, session: Session = Depends(get_session)):
     view["page"] = result.page
     applied = _int(params.get("applied"))
     return templates.TemplateResponse(request, "transactions/bulk.html", {
+        "baseline_note": baseline_note(session),
         "result": result, "view": view, "view_qs": _view_qs({k: v for k, v in view.items() if k != "page"}),
         "qs_nb": _view_qs({k: v for k, v in view.items() if k not in ("page", "by")}),
         "leaf_groups": _leaf_groups(session), "node_options": _node_options(session),

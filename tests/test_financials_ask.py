@@ -19,11 +19,11 @@ def _txn(session, doc, provider, category, amount, paid, ttype=TransactionType.D
 
 def test_spending_by_category_debits_only_in_range(session):
     doc = make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
-    _txn(session, doc, "EDP", Category.ELECTRICITY, 80.0, date(2025, 3, 1))
-    _txn(session, doc, "EDP", Category.ELECTRICITY, 20.0, date(2025, 4, 1))
-    _txn(session, doc, "Salary", Category.INCOME, 3000.0, date(2025, 4, 1), TransactionType.CREDIT)
-    _txn(session, doc, "EDP", Category.ELECTRICITY, 999.0, date(2024, 12, 31))
-    out = _tool("financials_spending").run(session, {"date_from": "2025-01-01", "date_to": "2025-12-31"})
+    _txn(session, doc, "EDP", Category.ELECTRICITY, 80.0, date(2025, 11, 3))
+    _txn(session, doc, "EDP", Category.ELECTRICITY, 20.0, date(2025, 12, 1))
+    _txn(session, doc, "Salary", Category.INCOME, 3000.0, date(2025, 12, 1), TransactionType.CREDIT)
+    _txn(session, doc, "EDP", Category.ELECTRICITY, 999.0, date(2025, 10, 20))
+    out = _tool("financials_spending").run(session, {"date_from": "2025-11-01", "date_to": "2025-12-31"})
     assert "electricity: €100.00 (2 payments)" in out.text
     assert "income" not in out.text and "999" not in out.text
     assert out.citables[0].url.startswith("/financials/transactions?") and "transaction_type=debit" in out.citables[0].url

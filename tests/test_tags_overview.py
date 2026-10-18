@@ -115,7 +115,7 @@ def test_tag_totals_by_period(session):
     txn_last_year = Transaction(
         document_id=doc.id, description="Insurance", category=Category.OTHER,
         transaction_type=TransactionType.DEBIT, amount=90.0, currency="EUR",
-        paid_date=date(2025, 10, 5)
+        paid_date=date(2025, 11, 5)
     )
     session.add(txn_last_year)
     session.commit()
