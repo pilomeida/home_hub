@@ -31,7 +31,7 @@ SEED = {
   ("Education", M, None, ["School fees", ("Books, staples, …", Y)]),
   ("Sports", M, None, ["Sports fees", "Sports gear"]),
   ("Shopping", M, L.SHOPPING, ["Clothing"]),
-  ("Personal", M, L.SHOPPING, ["Clothing", "Personal care", "General shopping"]),
+  ("Personal", M, L.SHOPPING, ["Clothing", "Personal care", "General shopping", "Rute card (not itemised)"]),
   ("Leisure", M, None, ["Culture & events", "Gifts"]),
  ]),
  ("Holidays & travel", [
