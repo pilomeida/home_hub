@@ -1,13 +1,13 @@
 """baseline_positions: the opening position on the baseline day
 
 Revision ID: a7c3e5f9b214
-Revises: e6a2c4d8f731
+Revises: f6d0e3a27c48
 """
 import sqlalchemy as sa
 from alembic import op
 
 revision = "a7c3e5f9b214"
-down_revision = "e6a2c4d8f731"
+down_revision = "f6d0e3a27c48"
 branch_labels = None
 depends_on = None
 
