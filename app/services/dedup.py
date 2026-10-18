@@ -28,35 +28,39 @@ def _similar_provider(a: str, b: str) -> bool:
     return bool(wa) and bool(wb) and (wa <= wb or wb <= wa)
 
 
+SAME_BILL_DAYS = 10     # an invoice and its detail sheet are dated within days of each other; the next month's is ~30 apart
+
+
 def find_duplicate_transaction(
     session: Session, description: str, statement_period: Optional[str],
     amount: Optional[float] = None, issue_date: Optional[date] = None,
 ) -> Optional[Transaction]:
-    """A transaction is a duplicate if the same provider already has a
-    BILL-derived transaction for the same statement period. Statement line
-    items (which legitimately share provider/period with each other, and
-    can coincidentally share a provider/period with an unrelated bill) are
-    excluded — this only applies to true bill re-uploads.
+    """Is this bill one the Hub already holds? Only BILL-derived transactions count (statement line items
+    legitimately share provider and period with each other and with unrelated bills).
 
-    The model writes a provider's name a little differently from one paper to the next (an invoice and its
-    detail sheet), so when the amount is known a bill also matches on the same period, the same amount and
-    issue date, and a similar provider name."""
-    if not statement_period:
+    Without an amount: the same provider and statement period (the original rule).
+    With an amount (Pedro, 2026-10-17: the model's billing period is not reliable, and it writes a provider's name a
+    little differently on an invoice and on its detail sheet): the same provider (exact or similar name), the same
+    amount, and issue dates within SAME_BILL_DAYS. If either date is unknown, the same statement period is required
+    instead. Two consecutive monthly bills of the same amount are ~30 days apart, so they stay two bills."""
+    if not statement_period and amount is None:
         return None
     bills = (
         # keeps held rows: bill re-upload duplicate check must see every stored bill row
         select(Transaction)
         .join(Document, Transaction.document_id == Document.id)
-        .where(
-            Transaction.statement_period == statement_period,
-            or_(Document.category.is_(None), Document.category != "statement"),
-        )
+        .where(or_(Document.category.is_(None), Document.category != "statement"))
     )
-    exact = session.exec(bills.where(Transaction.description == description)).first()
-    if exact is not None or amount is None:
-        return exact
+    if amount is None:
+        return session.exec(bills.where(Transaction.description == description,
+                                        Transaction.statement_period == statement_period)).first()
     for candidate in session.exec(bills.where(Transaction.amount >= amount - 0.005, Transaction.amount <= amount + 0.005)).all():
-        same_day = issue_date is None or candidate.issue_date is None or candidate.issue_date == issue_date
-        if same_day and _similar_provider(description, candidate.description):
+        if not (candidate.description == description or _similar_provider(description, candidate.description)):
+            continue
+        if issue_date is not None and candidate.issue_date is not None:
+            same_bill = abs((candidate.issue_date - issue_date).days) <= SAME_BILL_DAYS
+        else:
+            same_bill = bool(statement_period) and candidate.statement_period == statement_period
+        if same_bill:
             return candidate
     return None

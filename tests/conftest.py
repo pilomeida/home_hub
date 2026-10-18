@@ -7,6 +7,14 @@ import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
 
+@pytest.fixture(autouse=True)
+def pinned_today_for_the_stale_bill_rule(monkeypatch):
+    """Tests use fixed 2026 due dates; the "no Pay to-do for a long-overdue bill" rule must not depend on the day the
+    suite runs. The rule's own tests choose their date."""
+    from datetime import date
+    monkeypatch.setattr("app.services.todo_engine._today", lambda: date(2026, 9, 1))
+
+
 @pytest.fixture()
 def engine(tmp_path):
     db_path = tmp_path / "test.db"

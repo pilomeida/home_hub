@@ -470,3 +470,43 @@ def test_credit_for_a_merchant_with_an_out_node_keeps_legacy_other_and_no_node(s
     # category_id None it shows the direction mismatch left the row untouched.
     assert txn.category == Category.OTHER
     assert txn.category_id is None
+
+
+def _balance_row(ref, indicator, amount, balance, day="2026-10-08"):
+    return {"entry_reference": ref, "status": "BOOK", "credit_debit_indicator": indicator,
+            "transaction_amount": {"amount": amount, "currency": "EUR"}, "booking_date": day,
+            "balance_after_transaction": {"amount": balance}, "remittance_information": [ref]}
+
+
+# The real order of one day on the Santander account (export of 9 Oct 2026, 10 Oct 2025): the bank lists the
+# lines of a day in no reliable order; the day closed at 13,853.49.
+_DAY = [
+    _balance_row("ana", "CRDT", "40", "13786.14", "2025-10-10"),
+    _balance_row("prego", "DBIT", "14.65", "13771.49", "2025-10-10"),
+    _balance_row("carolina", "CRDT", "50", "13821.49", "2025-10-10"),
+    _balance_row("bernardo", "CRDT", "60", "13881.49", "2025-10-10"),
+    _balance_row("agua", "DBIT", "28", "13853.49", "2025-10-10"),
+]
+
+
+def test_sync_stores_the_balance_the_bank_reports_whatever_order_the_day_comes_in(session):
+    import random
+    link, _ = make_link(session)
+    rows = list(_DAY)
+    random.Random(3).shuffle(rows)
+    _run(sync_link(session, FakeClient(rows), link, today=date(2025, 10, 11), classify=fake_classify))
+    session.refresh(link)
+    assert (link.balance, link.balance_as_of) == (13853.49, date(2025, 10, 10))
+
+
+def test_a_dry_run_or_a_feed_without_balances_leaves_the_balance_alone(session):
+    link, _ = make_link(session)
+    _run(sync_link(session, FakeClient(list(_DAY)), link, dry_run=True, today=date(2025, 10, 11),
+                   classify=fake_classify))
+    session.refresh(link)
+    assert link.balance is None
+    row = {"entry_reference": "x", "status": "BOOK", "credit_debit_indicator": "DBIT",
+           "transaction_amount": {"amount": "5", "currency": "EUR"}, "booking_date": "2026-10-08"}
+    _run(sync_link(session, FakeClient([row]), link, today=date(2026, 10, 9), classify=fake_classify))
+    session.refresh(link)
+    assert link.balance is None

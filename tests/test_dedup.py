@@ -144,10 +144,29 @@ def test_the_same_bill_with_the_provider_written_another_way_is_a_duplicate(sess
     assert find_duplicate_transaction(session, "Amigo - Vodafone Portugal, S.A.", "2026-09", amount=9.98) is not None
 
 
-def test_a_similar_name_alone_is_not_enough_amount_period_and_date_must_agree(session):
+def test_consecutive_monthly_bills_of_the_same_amount_are_two_bills_even_with_the_same_billing_period(session):
+    """2026-10-17: the March invoice was dropped as a 'duplicate' of April's because the model gave both the same
+    statement period; same provider, same amount, but issued a month apart."""
+    from datetime import date
+    _bill(session, "amigo (Vodafone Portugal)", 9.98, "2026-03", date(2026, 4, 25), "fatura_abril.pdf", "h-c")
+    assert find_duplicate_transaction(session, "amigo (Vodafone Portugal)", "2026-03", amount=9.98,
+                                      issue_date=date(2026, 3, 25)) is None
+
+
+def test_an_invoice_and_its_detail_sheet_match_whatever_billing_period_the_model_gave_each(session):
+    from datetime import date
+    invoice = _bill(session, "amigo (Vodafone Portugal)", 15.07, "2024-06", date(2024, 7, 27), "fatura.pdf", "h-d")
+    for period in ("2024-06", "2024-07", None):                                  # the detail sheet's period varies or is missing
+        found = find_duplicate_transaction(session, "amigo (Vodafone)", period, amount=15.07, issue_date=date(2024, 7, 22))
+        assert found is not None and found.id == invoice.id, period
+
+
+def test_a_similar_name_alone_is_not_enough_amount_and_date_must_agree(session):
     from datetime import date
     _bill(session, "amigo (Vodafone Portugal)", 9.98, "2026-09", date(2026, 9, 25), "fatura.pdf", "h-b")
     assert find_duplicate_transaction(session, "amigo (Vodafone)", "2026-09", amount=11.02, issue_date=date(2026, 9, 25)) is None
-    assert find_duplicate_transaction(session, "amigo (Vodafone)", "2026-10", amount=9.98, issue_date=date(2026, 9, 25)) is None
     assert find_duplicate_transaction(session, "amigo (Vodafone)", "2026-09", amount=9.98, issue_date=date(2026, 10, 25)) is None
     assert find_duplicate_transaction(session, "MEO", "2026-09", amount=9.98, issue_date=date(2026, 9, 25)) is None   # another provider
+    # with an unknown date, the same statement period is required
+    assert find_duplicate_transaction(session, "amigo (Vodafone)", "2026-09", amount=9.98, issue_date=None) is not None
+    assert find_duplicate_transaction(session, "amigo (Vodafone)", "2026-10", amount=9.98, issue_date=None) is None

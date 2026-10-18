@@ -86,3 +86,12 @@ def test_upsert_source_todo_links_records(session):
     todo = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 1, 1), domain=Domain.HOUSE)
     again = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 2, 1), domain=Domain.HOUSE)
     assert todo.id == again.id and again.record_id == record.id and again.document_id is None
+
+
+def test_a_bill_due_long_ago_is_history_and_gets_no_pay_todo(session, monkeypatch):
+    """Filing 50 old invoices (a backfill, 2026-10-17) must not create 50 overdue 'Pay ...' to-dos."""
+    monkeypatch.setattr("app.services.todo_engine._today", lambda: date(2026, 10, 17))
+    assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2026, 9, 10))) is not None   # 37 days: still to pay
+    assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2026, 9, 2))) is not None    # 45 days: the edge
+    assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2026, 9, 1))) is None        # 46 days: history
+    assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2024, 8, 21))) is None

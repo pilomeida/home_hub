@@ -127,6 +127,29 @@ def _external_id(raw: dict) -> str:
     return hashlib.sha256(basis.encode()).hexdigest()
 
 
+def _latest_balance(rows: list[dict]) -> Optional[tuple[float, date]]:
+    """(balance, day) the bank reports after its newest booking, or None when no row carries a balance.
+    A bank lists the lines of one day in no reliable order, so among the newest day's rows the final one is
+    the one no other row starts from: a row's starting balance is its balance minus its signed amount."""
+    dated = []
+    for raw in rows:
+        try:
+            balance = Decimal(str((raw.get("balance_after_transaction") or {})["amount"]))
+            amount = Decimal(str((raw.get("transaction_amount") or {})["amount"]))
+            day = date.fromisoformat(_row_date(raw))
+        except (KeyError, ValueError, InvalidOperation, TypeError):
+            continue
+        signed = abs(amount) if raw.get("credit_debit_indicator") == "CRDT" else -abs(amount)
+        dated.append((day, balance, balance - signed))
+    if not dated:
+        return None
+    newest = max(d for d, _, _ in dated)
+    today_rows = [(b, start) for d, b, start in dated if d == newest]
+    starts = {start for _, start in today_rows}
+    last = [b for b, _ in today_rows if b not in starts] or [today_rows[0][0]]
+    return float(last[0]), newest
+
+
 def _renumbered_twin(session: Session, account_id: int, external_id: str, kind: TransactionType,
                      amount: float, fetched: set) -> bool:
     """Santander ends its entry references with a 4-digit sequence ('...0001') and has been seen
@@ -320,6 +343,9 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
     if not dry_run and loop_finished:
         link.last_synced_at = now
         link.last_error = None
+        latest = _latest_balance(rows)
+        if latest is not None:
+            link.balance, link.balance_as_of = latest
         session.add(link)
         session.commit()
         # It worked, so whatever was wrong with this account (or its bank access) is over.

@@ -1,7 +1,7 @@
 """Bank connection tables: authorization state, per-account links and the
 API-call ledger that keeps unattended fetches inside the bank's daily budget."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -40,6 +40,9 @@ class BankAccountLink(SQLModel, table=True):
     account_id: Optional[int] = Field(default=None, foreign_key="accounts.id")
     last_synced_at: Optional[datetime] = None
     last_error: Optional[str] = None
+    # What the bank itself says the account holds: the running balance on its newest booking, read at sync.
+    balance: Optional[float] = None
+    balance_as_of: Optional[date] = None
 
 
 class BankApiCall(SQLModel, table=True):

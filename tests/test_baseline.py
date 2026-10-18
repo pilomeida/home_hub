@@ -8,7 +8,6 @@ from sqlmodel import select
 from app.baseline import BASELINE_DATE, baseline_note
 from app.domains.financials.ask import FINANCIALS_ASK_TOOLS
 from app.models.account import Account, AccountType
-from app.models.baseline import BaselinePosition
 from app.models.domain import Domain
 from app.models.transaction import Transaction, TransactionType
 from app.services.classification_engine import unsorted_transactions_query
@@ -72,17 +71,32 @@ def test_the_transactions_page_lists_only_rows_from_the_baseline_on(client, sess
     assert "Statement records go back to 2024-05-01" in html
 
 
-def test_cash_card_starts_from_the_opening_balance(session, doc):
+def test_cash_card_shows_the_balance_the_bank_reports(session, doc):
+    from app.models.bank import BankAccountLink, BankConnection
+    conn = BankConnection(bank_name="Santander Totta", country="PT", state="st-cash")
+    account = Account(name="Current", institution="Test Bank", account_type=AccountType.CHECKING)
+    session.add(conn)
+    session.add(account)
+    session.commit()
+    session.refresh(conn)
+    session.refresh(account)
+    session.add(BankAccountLink(connection_id=conn.id, bank_account_uid="u1", account_id=account.id,
+                                balance=62.81, balance_as_of=date(2026, 10, 8)))
+    session.add(BankAccountLink(connection_id=conn.id, bank_account_uid="u0", account_id=account.id,
+                                balance=999.0, balance_as_of=date(2026, 9, 1)))   # an older reading of the same account
+    session.commit()
+    _txn(session, doc, date(2026, 5, 1), amount=30.0, account_id=account.id)
+    card = get_cash_kpi(session, date(2026, 10, 15))
+    assert card.value == 62.81 and "2026-10-08" in card.caption
+
+
+def test_cash_card_without_a_bank_balance_still_shows_the_tracked_flow(session, doc):
     account = Account(name="Current", institution="Test Bank", account_type=AccountType.CHECKING)
     session.add(account)
     session.commit()
     session.refresh(account)
-    session.add(BaselinePosition(kind="cash", label="Current", amount=1000.0, as_of=BASELINE_DATE,
-                                 account_id=account.id))
-    session.commit()
-    _txn(session, doc, date(2024, 5, 1), amount=500.0, account_id=account.id)   # before: ignored
     _txn(session, doc, date(2026, 5, 1), amount=30.0, account_id=account.id)
-    assert get_cash_kpi(session, date(2026, 10, 15)).value == 970.0
+    assert get_cash_kpi(session, date(2026, 10, 15)).value == -30.0
 
 
 def test_the_note_is_empty_when_nothing_is_older(session, doc):

@@ -1,6 +1,6 @@
 """Generates To-Do entries from transaction due dates."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -12,9 +12,19 @@ from app.models.todo import Todo
 from app.models.transaction import Transaction
 
 
+def _today() -> date:
+    return date.today()
+
+
+STALE_BILL_DAYS = 45    # a bill due longer ago than this is history (a backfill), not something left to pay
+
+
 def generate_todo_for_transaction(session: Session, transaction: Transaction) -> Optional[Todo]:
-    """Create a Todo for a transaction's due date, if it has one."""
+    """Create a "Pay ..." Todo for a transaction's due date, if it has one and the bill is not history: filing an
+    old invoice (a backfill of past years) must not fill the to-do list with overdue payments (Pedro, 2026-10-17)."""
     if transaction.due_date is None:
+        return None
+    if transaction.due_date < _today() - timedelta(days=STALE_BILL_DAYS):
         return None
     todo = Todo(
         title=f"Pay {transaction.description} — {transaction.amount:.2f} {transaction.currency}",
