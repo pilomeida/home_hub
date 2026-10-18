@@ -34,6 +34,7 @@ Newest first. Technical choices are Claude's; Pedro decides only what he sees/do
 - Backups of health data: they must follow the document and data tiers; a separate discussion.
 - Share a person's records with a doctor (export).
 - Hard deletion of the stored file. Withdrawing everything derived and hiding the record is built; "raw sources are immutable" stays.
+- **New document categories (Pedro, 2026-10-18).** Contracts, bank letters and diplomas each get their own category (and a level on the Privacy page), instead of being forced into Financials or House. Waiting in the Inbox for them, so nothing is lost: contracts = `RC.pdf` (telecom subscription contract), the Service Agreement and the NDA (papers 144, 169, 170); bank letters = the three Handelsbanken FATCA/CRS letters (165, 166, 167); diploma = the education diploma photo (164). Still waiting for a decision from Pedro, not part of this item: the AEG appliances invoice (100), the social-security notification (160), the IRS receipt (168) and the paid 2022 IUC notice (161).
 
 ## 2026-10-15 — D16. Ask and the wiki check under levels (built; coordinator's rules, Claude's mechanism)
 Closes known gap (1) of D13. **Only when "Levels are binding" is on; with it off both behave, and send, exactly as before (checked byte-for-byte against the previous code).**
