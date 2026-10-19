@@ -379,4 +379,4 @@ Health papers are read through their own gateway job, `health_extraction` (rows 
 ```
 cd /srv/home-hub/app && sudo -u home-hub /srv/home-hub/venv/bin/python scripts/health_benchmark.py run
 ```
-Add a case from a paper in the Hub, after a person has corrected it on the paper's page: `... scripts/health_benchmark.py promote DOCUMENT_ID NAME`, then check `expected.json` and set `"reviewed": true`. `cintramedica-lab-2024-11` is provisional (seeded from a reading, not yet reviewed). Two runs on the same paper can differ in how the model groups a few ambiguous rows; the benchmark shows exactly which.
+Add a case from a paper in the Hub, after a person has corrected it on the paper's page: `... scripts/health_benchmark.py promote DOCUMENT_ID NAME`, then check `expected.json` and set `"reviewed": true`. `cintramedica-lab-2024-11` is reviewed (promoted from paper 199 on 2026-10-19; the earlier provisional copy is in /root/benchmark_cintramedica_provisional_20261019). Spacing around the dash or a colon in a reference is not counted as a difference. Two runs on the same paper can differ in how the model groups a few ambiguous rows; the benchmark shows exactly which.

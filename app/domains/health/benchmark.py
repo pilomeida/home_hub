@@ -10,6 +10,7 @@ scripts/health_benchmark.py."""
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import date
@@ -39,6 +40,12 @@ def _same_number(a: Optional[float], b: Optional[float]) -> bool:
 
 def _same_text(a: Optional[str], b: Optional[str]) -> bool:
     return match_key(a or "") == match_key(b or "")
+
+
+def _same_reference(a: Optional[str], b: Optional[str]) -> bool:
+    """Spacing around the dash or a colon is not a different reference ('Risco elevado:>240' = 'Risco elevado: >240')."""
+    squeeze = lambda t: re.sub(r"\s+", "", spaced_intervals(t or "") or "")
+    return squeeze(a) == squeeze(b)
 
 
 def _earlier(rows: list[dict]) -> set[tuple]:
@@ -116,7 +123,7 @@ def compare(name: str, expected: dict, actual: ExtractedHealth) -> CaseResult:
         if not (_same_number(e.get("value"), m.value) and _same_text(e.get("value_text"), m.value_text)):
             out.problems.append(f"wrong value: {label}: expected {e.get('value') if e.get('value') is not None else e.get('value_text')}, "
                                 f"read {m.value if m.value is not None else m.value_text}")
-        if spaced_intervals(e.get("reference") or "") != spaced_intervals(m.reference_text or ""):
+        if not _same_reference(e.get("reference"), m.reference_text):
             out.problems.append(f"wrong reference: {label}: expected '{e.get('reference')}', read '{m.reference_text}'")
         got_earlier = _earlier([{"date": p.measured_on.isoformat() if p.measured_on else None, "value": p.value,
                                  "value_text": p.value_text} for p in earlier_of.get(m.position, [])])

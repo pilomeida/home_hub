@@ -27,6 +27,12 @@ async def test_a_reading_that_matches_its_confirmed_reading_passes(tmp_path):
     assert result.passed and result.found == result.expected == 5 and result.problems == []
 
 
+def test_spacing_alone_is_not_a_different_reference():
+    assert benchmark._same_reference("Risco elevado: >240; Risco baixo: <190", "Risco elevado:>240; Risco baixo :<190")
+    assert benchmark._same_reference("4,0-6,0", "4,0 - 6,0") and benchmark._same_reference(None, "")
+    assert not benchmark._same_reference("Risco elevado: >240", "Risco elevado: >250")
+
+
 @pytest.mark.asyncio
 async def test_every_kind_of_difference_is_named_in_plain_words(tmp_path):
     expected = benchmark.expected_from_reading(await _read(tmp_path, SECTIONS_REPLY))
