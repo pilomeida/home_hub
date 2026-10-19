@@ -75,6 +75,9 @@ class Transaction(SQLModel, table=True):
     # out of Ask until a person decides; "confirmed" = a person said it is right (counts); "rejected" =
     # a person said it is not a real line (counts nowhere). Use Transaction.counts() in queries, never
     # a hand-written filter.
+    # The bank's own direction of a synced line: +1 money in, -1 money out. A line filed as an internal transfer
+    # loses its type's sign; this keeps it, so the cash position can be rolled forward exactly (app/services/cash_position.py).
+    cash_sign: Optional[int] = None
     source_page: Optional[int] = None            # page of the source document the line was read from
     review_status: Optional[str] = Field(default=None, index=True)
     review_reason: Optional[str] = None          # plain words: why it needs checking

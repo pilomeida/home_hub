@@ -138,21 +138,14 @@ def _cash_transactions(session: Session, account_ids: list[int]) -> list[Transac
 
 
 def _bank_reported_cash(session: Session, account_ids: list[int]) -> Optional[tuple[float, date]]:
-    """(total, oldest day) of the balances the bank itself reports for the cash accounts that have one, or
-    None until a sync has read any. One figure per account: its newest."""
-    from app.models.bank import BankAccountLink
-    if not account_ids:
+    """(total, day of the oldest reading) of the cash accounts: each one is the last balance the bank reported,
+    rolled forward with the lines stored since (app/services/cash_position.py). None until any account has been
+    read; an account never read adds nothing."""
+    from app.services.cash_position import cash_position
+    found = [p for p in (cash_position(session, a) for a in account_ids) if p is not None]
+    if not found:
         return None
-    links = session.exec(select(BankAccountLink).where(
-        BankAccountLink.account_id.in_(account_ids), BankAccountLink.balance.is_not(None))).all()
-    newest: dict[int, BankAccountLink] = {}
-    for link in links:
-        best = newest.get(link.account_id)
-        if best is None or (link.balance_as_of, link.id) > (best.balance_as_of, best.id):
-            newest[link.account_id] = link
-    if not newest:
-        return None
-    return (round(sum(l.balance for l in newest.values()), 2), min(l.balance_as_of for l in newest.values()))
+    return round(sum(v for v, _ in found), 2), min(at for _, at in found).date()
 
 
 def _cash_balance_as_of(transactions: list[Transaction], as_of: date) -> float:
@@ -187,7 +180,7 @@ def get_cash_kpi(session: Session, today: date) -> KpiCard:
         return KpiCard(
             label="Cash", value=reported[0], color="green", drill_down_url="/financials/transactions",
             chart=build_trend_chart({}, today, reported[0]),
-            caption=f"What the bank reports on the current accounts, as of {reported[1].isoformat()}",
+            caption=f"The bank's balance of {reported[1].isoformat()}, plus every line stored since",
         )
     now_value = _cash_balance_as_of(transactions, today)
 

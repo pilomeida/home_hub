@@ -13,6 +13,7 @@ from typing import Optional
 import httpx
 from sqlmodel import Session, select
 
+from app.models.account import Account, AccountType
 from app.models.bank import BankAccountLink, BankApiCall, BankConnection, BankConnectionStatus
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
@@ -21,6 +22,7 @@ from app.models.transaction import Category, Transaction, TransactionType
 from app.problems import Problem, record_problem, resolve_for
 from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError
+from app.services.cash_position import movement_since
 from app.services.document_reconcile import reconcile_quietly
 from app.services.classification_engine import classify_transaction
 
@@ -64,10 +66,12 @@ def sync_document(session: Session, account_id: int, bank_name: str) -> Document
     return doc
 
 
-def _calls_last_24h(session: Session, link_id: int, now: datetime) -> int:
+def _calls_last_24h(session: Session, link_id: int, now: datetime, kind: str = "transactions") -> int:
+    """Calls of one kind: the bank counts the request for transactions and the one for the balance separately."""
     since = now - timedelta(hours=24)
     rows = session.exec(
-        select(BankApiCall).where(BankApiCall.link_id == link_id, BankApiCall.called_at >= since)
+        select(BankApiCall).where(BankApiCall.link_id == link_id, BankApiCall.called_at >= since,
+                                  BankApiCall.kind == kind)
     ).all()
     return len(rows)
 
@@ -125,29 +129,6 @@ def _external_id(raw: dict) -> str:
         str(balance),
     ])
     return hashlib.sha256(basis.encode()).hexdigest()
-
-
-def _latest_balance(rows: list[dict]) -> Optional[tuple[float, date]]:
-    """(balance, day) the bank reports after its newest booking, or None when no row carries a balance.
-    A bank lists the lines of one day in no reliable order, so among the newest day's rows the final one is
-    the one no other row starts from: a row's starting balance is its balance minus its signed amount."""
-    dated = []
-    for raw in rows:
-        try:
-            balance = Decimal(str((raw.get("balance_after_transaction") or {})["amount"]))
-            amount = Decimal(str((raw.get("transaction_amount") or {})["amount"]))
-            day = date.fromisoformat(_row_date(raw))
-        except (KeyError, ValueError, InvalidOperation, TypeError):
-            continue
-        signed = abs(amount) if raw.get("credit_debit_indicator") == "CRDT" else -abs(amount)
-        dated.append((day, balance, balance - signed))
-    if not dated:
-        return None
-    newest = max(d for d, _, _ in dated)
-    today_rows = [(b, start) for d, b, start in dated if d == newest]
-    starts = {start for _, start in today_rows}
-    last = [b for b, _ in today_rows if b not in starts] or [today_rows[0][0]]
-    return float(last[0]), newest
 
 
 def _renumbered_twin(session: Session, account_id: int, external_id: str, kind: TransactionType,
@@ -215,6 +196,58 @@ def _failure_of(exc: Exception, account: str) -> Problem:
     if isinstance(exc, BankApiError):
         return msg.bank_rate_limited(account) if exc.rate_limited else msg.bank_not_answering(account)
     return msg.bank_not_answering(account, reached=False)
+
+
+_CASH_TYPES = (AccountType.CHECKING, AccountType.SAVINGS, AccountType.WALLET)
+_BALANCE_EVERY = timedelta(hours=20)   # one reading per account per day: the 4th of the bank's 4 daily requests
+_TOLERANCE = 0.005
+
+
+def _total_calls_last_24h(session: Session, link_id: int, now: datetime) -> int:
+    rows = session.exec(select(BankApiCall).where(
+        BankApiCall.link_id == link_id, BankApiCall.called_at >= now - timedelta(hours=24))).all()
+    return len(rows)
+
+
+async def _check_balance(session: Session, client, link: BankAccountLink, account: str, today: date) -> None:
+    """Once a day, ask the bank what a cash account holds and compare it with what the Hub has rolled forward from
+    its previous reading. Different = the Hub's lines do not add up to the bank's (a duplicate, a missed line...):
+    it goes on the Problems page, and clears itself once they agree. A failure here never fails the sync."""
+    stored = session.get(Account, link.account_id)
+    if stored is None or stored.account_type not in _CASH_TYPES:
+        return
+    now = datetime.utcnow()
+    if link.balance_at is not None and now - link.balance_at < _BALANCE_EVERY:
+        return
+    # The bank may count this request with the transactions ones (4 a day together): only ask in the first run of
+    # the day, when at most two of the day's requests are used, so the transactions runs are never starved.
+    if _total_calls_last_24h(session, link.id, now) > 2:
+        return
+    session.add(BankApiCall(link_id=link.id, called_at=now, kind="balances"))
+    session.commit()
+    try:
+        found = await client.get_balance(link.bank_account_uid)
+    except Exception as exc:    # a balance that cannot be read must never undo a sync that worked
+        logger.warning("bank sync: balance of link %s not read: %s", link.id, exc)
+        record_problem(session, area=msg.AREA, problem=msg.balance_not_read(account, reached=isinstance(exc, BankApiError)),
+                       ref=msg.balance_ref(link.id), technical=repr(exc))
+        return
+    if found is None:
+        return
+    reading_at = datetime.utcnow()
+    bank_balance = round(found[0], 2)
+    if link.balance is not None and link.balance_at is not None:
+        ours = round(link.balance + movement_since(session, link.account_id, link.balance_at, reading_at), 2)
+        if abs(ours - bank_balance) > _TOLERANCE:
+            record_problem(session, area=msg.AREA, problem=msg.balance_mismatch(account, bank_balance, ours),
+                           ref=msg.mismatch_ref(link.id),
+                           technical=f"bank {bank_balance:.2f}, rolled forward {ours:.2f} from {link.balance:.2f} read {link.balance_at}")
+        else:
+            resolve_for(session, msg.mismatch_ref(link.id))
+    link.balance, link.balance_as_of, link.balance_at = bank_balance, found[1] or today, reading_at
+    session.add(link)
+    session.commit()
+    resolve_for(session, msg.balance_ref(link.id))
 
 
 async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run: bool = False,
@@ -293,6 +326,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                 transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
                 paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                 account_id=link.account_id, external_id=external_id,
+                cash_sign=1 if is_credit else -1,
             )
             # No add/flush before classify: classify may await the LLM, and a
             # flushed INSERT would hold SQLite's write lock for the whole call
@@ -322,6 +356,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                         transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
                         paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                         account_id=link.account_id, external_id=external_id,
+                cash_sign=1 if is_credit else -1,
                     )
                     session.add(txn)
                     session.flush()
@@ -343,15 +378,13 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
     if not dry_run and loop_finished:
         link.last_synced_at = now
         link.last_error = None
-        latest = _latest_balance(rows)
-        if latest is not None:
-            link.balance, link.balance_as_of = latest
         session.add(link)
         session.commit()
         # It worked, so whatever was wrong with this account (or its bank access) is over.
         resolve_for(session, msg.link_ref(link.id))
         resolve_for(session, msg.connection_ref(connection.id))
         reconcile_quietly(session)  # bills filed before these debits arrived are now settled by them
+        await _check_balance(session, client, link, account, today)
     elif not loop_finished:
         _fail(session, link, result, save_problem, technical=save_technical, dry_run=dry_run)
     elif dry_run:

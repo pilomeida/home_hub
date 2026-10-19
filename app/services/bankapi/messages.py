@@ -32,6 +32,14 @@ def link_ref(link_id: int) -> str:
     return f"bank-link:{link_id}"
 
 
+def balance_ref(link_id: int) -> str:
+    return f"bank-balance:{link_id}"
+
+
+def mismatch_ref(link_id: int) -> str:
+    return f"bank-mismatch:{link_id}"
+
+
 def label(bank_name: str, display_name: Optional[str] = None) -> str:
     """How a person calls one account: 'Conta (Santander Totta)'."""
     return f"{display_name} ({bank_name})" if display_name else bank_name
@@ -72,6 +80,30 @@ def daily_budget_used(account: str) -> Problem:
         f"The bank allows only {DAILY_LIMIT} requests per account per day, and all {DAILY_LIMIT} for this "
         "account were already used in the last 24 hours (the automatic syncs and “Sync now” share them).",
         _RETRY_LATER, BANK_PAGE)
+
+
+def balance_not_read(account: str, *, reached: bool = True) -> Problem:
+    """The account's transactions came through, but its balance could not be read."""
+    why = ("the bank didn't answer the request for the balance." if reached
+           else "the Hub could not reach the bank to ask for the balance.")
+    return Problem(
+        f"The balance of {account} was not updated.",
+        f"Its transactions were fetched, but {why}",
+        "Nothing to do now: the next automatic sync asks again. Until then the Cash figure shows the last balance the bank gave.",
+        BANK_PAGE)
+
+
+def balance_mismatch(account: str, bank: float, ours: float) -> Problem:
+    """The Hub's lines, rolled forward from the bank's last balance, do not reach the bank's new balance."""
+    gap = ours - bank
+    return Problem(
+        f"The Hub's figure for {account} is off by €{abs(gap):,.2f}.",
+        f"The bank says the account holds €{bank:,.2f}; the lines the Hub stored since the last check add up to "
+        f"€{ours:,.2f}, which is €{abs(gap):,.2f} {'too high' if gap > 0 else 'too low'}. "
+        "A line may be stored twice, or the bank may have booked a line the Hub has not received yet.",
+        "Compare the account's latest lines on the Transactions page with the bank. If a line shows twice, tell me and "
+        "I will exclude the copy. A missing line arrives by itself at the next sync, and this note clears when the figures agree.",
+        BANK_PAGE)
 
 
 def bank_rate_limited(account: str) -> Problem:

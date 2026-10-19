@@ -14,6 +14,11 @@ BASE_URL = "https://api.enablebanking.com"
 _JWT_TTL_SECONDS = 3600
 
 
+# Berlin Group balance types, best first: the booked balance (Santander calls it the accounting balance); the
+# available ones include pending card holds, which the Hub never stores.
+_BALANCE_PREFERENCE = ("CLBD", "ITBD", "XPCD", "ITAV", "CLAV")
+
+
 class BankApiError(Exception):
     def __init__(self, status: int, code: str, message: str):
         super().__init__(f"{status} {code}: {message}")
@@ -113,6 +118,22 @@ class EnableBankingClient:
             key = body.get("continuation_key")
             if not key:
                 return rows
+
+    async def get_balance(self, account_uid: str) -> Optional[tuple[float, Optional[date]]]:
+        """(amount, reference day) of the account's balance as the bank reports it, or None when it reports none.
+        The booked balance wins over an available one (the available one can include an overdraft)."""
+        body = await self._request("GET", f"/accounts/{account_uid}/balances")
+        balances = [b for b in body.get("balances", []) if (b.get("balance_amount") or {}).get("amount") is not None]
+        if not balances:
+            return None
+        order = {t: i for i, t in enumerate(_BALANCE_PREFERENCE)}
+        best = min(balances, key=lambda b: order.get(b.get("balance_type"), len(order)))
+        raw_day = best.get("reference_date") or (best.get("last_change_date_time") or "")[:10]
+        try:
+            day = date.fromisoformat(raw_day) if raw_day else None
+        except ValueError:
+            day = None
+        return float(best["balance_amount"]["amount"]), day
 
     async def max_consent_days(self, bank_name: str, country: str) -> int:
         body = await self._request("GET", "/aspsps", params={"country": country})

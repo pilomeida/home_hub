@@ -43,6 +43,7 @@ class BankAccountLink(SQLModel, table=True):
     # What the bank itself says the account holds: the running balance on its newest booking, read at sync.
     balance: Optional[float] = None
     balance_as_of: Optional[date] = None
+    balance_at: Optional[datetime] = None     # when the Hub read it (UTC): lines stored after this are not in it
 
 
 class BankApiCall(SQLModel, table=True):

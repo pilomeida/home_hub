@@ -1,6 +1,6 @@
 """The baseline (app/baseline.py): records dated before 10 Oct 2025 are kept but shown and counted nowhere;
 the opening position on the baseline day starts the Cash card."""
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from sqlmodel import select
@@ -71,7 +71,7 @@ def test_the_transactions_page_lists_only_rows_from_the_baseline_on(client, sess
     assert "Statement records go back to 2024-05-01" in html
 
 
-def test_cash_card_shows_the_balance_the_bank_reports(session, doc):
+def _cash_account(session):
     from app.models.bank import BankAccountLink, BankConnection
     conn = BankConnection(bank_name="Santander Totta", country="PT", state="st-cash")
     account = Account(name="Current", institution="Test Bank", account_type=AccountType.CHECKING)
@@ -80,14 +80,38 @@ def test_cash_card_shows_the_balance_the_bank_reports(session, doc):
     session.commit()
     session.refresh(conn)
     session.refresh(account)
-    session.add(BankAccountLink(connection_id=conn.id, bank_account_uid="u1", account_id=account.id,
-                                balance=62.81, balance_as_of=date(2026, 10, 8)))
-    session.add(BankAccountLink(connection_id=conn.id, bank_account_uid="u0", account_id=account.id,
-                                balance=999.0, balance_as_of=date(2026, 9, 1)))   # an older reading of the same account
+    link = BankAccountLink(connection_id=conn.id, bank_account_uid="u1", account_id=account.id, balance=404.71,
+                           balance_as_of=date(2026, 10, 19), balance_at=datetime(2026, 10, 19, 8, 31))
+    session.add(link)
     session.commit()
-    _txn(session, doc, date(2026, 5, 1), amount=30.0, account_id=account.id)
-    card = get_cash_kpi(session, date(2026, 10, 15))
-    assert card.value == 62.81 and "2026-10-08" in card.caption
+    return account
+
+
+def _bank_line(session, doc, account, amount, sign, created, **kw):
+    t = Transaction(document_id=doc.id, description="line", amount=amount, account_id=account.id, paid_date=date(2026, 10, 19),
+                    transaction_type=kw.pop("kind", TransactionType.DEBIT), cash_sign=sign, created_at=created,
+                    external_id=kw.pop("external_id", f"ext-{amount}-{created}"), **kw)
+    session.add(t)
+    session.commit()
+    return t
+
+
+def test_cash_card_is_the_banks_balance_rolled_forward_with_the_lines_stored_since(session, doc):
+    account = _cash_account(session)
+    after, before = datetime(2026, 10, 19, 12, 0), datetime(2026, 10, 19, 6, 30)
+    _bank_line(session, doc, account, 60.0, 1, after, kind=TransactionType.CREDIT)
+    _bank_line(session, doc, account, 10.0, -1, after)
+    _bank_line(session, doc, account, 35.0, -1, after, kind=TransactionType.TRANSFER)   # a top-up: filed as a transfer, still money out
+    _bank_line(session, doc, account, 500.0, 1, before, kind=TransactionType.CREDIT)    # already in the bank's balance
+    twin = _bank_line(session, doc, account, 60.0, 1, after, kind=TransactionType.CREDIT, external_id="twin")
+    twin.settled_by_id = 1                                                                # excluded as a twin
+    session.add(twin)
+    session.add(Transaction(document_id=doc.id, description="statement row", amount=999.0, account_id=account.id,
+                            paid_date=date(2026, 10, 19), transaction_type=TransactionType.CREDIT, created_at=after))
+    session.commit()                                                                      # no external id: a statement row
+    card = get_cash_kpi(session, date(2026, 10, 19))
+    assert card.value == 404.71 + 60.0 - 10.0 - 35.0 == 419.71
+    assert "2026-10-19" in card.caption
 
 
 def test_cash_card_without_a_bank_balance_still_shows_the_tracked_flow(session, doc):

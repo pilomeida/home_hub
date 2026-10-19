@@ -12,9 +12,16 @@ from app.services.bankapi.sync import DAILY_CALL_LIMIT, SCHEDULED_CALL_LIMIT, sy
 
 
 class FakeClient:
-    def __init__(self, rows):
+    def __init__(self, rows, balance=None, balance_error=None):
         self.rows = rows
         self.calls = 0
+        self.balance, self.balance_error, self.balance_calls = balance, balance_error, 0
+
+    async def get_balance(self, account_uid):
+        self.balance_calls += 1
+        if self.balance_error:
+            raise self.balance_error
+        return self.balance
 
     async def list_transactions(self, account_uid, date_from, date_to):
         self.calls += 1
@@ -472,41 +479,105 @@ def test_credit_for_a_merchant_with_an_out_node_keeps_legacy_other_and_no_node(s
     assert txn.category_id is None
 
 
-def _balance_row(ref, indicator, amount, balance, day="2026-10-08"):
+
+
+def _row(ref, indicator, amount, day="2026-10-18"):
     return {"entry_reference": ref, "status": "BOOK", "credit_debit_indicator": indicator,
             "transaction_amount": {"amount": amount, "currency": "EUR"}, "booking_date": day,
-            "balance_after_transaction": {"amount": balance}, "remittance_information": [ref]}
+            "remittance_information": [ref]}
 
 
-# The real order of one day on the Santander account (export of 9 Oct 2026, 10 Oct 2025): the bank lists the
-# lines of a day in no reliable order; the day closed at 13,853.49.
-_DAY = [
-    _balance_row("ana", "CRDT", "40", "13786.14", "2025-10-10"),
-    _balance_row("prego", "DBIT", "14.65", "13771.49", "2025-10-10"),
-    _balance_row("carolina", "CRDT", "50", "13821.49", "2025-10-10"),
-    _balance_row("bernardo", "CRDT", "60", "13881.49", "2025-10-10"),
-    _balance_row("agua", "DBIT", "28", "13853.49", "2025-10-10"),
-]
-
-
-def test_sync_stores_the_balance_the_bank_reports_whatever_order_the_day_comes_in(session):
-    import random
+def test_the_first_reading_becomes_the_anchor_and_new_lines_keep_the_banks_sign(session):
     link, _ = make_link(session)
-    rows = list(_DAY)
-    random.Random(3).shuffle(rows)
-    _run(sync_link(session, FakeClient(rows), link, today=date(2025, 10, 11), classify=fake_classify))
+    rows = [_row("a", "CRDT", "60.00"), _row("b", "DBIT", "10.00")]
+    client = FakeClient(rows, balance=(404.71, None))
+    _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
     session.refresh(link)
-    assert (link.balance, link.balance_as_of) == (13853.49, date(2025, 10, 10))
+    assert link.balance == 404.71 and link.balance_as_of == date(2026, 10, 19) and link.balance_at is not None
+    assert sorted(t.cash_sign for t in session.query(Transaction).all()) == [-1, 1]
+    assert [c.kind for c in session.query(BankApiCall).all()] == ["transactions", "balances"]
 
 
-def test_a_dry_run_or_a_feed_without_balances_leaves_the_balance_alone(session):
-    link, _ = make_link(session)
-    _run(sync_link(session, FakeClient(list(_DAY)), link, dry_run=True, today=date(2025, 10, 11),
-                   classify=fake_classify))
+def _anchored(session, balance=100.0, hours_ago=25):
+    link, account = make_link(session)
+    link.balance, link.balance_as_of = balance, date(2026, 10, 18)
+    link.balance_at = datetime.utcnow() - timedelta(hours=hours_ago)
+    session.add(link)
+    session.commit()
+    return link, account
+
+
+def test_a_reading_that_agrees_with_the_rolled_forward_lines_raises_nothing(session):
+    from app.models.schedule import ProblemEntry
+    link, _ = _anchored(session)
+    # +60 and -10 arrive: the bank, asked straight after, says 150.00 = 100 + 60 - 10
+    client = FakeClient([_row("a", "CRDT", "60.00"), _row("b", "DBIT", "10.00")], balance=(150.0, None))
+    _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
     session.refresh(link)
-    assert link.balance is None
-    row = {"entry_reference": "x", "status": "BOOK", "credit_debit_indicator": "DBIT",
-           "transaction_amount": {"amount": "5", "currency": "EUR"}, "booking_date": "2026-10-08"}
-    _run(sync_link(session, FakeClient([row]), link, today=date(2026, 10, 9), classify=fake_classify))
+    assert session.query(ProblemEntry).count() == 0 and link.balance == 150.0
+
+
+def test_a_twin_line_is_caught_by_the_balance_and_the_note_clears_when_it_is_fixed(session):
+    from app.models.schedule import ProblemEntry
+    link, _ = _anchored(session)
+    # the same booking stored twice under references that differ in the last digits (what Santander did on 12 Oct)
+    twins = [_row("2026101015445289209600" + "01", "CRDT", "60.00"), _row("2026101015445289209600" + "02", "CRDT", "60.00")]
+    client = FakeClient(twins, balance=(160.0, None))     # the bank holds 100 + 60: one booking
+    _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify,
+                   scheduled=True))
+    problem = session.query(ProblemEntry).one()
+    assert "off by €60.00" in problem.what and "too high" in problem.why and problem.resolved_at is None
+    # the person excludes the copy; the next reading agrees
+    link = session.get(BankAccountLink, link.id)
+    copy = session.query(Transaction).order_by(Transaction.id.desc()).first()
+    first = session.query(Transaction).order_by(Transaction.id).first()
+    copy.settled_by_id = first.id
+    day = timedelta(hours=26)                                     # a day later: everything stored so far is a day old
+    for t in session.query(Transaction).all():
+        t.created_at -= day
+        session.add(t)
+    for c in session.query(BankApiCall).all():
+        c.called_at -= day
+        session.add(c)
+    link.balance_at -= day
+    session.add_all([copy, link])
+    session.commit()
+    _run(sync_link(session, FakeClient([], balance=(160.0, None)), link, today=date(2026, 10, 20), classify=fake_classify))
+    session.refresh(problem)
+    assert problem.resolved_at is not None
+
+
+def test_a_balance_that_cannot_be_read_keeps_the_last_one_and_shows_on_the_problems_page(session):
+    from app.models.schedule import ProblemEntry
+    from app.services.bankapi.client import BankApiError
+    link, _ = _anchored(session, balance=55.0)
+    client = FakeClient([], balance_error=BankApiError(500, "ASPSP_ERROR", "bank down"))
+    result = _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
     session.refresh(link)
-    assert link.balance is None
+    assert result.error is None and link.balance == 55.0
+    problem = session.query(ProblemEntry).one()
+    assert "balance" in problem.what.lower() and problem.resolved_at is None
+
+
+def test_the_balance_is_asked_once_a_day_never_for_a_card_and_only_when_requests_are_to_spare(session):
+    from app.models.account import AccountType
+    link, account = _anchored(session, hours_ago=2)                  # read 2 hours ago: not again yet
+    client = FakeClient([], balance=(1.0, None))
+    _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
+    assert client.balance_calls == 0
+
+    link.balance_at = datetime.utcnow() - timedelta(hours=25)        # a day old, but 3 requests already used today
+    session.add(link)
+    now = datetime.utcnow()
+    for h in (1, 2, 3):
+        session.add(BankApiCall(link_id=link.id, called_at=now - timedelta(hours=h), kind="transactions"))
+    session.commit()
+    _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
+    assert client.balance_calls == 0
+
+    session.query(BankApiCall).delete()
+    account.account_type = AccountType.CARD
+    session.add(account)
+    session.commit()
+    _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
+    assert client.balance_calls == 0

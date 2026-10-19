@@ -99,3 +99,26 @@ async def test_start_auth_always_sends_a_timezone_aware_valid_until(key_pair):
         state="s1", redirect_url="https://hub/cb",
     )
     assert seen["body"]["access"]["valid_until"].endswith("+00:00")
+
+
+@pytest.mark.asyncio
+async def test_balance_prefers_the_booked_balance_and_reads_its_day(key_pair):
+    seen = {}
+
+    def handler(request: httpx.Request):
+        seen["path"] = request.url.path
+        return httpx.Response(200, json={"balances": [
+            {"name": "Available", "balance_amount": {"currency": "EUR", "amount": "162.81"},
+             "balance_type": "ITAV", "reference_date": "2026-10-17"},
+            {"name": "Booked", "balance_amount": {"currency": "EUR", "amount": "62.81"},
+             "balance_type": "CLBD", "reference_date": "2026-10-16"},
+        ]})
+
+    assert await _client(key_pair, handler).get_balance("acc-1") == (62.81, date(2026, 10, 16))
+    assert seen["path"] == "/accounts/acc-1/balances"
+
+
+@pytest.mark.asyncio
+async def test_balance_is_none_when_the_bank_reports_none(key_pair):
+    client = _client(key_pair, lambda request: httpx.Response(200, json={"balances": []}))
+    assert await client.get_balance("acc-1") is None
