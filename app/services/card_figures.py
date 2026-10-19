@@ -15,9 +15,11 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.baseline import BASELINE_DATE
+from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Nature, Transaction, TransactionType
-from app.services.taxonomy import file_transaction, get_node
+from app.services.classification_engine import _find_merchant_by_key, normalize_provider
+from app.services.taxonomy import auto_fits, file_transaction, get_node
 
 RUTE_CARD_NODE = "family.personal.rute-card-not-itemised"
 RUTE_CARD_MARK = "7303599"          # the payment reference of Rute's card on the current-account statement
@@ -151,6 +153,43 @@ def redate_rows(session: Session, pairs: list[tuple[Transaction, CardLine]]) -> 
     session.commit()
 
 
+_CARD_PURCHASE_PREFIX = re.compile(r"^COMPRA\s+(?:TPA|MBW|ESTRANG)\s+\d{4}\s+", re.IGNORECASE)
+
+
+def known_merchant(session: Session, description: str) -> Optional[Merchant]:
+    """The merchant memory for a card purchase: a CONFIRMED merchant with a category of its own that this text
+    names once the card prefix ("COMPRA TPA 5990") and the store code and town are taken off."""
+    key = normalize_provider(normalize_provider(_CARD_PURCHASE_PREFIX.sub("", description)))
+    merchant = _find_merchant_by_key(session, key)
+    if merchant is None or not merchant.confirmed or merchant.by_provider or merchant.default_category_id is None:
+        return None
+    return merchant
+
+
+def _file_by_merchant_memory(session: Session, txn: Transaction) -> bool:
+    known = known_merchant(session, txn.description)
+    node = session.get(CategoryNode, known.default_category_id) if known else None
+    if node is None or node.slug.startswith("unsorted"):
+        return False
+    txn.merchant_id = known.id
+    if not auto_fits(session, txn, node):
+        return False
+    file_transaction(session, txn, node)
+    txn.nature = txn.nature or known.default_nature
+    session.add(txn)
+    return True
+
+
+def presort_purchases(session: Session, account_id: int) -> list[Transaction]:
+    """Purchases of this card still waiting in Needs Review that a confirmed merchant can file."""
+    unsorted = get_node(session, "unsorted.needs-review.needs-review")
+    rows = session.exec(select(Transaction).where(Transaction.account_id == account_id,
+                                                  Transaction.category_id == unsorted.id)).all()
+    done = [t for t in rows if _file_by_merchant_memory(session, t)]
+    session.commit()
+    return done
+
+
 def _stem(description: str) -> str:
     return re.sub(r"[-\s]*\d{4}$", "", description.upper().replace("CRÉDITO", "CREDITO")).strip()
 
@@ -193,6 +232,8 @@ def add_lines(session: Session, account_id: int, lines: list[CardLine], document
         session.add(txn)
         session.flush()
         file_transaction(session, txn, node)
+        if node is unsorted_node:        # a purchase: the merchant memory files it, as for any other entry
+            _file_by_merchant_memory(session, txn)
         n += 1
     session.commit()
     return n

@@ -5,9 +5,10 @@ import pytest
 from sqlmodel import select
 
 from app.models.domain import Domain
+from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.services.card_figures import (
-    add_lines, file_rute_card_payments, missing_lines, parse_card_list, parse_card_statement, reconcile,
+    add_lines, file_rute_card_payments, missing_lines, presort_purchases, parse_card_list, parse_card_statement, reconcile,
     redate_rows, rute_card_payments, unfile_rute_card_payments,
 )
 from app.services.taxonomy import ensure_taxonomy, get_node
@@ -168,3 +169,21 @@ def test_rutes_not_itemised_payments_go_back_to_transfers_once_the_card_lines_ex
     session.refresh(t)
     assert t.category_id == transfer.id and t.nature is None
     assert rute_card_payments(session) == [t]
+
+
+def test_card_purchases_are_filed_by_a_confirmed_merchant_and_the_rest_wait_for_review(session, card):
+    ensure_taxonomy(session)
+    supermarket = get_node(session, "food.groceries.supermarket")
+    session.add(Merchant(canonical_name="Modelo Hiper", normalized_key="modelo hiper", confirmed=True,
+                         default_category_id=supermarket.id))
+    session.add(Merchant(canonical_name="Faculdade", normalized_key="faculdade medicina lisboa", confirmed=False,
+                         default_category_id=get_node(session, "family.education.school-fees").id))
+    session.commit()
+    lines = parse_card_list(
+        "02-07-2026  COMPRA TPA*5990 MODELO HIPER 2640-MAFR  -86,45 EUR\n"
+        "24-07-2026  COMPRA TPA*5990 FACULDADE MEDICINA LISBOA  -5,00 EUR\n")
+    add_lines(session, 4, lines, document_id=card.id)
+    rows = {t.amount: t for t in session.exec(select(Transaction).where(Transaction.account_id == 4)).all()}
+    assert rows[86.45].category_id == supermarket.id and rows[86.45].merchant_id is not None
+    assert rows[5.0].category_id == get_node(session, "unsorted.needs-review.needs-review").id   # not confirmed
+    assert presort_purchases(session, 4) == []        # nothing more it may file

@@ -19,7 +19,7 @@ from app.db import engine  # noqa: E402
 from app.models.document import Document, DocumentSource, DocumentStatus  # noqa: E402
 from app.models.domain import Domain  # noqa: E402
 from app.services.card_figures import (  # noqa: E402
-    CardLine, add_lines, read_card_statement, reconcile, rute_card_payments, unfile_rute_card_payments,
+    CardLine, add_lines, presort_purchases, read_card_statement, reconcile, unfile_rute_card_payments,
 )
 from app.services.ingestion import IncomingFile, receive_file  # noqa: E402
 from app.services.taxonomy import ensure_taxonomy  # noqa: E402
@@ -79,6 +79,7 @@ def main() -> None:
             print(f"  {t.paid_date}  {t.amount:>9.2f}  {t.description}")
         if apply:
             print(f"Switched {len(unfile_rute_card_payments(session))}.")
+            print(f"Filed {len(presort_purchases(session, CARD_ACCOUNT_ID))} waiting purchase(s) by merchant memory.")
         else:
             print("Dry run. Add --apply to write.")
 
