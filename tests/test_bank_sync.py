@@ -576,8 +576,72 @@ def test_the_balance_is_asked_once_a_day_never_for_a_card_and_only_when_requests
     assert client.balance_calls == 0
 
     session.query(BankApiCall).delete()
-    account.account_type = AccountType.CARD
+    account.account_type = AccountType.CARD                 # a card is checked too (its balance is available credit)
     session.add(account)
     session.commit()
     _run(sync_link(session, client, link, today=date(2026, 10, 19), classify=fake_classify))
-    assert client.balance_calls == 0
+    assert client.balance_calls == 1
+
+
+def test_a_card_purchase_lowers_the_rolled_forward_credit_and_a_payment_raises_it(session):
+    from app.models.account import AccountType
+    from app.models.schedule import ProblemEntry
+    link, account = _anchored(session, balance=2459.96)
+    account.account_type = AccountType.CARD
+    session.add(account)
+    session.commit()
+    # a 40.04 purchase and a 2.34 payment since the last reading: 2459.96 - 40.04 + 2.34 = 2422.26
+    rows = [_row("buy", "DBIT", "40.04"), _row("pay", "CRDT", "2.34")]
+    _run(sync_link(session, FakeClient(rows, balance=(2422.26, None)), link, today=date(2026, 10, 19), classify=fake_classify))
+    assert session.query(ProblemEntry).count() == 0
+    # a refund the bank booked but the Hub never received shows up as a difference at the next reading
+    link = session.get(BankAccountLink, link.id)
+    day = timedelta(hours=26)                                  # a day later: the first run's requests are a day old
+    link.balance_at -= day
+    session.add(link)
+    for c in session.query(BankApiCall).all():
+        c.called_at -= day
+        session.add(c)
+    session.commit()
+    _run(sync_link(session, FakeClient([], balance=(2430.0, None)), link, today=date(2026, 10, 20), classify=fake_classify))
+    assert "off by" in session.query(ProblemEntry).one().what
+
+
+def test_a_second_person_connects_the_same_bank_without_ending_the_first_ones_access(session):
+    import asyncio
+    from app.models.bank import BankConnection
+    from app.services.bankapi.client import BankSession, BankSessionAccount
+    from app.services.bankapi.connect import (
+        begin_connection, complete_connection, connection_label, latest_connections,
+    )
+
+    class Client:
+        async def max_consent_days(self, bank, country): return 180
+        async def start_auth(self, **kw):
+            from app.services.bankapi.client import AuthStart
+            return AuthStart(url="https://bank/auth", authorization_id="a")
+        async def create_session(self, code):
+            return BankSession(f"s-{code}", [BankSessionAccount(uid=f"card-{code}", iban=None, name=f"CARD {code}",
+                                                               currency="EUR")], None)
+
+    async def go():
+        out = []
+        for key, code in (("santander", "p"), ("santander-rute", "r")):
+            await begin_connection(session, Client(), key, redirect_url="https://hub/cb")
+            pending = session.query(BankConnection).filter_by(status="pending").one()
+            out.append(await complete_connection(session, Client(), state=pending.state, code=code))
+        return out
+
+    pedro, rute = asyncio.run(go())
+    session.refresh(pedro)
+    assert (pedro.owner, rute.owner) == ("Pedro", "Rute")
+    assert pedro.status.value == "active" and rute.status.value == "active"      # Rute did not end Pedro's access
+    assert set(latest_connections(session)) == {("Santander Totta", "Pedro"), ("Santander Totta", "Rute")}
+    assert (connection_label(pedro), connection_label(rute)) == ("Santander Totta", "Santander Totta (Rute)")
+    # renewing Pedro's own access does end his earlier one, and only his
+    asyncio.run(begin_connection(session, Client(), "santander", redirect_url="https://hub/cb"))
+    pending = session.query(BankConnection).filter_by(status="pending").one()
+    asyncio.run(complete_connection(session, Client(), state=pending.state, code="p2"))
+    session.refresh(pedro)
+    session.refresh(rute)
+    assert pedro.status.value == "expired" and rute.status.value == "active"

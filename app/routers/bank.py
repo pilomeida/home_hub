@@ -24,8 +24,8 @@ from app.problems import Problem, record_problem
 from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError, EnableBankingClient
 from app.services.bankapi.connect import (
-    SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left, consent_ended,
-    consent_warning, latest_connections,
+    SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left, connection_label, consent_ended,
+    consent_warning, latest_connections, owner_of, DEFAULT_OWNER,
 )
 from app.services.bankapi.sync import sync_link
 from app.services.presentation import lisbon_datetime
@@ -52,7 +52,9 @@ async def connections_page(request: Request, session: Session = Depends(get_sess
     now = _utcnow()
     rows = []
     for bank_key, (bank_name, _country) in SUPPORTED_BANKS.items():
-        conn = by_bank.get(bank_name)
+        owner = owner_of(bank_key)
+        label = bank_name if owner == DEFAULT_OWNER else f"{bank_name} ({owner})"
+        conn = by_bank.get((bank_name, owner))
         bank_links = [l for l in links if conn and l.connection_id == conn.id]
         mapped = [l for l in bank_links if l.account_id is not None]
         days = connection_days_left(conn) if conn else None
@@ -73,7 +75,7 @@ async def connections_page(request: Request, session: Session = Depends(get_sess
         last_update = max((l.last_synced_at for l in bank_links if l.last_synced_at), default=None)
         errors = [l.last_error for l in bank_links if l.last_error]
         rows.append({
-            "key": bank_key, "name": bank_name, "connection": conn,
+            "key": bank_key, "name": label, "connection": conn,
             "status": status_label, "days_left": days, "last_update": last_update,
             "links": bank_links, "hint": hint,
             # An ended access explains itself through the hint; the stored sync error only adds noise there.
@@ -246,13 +248,14 @@ def bank_notices(session: Session, now: Optional[datetime] = None) -> list[Probl
         link_conn = session.get(BankConnection, link.connection_id)
         # Only the current connection's links can be stale; after a renewal
         # the superseded connection must stay silent.
-        if link_conn is None or latest.get(link_conn.bank_name) is None \
-                or latest[link_conn.bank_name].id != link.connection_id \
+        key = (link_conn.bank_name, link_conn.owner or DEFAULT_OWNER) if link_conn else None
+        if link_conn is None or latest.get(key) is None \
+                or latest[key].id != link.connection_id \
                 or link_conn.status != BankConnectionStatus.ACTIVE:
             continue
-        account = msg.label(link_conn.bank_name, link.display_name)
+        account = msg.label(connection_label(link_conn), link.display_name)
         if link.last_error:
-            notices.append(_failure_notice(session, link, account, link_conn.bank_name))
+            notices.append(_failure_notice(session, link, account, connection_label(link_conn)))
         elif link.last_synced_at is not None and (now - link.last_synced_at) > timedelta(days=2):
             notices.append(msg.not_updated_for_days(account, link.last_synced_at))
     seen = set()

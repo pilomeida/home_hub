@@ -22,6 +22,7 @@ from app.models.transaction import Category, Transaction, TransactionType
 from app.problems import Problem, record_problem, resolve_for
 from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError
+from app.services.bankapi.connect import connection_label
 from app.services.cash_position import movement_since
 from app.services.document_reconcile import reconcile_quietly
 from app.services.classification_engine import classify_transaction
@@ -172,7 +173,7 @@ def _match_existing(session: Session, account_id: int, kind: TransactionType,
 
 
 def _account_label(session: Session, link: BankAccountLink, connection: Optional[BankConnection]) -> str:
-    return msg.label(connection.bank_name if connection else "The bank", link.display_name)
+    return msg.label(connection_label(connection) if connection else "The bank", link.display_name)
 
 
 def _fail(session: Session, link: BankAccountLink, result: SyncResult, problem: Problem, *,
@@ -198,30 +199,34 @@ def _failure_of(exc: Exception, account: str) -> Problem:
     return msg.bank_not_answering(account, reached=False)
 
 
-_CASH_TYPES = (AccountType.CHECKING, AccountType.SAVINGS, AccountType.WALLET)
+# Cash accounts and cards are both checked. A card's balance is its available credit: a purchase lowers it and a
+# payment (or refund) raises it, the same signs the lines carry, so the same roll-forward applies.
+_CHECKED_TYPES = (AccountType.CHECKING, AccountType.SAVINGS, AccountType.WALLET, AccountType.CARD)
 _BALANCE_EVERY = timedelta(hours=20)   # one reading per account per day: the 4th of the bank's 4 daily requests
 _TOLERANCE = 0.005
 
 
-def _total_calls_last_24h(session: Session, link_id: int, now: datetime) -> int:
+def _calls_of_all_kinds_recently(session: Session, link_id: int, now: datetime) -> int:
+    """Requests of every kind in the last 23 hours (not 24: the three daily runs are 24 hours apart give or take
+    a few seconds of timer jitter, and a call from exactly yesterday's same run must not flip the decision)."""
     rows = session.exec(select(BankApiCall).where(
-        BankApiCall.link_id == link_id, BankApiCall.called_at >= now - timedelta(hours=24))).all()
+        BankApiCall.link_id == link_id, BankApiCall.called_at >= now - timedelta(hours=23))).all()
     return len(rows)
 
 
 async def _check_balance(session: Session, client, link: BankAccountLink, account: str, today: date) -> None:
-    """Once a day, ask the bank what a cash account holds and compare it with what the Hub has rolled forward from
+    """Once a day, ask the bank what a cash account or card holds and compare it with what the Hub has rolled forward from
     its previous reading. Different = the Hub's lines do not add up to the bank's (a duplicate, a missed line...):
     it goes on the Problems page, and clears itself once they agree. A failure here never fails the sync."""
     stored = session.get(Account, link.account_id)
-    if stored is None or stored.account_type not in _CASH_TYPES:
+    if stored is None or stored.account_type not in _CHECKED_TYPES:
         return
     now = datetime.utcnow()
     if link.balance_at is not None and now - link.balance_at < _BALANCE_EVERY:
         return
     # The bank may count this request with the transactions ones (4 a day together): only ask in the first run of
     # the day, when at most two of the day's requests are used, so the transactions runs are never starved.
-    if _total_calls_last_24h(session, link.id, now) > 2:
+    if _calls_of_all_kinds_recently(session, link.id, now) > 2:
         return
     session.add(BankApiCall(link_id=link.id, called_at=now, kind="balances"))
     session.commit()
@@ -276,7 +281,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             connection.status = BankConnectionStatus.EXPIRED
             session.add(connection)
             session.commit()
-            problem = msg.consent_expired(connection.bank_name)
+            problem = msg.consent_expired(connection_label(connection))
             # The access is what ended, so the Problems entry belongs to the connection, not the account.
             _fail(session, link, result, problem, technical=str(exc), dry_run=dry_run,
                   ref=msg.connection_ref(connection.id))

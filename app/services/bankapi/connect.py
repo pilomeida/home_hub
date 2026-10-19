@@ -15,7 +15,22 @@ from app.services.bankapi import messages as msg
 
 # aspsp.name strings must be confirmed against GET /aspsps (verified 2026-10-05: "Santander Totta"/PT, "Revolut"/LT) and
 # corrected here if they differ.
-SUPPORTED_BANKS = {"santander": ("Santander Totta", "PT"), "revolut": ("Revolut", "LT")}
+SUPPORTED_BANKS = {"santander": ("Santander Totta", "PT"), "revolut": ("Revolut", "LT"),
+                   "santander-rute": ("Santander Totta", "PT")}
+# Whose login a connect button asks for (default: Pedro). A bank access belongs to one person.
+CONNECTION_OWNERS = {"santander-rute": "Rute"}
+DEFAULT_OWNER = "Pedro"
+
+
+def owner_of(bank_key: str) -> str:
+    return CONNECTION_OWNERS.get(bank_key, DEFAULT_OWNER)
+
+
+def connection_label(conn) -> str:
+    """"Santander Totta" for Pedro's own, "Santander Totta (Rute)" for someone else's."""
+    owner = conn.owner or DEFAULT_OWNER
+    return conn.bank_name if owner == DEFAULT_OWNER else f"{conn.bank_name} ({owner})"
+
 
 _MAX_CONSENT_DAYS = 180
 
@@ -31,7 +46,7 @@ async def begin_connection(session: Session, client, bank_key: str, *,
     bank_name, country = SUPPORTED_BANKS[bank_key]
     state = secrets.token_urlsafe(24)
     days = min(await client.max_consent_days(bank_name, country), _MAX_CONSENT_DAYS)
-    connection = BankConnection(bank_name=bank_name, country=country, state=state,
+    connection = BankConnection(bank_name=bank_name, country=country, state=state, owner=owner_of(bank_key),
                                 status=BankConnectionStatus.PENDING)
     session.add(connection)
     session.commit()
@@ -72,7 +87,7 @@ async def complete_connection(session: Session, client, *, state: str, code: str
         prior = session.exec(
             select(BankAccountLink, BankConnection)
             .join(BankConnection, BankConnection.id == BankAccountLink.connection_id)  # type: ignore[call-arg]
-            .where(BankConnection.bank_name == connection.bank_name,
+            .where(BankConnection.bank_name == connection.bank_name, BankConnection.owner == connection.owner,
                    BankConnection.id != connection.id,
                    BankAccountLink.iban == account.iban if account.iban
                    # No IBAN: only match another IBAN-less link. Name alone is not
@@ -93,7 +108,7 @@ async def complete_connection(session: Session, client, *, state: str, code: str
     # Supersede: the job must never sync the dead session after a renewal.
     for other in session.exec(
         select(BankConnection).where(
-            BankConnection.bank_name == connection.bank_name,
+            BankConnection.bank_name == connection.bank_name, BankConnection.owner == connection.owner,
             BankConnection.id != connection.id,
             BankConnection.status == BankConnectionStatus.ACTIVE,
         )
@@ -104,7 +119,8 @@ async def complete_connection(session: Session, client, *, state: str, code: str
     # Renewed: the "access expired / expires soon" entries in the Problems log for this bank are over, and
     # so are the ones for its accounts (their next sync starts clean on the new connection).
     for old in session.exec(select(BankConnection).where(
-            BankConnection.bank_name == connection.bank_name, BankConnection.id != connection.id)).all():
+            BankConnection.bank_name == connection.bank_name, BankConnection.owner == connection.owner,
+            BankConnection.id != connection.id)).all():
         resolve_for(session, msg.connection_ref(old.id), by="renewed")
         resolve_for(session, msg.expiring_ref(old.id), by="renewed")
         for old_link in session.exec(select(BankAccountLink).where(BankAccountLink.connection_id == old.id)).all():
@@ -157,10 +173,11 @@ def consent_warning(conn: BankConnection, now: Optional[datetime] = None):
     return None
 
 
-def latest_connections(session: Session) -> dict[str, BankConnection]:
-    """The current connection of each bank (the newest one)."""
-    latest: dict[str, BankConnection] = {}
+def latest_connections(session: Session) -> dict[tuple[str, str], BankConnection]:
+    """The current connection of each bank and person, keyed (bank name, owner): the newest one."""
+    latest: dict[tuple[str, str], BankConnection] = {}
     for conn in session.exec(select(BankConnection)).all():
-        if conn.bank_name not in latest or conn.created_at > latest[conn.bank_name].created_at:
-            latest[conn.bank_name] = conn
+        key = (conn.bank_name, conn.owner or DEFAULT_OWNER)
+        if key not in latest or conn.created_at > latest[key].created_at:
+            latest[key] = conn
     return latest

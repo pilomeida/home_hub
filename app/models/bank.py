@@ -21,6 +21,9 @@ class BankConnection(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     bank_name: str
     country: str
+    # Whose login authorised it: a bank access belongs to one person, so Rute's card is a connection of its own
+    # next to Pedro's, and renewing one never ends the other.
+    owner: str = Field(default="Pedro")
     status: BankConnectionStatus = Field(default=BankConnectionStatus.PENDING)
     state: str = Field(unique=True, index=True)
     session_id: Optional[str] = None

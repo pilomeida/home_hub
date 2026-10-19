@@ -21,7 +21,7 @@ from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatu
 from app.problems import record_problem, resolve_for
 from app.services.bankapi import messages as msg
 from app.services.bankapi.client import EnableBankingClient
-from app.services.bankapi.connect import consent_ended, consent_warning, latest_connections
+from app.services.bankapi.connect import connection_label, consent_ended, consent_warning, latest_connections
 from app.services.bankapi.sync import SyncResult, sync_link
 from app.services.bankapi.topups import link_revolut_topups
 
@@ -33,7 +33,7 @@ def check_consents(session: Session, now: Optional[datetime] = None) -> None:
     logged (nobody may be looking at the bank page), and an entry clears itself once it is renewed."""
     for conn in latest_connections(session).values():
         if conn.status == BankConnectionStatus.EXPIRED:
-            record_problem(session, area=msg.AREA, problem=msg.consent_expired(conn.bank_name),
+            record_problem(session, area=msg.AREA, problem=msg.consent_expired(connection_label(conn)),
                            ref=msg.connection_ref(conn.id))
             resolve_for(session, msg.expiring_ref(conn.id))
         elif conn.status == BankConnectionStatus.ACTIVE:
@@ -102,7 +102,7 @@ async def run_all(session: Session, client, *, dry_run: bool = False,
 
 def _bank_name(session: Session, link: BankAccountLink) -> str:
     conn = session.get(BankConnection, link.connection_id)
-    return conn.bank_name if conn else "The bank"
+    return connection_label(conn) if conn else "The bank"
 
 
 async def _main(dry_run: bool) -> int:
