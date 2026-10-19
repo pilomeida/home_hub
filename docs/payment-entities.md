@@ -14,6 +14,17 @@ for tagging; the reference changes every time. Noted by Pedro 2026-10-19 for ref
 | 10095 | Estado, Taxas e Impostos | Taxes › Other taxes & fees |
 | 21056 | Estado, Segurança Social | Taxes › Social security |
 | 20160 | Santa Casa da Misericórdia | Family › Leisure › Betting (new) |
+| 22255 | LigaT Telecom (second entity; the bank prints "Eupago Ligat Te") | Housing › Utilities › Telecom |
+| 21317 | Ordem dos Psicólogos | Psi expenses › Practice costs › Professional membership (new) |
+| 12092 | Wamos (tranches of Matias' snow trip: we paid, he reimbursed afterwards) | Loans & debt › Money lent out › To family |
+| 10597 | Hospital CUF Descobertas | Health › Care › Medical appointments |
+| 11797 | Instituto dos Registos e do Notariado (fee for an official house-registry document) | Taxes › Other taxes & fees |
+| 20998 | Autoestrada (toll fee) | Transport › Car running costs › Tolls & parking |
+
+Payees named by their text alone (no entity number printed; `_TEXT_RULES` in `payment_entities.py`):
+`PAG SERVICOS BGA` → Brave Generation Academy (School fees); `LIGAT` (Eupago*Ligat Te / Ligate) → LigaT Telecom;
+`AMIGO*EASYPAY` → Amigo (Vodafone); a card-3315 purchase `COMPRA 3315 EUPAGO- INST PAG LDA PORTO` → Fixando
+(Pedro: "3315 Eupago: Fixando"; the same text on Rute's card 5990 is NOT assumed to be Fixando).
 
 Wired (2026-10-19): `app/services/payment_entities.py` holds this table; `structured_merchant` uses it, so a new
 line with a known entity gets its merchant and category with no model call. `scripts/refile_payment_entities.py`

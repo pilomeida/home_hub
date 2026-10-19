@@ -39,8 +39,8 @@ def entity_merchant(entity) -> StructuredMerchant:
 
 def structured_merchant(provider: Optional[str]) -> Optional[StructuredMerchant]:
     text = provider or ""
-    from app.services.payment_entities import entity_of   # a Multibanco payment: the entity is the payee
-    entity = entity_of(text)
+    from app.services.payment_entities import payee_of   # a Multibanco payment: the entity is the payee
+    entity = payee_of(text)
     if entity is not None:
         return entity_merchant(entity)
     if _LOAN_COLLECTION.match(text):

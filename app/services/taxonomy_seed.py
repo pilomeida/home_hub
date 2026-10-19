@@ -65,7 +65,7 @@ SEED = {
  ]),
  ("Psi expenses", [
   ("Premises", M, None, ["Session room rental"]),
-  ("Practice costs", M, None, ["Platform & licences"]),
+  ("Practice costs", M, None, ["Platform & licences", "Professional membership"]),
  ]),
  ("Unsorted", [
   ("Needs review", NONE, L.OTHER_EXPENSE, ["Needs review"]),

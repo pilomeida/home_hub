@@ -137,3 +137,16 @@ def test_refile_by_entity_moves_a_mistaken_electricity_entry_and_spares_a_checke
     assert wrong.category_id == get_node(session, "taxes-financial-costs.taxes.social-security").id
     assert wrong.merchant_id is not None
     assert checked.category_id == other.category_id == electricity.id
+
+
+def test_payees_named_by_text_alone_are_recognised_and_the_wrong_look_alikes_are_not():
+    from app.services.payment_entities import payee_of
+    assert payee_of("PAG SERVICOS BGA").name == "Brave Generation Academy"
+    assert payee_of("EUPAGO*LIGAT TE").name == payee_of("PAG SERVICOS EUPAGO*LIGATE").name == "LigaT Telecom"
+    assert payee_of("PAG SERVICOS 1835 22255-102450350 Eupago Ligat Te").number == "22255"
+    assert payee_of("AMIGO*EASYPAY.P").name == "Amigo (Vodafone)"
+    assert payee_of("COMPRA 3315 EUPAGO- INST PAG LDA PORTO").name == "Fixando"
+    assert payee_of("COMPRA MBW 5990 EUPAGO- INST PAG LDA PORTO") is None      # not card 3315: left for review
+    assert payee_of("EUPAGO- INST PAG LDA PORTO") is None                      # the MB Way top-up transfers
+    assert payee_of("PAG SERVICOS") is None
+    assert structured_merchant("PAG SERVICOS BGA").key == "entity:text:bga"

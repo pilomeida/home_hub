@@ -20,14 +20,16 @@ from app.services.taxonomy import ensure_taxonomy  # noqa: E402
 def main() -> None:
     apply = "--apply" in sys.argv
     with Session(engine) as session:
+        ensure_taxonomy(session)      # adds any seed category missing yet (a dry run needs them to name the target)
         if apply:
-            ensure_taxonomy(session)
             session.commit()
         changed = refile_by_entity(session, dry_run=not apply)
         counts = Counter((e.number, e.name, session.get(CategoryNode, t.category_id).slug if t.category_id else "(none)",
                           e.node_slug) for t, e in changed)
         for (number, name, old, new), n in sorted(counts.items()):
             print(f"{n:>3}  {number} {name}: {old} -> {new}")
+        if not apply:
+            session.rollback()
         print(f"{len(changed)} entries {'refiled' if apply else 'would change (dry run; add --apply)'}.")
 
 
