@@ -241,6 +241,16 @@ def unknown_account_choice(connection_id: int) -> Problem:
         f"{BANK_PAGE}{connection_id}/map")
 
 
+def already_fed(connection_id: int, hub_account: str, via: str) -> Problem:
+    return Problem(
+        "Not saved.",
+        f"{via} already feeds {hub_account}. Saving it a second time would store every line twice and "
+        "double the totals.",
+        "Choose “— not tracked —” for this bank account, or pick a different Hub account. If you meant "
+        "to connect another card, go back to the bank's consent screen and tick that card.",
+        f"{BANK_PAGE}{connection_id}/map")
+
+
 def bank_not_set_up() -> dict:
     return {"what": "Bank connection unavailable.",
             "why": "The keys that let the Hub talk to the bank haven't been installed on the server yet.",

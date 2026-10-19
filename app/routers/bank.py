@@ -25,7 +25,7 @@ from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError, EnableBankingClient
 from app.services.bankapi.connect import (
     SUPPORTED_BANKS, begin_connection, complete_connection, connection_days_left, connection_label, consent_ended,
-    consent_warning, latest_connections, owner_of, DEFAULT_OWNER,
+    consent_warning, feeding_elsewhere, latest_connections, owner_of, DEFAULT_OWNER,
 )
 from app.services.bankapi.sync import sync_link
 from app.services.presentation import lisbon_datetime
@@ -172,6 +172,10 @@ async def map_one(connection_id: int, link_id: int, request: Request,
             account = None
         if account is None:
             return _friendly_error_page(request, msg.unknown_account_choice(connection_id), status_code=400)
+        other = feeding_elsewhere(session, link, account.id)
+        if other is not None:
+            via = msg.label(session.get(BankConnection, other.connection_id).bank_name, other.display_name)
+            return _friendly_error_page(request, msg.already_fed(connection_id, account.name, via), status_code=400)
         link.account_id = account.id
     else:
         link.account_id = None  # "— not tracked —"

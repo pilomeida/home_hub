@@ -281,6 +281,71 @@ def test_renewal_carries_mapping_and_supersedes_old_connection(session, bank_cli
     assert bank_notices(session) == []
 
 
+def _joint_account_world(session):
+    """Pedro's live connection already feeds the joint account; Rute's login lists the same IBAN."""
+    from app.models.account import Account
+    joint = Account(name="Santander Current Account", institution="Santander", identifier="PT50123")
+    rute_card = Account(name="Santander Credit Card (Rute)", institution="Santander")
+    session.add(joint); session.add(rute_card); session.commit()
+    pedro = BankConnection(bank_name="Santander Totta", country="PT", state="p1",
+                           status=BankConnectionStatus.ACTIVE, owner="Pedro")
+    rute = BankConnection(bank_name="Santander Totta", country="PT", state="r1",
+                          status=BankConnectionStatus.ACTIVE, owner="Rute")
+    session.add(pedro); session.add(rute); session.commit()
+    session.add(BankAccountLink(connection_id=pedro.id, bank_account_uid="pu", iban="PT50123",
+                                display_name="Conta", account_id=joint.id))
+    rute_link = BankAccountLink(connection_id=rute.id, bank_account_uid="ru", iban="PT50123",
+                                display_name="Conta")
+    session.add(rute_link); session.commit()
+    return rute, rute_link, joint, rute_card
+
+
+def test_map_refuses_an_account_another_live_connection_already_feeds(client, session, bank_client):
+    from app.services.bankapi import messages as msg
+    rute, link, joint, _ = _joint_account_world(session)
+    r = client.post(f"/financials/bank/{rute.id}/map/{link.id}", data={"account_id": str(joint.id)})
+    assert r.status_code == 400
+    assert msg.already_fed(rute.id, joint.name, msg.label("Santander Totta", "Conta")).what in r.text
+    session.expire_all()
+    assert session.get(BankAccountLink, link.id).account_id is None
+
+
+def test_map_refuses_the_same_iban_even_for_a_different_hub_account(client, session, bank_client):
+    rute, link, _, rute_card = _joint_account_world(session)
+    r = client.post(f"/financials/bank/{rute.id}/map/{link.id}", data={"account_id": str(rute_card.id)})
+    assert r.status_code == 400
+    session.expire_all()
+    assert session.get(BankAccountLink, link.id).account_id is None
+
+
+def test_map_still_allows_not_tracked_and_unfed_accounts(client, session, bank_client):
+    rute, link, _, rute_card = _joint_account_world(session)
+    other = BankAccountLink(connection_id=rute.id, bank_account_uid="card", display_name="Card")
+    session.add(other); session.commit(); session.refresh(other)
+    r = client.post(f"/financials/bank/{rute.id}/map/{other.id}", data={"account_id": str(rute_card.id)},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    r = client.post(f"/financials/bank/{rute.id}/map/{link.id}", data={"account_id": ""}, follow_redirects=False)
+    assert r.status_code == 303
+
+
+def test_connecting_a_second_login_does_not_auto_map_an_account_already_fed(session, bank_client):
+    from app.models.account import Account
+    joint = Account(name="Santander Current Account", institution="Santander", identifier="PT50123")
+    session.add(joint); session.commit(); session.refresh(joint)
+    pedro = BankConnection(bank_name="Santander Totta", country="PT", state="p1",
+                           status=BankConnectionStatus.ACTIVE, owner="Pedro")
+    session.add(pedro); session.commit(); session.refresh(pedro)
+    session.add(BankAccountLink(connection_id=pedro.id, bank_account_uid="pu", iban="PT50123",
+                                display_name="Conta", account_id=joint.id))
+    rute = BankConnection(bank_name="Santander Totta", country="PT", state="r1",
+                          status=BankConnectionStatus.PENDING, owner="Rute")
+    session.add(rute); session.commit(); session.refresh(rute)
+    done = _bank_connect_complete(session, FakeClient(), state="r1", code="c")
+    link = session.query(BankAccountLink).filter(BankAccountLink.connection_id == done.id).one()
+    assert link.iban == "PT50123" and link.account_id is None
+
+
 def test_sync_now_daily_limit_message(client, session, bank_client):
     conn, link = _sync_now_seed(session)
     from app.models.bank import BankApiCall

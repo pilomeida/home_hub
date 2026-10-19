@@ -100,6 +100,12 @@ async def complete_connection(session: Session, client, *, state: str, code: str
             prior_link = prior[0]
             carried_account_id = prior_link.account_id if carried_account_id is None else carried_account_id
             carried_synced_at = prior_link.last_synced_at
+        if carried_account_id is not None and session.exec(
+            select(BankAccountLink).join(BankConnection, BankConnection.id == BankAccountLink.connection_id)  # type: ignore[arg-type]
+            .where(BankConnection.status == BankConnectionStatus.ACTIVE, BankAccountLink.account_id == carried_account_id,
+                   (BankConnection.owner != connection.owner) | (BankConnection.bank_name != connection.bank_name))
+        ).first() is not None:
+            carried_account_id = None  # already fed by someone else's login (e.g. a joint account): never twice
         session.add(BankAccountLink(
             connection_id=connection.id, bank_account_uid=account.uid,
             iban=account.iban, display_name=account.name,
@@ -127,6 +133,21 @@ async def complete_connection(session: Session, client, *, state: str, code: str
             resolve_for(session, msg.link_ref(old_link.id), by="renewed")
     session.refresh(connection)
     return connection
+
+
+def feeding_elsewhere(session: Session, link: BankAccountLink, account_id: int) -> Optional[BankAccountLink]:
+    """Another bank account on a live connection that already feeds this Hub account, or the same IBAN.
+
+    Two feeds into one Hub account store every line twice (a joint account shows up in both people's logins)."""
+    others = session.exec(
+        select(BankAccountLink).join(BankConnection, BankConnection.id == BankAccountLink.connection_id)  # type: ignore[arg-type]
+        .where(BankConnection.status == BankConnectionStatus.ACTIVE, BankAccountLink.id != link.id,
+               BankAccountLink.account_id.is_not(None))  # type: ignore[attr-defined]
+    ).all()
+    for other in others:
+        if other.account_id == account_id or (link.iban and other.iban == link.iban):
+            return other
+    return None
 
 
 def map_account(session: Session, link_id: int, account_id: int) -> None:
