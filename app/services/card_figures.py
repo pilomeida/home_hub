@@ -24,6 +24,29 @@ RUTE_CARD_MARK = "7303599"          # the payment reference of Rute's card on th
 _LINE = re.compile(r"^\s*(\d\d)-(\d\d)-(\d{4})\s+(.+?)\s+([+-]\d[\d.]*,\d\d) EUR\s*$")
 
 
+_STATEMENT_LINE = re.compile(r"^\s*(\d\d)/(\d\d)\s+\d\d/\d\d\s+(.+?)\s+(-?\d[\d.]*,\d\d) €\s*$")
+_STATEMENT_TAX = re.compile(r"^\s*(I\.? ?S\.? ?\(.+?\).*?)\s+(\d[\d.]*,\d\d) €\s*$")   # stamp duty on a fee: printed without dates
+_STATEMENT_DATE = re.compile(r"Data Extrato\s+(\d\d)/(\d\d)/(\d{4})")
+_STATEMENT_NO = re.compile(r"Extrato n\.º\s+(\d+)")
+_OPENING = re.compile(r"^\s*\d\d-\d\d\s+Saldo Anterior\s+(-?\d[\d.]*,\d\d) €", re.M)
+_CLOSING = re.compile(r"Saldo em Dívida\s+(-?\d[\d.]*,\d\d) €")
+_CHARGE_STEMS = ("JUROS", "C.RECUP.VAL.DIVIDA", "I. S.", "IS (")      # interest, debt-recovery fee, stamp duty
+_PAYMENT_STEM = "PAG.TRANS.BANCARIA"
+
+
+def _euros(text: str) -> float:
+    return float(text.replace(".", "").replace(",", "."))
+
+
+@dataclass(frozen=True)
+class CardStatement:
+    number: int
+    issued: date
+    opening: float
+    closing: float
+    lines: list["CardLine"]
+
+
 @dataclass(frozen=True)
 class CardLine:
     day: date
@@ -49,6 +72,40 @@ def parse_card_list(text: str) -> list[CardLine]:
 def read_card_pdf(path: str) -> list[CardLine]:
     return parse_card_list(subprocess.run(["pdftotext", "-layout", path, "-"], capture_output=True, text=True,
                                           check=True).stdout)
+
+
+def parse_card_statement(text: str) -> CardStatement:
+    """One monthly card statement ("Extrato de Conta-Cartão"), from `pdftotext -layout`. Its lines print as
+    "booked-day value-day description amount €": a purchase is a positive amount, a payment negative. Raises
+    ValueError when the lines don't add up to the statement's own opening and closing balance, so a half-read
+    statement is never stored."""
+    issued = _STATEMENT_DATE.search(text)
+    number, opening, closing = _STATEMENT_NO.search(text), _OPENING.search(text), _CLOSING.search(text)
+    if not (issued and number and opening and closing):
+        raise ValueError("not a card statement: its number, date or balances could not be found")
+    issued_on = date(int(issued.group(3)), int(issued.group(2)), int(issued.group(1)))
+    lines = []
+    for raw in text.splitlines():
+        tax = _STATEMENT_TAX.match(raw)
+        if tax and lines:     # stamp duty belongs to the line printed just above it, on its day
+            lines.append(CardLine(lines[-1].day, " ".join(tax.group(1).split()), -_euros(tax.group(2))))
+            continue
+        m = _STATEMENT_LINE.match(raw)
+        if not m:
+            continue
+        d, mo, desc, amount = m.groups()
+        year = issued_on.year - (1 if int(mo) > issued_on.month else 0)
+        lines.append(CardLine(date(year, int(mo), int(d)), " ".join(desc.replace("*", " ").split()), -_euros(amount)))
+    start, end = _euros(opening.group(1)), _euros(closing.group(1))
+    if abs(start - sum(l.amount for l in lines) - end) > 0.005:
+        raise ValueError(f"statement {number.group(1)}: the lines add up to {start - sum(l.amount for l in lines):.2f}, "
+                         f"the statement says {end:.2f}")
+    return CardStatement(int(number.group(1)), issued_on, start, end, lines)
+
+
+def read_card_statement(path: str) -> CardStatement:
+    return parse_card_statement(subprocess.run(["pdftotext", "-layout", path, "-"], capture_output=True,
+                                               text=True, check=True).stdout)
 
 
 def reconcile(session: Session, account_id: int, lines: list[CardLine]) -> tuple[list[CardLine], list[tuple[Transaction, CardLine]]]:
@@ -98,26 +155,35 @@ def _stem(description: str) -> str:
     return re.sub(r"[-\s]*\d{4}$", "", description.upper().replace("CRÉDITO", "CREDITO")).strip()
 
 
-def add_lines(session: Session, account_id: int, lines: list[CardLine]) -> int:
-    """Store the lines. A fee or cashback line is filed like the ones already stored; anything else waits in Needs Review."""
-    anchor = session.exec(select(Transaction).where(Transaction.account_id == account_id)
-                          .order_by(Transaction.id)).first()
-    if anchor is None:
-        raise ValueError("The card account holds no row yet to take its document from")
+def add_lines(session: Session, account_id: int, lines: list[CardLine], document_id: Optional[int] = None) -> int:
+    """Store the lines. A fee, interest or cashback line is filed like the ones already stored, a payment of the
+    card is an internal transfer; anything else waits in Needs Review. `document_id` is the statement they come
+    from (default: the first document the card account already has)."""
+    if document_id is None:
+        anchor = session.exec(select(Transaction).where(Transaction.account_id == account_id)
+                              .order_by(Transaction.id)).first()
+        if anchor is None:
+            raise ValueError("The card account holds no row yet to take its document from")
+        document_id = anchor.document_id
     fee_node = get_node(session, "taxes-financial-costs.financial-costs.bank-card-fees")
+    transfer_node = get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments")
     unsorted_node = get_node(session, "unsorted.needs-review.needs-review")
     n = 0
     for line in lines:
         stem = _stem(line.description)
         is_fee = stem.startswith("COMISSAO DISPONIBILIZACAO")
         is_cashback = stem.startswith("REEMBOLSO 123")
-        node = fee_node if (is_fee or is_cashback) else unsorted_node
+        is_charge = stem.startswith(_CHARGE_STEMS)
+        is_payment = stem.startswith(_PAYMENT_STEM) and line.credit
+        node = (fee_node if (is_fee or is_cashback or is_charge)
+                else transfer_node if is_payment else unsorted_node)
         merchant = None
-        if is_fee or is_cashback:
-            merchant = _merchant(session, "Comissão Disponibilização Cartão de Crédito" if is_fee else "Cartão 123 reembolso",
+        if is_fee or is_cashback or is_charge:
+            merchant = _merchant(session, "Comissão Disponibilização Cartão de Crédito" if is_fee
+                                 else "Cartão 123 reembolso" if is_cashback else "Juros e encargos do cartão de crédito",
                                  fee_node.id)
         txn = Transaction(
-            document_id=anchor.document_id, description=line.description, category=Category.OTHER,
+            document_id=document_id, description=line.description, category=Category.OTHER,
             transaction_type=TransactionType.CREDIT if line.credit else TransactionType.DEBIT,
             amount=abs(line.amount), currency="EUR", paid_date=line.day, statement_period=line.day.strftime("%Y-%m"),
             account_id=account_id, merchant_id=merchant.id if merchant else None,
@@ -157,6 +223,20 @@ def file_rute_card_payments(session: Session) -> list[Transaction]:
     for t in rows:
         file_transaction(session, t, node)
         t.nature = Nature.DISCRETIONARY
+        session.add(t)
+    session.commit()
+    return rows
+
+
+def unfile_rute_card_payments(session: Session) -> list[Transaction]:
+    """Rute's card payments back to internal transfers, once the card's own lines are stored (they are the spending)."""
+    node = get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments")
+    rows = session.exec(select(Transaction).where(
+        Transaction.description.contains(RUTE_CARD_MARK),
+        Transaction.category_id == get_node(session, RUTE_CARD_NODE).id)).all()
+    for t in rows:
+        file_transaction(session, t, node)
+        t.nature = None
         session.add(t)
     session.commit()
     return rows
