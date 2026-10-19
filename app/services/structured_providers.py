@@ -33,8 +33,16 @@ _INSURANCE = {
 ALL = (LENDER, *_INSURANCE.values())
 
 
+def entity_merchant(entity) -> StructuredMerchant:
+    return StructuredMerchant(f"entity:{entity.number}", entity.name, entity.node_slug)
+
+
 def structured_merchant(provider: Optional[str]) -> Optional[StructuredMerchant]:
     text = provider or ""
+    from app.services.payment_entities import entity_of   # a Multibanco payment: the entity is the payee
+    entity = entity_of(text)
+    if entity is not None:
+        return entity_merchant(entity)
     if _LOAN_COLLECTION.match(text):
         return LENDER
     key = insurance_key(text)

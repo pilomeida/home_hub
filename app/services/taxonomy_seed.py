@@ -32,7 +32,7 @@ SEED = {
   ("Sports", M, None, ["Sports fees", "Sports gear"]),
   ("Shopping", M, L.SHOPPING, ["Clothing"]),
   ("Personal", M, L.SHOPPING, ["Clothing", "Personal care", "General shopping", "Rute card (not itemised)"]),
-  ("Leisure", M, None, ["Culture & events", "Gifts"]),
+  ("Leisure", M, None, ["Culture & events", "Gifts", "Betting"]),
  ]),
  ("Holidays & travel", [
   ("Holidays", Y, None, ["Flights", "Accommodation", "On-trip spending"]),
@@ -65,6 +65,7 @@ SEED = {
  ]),
  ("Psi expenses", [
   ("Premises", M, None, ["Session room rental"]),
+  ("Practice costs", M, None, ["Platform & licences"]),
  ]),
  ("Unsorted", [
   ("Needs review", NONE, L.OTHER_EXPENSE, ["Needs review"]),

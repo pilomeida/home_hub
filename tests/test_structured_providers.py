@@ -94,3 +94,46 @@ def test_the_three_insurance_kinds_share_one_counterparty_merchant(session):
     survivor = session.get(Merchant, merchants.pop())
     assert survivor.canonical_name == "Aegon Santander" and survivor.by_provider is True
     assert session.query(Merchant).filter(Merchant.merged_into_id == survivor.id).count() == 2  # two aliases
+
+
+# --- Multibanco payment entities (descriptions as the bank prints them) ---
+
+def test_a_multibanco_payment_names_its_payee_by_entity_not_by_the_text_around_it():
+    from app.services.payment_entities import entity_of
+    for text, entity in (("PAG SERVICOS  1835 27134-627088996", "27134"),
+                         ("PAG SERVICOS *1835 12442-540006308 AMIGO*EASYPAY.P", "12442"),
+                         ("AMIGO*EASYPAY.P 12442-540006308", "12442"),
+                         ("PAG SERVICOS 20160-402818490", "20160")):
+        assert entity_of(text).number == entity
+    assert entity_of("PAG SERVICOS 1835 99999-123456789") is None      # an entity nobody has named yet
+    assert entity_of("7303599-00-PAG.CTA.CARTAO") is None
+    assert structured_merchant("PAG SERVICOS 23332-200645166").name == "Câmara Municipal de Mafra"
+    assert structured_merchant("PAG SERVICOS 23332-200645166").key == "entity:23332"
+
+
+def test_refile_by_entity_moves_a_mistaken_electricity_entry_and_spares_a_checked_one(session):
+    from datetime import date
+    from app.models.domain import Domain
+    from app.models.transaction import Transaction, TransactionType
+    from app.services.payment_entities import refile_by_entity
+    from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
+    from tests.knowledge_factories import make_document
+    ensure_taxonomy(session)
+    doc = make_document(session, domain=Domain.FINANCIALS, category="statement", filename="s.pdf")
+    wrong, checked, other = (Transaction(document_id=doc.id, description=d, amount=a, transaction_type=TransactionType.DEBIT,
+                                         paid_date=date(2026, 9, 1), checked_by=c)
+                             for d, a, c in (("PAG SERVICOS 1835 21056-111111111", 100.0, None),
+                                             ("PAG SERVICOS 1835 21056-222222222", 100.0, "Pedro"),
+                                             ("PAG SERVICOS 1835 99999-333333333", 5.0, None)))
+    session.add_all([wrong, checked, other])
+    session.flush()
+    electricity = get_node(session, "housing.utilities.electricity")
+    for t in (wrong, checked, other):
+        file_transaction(session, t, electricity)
+    session.commit()
+    assert [t.id for t, _ in refile_by_entity(session, dry_run=True)] == [wrong.id]
+    refile_by_entity(session, dry_run=False)
+    session.refresh(wrong); session.refresh(checked); session.refresh(other)
+    assert wrong.category_id == get_node(session, "taxes-financial-costs.taxes.social-security").id
+    assert wrong.merchant_id is not None
+    assert checked.category_id == other.category_id == electricity.id
