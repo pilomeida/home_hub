@@ -59,6 +59,10 @@ class ExtractedHealth:
     conditions: list[str] = field(default_factory=list)
     summary: str = ""
     details: str = ""
+    indication: str = ""            # why the paper was made, as printed ("Indicação")
+    clinical_notes: str = ""        # what the requester wrote about the patient ("Observações")
+    requested_by: str = ""          # the service or doctor who asked for it / sent the patient
+    performed_by: str = ""          # who did the exam or signed the report
     check_notes: list[str] = field(default_factory=list)    # what the check against the paper could not settle (reading.py)
     amount_billed: Optional[float] = None
     amount_reimbursed: Optional[float] = None
@@ -85,10 +89,16 @@ Fields:
 - conditions: named conditions or diagnoses it concerns (e.g. Stroke, Diabetes). [] if none.
   For areas and conditions, reuse an existing name exactly when it fits; write a new name in the language of the paper.
 - summary: two sentences, plain words, what this paper is and its main finding. Write it in the language of the paper.
+- indication: why the paper was requested or made, in the paper's own words (e.g. the line labelled "Indicação" or "Motivo");
+  leave the key out if the paper gives none.
+- clinical_notes: what the requester wrote about the patient (e.g. "Observações", "Informação clínica": earlier diagnoses,
+  the clinical question), word for word; leave it out if none.
+- requested_by: the service or doctor who asked for it or sent the patient (e.g. "Proveniência", "Médico requisitante"), as printed.
+- performed_by: who did the exam or signed the report (technician, specialist), as printed.
 - details: ONE string with EVERY other item printed on the paper that has no field here, one per line (separated by \\n) as "Label: value", using the
   paper's own labels and language: the patient's identification, tax, health-service and beneficiary numbers, age,
-  the dates of collection, entry and release, requisition and internal numbers, the requesting doctor, the
-  laboratory's director, specialists and technicians, accreditations, methods, and any printed note or comment.
+  the dates of collection, entry and release, requisition and internal numbers, the laboratory's director, specialists and
+  technicians, accreditations, methods, and any printed note or comment that is not a section's conclusion, impression or comment (those are results, see sections). Do not repeat the four items above here.
 - amount_billed, amount_reimbursed, amount_owed: euros as numbers, for bills and reimbursement statements.
 - appointment_date (YYYY-MM-DD) and appointment_time (HH:MM, 24h): only for an appointment confirmation.
 - sections: EVERY result printed on the paper, numeric or not, none left out, grouped exactly as the paper groups them.
@@ -98,6 +108,15 @@ Fields:
   heading and belongs in path, even if it is a test's own name: "Resultado (NGSP/DCCT)" and "Resultado (IFCC)" sit
   under the heading "Hemoglobina glicada A1c", which sits under "Bioquímica"; "Doseamento" sits under "Proteína C reativa".
   Results continue under the same heading until the paper shows another heading.
+  The headings are an outline. A paper can have main sections (e.g. "Triplex carotídeo", "ECO/DTC", "DTC-c") and,
+  inside a main section, chapters (e.g. "Eixo Carotídeo direito", "Eixo Carotídeo esquerdo" and "Artérias Vertebrais"
+  inside "Triplex carotídeo"). Put the whole chain in path, outermost first: ["Triplex carotídeo", "Eixo Carotídeo direito"].
+  Never put a heading's name inside a test's name, and never gather conclusions under one invented heading such as
+  "Conclusões": each conclusion belongs under the section or chapter it describes.
+  Printed prose is a result too: a conclusion, impression or comment under a section is a result with test "Conclusão"
+  (or the paper's own word: "Impressão", "Comentário") and the whole text, word for word, in value_text.
+  Every number printed in a section (velocities, indices, diameters, percentages) is a separate result in that same
+  section, with its unit.
   Keep a method note such as "(Mét.CF/COL)" inside the heading or test name exactly as printed.
   Write every heading and test name in normal capitalisation, not in capitals: "Hematologia" not "HEMATOLOGIA",
   "Creatinina" not "CREATININA", "Gama glutamil transpeptidase" not "GAMA GLUTAMIL TRANSPEPTIDASE"; acronyms stay
@@ -139,6 +158,7 @@ _SCHEMA = {
     "properties": {
         "category": _STR, "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
         "provider_address": _STR, "record_kind": _STR,
+        "indication": _STR, "clinical_notes": _STR, "requested_by": _STR, "performed_by": _STR,
         "details": {"type": ["string", "array", "null"], "items": {"type": "string"}},       # one string; a list of lines is accepted too
         "areas": {"type": "array", "items": {"type": "string"}},
         "conditions": {"type": "array", "items": {"type": "string"}},
@@ -296,6 +316,8 @@ async def extract_health_document(
             provider_address=_text(data.get("provider_address")), record_kind=kind if kind in kinds else None,
             areas=_names(data.get("areas")), conditions=_names(data.get("conditions")),
             summary=_text(data.get("summary")) or "", details=_text(data.get("details")) or "",
+            indication=_text(data.get("indication")) or "", clinical_notes=_text(data.get("clinical_notes")) or "",
+            requested_by=_text(data.get("requested_by")) or "", performed_by=_text(data.get("performed_by")) or "",
             amount_billed=_num(data.get("amount_billed")), amount_reimbursed=_num(data.get("amount_reimbursed")),
             amount_owed=_num(data.get("amount_owed")),
             appointment_date=_date(data.get("appointment_date")), appointment_time=_text(data.get("appointment_time")),

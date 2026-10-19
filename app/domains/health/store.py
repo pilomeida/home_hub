@@ -112,6 +112,8 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
     _fill(fields, "record_kind", extracted.record_kind)
     _fill(fields, "summary", extracted.summary)
     _fill(fields, "details", extracted.details)
+    for key in ("indication", "clinical_notes", "requested_by", "performed_by"):
+        _fill(fields, key, getattr(extracted, key))
     _fill(fields, "appointment_date", extracted.appointment_date)
     _fill(fields, "appointment_time", extracted.appointment_time)
     for key, value in (("amount_billed", extracted.amount_billed), ("amount_reimbursed", extracted.amount_reimbursed),

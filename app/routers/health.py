@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from app.db import get_session, get_session_factory
 from app.domains.fields import (
-    InvalidClassification, build_form_fields, describe_document, load_fields, media_kind_for,
+    InvalidClassification, build_form_fields, describe_document, dump_fields, load_fields, media_kind_for,
 )
 from app.domains.health import areas as areas_svc
 from app.domains.health import browse, people as people_svc, store
@@ -74,6 +74,7 @@ def _measurement_view(rows: list[HealthMeasurement]) -> list[dict]:
 
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
     spec = get_spec(Domain.HEALTH)
+    fields = load_fields(document)
     entry = store.entry_for(session, document.id)
     measurements = _measurement_view(list(session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
                                           .order_by(HealthMeasurement.position, HealthMeasurement.is_previous,
@@ -84,6 +85,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
             "entry": entry, "measurements": measurements, "check_notes": store.notes_of(entry) if entry else [],
             "area_names": ", ".join(t.name for t in tags if t.kind == "area"),
             "condition_names": ", ".join(t.name for t in tags if t.kind == "condition"),
+            "why": {k: fields.get(k, "") for k in ("indication", "clinical_notes", "requested_by", "performed_by", "details")},
             "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind)}
 
 
@@ -139,13 +141,10 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
     return RedirectResponse(document_url(result.document) or "/health/records", status_code=303)
 
 
-@router.post("/documents/{document_id}/reread")
-async def reread(document_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session),
-                 session_factory=Depends(get_session_factory)):
-    document = _document_or_404(session, document_id)
+async def prepare_reread(session: Session, document: Document) -> None:
+    """The steps behind "Read again": take back everything read from a filed paper (calendar entry, wiki claims,
+    results, tags), clear its fields so they start again from the new reading, and mark it pending."""
     if document.status == DocumentStatus.PROCESSED:
-        # a paper read before: take back everything read from it (calendar entry, wiki claims, results, tags) and read it
-        # afresh with the current reader; fields start again from the new reading
         await spec_for_health().handler.withdraw(session, document)
         await withdraw_from_wiki(session, document, description=f"{document.filename} read again")
         document.fields_json = "{}"
@@ -157,6 +156,13 @@ async def reread(document_id: int, background_tasks: BackgroundTasks, session: S
     document.failure_reason = None
     session.add(document)
     session.commit()
+
+
+@router.post("/documents/{document_id}/reread")
+async def reread(document_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session),
+                 session_factory=Depends(get_session_factory)):
+    document = _document_or_404(session, document_id)
+    await prepare_reread(session, document)
     background_tasks.add_task(_read_in_background, session_factory, document.id)
     return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
 
@@ -177,6 +183,28 @@ async def update_fields(request: Request, document_id: int, session: Session = D
     except InvalidClassification as exc:
         return templates.TemplateResponse(request, "health/detail.html",
                                           _detail_context(session, document, values, exc.errors), status_code=400)
+    return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
+
+
+@router.post("/documents/{document_id}/why")
+async def update_why(document_id: int, indication: str = Form(""), session: Session = Depends(get_session)):
+    """The person's own words for why this paper was made (for papers that do not say). Kept as the field `indication`."""
+    document = _document_or_404(session, document_id)
+    if document.status != DocumentStatus.PROCESSED:       # a reading in progress would overwrite it; an unread paper has no box to write in
+        why, step = {
+            DocumentStatus.PENDING: ("The paper is still being read, and the reading would overwrite it.",
+                                     "Wait until the reading is done, then write it again."),
+            DocumentStatus.NEEDS_ATTENTION: ("The paper has not been read.",
+                                             "Read it again, or write the reason in the boxes below."),
+        }.get(document.status, ("This paper was deleted.", "Upload it again if you need it."))
+        raise HTTPException(status_code=409, detail={"what": "Not saved.", "why": why, "next_step": step})
+    fields = load_fields(document)
+    fields["indication"] = indication.strip()
+    document.fields_json = dump_fields(fields)
+    session.add(document)
+    session.commit()
+    if store.entry_for(session, document.id) is not None:
+        store.sync_entry_from_fields(session, document)
     return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
 
 

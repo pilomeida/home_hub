@@ -31,7 +31,7 @@ def test_health_fields_mark_what_must_never_leave_the_hub():
     spec = get_spec(Domain.HEALTH)
     private = {f.key for f in spec.fields if f.private}
     admin = {f.key for f in spec.fields if not f.private}
-    assert {"record_kind", "summary", "notes"} <= private
+    assert {"record_kind", "summary", "notes", "indication", "clinical_notes", "requested_by", "performed_by"} <= private
     assert {"person", "document_date", "provider", "provider_phone", "provider_address", "appointment_date",
             "appointment_time", "amount_billed", "amount_reimbursed", "amount_owed"} <= admin
 

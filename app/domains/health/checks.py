@@ -55,6 +55,7 @@ class CheckReport:
 
 def _strings_of(x: ExtractedHealth) -> Iterable[Optional[str]]:
     yield from (x.person_name, x.provider, x.provider_phone, x.provider_address, x.summary, x.details,
+                x.indication, x.clinical_notes, x.requested_by, x.performed_by,
                 x.appointment_time, *x.areas, *x.conditions)
     for m in x.measurements:
         yield from (m.test, m.group_path, m.value_text, m.unit, m.reference_text, m.method)

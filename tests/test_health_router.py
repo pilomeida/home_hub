@@ -347,3 +347,32 @@ async def test_a_paper_read_before_can_be_read_again_and_the_new_reading_replace
     ms = session.exec(select(HealthMeasurement)).all()
     assert {m.test for m in ms} == {"Neutrófilos", "Colesterol HDL", "Doseamento", "Nitritos"} and all(m.group_path or m.test for m in ms)
     assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]
+
+
+@pytest.mark.asyncio
+async def test_preparing_a_reread_takes_back_what_was_read_and_leaves_the_paper_pending(session):
+    from app.domains.health import store
+    from app.models.document import DocumentStatus
+    from app.routers.health import prepare_reread
+    doc = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), "test", ["Eyes"], name="eye.pdf")
+    doc.status = DocumentStatus.PROCESSED
+    session.add(doc)
+    session.commit()
+    await prepare_reread(session, doc)
+    session.refresh(doc)
+    assert doc.status == DocumentStatus.PENDING and doc.fields_json == "{}"
+    assert store.entry_for(session, doc.id) is None and not session.exec(select(HealthMeasurement)).all()
+
+
+@pytest.mark.asyncio
+async def test_preparing_a_reread_of_a_deleted_paper_is_refused_in_three_parts(session):
+    from fastapi import HTTPException
+    from app.models.document import DocumentStatus
+    from app.routers.health import prepare_reread
+    doc = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), "test", ["Eyes"], name="eye.pdf")
+    doc.status = DocumentStatus.DISCARDED
+    session.add(doc)
+    session.commit()
+    with pytest.raises(HTTPException) as exc:
+        await prepare_reread(session, doc)
+    assert exc.value.status_code == 409 and set(exc.value.detail) == {"what", "why", "next_step"}

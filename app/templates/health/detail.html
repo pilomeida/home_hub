@@ -26,6 +26,23 @@
   </form>
 </div>
 {% endif %}
+<div class="why-box" style="border:1px solid #9bb8e0;background:#f3f8ff;padding:10px 14px;margin:12px 0;">
+  <strong>Why this was done</strong>
+  {% if why.indication %}<p style="margin:6px 0;">{{ why.indication }}</p>
+  {% elif document.status.value == "pending" %}<p style="margin:6px 0;"><em>Being read — the reason will appear here when the reading is done.</em></p>
+  {% elif document.status.value == "needs_attention" %}<p style="margin:6px 0;"><em>Not read, so the Hub does not know why it was made. Read it again or write the reason in the boxes below.</em></p>
+  {% else %}<p style="margin:6px 0;"><em>The paper does not say why it was made. Write it here.</em></p>{% endif %}
+  {% if why.clinical_notes %}<p style="margin:6px 0;"><small>Clinical notes</small><br>{{ why.clinical_notes }}</p>{% endif %}
+  {% if why.requested_by or why.performed_by %}<p style="margin:6px 0;">
+    {% if why.requested_by %}<small>Requested by</small> {{ why.requested_by }}{% endif %}
+    {% if why.requested_by and why.performed_by %} · {% endif %}
+    {% if why.performed_by %}<small>Done by</small> {{ why.performed_by }}{% endif %}</p>{% endif %}
+  {% if document.status.value == "processed" %}<form method="post" action="/health/documents/{{ document.id }}/why" style="margin:6px 0;">
+    <textarea name="indication" rows="2" style="width:100%;" aria-label="Why this was done">{{ why.indication }}</textarea>
+    <button type="submit">Save</button>
+  </form>{% endif %}
+  {% if why.details %}<details><summary>Details</summary><pre style="white-space:pre-wrap;">{{ why.details }}</pre></details>{% endif %}
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
   <section>
     <h2>The paper</h2>
