@@ -110,8 +110,8 @@ def test_house_overview_card(session):
     texts = [line.text for line in card.lines]
     assert card.label == "House" and card.url == "/house"
     assert texts == [
-        "Boiler warranty expires 10 Oct 2026",
-        "Dishwasher warranty expires 15 Nov 2026",
+        "Boiler warranty expires 2026-10-10",
+        "Dishwasher warranty expires 2026-11-15",
         "1 warranty missing an expiry date",
         "Last maintenance: Boiler, 6 months ago",
         "5 documents on file",
@@ -125,4 +125,4 @@ def test_assumed_warranty_is_marked_on_card_and_overview(session):
     (card,) = build_item_cards(session)
     assert card.warranty_expiry == date(2026, 10, 1) and card.warranty_assumed is True
     line = house_overview_card(session, date(2026, 9, 24)).lines[0]
-    assert line.text == "Oven warranty expires 01 Oct 2026 (assumed)"
+    assert line.text == "Oven warranty expires 2026-10-01 (assumed)"

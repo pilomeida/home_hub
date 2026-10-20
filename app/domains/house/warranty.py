@@ -107,7 +107,7 @@ def effective_warranty_expiry(fields) -> Optional[WarrantyExpiry]:
 
 def assumed_note(expiry: WarrantyExpiry) -> str:
     return (f"Assumed: Portugal's {LEGAL_GUARANTEE_YEARS}-year legal guarantee from the purchase date "
-            f"({expiry.purchase_date.strftime('%d %b %Y')})")
+            f"({expiry.purchase_date.strftime('%Y-%m-%d')})")
 
 
 def house_derived_fields(category, fields) -> dict[str, str]:

@@ -15,7 +15,7 @@
     <div class="fc-yc-sub">No budget set · {{ card.pct_of_year_elapsed }}% of year elapsed</div>
     {% endif %}
     {% if card.next_item_label %}
-    <div class="fc-yc-sub">Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%d %b') }}</div>
+    <div class="fc-yc-sub">Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%Y-%m-%d') }}</div>
     {% endif %}
   </div>
   {% else %}

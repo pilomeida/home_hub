@@ -166,7 +166,7 @@ def test_landing_groups_items_by_type_with_reference_and_backlog(client, session
     assert text.index("House Appliances") < text.index("Boiler") < text.index("Outdoor Gear") < text.index("Lawnmower")
     assert "Reference" in text and "Floor plans" in text and "pipes.pdf" in text and "Outdoor" in text
     assert text.count('class="item-card"') == 2  # manual + warranty share the Boiler card
-    assert "01 Mar 2030" in text
+    assert "2030-03-01" in text
     assert 'id="backlog-house"' in text and "Renew Boiler warranty" in text
     assert 'href="/house/upload?category=warranty_invoice&item_name=Boiler"' in text
 

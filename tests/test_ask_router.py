@@ -55,7 +55,7 @@ def test_home_shows_a_friendly_datetime_for_the_last_active_conversation(client,
 
     r = client.get("/ask")
 
-    assert "18 Aug 2026, 09:05" in r.text
+    assert "2026-08-18 09:05" in r.text
     assert "09:05:52.222395" not in r.text
 
 

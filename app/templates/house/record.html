@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/house">← House</a></p>
 <h1>{{ category_label }}</h1>
-<p>Entered {{ record.created_at.strftime('%d %b %Y') }}{% if record.entered_by %} by {{ record.entered_by }}{% endif %}
+<p>Entered {{ record.created_at.strftime('%Y-%m-%d') }}{% if record.entered_by %} by {{ record.entered_by }}{% endif %}
  · <a href="/records/{{ record.id }}/edit">Edit / re-file</a></p>
 
 {% if attachment %}

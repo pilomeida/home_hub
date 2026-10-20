@@ -47,7 +47,7 @@ def test_list_bills_shows_a_friendly_datetime_not_the_raw_one(client, session):
 
     response = client.get("/financials/bills")
 
-    assert "18 Aug 2026, 09:05" in response.text
+    assert "2026-08-18 09:05" in response.text
     assert "09:05:52.222395" not in response.text
 
 

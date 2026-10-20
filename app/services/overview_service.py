@@ -460,7 +460,7 @@ def get_needs_attention(
     for c in upcoming:
         items.append(NeedsAttentionItem(
             kind="upcoming_bill",
-            text=f"{c.name} due {c.next_due_date.strftime('%d %b')} (€{c.planned_amount:,.2f})",
+            text=f"{c.name} due {c.next_due_date.strftime('%Y-%m-%d')} (€{c.planned_amount:,.2f})",
             url=f"/financials/transactions?commitment_id={c.id}",
         ))
 

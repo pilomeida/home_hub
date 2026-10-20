@@ -31,7 +31,7 @@ RATE_TOLERANCE = 0.005
 
 
 def _day(d: date) -> str:
-    return d.strftime("%d %b %Y")
+    return d.strftime("%Y-%m-%d")
 
 
 def _existing_keys(session: Session, debt: Debt) -> dict[tuple[str, str], LoanAlert]:

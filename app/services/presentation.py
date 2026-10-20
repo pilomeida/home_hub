@@ -120,20 +120,20 @@ def humanize_key(key: Optional[str]) -> str:
 
 
 def display_date(value: Optional["date | datetime"]) -> str:
-    """A date or datetime as House's existing nice date format, e.g.
-    "18 Aug 2026"."""
+    """A date or datetime as the one shared date format (yyyy-mm-dd), e.g.
+    "2026-08-18"."""
     if not value:
         return "—"
-    return value.strftime("%d %b %Y")
+    return value.strftime("%Y-%m-%d")
 
 
 def display_datetime(value: Optional[datetime]) -> str:
-    """A datetime as "18 Aug 2026, 09:05" -- the one shared format for
+    """A datetime as "2026-08-18 09:05" -- the one shared format for
     every timestamp shown to a person (wiki page/log, Inbox, Ask, Wiki
     check)."""
     if not value:
         return "—"
-    return value.strftime("%d %b %Y, %H:%M")
+    return value.strftime("%Y-%m-%d %H:%M")
 
 
 def lisbon_datetime(value: Optional[datetime]) -> str:
@@ -146,7 +146,7 @@ def lisbon_datetime(value: Optional[datetime]) -> str:
     from zoneinfo import ZoneInfo
 
     aware = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
-    return aware.astimezone(ZoneInfo("Europe/Lisbon")).strftime("%d %b %Y, %H:%M")
+    return aware.astimezone(ZoneInfo("Europe/Lisbon")).strftime("%Y-%m-%d %H:%M")
 
 
 def claim_label(label: Optional[str], key: Optional[str]) -> str:

@@ -263,7 +263,7 @@ def test_the_page_shows_exactly_the_open_items_with_the_source_page_beside_them(
     assert f'<iframe src="/static/documents/{pdf.file_path.rsplit("/", 1)[-1]}#page=3"' in html
     assert "Page 3 of the statement" in html
     assert "The amount is partly cut off on the page." in html
-    assert 'class="tc-doubt">€42.50' in html and 'class="tc-doubt">14 Mar 2026' not in html     # the reason names the amount
+    assert 'class="tc-doubt">€42.50' in html and 'class="tc-doubt">2026-03-14' not in html     # the reason names the amount
     for action in ("Looks right", "Fix the value", "Not a real line"):
         assert action in html
     assert "The lines add up to €480.00 but the statement says €500.00 (difference €20.00)." in html

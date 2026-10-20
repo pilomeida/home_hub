@@ -89,13 +89,13 @@ def test_humanize_key_converts_snake_case_to_sentence_case():
 
 
 def test_display_date_formats_like_house_pages():
-    assert display_date(date(2026, 8, 18)) == "18 Aug 2026"
-    assert display_date(datetime(2026, 8, 18, 9, 5, 52, 222395)) == "18 Aug 2026"
+    assert display_date(date(2026, 8, 18)) == "2026-08-18"
+    assert display_date(datetime(2026, 8, 18, 9, 5, 52, 222395)) == "2026-08-18"
     assert display_date(None) == "—"
 
 
 def test_display_datetime_formats_day_month_year_comma_time():
-    assert display_datetime(datetime(2026, 8, 18, 9, 5, 52, 222395)) == "18 Aug 2026, 09:05"
+    assert display_datetime(datetime(2026, 8, 18, 9, 5, 52, 222395)) == "2026-08-18 09:05"
     assert display_datetime(None) == "—"
 
 

@@ -92,7 +92,7 @@ def _who(by: Optional[str]) -> str:
 
 
 def _when(at: Optional[datetime]) -> str:
-    return at.strftime("%d %b %Y, %H:%M") if at else "earlier"
+    return at.strftime("%Y-%m-%d %H:%M") if at else "earlier"
 
 
 _DECIDED = {"confirmed": "confirmed as right", "rejected": "marked as not a real line"}

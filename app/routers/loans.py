@@ -94,7 +94,7 @@ def payoff_text(months_left: Optional[int], payoff_date: Optional[date]) -> Opti
         parts.append(f"{years} yr{'s' if years != 1 else ''}")
     if months or not years:
         parts.append(f"{months} mo")
-    return f"≈ {' '.join(parts)} ({payoff_date.strftime('%b %Y')})"
+    return f"≈ {' '.join(parts)} ({payoff_date.strftime('%Y-%m')})"
 
 
 def _insurance_debits(session: Session, debt_id: int) -> tuple[float, Optional[float], Optional[date]]:

@@ -1,4 +1,4 @@
-{% macro date(d) %}{{ d.day }} {{ d.strftime('%b %Y') }}{% endmacro %}
+{% macro date(d) %}{{ d.strftime('%Y-%m-%d') }}{% endmacro %}
 {% macro eur0(v) %}{{ "−" if v < 0 else "" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
 {% macro eur2(v) %}{{ "−" if v < 0 else "" }}€{{ "{:,.2f}".format(v|abs) }}{% endmacro %}
 {% macro signed0(v) %}{{ "+" if v >= 0 else "−" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}

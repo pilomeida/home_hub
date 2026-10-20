@@ -73,7 +73,7 @@ def test_effective_expiry_prefers_stated_then_assumes_legal_guarantee():
     assert effective_warranty_expiry({}) is None
     derived = house_derived_fields("warranty_invoice", {"purchase_date": "2026-03-12"})
     assert derived["effective_warranty_expiry"] == "2029-03-12"
-    assert "3-year legal guarantee" in derived["warranty_expiry_note"] and "12 Mar 2026" in derived["warranty_expiry_note"]
+    assert "3-year legal guarantee" in derived["warranty_expiry_note"] and "2026-03-12" in derived["warranty_expiry_note"]
     assert house_derived_fields("house_appliance", {"purchase_date": "2026-03-12"}) == {}
 
 

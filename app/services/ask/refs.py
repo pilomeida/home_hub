@@ -30,7 +30,7 @@ def citable_for_document(doc: Document) -> Citable:
 
 def citable_for_record(record: Record) -> Citable:
     spec = get_spec(record.domain)
-    label = f"{spec.label} record: {spec.category_label(record.category)} (entered {record.created_at:%d %b %Y})"
+    label = f"{spec.label} record: {spec.category_label(record.category)} (entered {record.created_at:%Y-%m-%d})"
     return Citable(ref=f"rec:{record.id}", label=label, url=registry.record_url(record) or spec.home_url)
 
 

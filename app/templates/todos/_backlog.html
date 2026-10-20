@@ -3,7 +3,7 @@
   <ul>
     {% for todo in backlog_todos %}
     <li id="todo-{{ todo.id }}">
-      {{ todo.title }}{% if todo.due_date %} — due {{ todo.due_date.strftime('%d %b %Y') }}{% endif %}
+      {{ todo.title }}{% if todo.due_date %} — due {{ todo.due_date.strftime('%Y-%m-%d') }}{% endif %}
       <button hx-post="/todos/{{ todo.id }}/done?backlog={{ backlog_domain.value }}"
               hx-target="#backlog-{{ backlog_domain.value }}" hx-swap="outerHTML">Done</button>
     </li>

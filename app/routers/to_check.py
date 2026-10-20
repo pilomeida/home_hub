@@ -48,7 +48,7 @@ def _line_context(transaction: Transaction, document: Document, **extra) -> dict
     return {
         "t": transaction, "file_href": file_url(document), "source_kind": _kind(document),
         "doubtful": doubtful_fields(transaction.review_reason),
-        "date_text": when.strftime("%d %b %Y") if when else "—", "amount_text": money(transaction.amount),
+        "date_text": when.strftime("%Y-%m-%d") if when else "—", "amount_text": money(transaction.amount),
         "editing": False, "problem_html": None,
         "values": {"date": when.isoformat() if when else "", "description": transaction.description,
                    "amount": f"{transaction.amount:.2f}"},

@@ -142,7 +142,7 @@ def test_inbox_list_shows_a_friendly_datetime_for_received_at(client, session):
 
     html = client.get("/inbox").text
 
-    assert "18 Aug 2026, 09:05" in html
+    assert "2026-08-18 09:05" in html
 
 
 def test_inbox_recently_handled_shows_a_friendly_datetime_for_reviewed_at(client, session, two_domains):
@@ -155,7 +155,7 @@ def test_inbox_recently_handled_shows_a_friendly_datetime_for_reviewed_at(client
 
     html = client.get("/inbox").text
 
-    assert "18 Aug 2026, 09:05" in html
+    assert "2026-08-18 09:05" in html
 
 
 def test_actions_on_missing_or_handled_document(client, session):

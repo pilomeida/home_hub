@@ -76,13 +76,13 @@ def test_index_shows_loan_savings_and_totals(client, session):
     assert "CREDITO HABITACAO …0200" in html
     assert "3.125%" in html
     assert "€693" in html
-    assert "2 Aug 2026" in html and "400.00" in html
+    assert "2026-08-02" in html and "400.00" in html
     assert "12.50" in html and "insurance" in html
     assert "yrs" in html or "mo" in html          # payoff estimate
     assert "FUND X" in html and "A. Person" in html
     assert "1,100" in html and "+200" in html or "+€200" in html   # value and gain
     assert "DEPOSITOS" in html and "CARTAO" in html
-    assert "Data as of 31 Jul 2026" in html
+    assert "Data as of 2026-07-31" in html
     assert "/financials/transactions?debt_id=" not in html  # no informal debts yet
 
 
@@ -116,9 +116,9 @@ def test_stale_days_and_marker(session):
     macros = templates.env.get_template("loans/_macros.html").module
     stale = str(macros.freshness(t.as_of, 153))
     assert "loan-stale" in stale
-    assert "Not up to date." in stale and "31 Jul 2026, 153 days ago" in stale and "Upload newer statements with the + button" in stale
+    assert "Not up to date." in stale and "2026-07-31, 153 days ago" in stale and "Upload newer statements with the + button" in stale
     assert "loan-stale" not in str(macros.freshness(t.as_of, 150))
-    assert "Data as of 31 Jul 2026" in str(macros.freshness(t.as_of, 10))
+    assert "Data as of 2026-07-31" in str(macros.freshness(t.as_of, 10))
 
 
 def test_unknown_balance_loan_listed_and_excluded(client, session):
@@ -156,9 +156,9 @@ def test_detail_lists_instalments_with_partial_payments_summed(client, session):
     r = client.get(f"/financials/loans/{debt.id}")
     assert r.status_code == 200
     html = r.text
-    assert "2 Jul 2026" in html and "2 Jun 2026" in html
+    assert "2026-07-02" in html and "2026-06-02" in html
     assert "307.00" in html and "79.00" in html and "12.50" in html and "693.00" in html
-    assert html.index("2 Jul 2026") < html.index("2 Jun 2026")  # newest first
+    assert html.index("2026-07-02") < html.index("2026-06-02")  # newest first
     assert html.count("<tr class=\"loan-inst\"") == 2
 
 
@@ -481,7 +481,7 @@ def test_paid_totals_are_labelled_as_recorded_instalments_with_since_date(client
     _seed(session)
     html = client.get("/financials/loans").text.lower()
     assert "paid to date" not in html
-    assert "paid in recorded instalments (since 2 jun 2026)" in html
+    assert "paid in recorded instalments (since 2026-06-02)" in html
     assert "capital repaid so far" in html and "€4,307" in html  # granted 5000 - remaining 693
 
 
@@ -566,7 +566,7 @@ def test_oversized_file_is_rejected_per_file_and_the_rest_still_processed(client
 
 # --- Block A: red flags and rate history ----------------------------------
 
-def _flag(session, debt, kind="interest_only", ref="inst:3", message="Instalment 3 (02 Mar 2026): interest only", **kw):
+def _flag(session, debt, kind="interest_only", ref="inst:3", message="Instalment 3 (2026-03-02): interest only", **kw):
     from app.models.position import LoanAlert
     a = LoanAlert(debt_id=debt.id, kind=kind, ref=ref, message=message, detected_on=date(2026, 10, 6), **kw)
     session.add(a)
@@ -586,10 +586,10 @@ def test_index_shows_red_block_and_badge_with_unacknowledged_count(client, sessi
     a = _flag(session, debt)
     _flag(session, debt, ref="inst:4", message="Instalment 4: interest only")
     html = client.get("/financials/loans").text
-    assert "Red flags" in html and "Instalment 3 (02 Mar 2026): interest only" in html
+    assert "Red flags" in html and "Instalment 3 (2026-03-02): interest only" in html
     assert 'class="loan-badge"' in html and ">1 red flag<" in html  # grouped per (loan, kind)
     assert f'action="/financials/loans/alerts/{a.id}/ack"' in html
-    assert "06 Oct 2026" in html or "6 Oct 2026" in html
+    assert "2026-10-06" in html
 
 
 def test_acknowledge_redirects_stores_note_and_collapses(client, session):
@@ -647,7 +647,7 @@ def test_rate_history_table_highlights_a_changed_spread(client, session):
         as_of=date(2026, 9, 30), loans=[_loan(next_rate_percent=3.1, next_indexante_percent=1.8, next_spread_percent=1.3)]))
     html = client.get(f"/financials/loans/{debt.id}").text
     assert "Rate history" in html
-    assert html.index("31 Aug 2026") < html.index("30 Sep 2026", html.index("Rate history"))
+    assert html.index("2026-08-31") < html.index("2026-09-30", html.index("Rate history"))
     assert "1.800" in html and "1.200" in html and "1.300" in html and "3.100" in html
     assert html.count('class="loan-spread-bad"') == 1  # only the changed spread cell
 
@@ -757,9 +757,9 @@ def test_informal_section_shows_ledger_with_running_balances(client, session):
     assert "€700.00" in html    # running balance after the repayment
     assert "first back" in html
     assert f"/financials/transactions?transaction_id={t.id}" in html
-    assert "5 Jan 2026" in html and "1 Mar 2026" in html  # last activity
+    assert "2026-01-05" in html and "2026-03-01" in html  # last activity
     table = html[html.index('<table class="loan-table loan-ledger"'):]
-    assert table.index("5 Jan 2026") < table.index("1 Feb 2026") < table.index("1 Mar 2026")
+    assert table.index("2026-01-05") < table.index("2026-02-01") < table.index("2026-03-01")
     assert f"/financials/loans/debts/{d.id}/entries" in html
     # only the manual entries carry a delete button
     assert html.count("/delete") == 2
@@ -876,7 +876,7 @@ def test_ledger_rows_escape_the_person_name(client, session):
 
 def test_fifteen_alerts_are_one_group_line_one_badge_and_one_group_form(client, session):
     debt = _seed(session)
-    ids = [_flag(session, debt, ref=f"inst:{n}", message=f"Instalment {n} (02 Mar 2026): interest only (€20.00 interest)").id
+    ids = [_flag(session, debt, ref=f"inst:{n}", message=f"Instalment {n} (2026-03-02): interest only (€20.00 interest)").id
            for n in range(1, 16)]
     html = client.get("/financials/loans").text
     assert ">1 red flag<" in html
@@ -1047,7 +1047,7 @@ def test_red_flags_say_why_it_matters_and_what_to_do(client, session):
     debt = _seed(session)
     _flag(session, debt)
     text = client.get("/financials/loans").text
-    assert "Instalment 3 (02 Mar 2026): interest only" in text
+    assert "Instalment 3 (2026-03-02): interest only" in text
     assert "A normal instalment repays some capital" in text and "check it with the bank" in text
     assert "A normal instalment repays some capital" in client.get(f"/financials/loans/{debt.id}").text
 

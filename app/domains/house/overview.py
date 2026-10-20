@@ -25,7 +25,7 @@ def house_overview_card(session: Session, today: date) -> DomainCard:
         key=lambda c: c.warranty_expiry,
     )
     for card in expiring:
-        text = f"{card.name} warranty expires {card.warranty_expiry.strftime('%d %b %Y')}"
+        text = f"{card.name} warranty expires {card.warranty_expiry.strftime('%Y-%m-%d')}"
         if card.warranty_assumed:
             text += " (assumed)"
         lines.append(CardLine(

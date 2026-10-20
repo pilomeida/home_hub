@@ -41,7 +41,7 @@ def test_lint_page_shows_a_friendly_datetime_for_the_last_run(client, session):
 
     r = client.get("/wiki/lint")
 
-    assert "18 Aug 2026, 09:05" in r.text
+    assert "2026-08-18 09:05" in r.text
     assert "09:05:52.222395" not in r.text
 
 

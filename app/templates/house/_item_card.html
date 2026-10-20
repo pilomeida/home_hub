@@ -4,10 +4,10 @@
   {% if card.room %}<p class="item-meta">{{ card.room }}</p>{% endif %}
   {% if card.warranty_expiry %}
   <p class="{{ 'needs-attention' if state in ('lapsed', 'due') else '' }}">
-    Warranty {{ 'expired' if state == 'lapsed' else 'until' }} {{ card.warranty_expiry.strftime('%d %b %Y') }}{% if card.warranty_assumed %} (assumed — 3-year legal guarantee){% endif %}
+    Warranty {{ 'expired' if state == 'lapsed' else 'until' }} {{ card.warranty_expiry.strftime('%Y-%m-%d') }}{% if card.warranty_assumed %} (assumed — 3-year legal guarantee){% endif %}
   </p>
   {% endif %}
-  {% if card.last_serviced %}<p>Last serviced {{ card.last_serviced.strftime('%d %b %Y') }}</p>{% endif %}
+  {% if card.last_serviced %}<p>Last serviced {{ card.last_serviced.strftime('%Y-%m-%d') }}</p>{% endif %}
   <ul>
     {% for item in card.documents %}
     <li>

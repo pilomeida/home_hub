@@ -71,7 +71,7 @@ def test_interest_only_message_has_number_date_and_interest(session):
     debt = _history_debt(session)
     apply_loan_history(session, _doc(session), debt, [_inst(7, 0.0, 123.45, month=3)])
     msg = _alerts(session)[0].message
-    assert "Instalment 7" in msg and "02 Mar 2026" in msg and "123.45" in msg and "interest only" in msg
+    assert "Instalment 7" in msg and "2026-03-02" in msg and "123.45" in msg and "interest only" in msg
 
 
 def test_capital_and_interest_both_zero_raises_no_alert(session):
@@ -115,7 +115,7 @@ def test_spread_change_raises_alert_with_old_new_and_date(session):
     alerts = _alerts(session, "spread_changed")
     assert len(alerts) == 1 and alerts[0].ref == "snap:2026-08-31"
     assert "1.200" in alerts[0].message and "1.300" in alerts[0].message and "→" in alerts[0].message
-    assert "31 Aug 2026" in alerts[0].message
+    assert "2026-08-31" in alerts[0].message
     # applying the same statement again adds nothing
     _apply(session, date(2026, 8, 31), 3, next_spread_percent=1.3, next_rate_percent=3.1)
     assert len(_alerts(session)) == 1
