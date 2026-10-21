@@ -28,6 +28,7 @@
 | # | Plan | Ships | Depends on |
 |---|---|---|---|
 | 1 | `2026-10-19-conditions-1-reader-and-context.md` (written) | Paper reader returns the context fields; nested outline + narrative conclusions + numbers per section; "Why this was done" box with free text on every paper page; papers 199 and 200 re-read | nothing |
+| 1B | `2026-10-19-conditions-1b-reports-topics-verification.md` (written) | Written reports read around their own outline; a baseline of topics that grows from the family's papers (approve / rename / merge); topic thread pages; metrics; second reading and outline confirmation; benchmark for prose | 1 |
 | 2 | conditions foundation | `health_conditions` + `health_entry_conditions`; condition page; suggestion on the paper's box (confirm / pick another / none); "propose a new condition"; one-time review list for filed papers and the old guessed labels | 1 |
 | 3 | follow-ups and reminders | `health_follow_ups`; "next due" line; to-dos with `domain=HEALTH` and the health/finance icons; overdue in red; proposal from report text ("repetir em 12 meses") | 2 |
 | 4 | visits, notes, medication | `health_visits` (two stages), `health_notes` (note / own reading / episode), `health_medications` + `health_medication_changes`; one timeline merging papers, visits, notes, medication changes | 2, 3 |

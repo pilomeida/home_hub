@@ -98,10 +98,10 @@ async def test_if_the_second_look_fails_the_reading_stays_and_the_note_says_so(p
 
 
 @pytest.mark.asyncio
-async def test_a_scan_has_nothing_to_check_against_so_one_call_and_no_notes(tmp_path, monkeypatch):
+async def test_a_scan_has_nothing_to_check_against_so_no_notes_from_the_text_check(tmp_path, monkeypatch):
     monkeypatch.setattr(ex, "paper_text", lambda path: None)
     fake = _fake(dict(_without(FULL, "Glicose"), full_text="texto lido da imagem"))
-    got = await read_health_document(_png(tmp_path), None, gateway=fake)
+    got = await read_health_document(_png(tmp_path), None, gateway=fake, second_read=False)     # the second reading has its own tests
     assert len(fake.requests) == 1 and got.check_notes == []
 
 

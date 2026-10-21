@@ -48,6 +48,9 @@ Order recommended by Claude and accepted by Pedro: checks + benchmark first (don
 8. **Wiki language**: the wiki guidance for Health is English while summaries are now in the paper's language.
 9. **A history point printed on several papers** is stored once per paper; Ask de-duplicates them, other views do not.
 - **Paper context, outline and numbers (2026-10-19).** Built (not yet deployed until Pedro orders it): the four context fields and the "Why this was done" box, the reader prompt for sections with chapters, prose conclusions and every number per section, and `scripts/reread_health.py`. Still to do: re-read papers 199 and 200 on the VPS and let Pedro check paper 200's page; add paper 200 as the second benchmark case once he calls it right. Paper 200 has no text layer, so its numbers are not cross-checked against the paper. Plan: `docs/superpowers/plans/2026-10-19-conditions-1-reader-and-context.md`; next phases: `...-conditions-master-plan.md`.
+- **Topic baseline for lab sheets.** Written reports get topics now (Phase 1B). Give lab-sheet headings the same baseline later; sheet results are still threaded by exact heading + test + unit keys.
+- **Read twice for lab sheets with a text layer** is not done: the check against the paper's own text covers them. Add it if sheets with a text layer show silent misreadings.
+- **Ask tools for topics, visits and medication** belong to Phase 5 (they must go through `app/privacy/reach.py` and carry tier High).
 
 ### Inbox and channels
 - **Categories for contracts, bank letters and diplomas** (item above). Four more papers wait for Pedro's decision: AEG appliances invoice (100, needs an item name), social-security notification (160), IRS receipt (168), the paid 2022 IUC notice (161, returned to the Inbox).

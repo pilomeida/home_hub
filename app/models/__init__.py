@@ -28,4 +28,4 @@ from app.models.privacy import DocumentFingerprint, DocumentTypeSetting, Privacy
 from app.models.baseline import BaselinePosition  # noqa: F401
 from app.models.schedule import JobRun, JobSchedule, ProblemEntry  # noqa: F401
 
-from app.models.health import HealthArea, HealthEntry, HealthEntryTag, HealthMeasurement, HealthPerson  # noqa: F401
+from app.models.health import HealthArea, HealthEntry, HealthEntryTag, HealthMeasurement, HealthOutlineProfile, HealthPerson, HealthTopic  # noqa: F401

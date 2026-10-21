@@ -9,6 +9,7 @@
 <p><a href="/health/records">← Health</a></p>
 <h1>{{ description.filename }}</h1>
 <p>{{ description.category_label or "Kind of paper not known yet" }} (<a href="/documents/{{ document.id }}/edit">change</a>) · {{ entry.entry_date if entry and entry.entry_date else "undated" }}</p>
+{% if is_report %}<p><strong>Written report</strong> — the Hub keeps its headings and what is written under them; the numbers it prints are in the Metrics table.</p>{% endif %}
 {% if document.status.value == "pending" %}
 <meta http-equiv="refresh" content="10">
 <div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
@@ -72,11 +73,50 @@
 {% endif %}
 {% if check_notes %}
 <div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
-  <strong>{{ check_notes|length }} thing{{ "s" if check_notes|length != 1 }} to look at.</strong> The Hub compared what it read with the paper's own text and could not settle:
+  <strong>{{ check_notes|length }} thing{{ "s" if check_notes|length != 1 }} to look at.</strong> The Hub checked its reading (against the paper's own text, or by reading it twice) and could not settle:
   <ul style="margin:6px 0;">{% for n in check_notes %}<li>{{ n }}</li>{% endfor %}</ul>
   <form method="post" action="/health/documents/{{ document.id }}/notes/ok"><button type="submit" title="I looked at the paper and these are fine">I've looked</button></form>
 </div>
 {% endif %}
+{% if is_report %}
+<h2>Outline</h2>
+{% for item in outline %}
+  {% if item.kind == "heading" %}
+  <h3 style="margin:14px 0 2px;padding-left:{{ item.depth * 18 }}px;font-size:{{ [1.25 - item.depth * 0.1, 0.95]|max }}rem;">
+    {% if item.topic_id %}<a href="/health/topics/{{ item.topic_id }}{% if entry.person_id %}?person={{ entry.person_id }}{% endif %}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
+  {% else %}{% set m = item.m %}
+  <p style="margin:4px 0 4px {{ (m.group_path.split(path_sep)|length if m.group_path else 0) * 18 }}px;{% if m.needs_check %}background:#fff8e1;{% endif %}">{% if item.label %}<strong>{{ item.label }}:</strong> {% endif %}{{ m.value_text }}
+    {% if m.needs_check %}<form method="post" action="/health/documents/{{ document.id }}/measurements/{{ m.id }}/ok" style="display:inline;">
+      <button type="submit" title="I looked at the paper and this is right">It's right</button></form>{% endif %}</p>
+  {% endif %}
+{% else %}<p>No headings or text were read from this paper.</p>{% endfor %}
+{% if document.status.value == "processed" %}
+  {% if entry and entry.outline_confirmed_at %}<p><strong>Outline confirmed</strong> on {{ entry.outline_confirmed_at|display_date }}. Later papers from {{ entry.provider or "this provider" }} are read with it as a guide.</p>
+  {% else %}<form method="post" action="/health/documents/{{ document.id }}/outline/ok" style="margin:8px 0;">
+    <button type="submit" title="The headings above match the paper">The outline looks right</button>
+    <small>Later papers from {{ entry.provider or "this provider" if entry else "this provider" }} will be read with these headings as a guide.</small></form>{% endif %}
+{% endif %}
+<h2>Metrics</h2>
+{% if metrics %}
+<table class="review-table">
+  <thead><tr><th>Under</th><th>Metric</th><th>Value</th><th>Reference</th><th>Earlier, printed on this paper</th><th></th></tr></thead>
+  <tbody>
+  {% for row in metrics %}{% set m = row.m %}
+  <tr{% if m.needs_check %} class="needs-attention"{% elif m.out_of_range %} class="oor-row"{% endif %}>
+    <td>{{ m.group_path }}</td>
+    <td>{{ m.test }}{% if m.method %}<br><small style="color:#777;">{{ m.method }}</small>{% endif %}</td>
+    <td>{{ "%g"|format(m.value) }} {{ m.unit or "" }}
+      {% if m.out_of_range %}<span class="oor" title="Outside the reference range">⚠ {% if row.flag == "high" %}▲ high{% elif row.flag == "low" %}▼ low{% else %}out of range{% endif %}</span>{% endif %}</td>
+    <td>{{ row.reference }}</td>
+    <td>{% for e in row.earlier %}{{ e.measured_on|display_date if e.measured_on else "?" }}: {% if e.value is not none %}{{ "%g"|format(e.value) }}{% else %}{{ e.value_text or "?" }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+    <td>{% if m.needs_check %}<form method="post" action="/health/documents/{{ document.id }}/measurements/{{ m.id }}/ok">
+      <button type="submit" title="I looked at the paper and this value is right">It's right</button></form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>This report prints no numbers.</p>{% endif %}
+{% else %}
 <h2>Results</h2>
 {% if measurements %}
 <table class="review-table">
@@ -87,7 +127,7 @@
   <tr class="group-row"><th colspan="5" style="text-align:left;padding-left:{{ depth * 18 + 6 }}px;{% if depth == 0 %}background:#e9e9e9;{% else %}background:#f4f4f4;font-weight:600;{% endif %}">{{ name }}</th></tr>
   {% endfor %}
   <tr{% if m.needs_check %} class="needs-attention"{% elif m.out_of_range %} class="oor-row"{% endif %}>
-    <td style="padding-left:{{ (m.group_path.split(" › ")|length if m.group_path else 0) * 18 + 6 }}px;">{{ m.test }}{% if m.method %}<br><small style="color:#777;padding-left:0;">{{ m.method }}</small>{% endif %}</td>
+    <td style="padding-left:{{ (m.group_path.split(path_sep)|length if m.group_path else 0) * 18 + 6 }}px;">{{ m.test }}{% if m.method %}<br><small style="color:#777;padding-left:0;">{{ m.method }}</small>{% endif %}</td>
     <td>{% if m.value is not none %}{{ "%g"|format(m.value) }} {{ m.unit or "" }}{% else %}{{ m.value_text or "?" }}{% if m.value_text and m.unit %} {{ m.unit }}{% endif %}{% endif %}
       {% if m.out_of_range %}<span class="oor" title="Outside the reference range">⚠ {% if row.flag == "high" %}▲ high{% elif row.flag == "low" %}▼ low{% else %}out of range{% endif %}</span>{% endif %}</td>
     <td>{{ row.reference }}</td>
@@ -99,6 +139,7 @@
   </tbody>
 </table>
 {% else %}<p>No results on this paper.</p>{% endif %}
+{% endif %}
 {% if entry and entry.full_text %}<details><summary>Full text as read</summary><pre style="white-space:pre-wrap;">{{ entry.full_text }}</pre></details>{% endif %}
 <form method="post" action="/health/documents/{{ document.id }}/delete" style="margin-top:24px;"
       onsubmit="return confirm('Delete this paper and everything read from it? The original file is kept on the server but is no longer used anywhere.');">

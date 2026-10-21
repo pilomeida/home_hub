@@ -69,7 +69,8 @@ SPEC = DomainSpec(
     handler=HealthHandler(),
     infers_category=True,       # the upload page asks only for the file; the reading proposes the kind of paper
     ask_tools=HEALTH_TOOLS,
-    nav_links=(NavLink("Records", "/health/records"), NavLink("Areas", "/health/areas"), NavLink("People", "/health/people")),
+    nav_links=(NavLink("Records", "/health/records"), NavLink("Areas", "/health/areas"), NavLink("Topics", "/health/topics"),
+               NavLink("People", "/health/people")),
     overview_card=health_overview_card,
     document_url=lambda document: f"/health/documents/{document.id}",
     wiki=WikiSchema(

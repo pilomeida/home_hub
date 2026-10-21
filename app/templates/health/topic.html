@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ topic.name }} — Health topics{% endblock %}
+{% block content %}
+<p><a href="/health/topics">← Topics</a></p>
+<h1>{{ path }}</h1>
+{% if people|length > 1 %}<p>Whose:
+  {% for p in people %}{% if p.id == chosen %}<strong>{{ p.name }}</strong>{% else %}<a href="/health/topics/{{ topic.id }}?person={{ p.id }}">{{ p.name }}</a>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+{% elif people %}<p>Whose: <strong>{{ people[0].name }}</strong></p>{% endif %}
+{% if chosen is none %}
+<p>Nothing has been filed under this topic yet. It fills in when a written report with this heading is read, or when a topic that has results is merged into it.</p>
+{% else %}
+<h2>Conclusions over time</h2>
+{% for c in conclusions %}
+<section style="margin:12px 0;">
+  <h3 style="margin-bottom:2px;">{{ c.entry.entry_date|display_date if c.entry.entry_date else "undated" }}
+    {% if c.entry.provider %}<small>· {{ c.entry.provider }}</small>{% endif %}
+    <small>· <a href="/health/documents/{{ c.document.id }}">{{ c.document.filename }}</a></small></h3>
+  {% set ns = namespace(sub="") %}
+  {% for item in c.prose %}
+    {% if item.sub != ns.sub %}<h4 style="margin:8px 0 2px;">{{ item.sub or topic.name }}</h4>{% endif %}
+    {% set ns.sub = item.sub %}
+    <p style="margin:4px 0;">{{ item.m.value_text }}</p>
+  {% endfor %}
+</section>
+{% else %}<p>No written conclusions under this topic for this person.</p>{% endfor %}
+<h2>Metrics</h2>
+{% for metric in metrics %}
+<table class="review-table" style="margin-bottom:12px;">
+  <caption style="text-align:left;font-weight:600;">{{ metric.label }}{% if metric.unit %} ({{ metric.unit }}){% endif %}
+    {% if metric.caption %}<small style="font-weight:400;color:#777;"> · {{ metric.caption }}</small>{% endif %}</caption>
+  <thead><tr><th>Date</th><th>Value</th></tr></thead>
+  <tbody>{% for when, value in metric.points %}<tr><td>{{ when|display_date }}</td><td>{{ "%g"|format(value) }}{% if metric.unit %} {{ metric.unit }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table>
+{% else %}<p>No numbers were printed under this topic for this person.</p>{% endfor %}
+{% endif %}
+{% endblock %}

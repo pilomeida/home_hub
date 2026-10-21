@@ -71,6 +71,7 @@ class ExtractedHealth:
     appointment_time: Optional[str] = None
     measurements: list[ExtractedMeasurement] = field(default_factory=list)
     full_text: str = ""
+    layout: str = ""               # "sheet" (a table of results) | "report" (written text under headings) | "" (not said)
 
 
 _KINDS = ", ".join(v for v, _ in RECORD_KINDS)
@@ -88,6 +89,7 @@ Fields:
 - areas: every body area/system it concerns, as many as apply (a lab panel usually touches several) (e.g. Eyes, Skin, Heart and circulation, Digestive system, Teeth).
 - conditions: named conditions or diagnoses it concerns (e.g. Stroke, Diabetes). [] if none.
   For areas and conditions, reuse an existing name exactly when it fits; write a new name in the language of the paper.
+- layout: "sheet" if the paper is mostly a table of results (a laboratory sheet), "report" if it is mostly written text under headings (an imaging, consultation or examination report).
 - summary: two sentences, plain words, what this paper is and its main finding. Write it in the language of the paper.
 - indication: why the paper was requested or made, in the paper's own words (e.g. the line labelled "Indicação" or "Motivo");
   leave the key out if the paper gives none.
@@ -117,6 +119,7 @@ Fields:
   (or the paper's own word: "Impressão", "Comentário") and the whole text, word for word, in value_text.
   Every number printed in a section (velocities, indices, diameters, percentages) is a separate result in that same
   section, with its unit.
+  In a written report the headings ARE the topics: keep the report's own outline exactly as printed, give each topic's written conclusion as the result "Conclusão" under it, and make every number the report states (in text or in a table) a separate result under the topic it belongs to, with its unit. A report that prints no numbers has none: never invent a measurement.
   Keep a method note such as "(Mét.CF/COL)" inside the heading or test name exactly as printed.
   Write every heading and test name in normal capitalisation, not in capitals: "Hematologia" not "HEMATOLOGIA",
   "Creatinina" not "CREATININA", "Gama glutamil transpeptidase" not "GAMA GLUTAMIL TRANSPEPTIDASE"; acronyms stay
@@ -156,7 +159,7 @@ _SCHEMA = {
     "type": "object",
     "required": ["summary"],
     "properties": {
-        "category": _STR, "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
+        "category": _STR, "layout": _STR, "person_name": _STR, "document_date": _STR, "provider": _STR, "provider_phone": _STR,
         "provider_address": _STR, "record_kind": _STR,
         "indication": _STR, "clinical_notes": _STR, "requested_by": _STR, "performed_by": _STR,
         "details": {"type": ["string", "array", "null"], "items": {"type": "string"}},       # one string; a list of lines is accepted too
@@ -284,7 +287,7 @@ def paper_text(file_path: str) -> Optional[str]:
 
 async def extract_health_document(
     file_path: str, category: Optional[str], *, existing_areas: Sequence[str] = (),
-    existing_conditions: Sequence[str] = (), gateway=None,
+    existing_conditions: Sequence[str] = (), gateway=None, guidance: str = "",
 ) -> ExtractedHealth:
     if not is_model_readable(file_path):
         raise HealthExtractionError("This file type can't be read automatically (only PDFs and photos).")
@@ -294,6 +297,8 @@ async def extract_health_document(
         system += "\n\nExisting areas (reuse a name exactly when it fits): " + "; ".join(existing_areas)
     if existing_conditions:
         system += "\nExisting conditions (reuse a name exactly when it fits): " + "; ".join(existing_conditions)
+    if guidance:
+        system += "\n\n" + guidance
     gw = gateway or get_gateway()
     user = f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON."
     if text:
@@ -308,6 +313,7 @@ async def extract_health_document(
             raise ValueError("not an object")
         kinds = {v for v, _ in RECORD_KINDS}
         kind = _text(data.get("record_kind"))
+        layout = _text(data.get("layout"))
         category_read = _text(data.get("category"))
         return ExtractedHealth(
             category=category_read if category_read in ALL_CATEGORIES else None,
@@ -321,6 +327,6 @@ async def extract_health_document(
             amount_billed=_num(data.get("amount_billed")), amount_reimbursed=_num(data.get("amount_reimbursed")),
             amount_owed=_num(data.get("amount_owed")),
             appointment_date=_date(data.get("appointment_date")), appointment_time=_text(data.get("appointment_time")),
-            measurements=_measurements(data), full_text=text or _text(data.get("full_text")) or "")
+            layout=layout if layout in ("sheet", "report") else "", measurements=_measurements(data), full_text=text or _text(data.get("full_text")) or "")
     except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise HealthExtractionError(f"Could not parse the reading of the paper: {exc}") from exc

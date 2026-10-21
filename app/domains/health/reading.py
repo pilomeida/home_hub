@@ -11,7 +11,7 @@ import json
 from typing import Optional, Sequence
 
 from app.domains.health import extraction as ex
-from app.domains.health.checks import MAX_LINES_TO_ASK, CheckReport, check_reading, unresolved_notes
+from app.domains.health.checks import MAX_LINES_TO_ASK, CheckReport, check_reading, compare_readings, unresolved_notes
 from app.llm_gateway import HEALTH_EXTRACTION, get_gateway
 from app.privacy.tiers import Tier
 from app.services.json_utils import strip_json_fences
@@ -56,11 +56,11 @@ async def _second_look(x: ex.ExtractedHealth, lines: Sequence[str], gateway) -> 
 
 async def read_health_document(
     file_path: str, category: Optional[str], *, existing_areas: Sequence[str] = (),
-    existing_conditions: Sequence[str] = (), gateway=None,
+    existing_conditions: Sequence[str] = (), gateway=None, guidance: str = "", second_read: bool = True,
 ) -> ex.ExtractedHealth:
     gw = gateway or get_gateway()
     x = await ex.extract_health_document(file_path, category, existing_areas=existing_areas,
-                                         existing_conditions=existing_conditions, gateway=gw)
+                                         existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
     source = await ex.asyncio.to_thread(ex.paper_text, file_path)       # None for a scan or photo: nothing to check against
     report: CheckReport = check_reading(x, source)
     notes: list[str] = []
@@ -72,5 +72,12 @@ async def read_health_document(
                          "they were left as read.")
         report = check_reading(x, source)                     # what is still missing, and values now on the page
     notes += unresolved_notes(report)
-    x.check_notes = notes[:MAX_NOTES] + ([f"... and {len(notes) - MAX_NOTES} more."] if len(notes) > MAX_NOTES else [])
+    if second_read and (x.layout == "report" or source is None):      # a written report, or a scan: nothing printed to check against
+        try:
+            y = await ex.extract_health_document(file_path, category, existing_areas=existing_areas,
+                                                 existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
+            notes += compare_readings(x, y)
+        except Exception as exc:                              # the first reading stands; say it was not cross-checked
+            notes.append(f"A second reading to compare against did not work ({type(exc).__name__}); this reading is unchecked. Read the paper again to check it.")
+    x.check_notes = notes[:MAX_NOTES] + ([f"... and {len(notes) - MAX_NOTES} more. Look at the paper."] if len(notes) > MAX_NOTES else [])
     return x

@@ -9,6 +9,7 @@ scripts/health_benchmark.py."""
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import shutil
@@ -38,8 +39,22 @@ def _same_number(a: Optional[float], b: Optional[float]) -> bool:
     return (a is None and b is None) or (a is not None and b is not None and abs(a - b) < 1e-6)
 
 
+def _squeezed(text: Optional[str]) -> str:
+    """Spacing alone is not a difference in what a paper says ('<1' = '< 1')."""
+    return re.sub(r"\s+", "", match_key(text or ""))
+
+
+PROSE_LENGTH = 80          # a text longer than this (both sides, squeezed) is prose: a conclusion, not a value
+PROSE_SIMILARITY = 0.85    # prose is the same when this much of it matches (the reader rarely repeats a paragraph word for word)
+
+
 def _same_text(a: Optional[str], b: Optional[str]) -> bool:
-    return match_key(a or "") == match_key(b or "")
+    sa, sb = _squeezed(a), _squeezed(b)
+    if sa == sb:
+        return True
+    if len(sa) > PROSE_LENGTH and len(sb) > PROSE_LENGTH:
+        return difflib.SequenceMatcher(None, match_key(a or ""), match_key(b or "")).ratio() >= PROSE_SIMILARITY
+    return False
 
 
 def _same_reference(a: Optional[str], b: Optional[str]) -> bool:
@@ -49,7 +64,7 @@ def _same_reference(a: Optional[str], b: Optional[str]) -> bool:
 
 
 def _earlier(rows: list[dict]) -> set[tuple]:
-    return {(r.get("date") or "", None if r.get("value") is None else round(float(r["value"]), 6), match_key(r.get("value_text") or ""))
+    return {(r.get("date") or "", None if r.get("value") is None else round(float(r["value"]), 6), _squeezed(r.get("value_text")))
             for r in rows or []}
 
 
@@ -76,13 +91,15 @@ def expected_from_reading(x: ExtractedHealth) -> dict:
     results = [{"path": m.group_path, "test": m.test, "unit": m.unit, "value": m.value, "value_text": m.value_text,
                 "reference": m.reference_text, "previous": previous.get(m.position, [])}
                for m in x.measurements if not m.is_previous]
-    return {"header": {"category": x.category, "document_date": x.document_date.isoformat() if x.document_date else None,
+    return {"layout": x.layout or None, "header": {"category": x.category, "document_date": x.document_date.isoformat() if x.document_date else None,
                        "person": x.person_name, "provider": x.provider}, "results": results}
 
 
 def compare(name: str, expected: dict, actual: ExtractedHealth) -> CaseResult:
     out = CaseResult(name)
     head = expected.get("header") or {}
+    if expected.get("layout") and expected["layout"] != (actual.layout or None):
+        out.problems.append(f"layout: expected {expected['layout']}, read {actual.layout or 'not said'}")
     if head.get("category") and head["category"] != actual.category:
         out.problems.append(f"kind of paper: expected {head['category']}, read {actual.category}")
     if head.get("document_date") and head["document_date"] != (actual.document_date.isoformat() if actual.document_date else None):
@@ -165,6 +182,7 @@ def promote(session: Session, document_id: int, name: str, directory: Path = DEF
                 {"date": m.measured_on.isoformat() if m.measured_on else None, "value": m.value, "value_text": m.value_text})
     expected = {
         "reviewed": False,         # set to true once a person has checked every line against the paper
+        "layout": entry.layout or None,
         "header": {"category": document.category, "document_date": entry.entry_date.isoformat() if entry.entry_date else None,
                    "person": person.name if person else None, "provider": entry.provider},
         "results": [{"path": m.group_path, "test": m.test, "unit": m.unit, "value": m.value, "value_text": m.value_text,

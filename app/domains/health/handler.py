@@ -6,7 +6,7 @@ from sqlmodel import Session
 
 from app.domains.base import DomainHandler
 from app.domains.health import areas as areas_svc
-from app.domains.health import store
+from app.domains.health import outlines, store
 from app.config import settings
 from app.domains.health.appointments import appointment_event, remove_appointment, sync_appointment
 from app.domains.health.extraction import HealthExtractionError
@@ -25,7 +25,8 @@ class HealthHandler(DomainHandler):
         extracted = await read_health_document(
             document.file_path, document.category,
             existing_areas=areas_svc.names_for_prompt(session, "area"),
-            existing_conditions=areas_svc.names_for_prompt(session, "condition"))
+            existing_conditions=areas_svc.names_for_prompt(session, "condition"),
+            guidance=outlines.guidance(session))
         if document.category is None:       # the upload asked only for the file: the reading proposes the kind of paper
             if extracted.category is None:
                 raise HealthExtractionError(

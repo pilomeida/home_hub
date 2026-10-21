@@ -52,6 +52,9 @@ class HealthEntry(SQLModel, table=True):
     needs_check: bool = Field(default=False)
     check_notes: Optional[str] = None                   # JSON list: what the check against the paper could not settle
     calendar_event_id: Optional[str] = None
+    layout: Optional[str] = None                        # "sheet" | "report": how the paper is laid out
+    outline_confirmed_by: Optional[str] = None          # who confirmed the outline of this paper
+    outline_confirmed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -72,6 +75,7 @@ class HealthMeasurement(SQLModel, table=True):
     measured_on: Optional[date] = None
     test: str
     test_key: str = Field(default="", index=True)
+    topic_id: Optional[int] = Field(default=None, foreign_key="health_topics.id", index=True)
     value: Optional[float] = None
     value_text: Optional[str] = None
     unit: Optional[str] = None
@@ -88,3 +92,30 @@ class HealthMeasurement(SQLModel, table=True):
     reference_text: Optional[str] = None
     method: Optional[str] = None                        # '(Mét.Jaffé cinético)' on the paper: data, but not part of the test's name
     is_previous: bool = Field(default=False)            # printed on this paper as an EARLIER result of the same test
+
+
+class HealthTopic(SQLModel, table=True):
+    """The baseline: one node per heading, in a tree."""
+    __tablename__ = "health_topics"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    match_key: str = Field(index=True)
+    parent_id: Optional[int] = Field(default=None, foreign_key="health_topics.id", index=True)
+    approved: bool = Field(default=False)
+    merged_into_id: Optional[int] = Field(default=None, foreign_key="health_topics.id")
+    similar_to_id: Optional[int] = Field(default=None, foreign_key="health_topics.id")   # "looks like X": a suggestion only
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HealthOutlineProfile(SQLModel, table=True):
+    """An outline a person confirmed as right for a provider."""
+    __tablename__ = "health_outline_profiles"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    provider_key: str = Field(index=True)
+    provider: str
+    layout: str
+    outline_json: str                                   # JSON list of printed paths, in paper order
+    confirmed_by: Optional[str] = None
+    confirmed_at: datetime = Field(default_factory=datetime.utcnow)

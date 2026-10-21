@@ -29,7 +29,8 @@ def isolate(tmp_path, monkeypatch):
 
 
 async def _file(session, wire, content=b"\x89PNG\r\n\x1a\nlab", name="lab.png", reply=REPLY):
-    wire.script = [gateway_text_result(json.dumps(reply)), gateway_text_result(json.dumps(WIKI_REPLY))]
+    # a photo has no text layer, so it is read twice (the second reading is compared with the first), then the wiki
+    wire.script = [gateway_text_result(json.dumps(reply)), gateway_text_result(json.dumps(reply)), gateway_text_result(json.dumps(WIKI_REPLY))]
     set_gateway_provider(lambda: wire.client())
     return await ingest(session, IncomingFile(name, content, DocumentSource.MANUAL, "test"),
                         Classification(Domain.HEALTH, "lab_result", {}))
@@ -42,7 +43,7 @@ async def test_a_lab_result_is_read_stored_tagged_and_in_the_wiki_all_at_high(se
     result = await _file(session, wire)
     doc = result.document
     assert doc.status == DocumentStatus.PROCESSED and doc.sensitivity_tier == "house_high"
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]    # extraction, wiki
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 3    # two readings, wiki
 
     entry = store.entry_for(session, doc.id)
     assert entry.provider == "Laboratório Norte" and entry.year == 2026 and entry.kind == "test"
@@ -81,7 +82,7 @@ async def test_every_printed_data_point_is_kept_limits_words_history_and_the_oth
 @pytest.mark.asyncio
 async def test_what_a_person_typed_is_not_overwritten_by_the_reading(session):
     wire = pw.Wire()
-    wire.script = [gateway_text_result(json.dumps(REPLY)), gateway_text_result(json.dumps(WIKI_REPLY))]
+    wire.script = [gateway_text_result(json.dumps(REPLY))] * 2 + [gateway_text_result(json.dumps(WIKI_REPLY))]
     set_gateway_provider(lambda: wire.client())
     result = await ingest(session, IncomingFile("lab.png", b"\x89PNG\r\n\x1a\nlab2", DocumentSource.MANUAL, "test"),
                           Classification(Domain.HEALTH, "lab_result", {"provider": "Dr. Costa"}))

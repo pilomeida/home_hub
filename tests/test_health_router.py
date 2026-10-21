@@ -106,7 +106,7 @@ def test_upload_files_a_paper_through_the_real_pipeline(client, session, monkeyp
     from tests.test_health_extraction import REPLY
     from tests.test_health_handler import WIKI_REPLY
     wire = pw.Wire()
-    wire.script = [gateway_text_result(json.dumps(REPLY)), gateway_text_result(json.dumps(WIKI_REPLY))]
+    wire.script = [gateway_text_result(json.dumps(REPLY))] * 2 + [gateway_text_result(json.dumps(WIKI_REPLY))]     # photo: read twice, then the wiki
     set_gateway_provider(lambda: wire.client())
     try:
         r = client.post("/health/upload", data={"category": "lab_result"},
@@ -114,7 +114,7 @@ def test_upload_files_a_paper_through_the_real_pipeline(client, session, monkeyp
     finally:
         set_gateway_provider(None)
     assert r.status_code == 303 and r.headers["location"].startswith("/health/documents/")
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 3
 
 
 def test_health_stays_the_liveness_check_and_the_records_page_is_separate(client, session):
@@ -244,25 +244,25 @@ def test_the_reading_proposes_the_kind_of_paper_and_it_is_filed_at_high(client, 
     from app.models.document import Document, DocumentStatus
     from tests.test_health_extraction import REPLY
     from tests.test_health_handler import WIKI_REPLY
-    r, wire = _upload_only_the_file(client, [dict(REPLY, category="lab_result"), WIKI_REPLY])
+    r, wire = _upload_only_the_file(client, [dict(REPLY, category="lab_result")] * 2 + [WIKI_REPLY])
     assert r.status_code == 303
     session.expire_all()
     doc = session.exec(select(Document)).one()
     assert doc.category == "lab_result" and doc.sensitivity_tier == "house_high"
     assert doc.status == DocumentStatus.PROCESSED
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 3
 
 
 def test_a_paper_the_reading_cannot_place_waits_for_a_person_to_choose_its_kind(client, session):
     from app.models.document import Document, DocumentStatus
     from tests.test_health_extraction import REPLY
-    r, wire = _upload_only_the_file(client, [dict(REPLY, category=None)])
+    r, wire = _upload_only_the_file(client, [dict(REPLY, category=None)] * 2)
     assert r.status_code == 303
     session.expire_all()
     doc = session.exec(select(Document)).one()
     assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.category is None
     assert "what kind of health paper" in doc.failure_reason
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"]          # nothing went out below High
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 2        # two readings, nothing went out below High
     page = client.get(r.headers["location"]).text
     assert "Kind of paper not known yet" in page and f"/documents/{doc.id}/edit" in page
 
@@ -306,7 +306,7 @@ def test_a_paper_that_failed_shows_why_and_can_be_read_again(client, session, tm
     from tests import privacy_world as pw
     from tests.fakes.fake_gateway import gateway_text_result
     wire = pw.Wire()
-    wire.script = [gateway_text_result(json.dumps(dict(REPLY, category="lab_result"))), gateway_text_result(json.dumps(WIKI_REPLY))]
+    wire.script = [gateway_text_result(json.dumps(dict(REPLY, category="lab_result")))] * 2 + [gateway_text_result(json.dumps(WIKI_REPLY))]
     set_gateway_provider(lambda: wire.client())
     try:
         r = client.post(f"/health/documents/{doc.id}/reread", follow_redirects=False)
@@ -333,7 +333,7 @@ async def test_a_paper_read_before_can_be_read_again_and_the_new_reading_replace
     assert store.entry_for(session, doc.id) is not None
     assert "Read again" in client.get(f"/health/documents/{doc.id}").text      # offered on a read paper too
     wire = pw.Wire()
-    wire.script = [gateway_text_result(json.dumps(SECTIONS_REPLY)), gateway_text_result(json.dumps(WIKI_REPLY))]
+    wire.script = [gateway_text_result(json.dumps(SECTIONS_REPLY))] * 2 + [gateway_text_result(json.dumps(WIKI_REPLY))]
     set_gateway_provider(lambda: wire.client())
     try:
         r = client.post(f"/health/documents/{doc.id}/reread", follow_redirects=False)
@@ -346,7 +346,7 @@ async def test_a_paper_read_before_can_be_read_again_and_the_new_reading_replace
     assert len(session.exec(select(HealthEntry)).all()) == 1               # replaced, not doubled
     ms = session.exec(select(HealthMeasurement)).all()
     assert {m.test for m in ms} == {"Neutrófilos", "Colesterol HDL", "Doseamento", "Nitritos"} and all(m.group_path or m.test for m in ms)
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high", "house_high"]
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 3
 
 
 @pytest.mark.asyncio
