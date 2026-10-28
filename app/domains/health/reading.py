@@ -23,7 +23,8 @@ _REPAIR_SYSTEM = (
     "not captured. For EACH line given: if it is a result, return it in sections, under the heading path it belongs "
     "to (reuse one of the existing headings listed when it fits); if it is other printed information "
     "(identification, dates, notes, accreditation, address), return it in details as \"Label: value\" lines; if it "
-    "is only page furniture (a page number, a barcode), ignore it. Never invent anything.\n"
+    "is only page furniture (a page number, a barcode), ignore it. Leave out prices, fees, co-payments (taxa moderadora), "
+    "totals, payments and reimbursements: billing is handled elsewhere. Never invent anything.\n"
     "Return ONLY a JSON object {\"sections\": [...], \"details\": \"...\"}, leaving out what does not apply.\n\n"
     + _RESULTS_RULES)
 
@@ -61,6 +62,8 @@ async def read_health_document(
     gw = gateway or get_gateway()
     x = await ex.extract_health_document(file_path, category, existing_areas=existing_areas,
                                          existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
+    if x.is_bill:                                             # refused by the caller: nothing to check or compare, no more reads
+        return x
     source = await ex.asyncio.to_thread(ex.paper_text, file_path)       # None for a scan or photo: nothing to check against
     report: CheckReport = check_reading(x, source)
     notes: list[str] = []
@@ -72,7 +75,7 @@ async def read_health_document(
                          "they were left as read.")
         report = check_reading(x, source)                     # what is still missing, and values now on the page
     notes += unresolved_notes(report)
-    if second_read and (x.layout == "report" or source is None):      # a written report, or a scan: nothing printed to check against
+    if second_read:                                           # every paper is read twice, independently
         try:
             y = await ex.extract_health_document(file_path, category, existing_areas=existing_areas,
                                                  existing_conditions=existing_conditions, gateway=gw, guidance=guidance)

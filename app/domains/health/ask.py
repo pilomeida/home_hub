@@ -3,7 +3,6 @@ touching Health, so the engine raises the run to High before the next model call
 
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date
 from typing import Optional
 
@@ -132,29 +131,6 @@ def _measurements(session: Session, args: dict) -> ToolOutput:
     return _output("\n".join(lines), len(rows[:200]), cites)
 
 
-def _spending(session: Session, args: dict) -> ToolOutput:
-    people = _people(session)
-    totals: dict[tuple[str, int], list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0, 0])
-    for e in _readable_entries(session):
-        person = people.get(e.person_id)
-        if not _person_ok(person, args.get("person")):
-            continue
-        if args.get("year") and e.year != int(args["year"]):
-            continue
-        t = totals[(person.name if person else "unknown", e.year or 0)]
-        t[0] += e.amount_billed or 0.0
-        t[1] += e.amount_reimbursed or 0.0
-        t[2] += e.amount_owed or 0.0
-        t[3] += 1
-    lines = ["Health spending (EUR) per person and year, from the papers on file:"]
-    for (name, year), (billed, back, owed, n) in sorted(totals.items()):
-        lines.append(f"{name} | {year or 'undated'} | billed {billed:.2f} | reimbursed {back:.2f} | "
-                     f"still owed {owed:.2f} | {n} papers")
-    if len(lines) == 1:
-        lines.append("(nothing on file)")
-    return _output("\n".join(lines), sum(int(t[3]) for t in totals.values()))
-
-
 _PERSON = {"type": "string", "description": "Part of the person's name."}
 _YEAR = {"type": "integer"}
 
@@ -181,10 +157,4 @@ HEALTH_TOOLS = (
             "person": _PERSON, "test": {"type": "string"},
             "date_from": {"type": "string", "description": "YYYY-MM-DD"}, "date_to": {"type": "string", "description": "YYYY-MM-DD"}}},
         run=_measurements),
-    AskTool(
-        name="health_spending",
-        description=("PRIVATE. What health costs: billed, reimbursed and still owed (EUR) per person and year, from "
-                     "medical bills and reimbursement statements on file. Using this makes the whole answer private."),
-        input_schema={"type": "object", "properties": {"person": _PERSON, "year": _YEAR}},
-        run=_spending),
 )

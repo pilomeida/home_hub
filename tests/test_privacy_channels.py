@@ -6,9 +6,9 @@ from app.privacy.channels import channel_fields
 def test_private_fields_never_pass_the_channel_guard():
     spec = get_spec(Domain.HEALTH)
     fields = {"person": "Maria", "provider": "Clínica Sul", "document_date": "2026-03-12",
-              "summary": "SECRET-SUMMARY", "record_kind": "test", "notes": "SECRET-NOTES", "amount_billed": "45,5"}
+              "summary": "SECRET-SUMMARY", "record_kind": "test", "notes": "SECRET-NOTES"}
     safe = channel_fields(spec, "lab_result", fields)
-    assert safe == {"person": "Maria", "provider": "Clínica Sul", "document_date": "2026-03-12", "amount_billed": "45,5"}
+    assert safe == {"person": "Maria", "provider": "Clínica Sul", "document_date": "2026-03-12"}
 
 
 def test_a_domain_with_no_private_fields_passes_everything():

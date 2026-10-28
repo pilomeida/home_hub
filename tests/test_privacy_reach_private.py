@@ -69,7 +69,7 @@ def test_private_tier_and_domain_helpers(session):
     pw.set_levels(session, mid=["financials/bill"])
     reach = compute_reach(session)
     clean = make_document(session, domain=Domain.FINANCIALS, category="bill")
-    health = make_document(session, domain=Domain.HEALTH, category="medical_bill")
+    health = make_document(session, domain=Domain.HEALTH, category="medical_report")
     assert reach.private_tier([clean]) is None
     assert reach.private_tier([clean, health]) == Tier.HIGH
     assert reach.tier_of_source(health) == Tier.HIGH and reach.tier_of_source(clean) == Tier.MID     # a non-private type reports its saved level

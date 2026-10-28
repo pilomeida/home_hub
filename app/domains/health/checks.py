@@ -25,6 +25,9 @@ from app.domains.health.topics import topic_path
 # are not numbers of their own, those belong to the unit and are matched through the unit text).
 _TOKEN = re.compile(r"(?<![\w.,/])-?\d+(?:[.,]\d+)?(?![\w])")
 _FURNITURE = re.compile(r"^\s*(?:p[aá]g(?:ina)?\.?|page)\s*\d+\s*(?:/|de|of)\s*\d+\s*$", re.IGNORECASE)
+# A line about money (billing is not Health's business, so it is neither read nor asked about). Checked on the
+# folded text (no accents, lower case). "total" alone is NOT a cue: "Colesterol total" is a result.
+_MONEY_LINE = re.compile(r"€|\beur\b|taxa moderadora|\ba pagar\b|\bpago\b|\bpagamento\b|reembols", re.IGNORECASE)
 MAX_LINES_TO_ASK = 40
 
 
@@ -70,13 +73,12 @@ def _dates_of(x: ExtractedHealth) -> Iterable[Optional[date]]:
 
 
 def accounted_numbers(x: ExtractedHealth) -> set[float]:
-    """Every number the reading holds anywhere: values, limits, amounts, dates, and the numbers inside its text."""
+    """Every number the reading holds anywhere: values, limits, dates, and the numbers inside its text."""
     have: set[float] = set()
     for s in _strings_of(x):
         have.update(numbers_in(s))
     for m in x.measurements:
         have.update(round(v, 6) for v in (m.value, m.ref_low, m.ref_high) if v is not None)
-    have.update(round(v, 6) for v in (x.amount_billed, x.amount_reimbursed, x.amount_owed) if v is not None)
     for d in _dates_of(x):
         if d is not None:
             have.update((float(d.year), float(d.month), float(d.day)))
@@ -87,7 +89,7 @@ def _lines_with(numbers: set[float], source: str) -> list[str]:
     lines, seen = [], set()
     for line in source.splitlines():
         text = re.sub(r"\s+", " ", line).strip()
-        if not text or text in seen or _FURNITURE.match(text):
+        if not text or text in seen or _FURNITURE.match(text) or _MONEY_LINE.search(match_key(text)):
             continue
         if any(n not in numbers for n in numbers_in(text)):
             lines.append(text)

@@ -18,7 +18,7 @@ from typing import Optional
 
 from markupsafe import Markup, escape
 
-from app.problems import classify_reason
+from app.problems import classify_reason, is_health_bill_refusal
 
 _GENERIC_REASON_MESSAGE = "Something went wrong processing this document."
 _READ_FAILURE_MESSAGE = "This document couldn't be read automatically."
@@ -56,6 +56,8 @@ def _friendly_sentence(reason: str) -> Optional[str]:
     """The mapped friendly sentence for a technical-looking reason, or
     None when the reason doesn't look like a raw technical error at all
     (in which case it's already plain English and shown unchanged)."""
+    if is_health_bill_refusal(reason):
+        return "This paper isn't filed under Health."
     # File problems first: both the API (legacy) and the gateway reject a
     # broken PDF with a 4xx that would otherwise read as an outage.
     if _PDF_PATTERN.search(reason):

@@ -63,13 +63,25 @@ _REDACT_TOOLS = re.compile(r"redaction with tool use", re.I)
 _REDACT_FAILED = re.compile(r"redaction (failed|incomplete)", re.I)
 _TOO_LARGE = re.compile(r"413|too large|exceeds the \d+-token context|prompt_too_long", re.I)
 
+# A bill uploaded to Health is refused (domains/health/handler.py); "change" on the paper's page is the way on.
+HEALTH_BILL_NEXT_STEP = 'Use "change" at the top of this page to move it to Financials, Bill / invoice.'
+_HEALTH_BILL = re.compile(r"so it is not filed under Health", re.I)
+
 _RETRY = "Nothing is lost: try again in a few minutes. If it keeps happening, tell Pedro."
+
+
+def is_health_bill_refusal(raw: Optional[str]) -> bool:
+    return bool(raw and _HEALTH_BILL.search(raw))
 
 
 def classify_reason(raw: Optional[str]) -> Optional[Cause]:
     """A Cause for a technical-looking stored reason, or None when the text is already plain English."""
     if not raw:
         return None
+    if is_health_bill_refusal(raw):
+        return Cause("This paper isn't filed under Health.",
+                     "It looks like a bill or receipt, and bills are dealt with under Bills, like any other bill.",
+                     HEALTH_BILL_NEXT_STEP)
     if _REDACT_FILE.search(raw):
         return Cause("Hiding personal details first isn't possible for this file.",
                      "That setting only works on text, and this file is a PDF or photo that has to be sent as an image.",

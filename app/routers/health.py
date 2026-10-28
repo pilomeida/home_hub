@@ -12,6 +12,7 @@ from app.domains.fields import (
     InvalidClassification, build_form_fields, describe_document, dump_fields, load_fields, media_kind_for,
 )
 from app.domains.health import areas as areas_svc
+from app.domains.health.categories import LEGACY_CATEGORIES, LEGACY_LABELS
 from app.domains.health import browse, outlines, people as people_svc, store
 from app.domains.health import topics as topics_svc
 from app.domains.health.text import PATH_SEP, match_key, reference_for_display
@@ -20,7 +21,7 @@ from app.services.wiki_engine import withdraw_from_wiki
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.health import HealthArea, HealthEntry, HealthMeasurement, HealthTopic
-from app.problems import Problem, file_notices, record_problem
+from app.problems import HEALTH_BILL_NEXT_STEP, Problem, file_notices, is_health_bill_refusal, record_problem
 from app.services.ingestion import (
     Classification, IncomingFile, file_for_later, finalize_document, mark_needs_attention, update_document_fields,
 )
@@ -128,7 +129,12 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     is_report = bool(entry and entry.layout == "report")
     media_kind = media_kind_for(document.filename)
-    return {"document": document, "description": describe_document(document), "media_kind": media_kind.value,
+    legacy_bill = document.category in LEGACY_CATEGORIES        # filed as a bill before bills left Health: it still opens
+    description = describe_document(document)
+    if legacy_bill:
+        description.category_label = LEGACY_LABELS[document.category]
+    return {"document": document, "description": description, "legacy_bill": legacy_bill,
+            "bill_refused": document.status == DocumentStatus.NEEDS_ATTENTION and is_health_bill_refusal(document.failure_reason), "media_kind": media_kind.value,
             "entry": entry, "measurements": measurements, "is_report": is_report, "path_sep": PATH_SEP,
             "outline": _outline_view(session, entry, measurements) if is_report else [],
             "metrics": [row for row in measurements if row["m"].value is not None] if is_report else [],
@@ -194,6 +200,10 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
 async def prepare_reread(session: Session, document: Document) -> None:
     """The steps behind "Read again": take back everything read from a filed paper (calendar entry, wiki claims,
     results, tags), clear its fields so they start again from the new reading, and mark it pending."""
+    if document.category in LEGACY_CATEGORIES:       # checked first: nothing may be withdrawn from a paper that cannot be read
+        raise HTTPException(status_code=409, detail={
+            "what": "Not read again.", "why": "Health no longer reads bills, so there is nothing to read it with.",
+            "next_step": HEALTH_BILL_NEXT_STEP})
     if document.status == DocumentStatus.PROCESSED:
         await spec_for_health().handler.withdraw(session, document)
         await withdraw_from_wiki(session, document, description=f"{document.filename} read again")

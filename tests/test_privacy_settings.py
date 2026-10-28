@@ -27,7 +27,7 @@ def test_every_registry_type_is_listed_with_a_suggestion_and_none_is_saved_yet(s
     assert all(r.tier is None and not r.is_saved for r in open_rows)
     assert {r.shown_tier for r in open_rows} <= {Tier.LOW, Tier.MID}     # never suggests house_high
     health = [r for r in rows if r.info.domain == "health"]               # Health is locked High, not suggested
-    assert len(health) == 9 and all(r.locked and r.tier == Tier.HIGH and r.is_saved for r in health)
+    assert len(health) == 7 and all(r.locked and r.tier == Tier.HIGH and r.is_saved for r in health)
     assert {r.info.domain for r in rows if r.locked} == {"health"}
     assert all(s != Tier.HIGH for s in ps.SUGGESTED_TIERS.values())
 

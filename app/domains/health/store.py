@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import date, datetime
 from typing import Optional
 
@@ -17,23 +16,6 @@ from app.domains.health.extraction import ExtractedHealth, ExtractedMeasurement
 from app.domains.health.text import match_key, reference_for_display
 from app.models.document import Document
 from app.models.health import HealthEntry, HealthEntryTag, HealthMeasurement
-
-
-def parse_amount(text) -> Optional[float]:
-    """'1.234,56' -> 1234.56; '45,5 €' -> 45.5; '1234.56' -> 1234.56; anything else -> None."""
-    if text is None:
-        return None
-    raw = re.sub(r"[^\d,.\-]", "", str(text))
-    if not re.search(r"\d", raw):
-        return None
-    if "," in raw and "." in raw:
-        raw = raw.replace(".", "").replace(",", ".") if raw.rfind(",") > raw.rfind(".") else raw.replace(",", "")
-    elif "," in raw:
-        raw = raw.replace(",", ".")
-    try:
-        return float(raw)
-    except ValueError:
-        return None
 
 
 def measurement_needs_check(m: ExtractedMeasurement) -> bool:
@@ -83,9 +65,6 @@ def sync_entry_from_fields(session: Session, document: Document, *, full_text: O
     entry.kind = fields.get("record_kind") or None
     entry.provider = fields.get("provider") or None
     entry.summary = fields.get("summary") or None
-    entry.amount_billed = parse_amount(fields.get("amount_billed"))
-    entry.amount_reimbursed = parse_amount(fields.get("amount_reimbursed"))
-    entry.amount_owed = parse_amount(fields.get("amount_owed"))
     if full_text is not None:
         entry.full_text = full_text
     entry.updated_at = datetime.utcnow()
@@ -117,9 +96,6 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
         _fill(fields, key, getattr(extracted, key))
     _fill(fields, "appointment_date", extracted.appointment_date)
     _fill(fields, "appointment_time", extracted.appointment_time)
-    for key, value in (("amount_billed", extracted.amount_billed), ("amount_reimbursed", extracted.amount_reimbursed),
-                       ("amount_owed", extracted.amount_owed)):
-        _fill(fields, key, value)
     document.fields_json = dump_fields(fields)
     session.add(document)
     session.commit()

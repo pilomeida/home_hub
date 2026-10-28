@@ -10,7 +10,7 @@ from app.privacy.tiers import Tier, TierBlocked
 from app.services.domain_classifier import build_system_prompt
 
 HEALTH_CATEGORIES = {"lab_result", "imaging_report", "medical_report", "prescription", "referral",
-                     "medical_bill", "claim_statement", "vaccination", "appointment"}
+                     "vaccination", "appointment"}
 
 
 def test_health_is_a_registered_domain_with_the_agreed_categories():
@@ -20,11 +20,12 @@ def test_health_is_a_registered_domain_with_the_agreed_categories():
     assert spec.home_url == "/health/records"
 
 
-def test_the_classifier_can_tell_a_policy_from_a_claim_statement():
+def test_the_classifier_no_longer_offers_bills_under_health():
     prompt = build_system_prompt(implemented_domains())
-    assert 'domain "health"' in prompt and 'category "claim_statement"' in prompt
+    assert 'domain "health"' in prompt and 'category "claim_statement"' not in prompt
+    assert 'category "medical_bill"' not in prompt
     insurance_line = next(l for l in prompt.splitlines() if 'category "health_insurance"' in l)
-    assert "reimburse" in insurance_line.lower() and "health" in insurance_line.lower()   # points claims to Health
+    assert "reimburse" in insurance_line.lower() and "bills" in insurance_line.lower()   # points claims to Bills
 
 
 def test_health_fields_mark_what_must_never_leave_the_hub():
@@ -33,7 +34,7 @@ def test_health_fields_mark_what_must_never_leave_the_hub():
     admin = {f.key for f in spec.fields if not f.private}
     assert {"record_kind", "summary", "notes", "indication", "clinical_notes", "requested_by", "performed_by"} <= private
     assert {"person", "document_date", "provider", "provider_phone", "provider_address", "appointment_date",
-            "appointment_time", "amount_billed", "amount_reimbursed", "amount_owed"} <= admin
+            "appointment_time"} <= admin
 
 
 def test_health_is_high_even_when_levels_are_not_binding(session):
@@ -95,7 +96,7 @@ def pairings(client):
 
 def test_the_privacy_page_shows_health_as_high_always(client, pairings):
     page = client.get("/privacy").text
-    assert page.count("High (always)") == 9
+    assert page.count("High (always)") == 7
     assert "Health papers are always private" in page
 
 

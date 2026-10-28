@@ -153,8 +153,7 @@ HEALTHTODO = "SENTINEL-HEALTHTODO"
 
 def _health_paper(session, docs_dir) -> Document:
     """A filed Health paper, a real PNG, read into Health's tables. HEALTH sits in its summary, the measurement's
-    name and the person's name, so each Health tool's output carries the sentinel (health_spending shows only
-    names and amounts)."""
+    name and the person's name, so each Health tool's output carries the sentinel."""
     docs_dir.mkdir(parents=True, exist_ok=True)
     path = docs_dir / "maria-lab.png"
     path.write_bytes(pw.PNG)
@@ -163,7 +162,6 @@ def _health_paper(session, docs_dir) -> Document:
     apply_extraction(session, doc, ExtractedHealth(
         person_name=f"Maria {HEALTH}", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",
         areas=["Heart and circulation"], conditions=[], summary=f"Maria: lipid panel {HEALTH}-summary",
-        amount_billed=45.5, amount_reimbursed=0.0,
         measurements=[ExtractedMeasurement(f"LDL cholesterol {HEALTH}", 162.0, None, "mg/dL", None, 100.0,
                                            date(2026, 3, 12), False, "LDL")]))
     return doc
@@ -191,12 +189,11 @@ def _calls(w) -> dict:
         "financials_find_transactions": [{"query": ""}],
         "health_find_records": [{"query": "Maria"}],
         "health_measurements": [{}],
-        "health_spending": [{}],
     }
 
 
 _STATEMENT_HIGH = {**pw.STANDARD, "high": [*pw.STANDARD["high"], "financials/statement"]}
-_HEALTH_TOOLS = {"health_find_records", "health_measurements", "health_spending"}
+_HEALTH_TOOLS = {"health_find_records", "health_measurements"}
 _SCENARIOS = {
     # name: (levels, private sentinels, private files, tools that must be seen returning private content)
     "standard": (pw.STANDARD, [*pw.PRIVATE_DERIVED, HEALTHTODO, HEALTH], pw.PRIVATE_FILES,

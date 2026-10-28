@@ -2,7 +2,7 @@
 text goes to the model as that text; a scan or photo goes as page images.
 
 Returns what the paper says, structured: whose it is, when, who issued it, what kind of event, which areas
-and conditions it touches, a short summary, amounts, an appointment if there is one, and EVERY result,
+and conditions it touches, a short summary, an appointment if there is one, and EVERY result,
 grouped under the headings the paper prints it under, with its unit and the reference printed beside it. Nothing here decides what leaves the Hub."""
 
 from __future__ import annotations
@@ -64,9 +64,7 @@ class ExtractedHealth:
     requested_by: str = ""          # the service or doctor who asked for it / sent the patient
     performed_by: str = ""          # who did the exam or signed the report
     check_notes: list[str] = field(default_factory=list)    # what the check against the paper could not settle (reading.py)
-    amount_billed: Optional[float] = None
-    amount_reimbursed: Optional[float] = None
-    amount_owed: Optional[float] = None
+    is_bill: bool = False          # the reader took the paper for a bill, receipt or reimbursement statement: not a Health paper
     appointment_date: Optional[date] = None
     appointment_time: Optional[str] = None
     measurements: list[ExtractedMeasurement] = field(default_factory=list)
@@ -74,6 +72,7 @@ class ExtractedHealth:
     layout: str = ""               # "sheet" (a table of results) | "report" (written text under headings) | "" (not said)
 
 
+BILL = "bill"        # what the reader says for an invoice, receipt or reimbursement statement: not a category, a refusal
 _KINDS = ", ".join(v for v, _ in RECORD_KINDS)
 _CATEGORIES = ", ".join(sorted(ALL_CATEGORIES))
 
@@ -81,7 +80,8 @@ _SYSTEM = f"""You read a family's medical paper (Portuguese or English) and retu
 Be faithful: never invent a value, a date or a name. Leave out any key the paper does not support.
 
 Fields:
-- category: what kind of paper this is, one of {_CATEGORIES}; null if it is not a medical paper or you cannot tell.
+- category: what kind of paper this is, one of {_CATEGORIES}; "bill" for an invoice, receipt or reimbursement statement
+  (Health does not file these); null if it is not a medical paper or you cannot tell.
 - person_name: the patient the paper is about (full name as printed).
 - document_date: the date printed on the paper, YYYY-MM-DD.
 - provider: the doctor, clinic, lab, hospital, pharmacy or insurer that issued it, named once as printed; provider_phone, provider_address if printed.
@@ -101,7 +101,7 @@ Fields:
   paper's own labels and language: the patient's identification, tax, health-service and beneficiary numbers, age,
   the dates of collection, entry and release, requisition and internal numbers, the laboratory's director, specialists and
   technicians, accreditations, methods, and any printed note or comment that is not a section's conclusion, impression or comment (those are results, see sections). Do not repeat the four items above here.
-- amount_billed, amount_reimbursed, amount_owed: euros as numbers, for bills and reimbursement statements.
+  Leave out prices, fees, co-payments (taxa moderadora), totals, payments and reimbursements: billing is handled elsewhere.
 - appointment_date (YYYY-MM-DD) and appointment_time (HH:MM, 24h): only for an appointment confirmation.
 - sections: EVERY result printed on the paper, numeric or not, none left out, grouped exactly as the paper groups them.
   A section is {{"path": [...], "results": [...]}}. path = the headings the results are printed under, outermost
@@ -166,7 +166,6 @@ _SCHEMA = {
         "areas": {"type": "array", "items": {"type": "string"}},
         "conditions": {"type": "array", "items": {"type": "string"}},
         "summary": {"type": "string"},
-        "amount_billed": _NUM, "amount_reimbursed": _NUM, "amount_owed": _NUM,
         "appointment_date": _STR, "appointment_time": _STR,
         "sections": {"type": "array", "items": {"type": "object", "required": ["results"], "properties": {
             "path": {"type": "array", "items": {"type": "string"}},
@@ -316,7 +315,7 @@ async def extract_health_document(
         layout = _text(data.get("layout"))
         category_read = _text(data.get("category"))
         return ExtractedHealth(
-            category=category_read if category_read in ALL_CATEGORIES else None,
+            category=category_read if category_read in ALL_CATEGORIES else None, is_bill=category_read == BILL,
             person_name=_text(data.get("person_name")), document_date=_date(data.get("document_date")),
             provider=_text(data.get("provider")), provider_phone=_text(data.get("provider_phone")),
             provider_address=_text(data.get("provider_address")), record_kind=kind if kind in kinds else None,
@@ -324,8 +323,6 @@ async def extract_health_document(
             summary=_text(data.get("summary")) or "", details=_text(data.get("details")) or "",
             indication=_text(data.get("indication")) or "", clinical_notes=_text(data.get("clinical_notes")) or "",
             requested_by=_text(data.get("requested_by")) or "", performed_by=_text(data.get("performed_by")) or "",
-            amount_billed=_num(data.get("amount_billed")), amount_reimbursed=_num(data.get("amount_reimbursed")),
-            amount_owed=_num(data.get("amount_owed")),
             appointment_date=_date(data.get("appointment_date")), appointment_time=_text(data.get("appointment_time")),
             layout=layout if layout in ("sheet", "report") else "", measurements=_measurements(data), full_text=text or _text(data.get("full_text")) or "")
     except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:

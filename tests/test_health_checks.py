@@ -52,7 +52,7 @@ def test_numbers_are_read_the_way_a_lab_prints_them():
 @pytest.mark.asyncio
 async def test_a_complete_and_faithful_reading_passes_with_one_call_and_no_notes(paper):
     fake = _fake(FULL)
-    got = await read_health_document(paper, None, gateway=fake)
+    got = await read_health_document(paper, None, gateway=fake, second_read=False)     # the second reading has its own tests
     assert len(fake.requests) == 1 and got.check_notes == []
     assert not any(m.uncertain for m in got.measurements)
 
@@ -62,7 +62,7 @@ async def test_a_dropped_row_is_asked_about_once_with_only_that_line_and_merged(
     fake = _fake(_without(FULL, "Glicose"),
                  {"sections": [{"path": ["Hematologia"], "results": [
                      {"test": "Glicose", "value": 87, "unit": "mg/dL", "reference": "60 - 110"}]}]})
-    got = await read_health_document(paper, None, gateway=fake)
+    got = await read_health_document(paper, None, gateway=fake, second_read=False)     # the second reading has its own tests
     assert len(fake.requests) == 2
     second = fake.requests[1]
     assert second["sensitivity"] == "house_high" and "Glicose  87" in second["user"] or "Glicose 87" in second["user"]
@@ -77,7 +77,7 @@ async def test_a_dropped_row_is_asked_about_once_with_only_that_line_and_merged(
 async def test_a_value_that_is_not_on_the_paper_is_marked_doubtful_and_noted(paper):
     wrong = json.loads(json.dumps(FULL))
     wrong["sections"][0]["results"][0]["value"] = 61.0                    # 16,0 read as 61
-    got = await read_health_document(paper, None, gateway=_fake(wrong, {}))
+    got = await read_health_document(paper, None, gateway=_fake(wrong, {}), second_read=False)     # the second reading has its own tests
     hb = next(m for m in got.measurements if m.test == "Hemoglobina")
     assert hb.uncertain is True
     assert any("Hemoglobina" in n and "61" in n and "not printed on the paper" in n for n in got.check_notes)
@@ -128,7 +128,8 @@ async def test_notes_are_kept_on_the_paper_count_as_to_check_and_clear_when_a_pe
     wrong = json.loads(json.dumps(FULL))
     wrong["sections"][0]["results"][0]["value"] = 61.0
     wire = pw.Wire()
-    wire.script = [gateway_text_result(json.dumps(wrong)), gateway_text_result("{}"), gateway_text_result(json.dumps(WIKI_REPLY))]
+    wire.script = [gateway_text_result(json.dumps(wrong)), gateway_text_result("{}"),       # read, second look
+                   gateway_text_result(json.dumps(wrong)), gateway_text_result(json.dumps(WIKI_REPLY))]   # second reading, wiki
     from app.llm_gateway import set_gateway_provider
     from app.models.document import DocumentSource
     from app.models.domain import Domain
@@ -144,7 +145,30 @@ async def test_notes_are_kept_on_the_paper_count_as_to_check_and_clear_when_a_pe
     assert entry.needs_check and store.notes_of(entry)
     page = client.get(f"/health/documents/{doc.id}").text
     assert "to look at" in page and "not printed on the paper" in page
-    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 3      # read, second look, wiki: all High
+    assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 4      # read, second look, second reading, wiki: all High
     client.post(f"/health/documents/{doc.id}/notes/ok", follow_redirects=False)
     session.expire_all()
     assert store.notes_of(store.entry_for(session, doc.id)) == []
+
+
+MONEY_SOURCE = SOURCE + "Taxa moderadora  3,00 €\nTotal a pagar  3,00 EUR\nValor reembolsado  1,50 EUR\nPago em 12-11-2024  4,50\n"
+
+
+@pytest.mark.asyncio
+async def test_a_printed_price_or_co_payment_is_not_a_missing_line_and_asks_nothing(tmp_path, monkeypatch):
+    """Billing is handled elsewhere: money lines are not 'printed but not read', and cost no second look."""
+    monkeypatch.setattr(ex, "paper_text", lambda path: MONEY_SOURCE)
+    fake = _fake(FULL, FULL)                                   # first reading, second reading: nothing else may be asked
+    got = await read_health_document(_png(tmp_path), None, gateway=fake)
+    assert len(fake.requests) == 2 and got.check_notes == []
+    assert check_reading(got, MONEY_SOURCE).clean
+    # a result line is still caught: money lines are skipped, not everything with a number
+    assert check_reading(ex.ExtractedHealth(), "Ferro  45  ug/dL  60 - 170\nTaxa moderadora 3,00 €\n").uncaptured_lines \
+        == ["Ferro 45 ug/dL 60 - 170"]
+
+
+def test_both_prompts_tell_the_model_to_leave_out_prices_and_payments():
+    from app.domains.health.reading import _REPAIR_SYSTEM
+    sentence = ("Leave out prices, fees, co-payments (taxa moderadora), totals, payments and reimbursements: "
+                "billing is handled elsewhere.")
+    assert sentence in ex._SYSTEM and sentence in _REPAIR_SYSTEM

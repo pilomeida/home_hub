@@ -561,7 +561,7 @@ The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the fam
 | Filing a paper | `handler.py` (`HealthHandler`, runs inside the High scope), `extraction.py` (`extract_health_document`, vision, High), `store.py` (`apply_extraction`, `purge_derived`, `discard_document`) |
 | People, areas, text | `people.py` (discovery, matching, merge), `areas.py` (resolve, approve, rename, merge, tags), `text.py` (`fold`, `match_key`) |
 | Browse, overview | `browse.py` (filters and facets for the tab), `overview.py` (Overview card) |
-| Ask tools | `ask.py`: `health_find_records`, `health_measurements`, `health_spending` (each reports `tier=HIGH`, even when nothing matches) |
+| Ask tools | `ask.py`: `health_find_records`, `health_measurements` (each reports `tier=HIGH`, even when nothing matches) |
 | Calendar | `appointments.py` (`appointment_event`, `sync_appointment`, `remove_appointment`) builds the event from administrative fields only; `app/integrations/google_calendar.py` is the REST client; `scripts/google_calendar_auth.py` is the one-time sign-in |
 | Privacy | `app/privacy/ratchet.py` (the ratchet), `app/privacy/channels.py` (what may leave the Hub), `app/services/ask/private.py` (private answers and their notices) |
 | Migrations | `alembic/versions/a1d4e8b72c93_ask_turn_escalation.py` (`ask_turns.escalation_json`), `b2e5f9c83d04_health_tables.py` (the five tables) |

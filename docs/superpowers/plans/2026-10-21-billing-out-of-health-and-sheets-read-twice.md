@@ -1,0 +1,26 @@
+# Billing out of Health; lab sheets read twice
+
+> **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Global Constraints of `2026-10-19-conditions-master-plan.md` apply (no commit/push/deploy without Pedro's word; stage by name; production-path tests; messages rule; additive migrations only).
+
+**Goal:** (1) Health papers carry no billing details: bills, receipts and reimbursement statements are bills and belong to the bills context (Financials), like a utilities bill or a school tuition. (2) Lab sheets with a text layer are read twice too, and disagreements are flagged.
+
+**Spec:** Pedro, 2026-10-21: "drop billing details from medical exams, reports, results, ... those are admin aspects to be dealt with in a different context - those are bills as much as a utilities bill, or a school tuition"; "read sheets twice as well and flag disagreements".
+
+## Task 1: Health stops carrying billing
+
+**Files:** `app/domains/health/{spec,extraction,store,checks,ask,handler,categories}.py`, tests that mention the billing fields or the two bill categories (`tests/test_health_extraction.py`, `test_health_ask.py`, `test_health_domain.py`, `test_health_handler.py`, `test_privacy_channels.py`, `test_privacy_reach_private.py`, `test_ask_private.py`, `tests/privacy_world.py`; grep for `amount_billed|amount_owed|amount_reimbursed|medical_bill|claim_statement|MEDICAL_BILL|CLAIM_STATEMENT`), plus a new test file `tests/test_health_no_billing.py`.
+
+Behaviour:
+- The reader no longer asks for or returns amounts: remove `amount_billed/amount_reimbursed/amount_owed` from `ExtractedHealth`, the prompt bullet, `_SCHEMA` and parsing in `extraction.py`; remove the three `FieldSpec`s from `spec.py`; remove the `_fill` of them in `store.apply_extraction`, the `parse_amount` use in `sync_entry_from_fields` (keep `parse_amount` only if something else uses it; otherwise delete it and its test) and the amounts in `checks._strings_of`/`have`. The `health_entries.amount_*` columns stay in the database and the model (additive-only migrations; they are simply unused now). Remove the Ask totals that sum them (`ask.py` ~145-147) and whatever tool/output exposes them; the tripwire tests must still cover every remaining Ask tool.
+- `medical_bill` and `claim_statement` are no longer Health categories: remove them from `SPEC.categories` and from the Health `description` in `spec.py` (so the classifier sends such papers to Bills / Insurance), and from the set the reader may return (`ALL_CATEGORIES` used in the prompt). Keep the two enum members and their labels in `categories.py` as LEGACY (a comment says so) so the one paper already filed under `medical_bill` still opens: add a test that a Health document with `category="medical_bill"` renders its page (GET /health/documents/{id}) without error and shows a clear line "This paper is a bill. Bills are dealt with under Bills, not Health." (add that line to `detail.html` only when the category is one of the two legacy values).
+- The reader may still recognise a bill: add the value `bill` to what the prompt lets `category` be ("bill: an invoice, receipt or reimbursement statement — Health does not file these"), parse it into `ExtractedHealth.is_bill: bool` (category stays `None`). In `HealthHandler.process`, when `extracted.is_bill`, raise `HealthExtractionError` with the three-part message: "This looks like a bill or receipt, so it is not filed under Health. Bills are dealt with under Bills, like any other bill. Add it there, then delete this copy from Health."
+- Tests: (a) the prompt has no amount keys and the schema has no amount properties; (b) a reply that still contains `amount_billed` is read without error and stores nothing for it; (c) `SPEC.categories` has neither bill category and the Health description does not mention bills/reimbursement; (d) a reply with `"category": "bill"` through the real handler path ends NEEDS_ATTENTION with the three-part message and files no entry; (e) the legacy-category paper page test above; (f) no Ask tool output contains amounts.
+
+## Task 2: Lab sheets are read twice
+
+**Files:** `app/domains/health/reading.py`, tests that now need a second reply or `second_read=False`, `docs/SYSADMIN.md` (one sentence), `tests/test_health_second_read.py`.
+
+Behaviour: in `read_health_document` the second reading runs for EVERY paper when `second_read` is true (drop the `x.layout == "report" or source is None` condition). Disagreements are the existing notes. Tests: a text-layer sheet makes TWO gateway calls and flags a disagreement (an A1c row structured differently in the second reply gives an "Only one of two readings found" note); identical replies give no note; the existing test that asserted a text-layer sheet makes ONE call is changed to assert two. Tests elsewhere that file a text-layer PDF with one scripted reply: add the same reply a second time (handler/ingestion paths) or `second_read=False` (direct calls), and make sure none passes through a swallowed `AssertionError` ("ran out of scripted results"). SYSADMIN: replace "Written reports and papers with no text layer are read twice" with "Every health paper is read twice".
+
+## Self-review
+Task 1 covers the first request, Task 2 the second. Both leave the database untouched (no migration).

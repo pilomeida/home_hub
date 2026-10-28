@@ -21,8 +21,7 @@ SPEC = DomainSpec(
     label="Health",
     description=(
         "The family's medical papers: lab results, imaging reports, consultation and discharge letters, "
-        "prescriptions, referrals, medical bills, health-insurance reimbursement statements, vaccination "
-        "records and appointment letters."
+        "prescriptions, referrals, vaccination records and appointment letters."
     ),
     home_url="/health/records",
     categories=(
@@ -33,10 +32,6 @@ SPEC = DomainSpec(
                      "A consultation note, discharge letter, medical certificate or other clinical letter."),
         CategorySpec(HealthCategory.PRESCRIPTION.value, "Prescription", "A prescription for medicines or treatment."),
         CategorySpec(HealthCategory.REFERRAL.value, "Referral", "A referral to a specialist, exam or treatment."),
-        CategorySpec(HealthCategory.MEDICAL_BILL.value, "Medical bill",
-                     "An invoice or receipt from a doctor, clinic, hospital, dentist or pharmacy."),
-        CategorySpec(HealthCategory.CLAIM_STATEMENT.value, "Reimbursement statement",
-                     "A health insurer's statement of what it reimbursed or refused for medical expenses."),
         CategorySpec(HealthCategory.VACCINATION.value, "Vaccination record",
                      "A vaccination card, certificate or record."),
         CategorySpec(HealthCategory.APPOINTMENT.value, "Appointment",
@@ -53,9 +48,6 @@ SPEC = DomainSpec(
                   categories=frozenset({HealthCategory.APPOINTMENT.value})),
         FieldSpec("appointment_time", "Appointment time (HH:MM)", FieldKind.TEXT,
                   categories=frozenset({HealthCategory.APPOINTMENT.value})),
-        FieldSpec("amount_billed", "Amount billed (EUR)", FieldKind.TEXT),
-        FieldSpec("amount_reimbursed", "Amount reimbursed (EUR)", FieldKind.TEXT),
-        FieldSpec("amount_owed", "Amount still owed (EUR)", FieldKind.TEXT),
         FieldSpec("indication", "Why this was done", FieldKind.LONGTEXT, private=True,
                   help="The reason the paper was requested, as printed (Indicação, Motivo). If the paper gives none, write it here."),
         FieldSpec("clinical_notes", "Clinical notes on the request", FieldKind.LONGTEXT, private=True,

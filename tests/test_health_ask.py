@@ -16,11 +16,10 @@ from tests.knowledge_factories import make_document
 TOOLS = {t.name: t for t in HEALTH_TOOLS}
 
 
-def _paper(session, person, when, test_value, billed=None, reimbursed=None, areas_=("Heart and circulation",), name="a.pdf"):
+def _paper(session, person, when, test_value, areas_=("Heart and circulation",), name="a.pdf"):
     doc = make_document(session, domain=Domain.HEALTH, category="lab_result", filename=name)
     ex = ExtractedHealth(person_name=person, document_date=when, provider="Lab Norte", record_kind="test",
                          areas=list(areas_), conditions=[], summary=f"{person} panel",
-                         amount_billed=billed, amount_reimbursed=reimbursed,
                          measurements=[ExtractedMeasurement("LDL cholesterol", test_value, None, "mg/dL", None, 100.0,
                                                             when, False, "LDL")])
     apply_extraction(session, doc, ex)
@@ -30,9 +29,9 @@ def _paper(session, person, when, test_value, billed=None, reimbursed=None, area
 @pytest.fixture()
 def world(session):
     pw.set_levels(session, on=False)
-    a = _paper(session, "Maria Santos Almeida", date(2024, 3, 1), 150.0, 40.0, 30.0, name="a.pdf")
-    b = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), 162.0, 45.5, 0.0, name="b.pdf")
-    c = _paper(session, "Pedro Santos Almeida", date(2026, 5, 2), 110.0, 20.0, 20.0, ("Eyes",), name="c.pdf")
+    a = _paper(session, "Maria Santos Almeida", date(2024, 3, 1), 150.0, name="a.pdf")
+    b = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), 162.0, name="b.pdf")
+    c = _paper(session, "Pedro Santos Almeida", date(2026, 5, 2), 110.0, ("Eyes",), name="c.pdf")
     return a, b, c
 
 
@@ -62,13 +61,6 @@ def test_measurements_come_back_oldest_first_with_range_flags(session, world):
     lines = [l for l in out.text.splitlines() if "LDL" in l]
     assert len(lines) == 2 and lines[0].startswith("2024-03-01") and lines[1].startswith("2026-03-12")
     assert "above range" in lines[1] and out.tier == Tier.HIGH
-
-
-def test_spending_sums_per_person_and_year(session, world):
-    out = run(session, "health_spending", person="Maria", year=2026)
-    assert "45.50" in out.text and "reimbursed 0.00" in out.text.replace("  ", " ")
-    both = run(session, "health_spending", year=2026)
-    assert "Maria Santos Almeida" in both.text and "Pedro Santos Almeida" in both.text
 
 
 def test_the_tools_see_nothing_outside_health(session, world):

@@ -9,22 +9,27 @@
 <p><a href="/health/records">← Health</a></p>
 <h1>{{ description.filename }}</h1>
 <p>{{ description.category_label or "Kind of paper not known yet" }} (<a href="/documents/{{ document.id }}/edit">change</a>) · {{ entry.entry_date if entry and entry.entry_date else "undated" }}</p>
+{% set can_reread = not (legacy_bill or bill_refused) %}
+{% if legacy_bill %}<div class="legacy-bill" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
+  <strong>This paper is a bill. Bills are dealt with under Bills, not Health.</strong>
+  Health no longer reads bills, so this paper is kept as it was. Use "change" at the top of this page to move it to Financials, Bill / invoice.
+</div>{% endif %}
 {% if is_report %}<p><strong>Written report</strong> — the Hub keeps its headings and what is written under them; the numbers it prints are in the Metrics table.</p>{% endif %}
 {% if document.status.value == "pending" %}
 <meta http-equiv="refresh" content="10">
 <div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
   <strong>Being read.</strong> The Hub is reading this paper at the highest privacy level (Privatemode). A long paper can
   take several minutes. This page refreshes by itself; the empty boxes below fill in when it is done.
-  <form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
+  {% if can_reread %}<form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
     <small>Still like this after 15 minutes? It was interrupted.</small> <button type="submit">Read again</button>
-  </form>
+  </form>{% endif %}
 </div>
 {% elif document.status.value == "needs_attention" %}
 <div class="needs-attention" style="border:1px solid #d96a6a;background:#fdecea;padding:10px 14px;margin:12px 0;">
   <strong>Not read.</strong> {{ document.failure_reason|friendly_reason }}
-  <form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
+  {% if can_reread %}<form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
     <button type="submit">Read again</button> <small>or fill the boxes below by hand, or delete the paper.</small>
-  </form>
+  </form>{% endif %}
 </div>
 {% endif %}
 <div class="why-box" style="border:1px solid #9bb8e0;background:#f3f8ff;padding:10px 14px;margin:12px 0;">
@@ -65,7 +70,7 @@
     </form>
   </section>
 </div>
-{% if document.status.value == "processed" %}
+{% if document.status.value == "processed" and can_reread %}
 <form method="post" action="/health/documents/{{ document.id }}/reread" style="margin:8px 0;"
       onsubmit="return confirm('Read this paper again with the latest reader? What was read from it is redone, and changes you typed into its fields are lost.');">
   <small>Read with an older version of the reader?</small> <button type="submit">Read again</button>

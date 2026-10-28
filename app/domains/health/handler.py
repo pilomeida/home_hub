@@ -14,6 +14,7 @@ from app.domains.health.reading import read_health_document
 from app.models.document import Document, DocumentStatus
 from app.models.wiki import WikiOperation
 from app.privacy.settings import configured_tier
+from app.problems import HEALTH_BILL_NEXT_STEP
 from app.services.wiki_engine import ingest_into_wiki
 
 
@@ -27,6 +28,10 @@ class HealthHandler(DomainHandler):
             existing_areas=areas_svc.names_for_prompt(session, "area"),
             existing_conditions=areas_svc.names_for_prompt(session, "condition"),
             guidance=outlines.guidance(session))
+        if extracted.is_bill:               # a bill, receipt or reimbursement statement belongs under Bills, not Health
+            raise HealthExtractionError(
+                "This looks like a bill or receipt, so it is not filed under Health. "
+                "Bills are dealt with under Bills, like any other bill. " + HEALTH_BILL_NEXT_STEP)
         if document.category is None:       # the upload asked only for the file: the reading proposes the kind of paper
             if extracted.category is None:
                 raise HealthExtractionError(

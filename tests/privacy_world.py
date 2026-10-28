@@ -165,7 +165,6 @@ def build_world(session, docs_dir) -> SimpleNamespace:
     apply_extraction(session, health, ExtractedHealth(
         person_name="Maria Santos Almeida", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",
         areas=["Heart and circulation"], conditions=[], summary=f"Maria: lipid panel, {HEALTH_PAPER}",
-        amount_billed=45.5, amount_reimbursed=0.0,
         measurements=[ExtractedMeasurement("LDL cholesterol", 162.0, None, "mg/dL", None, 100.0,
                                            date(2026, 3, 12), False, "LDL")]))
     w.health_paper = health
@@ -199,7 +198,6 @@ def ask_script(w, final="The boiler is in the kitchen [[wiki:%d]]."):
         {"id": "t11", "name": "financials_find_transactions", "input": {"query": ""}},
         {"id": "t12", "name": "health_find_records", "input": {"person": "Maria", "query": "Maria"}},
         {"id": "t13", "name": "health_measurements", "input": {"person": "Maria", "test": "LDL"}},
-        {"id": "t14", "name": "health_spending", "input": {"person": "Maria", "year": 2026}},
     ]
     return [gateway_tool_result(calls), gateway_text_result(final % w.page_clean.id)]
 

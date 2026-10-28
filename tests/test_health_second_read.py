@@ -1,4 +1,4 @@
-"""Verification: a written report (and a paper with no text layer) is read twice, independently; where the two
+"""Verification: every paper is read twice, independently; where the two
 readings disagree the person is told in plain words. A person can also confirm a paper's outline, which then guides
 the later readings of that provider's papers."""
 
@@ -153,13 +153,13 @@ async def test_a_report_is_read_twice_the_first_is_stored_and_the_difference_is_
 
 
 @pytest.mark.asyncio
-async def test_a_sheet_with_a_text_layer_is_read_once_but_a_sheet_image_twice(tmp_path, monkeypatch):
+async def test_every_paper_is_read_twice_a_sheet_with_a_text_layer_as_much_as_an_image(tmp_path, monkeypatch):
     monkeypatch.setattr(ex, "paper_text", lambda path: "Glucose   90  mg/dL")
     pdf = tmp_path / "lab.pdf"
     pdf.write_bytes(b"%PDF-1.4 x")
-    one = _gw(SHEET)
-    got = await reading.read_health_document(str(pdf), None, gateway=one)
-    assert len(one.requests) == 1 and got.check_notes == []
+    text_layer = _gw(SHEET, SHEET)
+    got = await reading.read_health_document(str(pdf), None, gateway=text_layer)
+    assert len(text_layer.requests) == 2 and got.check_notes == []
 
     monkeypatch.setattr(ex, "paper_text", lambda path: None)
     two = _gw(SHEET, SHEET)
@@ -169,6 +169,25 @@ async def test_a_sheet_with_a_text_layer_is_read_once_but_a_sheet_image_twice(tm
     off = _gw(SHEET)
     await reading.read_health_document(_png(tmp_path), None, gateway=off, second_read=False)
     assert len(off.requests) == 1
+
+
+def _a1c_sheet(path):
+    return {"category": "lab_result", "person_name": "Maria Santos Almeida", "document_date": "2026-03-12",
+            "provider": "Laboratório Norte", "record_kind": "test", "summary": "Blood panel.", "layout": "sheet",
+            "sections": [{"path": path, "results": [{"test": "HbA1c", "value": 5.4, "unit": "%"}]}]}
+
+
+@pytest.mark.asyncio
+async def test_a_text_layer_sheet_whose_two_readings_structure_a_row_differently_is_flagged(tmp_path, monkeypatch):
+    monkeypatch.setattr(ex, "paper_text", lambda path: "HbA1c   5.4  %")
+    pdf = tmp_path / "lab.pdf"
+    pdf.write_bytes(b"%PDF-1.4 x")
+    fake = _gw(_a1c_sheet(["Diabetes"]), _a1c_sheet([]))       # under a heading in one reading, flat in the other
+    got = await reading.read_health_document(str(pdf), None, gateway=fake)
+    assert len(fake.requests) == 2
+    assert any(n.startswith("Only one of two readings found:") and "HbA1c" in n for n in got.check_notes)
+    same = _gw(_a1c_sheet(["Diabetes"]), _a1c_sheet(["Diabetes"]))
+    assert (await reading.read_health_document(str(pdf), None, gateway=same)).check_notes == []
 
 
 @pytest.mark.asyncio

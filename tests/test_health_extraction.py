@@ -3,7 +3,7 @@ import json
 import pytest
 
 from app.domains.health.extraction import HealthExtractionError, extract_health_document
-from app.domains.health.store import measurement_needs_check, parse_amount
+from app.domains.health.store import measurement_needs_check
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 
 REPLY = {
@@ -11,7 +11,6 @@ REPLY = {
     "provider_phone": "+351 22 000 0000", "provider_address": "Rua A 1, Porto", "record_kind": "test",
     "areas": ["Heart and circulation"], "conditions": ["High cholesterol"],
     "summary": "Annual blood panel; LDL above range.",
-    "amount_billed": 45.5, "amount_reimbursed": None, "amount_owed": None,
     "appointment_date": None, "appointment_time": None,
     "measurements": [
         {"test": "LDL cholesterol", "value": 162, "value_text": None, "unit": "mg/dL", "ref_low": None,
@@ -59,13 +58,6 @@ async def test_a_file_the_model_cannot_read_is_refused_before_any_call(tmp_path)
     with pytest.raises(HealthExtractionError):
         await extract_health_document(str(video), "lab_result", gateway=fake)
     assert fake.requests == []
-
-
-def test_amounts_accept_portuguese_and_english_formats():
-    assert parse_amount("1.234,56") == 1234.56
-    assert parse_amount("45,5 €") == 45.5
-    assert parse_amount("1234.56") == 1234.56
-    assert parse_amount("") is None and parse_amount(None) is None and parse_amount("abc") is None
 
 
 def test_a_measurement_needs_checking_when_unsure_empty_or_a_bare_number():

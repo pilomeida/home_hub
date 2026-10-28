@@ -24,7 +24,7 @@ SPEC = DomainSpec(
         CategorySpec(InsuranceCategory.HEALTH.value, "Health insurance",
                      "A health insurance policy for one or more people: conditions, schedule, premium notice or "
                      "renewal letter. A statement of what the insurer reimbursed for medical expenses is NOT this: "
-                     "that is a Health reimbursement statement."),
+                     "it is a bill-type paper, dealt with under Bills."),
         CategorySpec(InsuranceCategory.LIFE.value, "Life insurance",
                      "A life insurance policy: conditions, schedule or premium notice."),
     ),

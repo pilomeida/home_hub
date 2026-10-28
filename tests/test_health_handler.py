@@ -47,7 +47,7 @@ async def test_a_lab_result_is_read_stored_tagged_and_in_the_wiki_all_at_high(se
 
     entry = store.entry_for(session, doc.id)
     assert entry.provider == "Laboratório Norte" and entry.year == 2026 and entry.kind == "test"
-    assert entry.person_id is not None and entry.amount_billed == 45.5
+    assert entry.person_id is not None
     ms = session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all()
     assert {m.test for m in ms} == {"LDL cholesterol", "Glucose"}
     ldl = next(m for m in ms if m.test_key == "ldl cholesterol mg/dl")      # the key carries the unit
