@@ -25,7 +25,7 @@ SEED = {
   ("Other transport", M, None, ["Public transport", "Taxi & rideshare"]),
  ]),
  ("Health", [
-  ("Care", M, L.HEALTH, ["Medical appointments", "Medical exams", "Pharmacy", "Therapy & wellness"]),
+  ("Care", M, L.HEALTH, ["Medical appointments", "Medical exams", "Dental", "Pharmacy", "Therapy & wellness"]),
  ]),
  ("Family", [
   ("Education", M, None, ["School fees", ("Books, staples, …", Y)]),

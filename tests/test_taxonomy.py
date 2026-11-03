@@ -24,6 +24,13 @@ def test_path_label_and_kind(session):
     assert node.kind == "out" and node.cadence == "monthly"
 
 
+def test_dental_is_a_leaf_of_health_care(session):
+    ensure_taxonomy(session)
+    node = get_node(session, "health.care.dental")
+    assert path_label(session, node) == "Health › Care › Dental"
+    assert node.kind == "out" and node.cadence == "monthly"
+
+
 def test_yearly_and_loan_cadences(session):
     ensure_taxonomy(session)
     assert get_node(session, "taxes-financial-costs.taxes.imi-property-tax").cadence == "yearly"
