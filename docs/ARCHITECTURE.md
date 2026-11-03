@@ -2,6 +2,24 @@
 
 Technical reference for developers and AI assistants extending or debugging this system.
 
+## Glossary: the model's words and the code's names
+
+The agreed model (`../docs/architecture-redesign/model.md`) and the code use different words for the same ideas;
+the code is being renamed step by step (`docs/architecture/work-list.md`, B1). Until then, read the code with this table.
+Use the model's word in anything a person reads (pages, messages, docs).
+
+| Model word | Means | Code name today |
+|---|---|---|
+| **category** | A subject area of household life: Money & Bills, Health, House Records, Insurance (planned: Identity & Legal, Education, Vehicles) | `Domain` (`app/models/domain.py`), `DomainSpec`, columns `domain` |
+| **paper kind** | A kind of paper or record inside a category: bill, statement, lab result, warranty, policy… It carries the privacy level, how it is read, how it is checked and what it is filed as | `CategorySpec` (`app/domains/base.py`), columns `category`; for Insurance today the kind is the field `document_kind` and `category` holds what is covered (to be corrected) |
+| **spending category** | A node of the 3-level spending tree a money line is filed under (Food › Groceries › Supermarket) | `CategoryNode`, table `category_nodes`, `Transaction.category_id` |
+| *(legacy)* spending label | The old flat 16-value list (GROCERIES, OTHER_EXPENSE…), being retired (work-list B3) | `transaction.Category`, `Transaction.category`, `Merchant.default_category` |
+| **subject** | Who or what a paper is about: a person, account, counterparty, thing, policy, condition | today several unlinked stores (`people`, `health_people`, `merchants`, `accounts`, text fields); one registry planned (work-list B4) |
+| **source** | A paper or hand-entered record kept as received | `Document`, `Record` |
+| **privacy level** | house_low / house_mid / house_high, set per paper kind | `Tier`, `sensitivity`, `document_type_settings` |
+| **bank line** | A line from a statement or the bank feed; takes its statement's privacy level (Pedro, 2026-11-03) | `Transaction` |
+| **budget** / **commitment** | A planned maximum to monitor against / a known spend that is coming, for cash flow (Pedro, 2026-11-03) | `Budget` / `Commitment` |
+
 ---
 
 ## System Overview

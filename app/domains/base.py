@@ -54,6 +54,7 @@ def _no_derived_fields(category: Optional[str], fields: dict[str, str]) -> dict[
 
 @dataclass(frozen=True)
 class CategorySpec:
+    """In the model's words: a PAPER KIND inside a category (glossary, docs/ARCHITECTURE.md)."""
     value: str            # stored in Document.category, e.g. "warranty_invoice"
     label: str            # human label, e.g. "Warranty / invoice"
     description: str      # one sentence; also fed to Plan B's classifier prompt

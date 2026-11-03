@@ -16,6 +16,10 @@ Size: S is under half a day, M is one to two days, L is three days or more.
 | A5 | Fix the prompt bugs: the stale reminder problem, the double problem for one failure, the bank runner drift, and the bill to-do duplicate guard. | F15 | One test per bug | S |
 
 ## B. Foundation
+**Order (2026-11-03):** B1a glossary (done: top of docs/ARCHITECTURE.md) → B6 every document a kind → B3 one
+spending taxonomy (it frees the word "category" in the code) → B1b rename in code and fix Insurance's kinds → B2 each
+kind carries its four attributes → B5 bank lines explicit → B3b commitments for cash flow → B4 registry of subjects
+(largest; last, because it builds on the renamed kinds).
 | # | What | Finding | Done when | Size |
 |---|---|---|---|---|
 | B1 | **Glossary and names.** Decide the words: category, paper kind, spending tree. Rename in the code step by step, behind aliases: `Domain` becomes category, the code's `category` becomes kind. Insurance stays a category (Pedro, 2026-11-03); fix its double inversion so its kinds are papers (policy, renewal notice, claim), and what is covered becomes a field. | F6 | The glossary is in ARCHITECTURE.md; the code, forms and docs use one word for each idea | M |
