@@ -3,7 +3,6 @@
 {% set eur = "{:,.0f}" %}
 {% set loans_total = budget.loan_instalments + budget.loan_instalments_paid %}
 <div id="budget-panel">
-  <div class="bud-error" hidden style="color:#b3261e;font-size:13px;margin:6px 0"></div>
   <div class="fc-section">
     <div class="fc-section-title">
       <span>Budget</span>
@@ -70,14 +69,4 @@
     </a>
     {% endif %}
   </div>
-  <script>
-    if (!window.__budErr) {
-      window.__budErr = true;
-      document.body.addEventListener('htmx:responseError', function (e) {
-        var panel = e.target.closest && e.target.closest('#budget-panel');
-        var box = panel && panel.querySelector('.bud-error');
-        if (box) { box.textContent = e.detail.xhr.responseText; box.hidden = false; }
-      });
-    }
-  </script>
 </div>

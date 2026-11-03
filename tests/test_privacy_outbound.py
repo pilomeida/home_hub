@@ -44,11 +44,21 @@ def _redaction():
 
 
 @pytest.mark.asyncio
-async def test_unwired_call_is_untouched_and_carries_no_sensitivity_field():
+async def test_a_call_in_a_scope_whose_levels_are_not_binding_is_untouched(levels_not_binding):
     wire = Wire()
     await wire.client().run("classification", "sys", TEXT)
     body = json.loads(wire.bodies[0])
-    assert "sensitivity" not in body and body["user"] == TEXT      # backward compatible: today's behaviour
+    assert "sensitivity" not in body and body["user"] == TEXT      # levels not binding: today's behaviour
+
+
+@pytest.mark.asyncio
+async def test_a_call_outside_every_scope_is_refused_and_nothing_is_sent():
+    """Finding F7: forgetting to enter a privacy scope must fail closed, never send content untiered."""
+    from app.privacy.tiers import TierBlocked
+    wire = Wire()
+    with pytest.raises(TierBlocked, match="outside any privacy scope"):
+        await wire.client().run("classification", "sys", TEXT)
+    assert wire.bodies == []
 
 
 @pytest.mark.asyncio

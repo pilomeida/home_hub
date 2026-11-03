@@ -10,6 +10,9 @@ from app.models.document import DocumentSource
 from app.services import ingestion, presentation
 from tests.domain_fakes import RecordingHandler, make_fake_spec
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 
 def _client_with_handler(handler):
     import httpx

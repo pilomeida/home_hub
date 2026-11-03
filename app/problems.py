@@ -153,6 +153,21 @@ def render_html(problem: Problem, technical: Optional[str] = None) -> Markup:
     return Markup(body)
 
 
+# An HTMX press that fails is answered into the banner every page has (base.html #problem-banner), never into
+# the press's own target, which would replace a whole list with one sentence.
+HTMX_BANNER_HEADERS = {"HX-Retarget": "#problem-banner", "HX-Reswap": "innerHTML"}
+
+
+def refusal_response(request, status: int, message: "Problem | str"):
+    """A route's own refusal: the banner for an HTMX press, the plain text for anything else."""
+    from starlette.responses import HTMLResponse, PlainTextResponse
+    text = message.text if isinstance(message, Problem) else message
+    if request.headers.get("hx-request"):
+        body = render_html(message) if isinstance(message, Problem) else escape(text)
+        return HTMLResponse(f'<div class="problem" role="alert">{body}</div>', status_code=status, headers=HTMX_BANNER_HEADERS)
+    return PlainTextResponse(text, status_code=status)
+
+
 def explain_lint_errors(errors: Optional[str], *, whole_run: bool) -> str:
     """Plain-language reason for a wiki check that failed or only partly worked."""
     cause = classify_reason(errors)

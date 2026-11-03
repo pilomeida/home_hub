@@ -10,7 +10,11 @@ without each call site having to remember (decision D12).
 - enforcement on, not set  -> TierHeld: nothing is read.
 - category unknown (a domain that works out its own category, e.g. Financials):
   the STRICTEST level among that domain's categories applies; if any is unset, held.
-An explicit sensitivity= on a gateway call always wins over the scope."""
+An explicit sensitivity= on a gateway call always wins over the scope.
+
+A gateway call made OUTSIDE every scope (and with no explicit sensitivity) is refused (finding F7): "not
+binding" is itself a scope that lets calls through, so forgetting to enter one can never send content
+untiered once levels are binding. `in_scope()` is what the gateway checks."""
 
 from __future__ import annotations
 
@@ -41,10 +45,26 @@ class Scope:
 
 
 _current: contextvars.ContextVar = contextvars.ContextVar("hub_privacy_scope", default=None)
+# Set while inside a scope whose levels are not binding: calls pass with no tier, exactly as before.
+_open: contextvars.ContextVar = contextvars.ContextVar("hub_privacy_open", default=False)
 
 
 def current_scope() -> Optional[Scope]:
     return _current.get()
+
+
+def in_scope() -> bool:
+    """True inside any privacy scope (binding or not). A call outside every scope has no level at all."""
+    return _current.get() is not None or _open.get()
+
+
+@contextmanager
+def _not_binding():
+    token = _open.set(True)
+    try:
+        yield None
+    finally:
+        _open.reset(token)
 
 
 def known_terms(session: Session) -> dict[str, list[str]]:
@@ -88,7 +108,8 @@ def require_ready(session: Session, domain: object, category: Optional[str]) -> 
 def privacy_scope(session: Session, domain: object, category: Optional[str]):
     res = require_ready(session, domain, category)
     if res.state == "off":
-        yield None
+        with _not_binding():
+            yield None
         return
     redaction = Redaction(Redactor(known_terms(session)), Vault()) if res.redact else None
     token = _current.set(Scope(res.tier, redaction))
@@ -110,10 +131,13 @@ def reachable_scope(session: Session):
                             personal details is never included) and a Reach snapshot for the filters."""
     reach = compute_reach(session)
     scope_token = _current.set(Scope(reach.tier, None)) if reach.binding else None
+    open_token = None if reach.binding else _open.set(True)
     reach_token = _reach_var.set(reach)
     try:
         yield reach
     finally:
         _reach_var.reset(reach_token)
+        if open_token is not None:
+            _open.reset(open_token)
         if scope_token is not None:
             _current.reset(scope_token)

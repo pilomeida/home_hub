@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -23,11 +23,11 @@ from app.jobs import bank_sync as bank_job
 from app.jobs import statement_reminder as reminder_job
 from app.jobs.outcome import JobOutcome
 from app.models.bank import BankAccountLink, BankApiCall, BankConnection
-from app.problems import Problem, explain, explain_service_failure
+from app.problems import Problem, explain, explain_service_failure, resolve_for
 from app.services.bankapi.client import EnableBankingClient
 from app.services.bankapi.topups import link_revolut_topups
 from app.services.schedule import LISBON
-from app.services.statement_reminder import reminder_to_send
+from app.services.statement_reminder import PROBLEM_REF as REMINDER_REF, reminder_to_send
 
 logger = logging.getLogger("home_hub.job_runners")
 
@@ -107,6 +107,7 @@ def _bank_failure_text(session: Session, failed: dict, *, everything: bool, save
 
 async def run_bank_sync(session: Session, trigger: str) -> JobOutcome:
     """The old `app.jobs.bank_sync._main(dry_run=False)`: every active, mapped account, then the Revolut top-up linking."""
+    bank_job.note_setup(session, settings.bank_configured)    # a connected bank with no key is a problem of its own
     if not settings.bank_configured:
         return JobOutcome("ok", "Nothing to do. The bank connection isn't set up on this server (no bank key saved), "
                                 "so no accounts are fetched.")
@@ -120,12 +121,13 @@ async def run_bank_sync(session: Session, trigger: str) -> JobOutcome:
     topups_failed = False
     try:
         link_revolut_topups(session)
+        resolve_for(session, "bank-topups")       # clears an entry the old job body left
     except Exception:
         logger.exception("Linking Revolut top-ups failed")
         session.rollback()
         topups_failed = True
 
-    failed = {i: (r.problem or r.error) for i, r in results.items() if r.error or r.problem and not r.skipped_quota}
+    failed = {i: (r.problem or r.error) for i, r in results.items() if r.error or (r.problem and not r.skipped_quota)}
     skipped = [i for i, r in results.items() if r.skipped_quota and not r.error]
     created = sum(r.created for r in results.values())
     unclassified = sum(r.unclassified for r in results.values())
@@ -164,6 +166,7 @@ async def run_statement_reminder(session: Session, trigger: str) -> JobOutcome:
     """The old `app.jobs.statement_reminder.main()`: send the reminder when it is due (once per cycle), else do nothing."""
     today: date = datetime.now(LISBON).date()
     if not reminder_to_send(session, today):
+        resolve_for(session, REMINDER_REF)      # nothing is waiting to be sent any more: an old failure is over
         return JobOutcome("ok", "Nothing to send today. The next statement reminder isn't due yet, or it was already sent for this cycle.")
     not_sent = "The statement reminder wasn't sent."
     token = settings.HUB_TELEGRAM_BOT_TOKEN
@@ -190,7 +193,9 @@ async def run_statement_reminder(session: Session, trigger: str) -> JobOutcome:
             raise
 
     # run() is the old job body; it sends with asyncio.run(), so it must not run on the scheduler's own event loop.
-    sent = await asyncio.to_thread(reminder_job.run, session, today, send=send, token=token, users=users, name=name)
+    # The scheduler records a failure of this job on the Problems page: run() must not record it a second time.
+    sent = await asyncio.to_thread(reminder_job.run, session, today, send=send, token=token, users=users, name=name,
+                                   log_problems=False)
     if sent:
         return JobOutcome("ok", f"The statement reminder was sent on Telegram to {name}.")
     raw = f"{type(errors[0]).__name__}: {errors[0]}" if errors else None
@@ -237,6 +242,57 @@ async def run_check_nudge(session: Session, trigger: str) -> JobOutcome:
                                    f"Open the Hub bot in Telegram and press Start (or unblock it); {retry}"))
         return _failed(explain_service_failure("Telegram", not_sent, raw))
     return JobOutcome("ok", f"Sent on Telegram to {name}: {things} waiting to be checked.")
+
+
+# ===================================================== phone notices ===
+
+async def run_phone_notices(session: Session, trigger: str) -> JobOutcome:
+    """The four things that reach the phone (work-list C6; app/services/notices.py). Sending is the reminder's own."""
+    from app.services import notices
+    now = datetime.now(timezone.utc)
+    not_sent = "The phone notices weren't sent."
+    retry = "they are sent at the next run after that."
+    token = settings.HUB_TELEGRAM_BOT_TOKEN
+    if not token:
+        plan = notices.refresh(session, now)
+        if not (plan.new or plan.reminders):
+            return JobOutcome("ok", "Nothing to tell.")
+        return _failed(Problem(not_sent, "Something needs you, but the Telegram bot isn't set up on this server (no bot token saved).",
+                               f"Tell Pedro to add the bot token to the server settings; {retry}"))
+    try:
+        chat_id = notices.recipient()
+    except ValueError as exc:
+        return _failed(Problem(not_sent, f"The list of allowed Telegram users on the server can't be read ({exc}).",
+                               f"Tell Pedro to correct HUB_TELEGRAM_ALLOWED_USERS on the server; {retry}"))
+    name = settings.HUB_REMINDER_TELEGRAM_NAME
+    if chat_id is None:
+        return _failed(Problem(not_sent, f"No allowed Telegram user is named {name!r}, so there is nobody to send them to.",
+                               "Tell Pedro to add that person to the allowed Telegram users (or change who receives the reminder) on the server."))
+
+    def send(text: str) -> None:
+        reminder_job.telegram_send(token, chat_id, text)
+
+    try:
+        plan, sent = await asyncio.to_thread(_deliver_blocking, session.get_bind(), now, send)
+    except Exception as exc:
+        raw = f"{type(exc).__name__}: {exc}"
+        if _TELEGRAM_CLOSED.search(raw):
+            return _failed(Problem(not_sent, "Telegram wouldn't deliver them: the chat with the Hub bot is closed or the bot was blocked.",
+                                   f"Open the Hub bot in Telegram and press Start (or unblock it); {retry}"))
+        return _failed(explain_service_failure("Telegram", not_sent, raw))
+    waiting = len(plan.new) + len(plan.reminders)
+    if sent:
+        return JobOutcome("ok", f"Sent on Telegram to {name}: {_plural(waiting, 'thing that needs', 'things that need')} you.")
+    if waiting:
+        return JobOutcome("ok", f"{_plural(waiting, 'thing waits', 'things wait')} for the morning (nothing is sent between 22:00 and 08:00).")
+    return JobOutcome("ok", "Nothing new to tell.")
+
+
+def _deliver_blocking(bind, now, send):
+    """telegram_send runs its own event loop (asyncio.run), so delivery runs in a thread with its own session."""
+    from app.services import notices
+    with Session(bind) as session:
+        return notices.deliver(session, now, send)
 
 
 # ===================================================== mailbox check ===

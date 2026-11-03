@@ -26,12 +26,13 @@ def generate_todo_for_transaction(session: Session, transaction: Transaction) ->
         return None
     if transaction.due_date < _today() - timedelta(days=STALE_BILL_DAYS):
         return None
-    todo = Todo(
-        title=f"Pay {transaction.description} — {transaction.amount:.2f} {transaction.currency}",
-        due_date=transaction.due_date,
-        transaction_id=transaction.id,
-        domain=Domain.FINANCIALS,
-    )
+    title = f"Pay {transaction.description} — {transaction.amount:.2f} {transaction.currency}"
+    # One open "Pay" to-do per bill line: reading the bill again updates it instead of adding a second one.
+    todo = session.exec(select(Todo).where(Todo.transaction_id == transaction.id, Todo.done == False)).first()  # noqa: E712
+    if todo is not None:
+        todo.title, todo.due_date = title, transaction.due_date
+    else:
+        todo = Todo(title=title, due_date=transaction.due_date, transaction_id=transaction.id, domain=Domain.FINANCIALS)
     session.add(todo)
     session.commit()
     session.refresh(todo)

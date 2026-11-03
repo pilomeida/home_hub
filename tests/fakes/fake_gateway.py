@@ -80,6 +80,8 @@ class FakeGateway:
             "max_tokens": max_tokens,
             "response_schema": copy.deepcopy(response_schema),
         })
+        from app.llm_gateway import call_level
+        call_level(sensitivity, redaction)       # the real client's privacy check: a call outside every scope is refused
         if self._errors:
             raise self._errors.pop(0)
         if not self._bodies:

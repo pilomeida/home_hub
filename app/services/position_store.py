@@ -15,6 +15,7 @@ from typing import Optional
 from sqlalchemy import update
 from sqlmodel import Session, select
 
+from app.privacy.scope import privacy_scope
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentStatus
 from app.models.position import (
@@ -429,7 +430,8 @@ async def process_positions_document(session: Session, document: Document, gatew
     if existing is not None:
         return existing
     try:
-        positions = await extract_statement_positions(document.file_path, gateway=gateway)
+        with privacy_scope(session, document.domain, document.category):    # also when re-run from the Loans page
+            positions = await extract_statement_positions(document.file_path, gateway=gateway)
         problems = reconcile(positions)
         if problems:
             return _fail(session, document, "; ".join(problems), mark_document)
@@ -449,7 +451,8 @@ async def process_loan_history_document(session: Session, document: Document, ga
     if existing is not None:
         return existing
     try:
-        history = await extract_loan_history(document.file_path, gateway=gateway)
+        with privacy_scope(session, document.domain, document.category):
+            history = await extract_loan_history(document.file_path, gateway=gateway)
         if not history.rows:
             return _fail(session, document, "no loan movements found in the document", mark_document)
         rows, crop_note = history.rows, None

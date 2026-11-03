@@ -930,11 +930,20 @@ def test_link_debt_errors_are_plain_text(client, session):
                       "Choose advance or repayment in the role box and press Link Debt again.")
 
 
-def test_needs_review_page_has_error_handler_and_required_role_for_transfers(client, session):
+def test_a_refused_press_goes_to_the_banner_and_leaves_the_list_alone(client, session):
+    """The press's own target is the whole Needs Review list: a refusal must never be swapped into it (finding F18)."""
+    t = _mk(session, "TRF SEPA+ P/ TEST PERSON", 900.0, TransactionType.DEBIT)
+    r = client.post(f"/financials/transactions/{t.id}/link-debt", data={"role": "adjust_up"}, headers={"HX-Request": "true"})
+    assert r.status_code == 400
+    assert r.headers["HX-Retarget"] == "#problem-banner" and r.headers["HX-Reswap"] == "innerHTML"
+    assert r.text.startswith('<div class="problem" role="alert">Not linked.')
+    assert 'id="problem-banner"' in client.get("/financials/transactions/needs-review").text
+
+
+def test_needs_review_page_requires_a_role_for_transfers(client, session):
     _mk(session, "TRF MBWAY P/ TEST OTHER", 700.0, TransactionType.TRANSFER)
     _mk(session, "TRF SEPA+ P/ TEST PERSON", 900.0, TransactionType.DEBIT)
     html = client.get("/financials/transactions/needs-review").text
-    assert "htmx:responseError" in html and "textContent" in html and 'id="needs-review-error"' in html
     selects = [h.split("</select>")[0] for h in html.split('<select name="role"')[1:]]
     assert len(selects) == 2
     transfer = next(x for x in selects if "required" in x[:40])
@@ -947,7 +956,7 @@ def test_needs_review_title_has_no_script_and_handler_is_in_the_content(client, 
     html = client.get("/financials/transactions/needs-review").text
     title = html[html.index("<title>"):html.index("</title>")]
     assert "<script" not in title and "Needs Review" in title
-    assert html.count("htmx:responseError") == 1
+    assert "htmx:responseError" not in html            # failures go to the page's banner (finding F18)
 
 
 def test_new_debt_role_must_agree_with_the_direction(client, session):

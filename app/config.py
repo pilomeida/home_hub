@@ -31,6 +31,7 @@ class Settings:
     LLMSEL_TOKEN: str = os.environ.get("LLMSEL_TOKEN") or ""
     DATABASE_PATH: Path = Path(os.environ.get("DATABASE_PATH") or "data/home_family.db")
     DOCUMENTS_DIR: Path = Path(os.environ.get("DOCUMENTS_DIR") or "app/static/documents")
+    BACKUP_DIR: Path = Path(os.environ.get("HUB_BACKUP_DIR") or "data/backups")
     CF_ACCESS_TEAM_DOMAIN: str = os.environ.get("CF_ACCESS_TEAM_DOMAIN") or ""
     CF_ACCESS_AUD: str = os.environ.get("CF_ACCESS_AUD") or ""
 

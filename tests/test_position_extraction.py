@@ -24,6 +24,9 @@ from app.services.position_extraction import (
 )
 from tests.fakes.fake_gateway import FakeGateway
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 
 def _text_result(text, stop_reason="end_turn"):
     return {"text": text, "stop_reason": stop_reason, "usage": {"input_tokens": 10, "output_tokens": 5}}

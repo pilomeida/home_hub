@@ -58,7 +58,8 @@ def test_every_default_passes_its_own_validation_and_limit():
 
 def test_only_the_bank_has_a_daily_limit_and_it_is_four():
     assert {k: j.max_runs_per_day for k, j in registry.JOBS.items()} == {
-        "mailbox_check": None, "statement_reminder": None, "check_nudge": None, "bank_sync": 4, "wiki_lint": None}
+        "mailbox_check": None, "phone_notices": None, "statement_reminder": None, "check_nudge": None, "backup": None,
+        "bank_sync": 4, "wiki_lint": None}
     assert "4 requests per account per day" in registry.JOBS["bank_sync"].max_runs_reason
 
 
@@ -370,6 +371,47 @@ async def test_reminder_send_failures_say_why_and_what_to_do(session, telegram, 
     assert session.exec(select(ReminderLog)).all() == []                              # not marked: tomorrow's run retries
     behaviour["raise"] = None
     assert (await runners.run_statement_reminder(session, "schedule")).outcome == "ok" and len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_one_failed_reminder_is_one_problem_and_it_clears_once_nothing_is_due(session, telegram):
+    """Through the scheduler, as on the server (finding F15): a failed send is ONE entry on the Problems page, and
+    the reminder's own old entry clears on a day when nothing is due."""
+    from app.problems import record_problem
+    from app.services import statement_reminder as msg
+    sent, behaviour = telegram
+    _due_reminder(session)
+    behaviour["raise"] = RuntimeError("synthetic")
+    await scheduler.run_job(session, "statement_reminder", "schedule")
+    assert [p.ref for p in session.exec(select(ProblemEntry).where(ProblemEntry.resolved_at.is_(None)))] == ["job:statement_reminder"]
+
+    for snapshot in session.exec(select(BalanceSnapshot)).all():     # a new statement arrives: the cycle moves on
+        session.delete(snapshot)
+    session.commit()
+    record_problem(session, area=msg.PROBLEM_AREA, problem=msg.problem_send_failed(), ref=msg.PROBLEM_REF)  # left by the old job body
+    behaviour["raise"] = None
+    out = await scheduler.run_job(session, "statement_reminder", "schedule")
+    assert session.exec(select(ProblemEntry).where(ProblemEntry.resolved_at.is_(None))).all() == [] and sent == []
+
+
+@pytest.mark.asyncio
+async def test_a_connected_bank_without_its_key_is_a_problem(session, monkeypatch):
+    monkeypatch.setattr(settings, "ENABLE_BANKING_APP_ID", "")
+    session.add(BankConnection(bank_name="Santander Totta", country="PT", state="s", status=BankConnectionStatus.ACTIVE))
+    session.commit()
+    out = await runners.run_bank_sync(session, "schedule")
+    assert out.outcome == "ok"
+    assert [p.ref for p in session.exec(select(ProblemEntry))] == ["bank-sync:setup"]
+
+
+@pytest.mark.asyncio
+async def test_linking_top_ups_again_clears_the_old_top_ups_problem(session, bank):
+    from app.problems import Problem, record_problem
+    install, link = bank
+    install({})
+    record_problem(session, area="Bank sync", problem=Problem("a", "b", "c"), ref="bank-topups")
+    await runners.run_bank_sync(session, "schedule")
+    assert session.exec(select(ProblemEntry).where(ProblemEntry.resolved_at.is_(None))).all() == []
 
 
 # ================================================================ mailbox check ===

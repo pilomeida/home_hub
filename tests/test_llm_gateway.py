@@ -15,6 +15,9 @@ from tests.fakes.fake_gateway import (
     gateway_tool_result,
 )
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 
 def _client_with_handler(handler, token="tok"):
     transport = httpx.MockTransport(handler)

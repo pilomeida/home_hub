@@ -19,6 +19,7 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.merchant import Merchant
 from app.models.transaction import Category, Transaction, TransactionType
+from app.privacy.scope import privacy_scope
 from app.problems import Problem, record_problem, resolve_for
 from app.services.bankapi import messages as msg
 from app.services.bankapi.client import BankApiError
@@ -337,7 +338,10 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             # flushed INSERT would hold SQLite's write lock for the whole call
             # (blocking the family's own writes and any parallel sync).
             try:
-                await classify(session, txn)
+                # The merchant classifier may ask the AI: at the level of the line's paper kind (a feed line is a
+                # statement line), refused while that level is held (finding F7).
+                with privacy_scope(session, document.domain, document.category):
+                    await classify(session, txn)
                 session.add(txn)
                 # classify already filed the transaction under the merchant's tree
                 # node (dual-writing the legacy category). Only a merchant with no

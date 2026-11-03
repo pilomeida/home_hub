@@ -17,6 +17,9 @@ from tests.domain_fakes import make_fake_spec
 
 from tests.fakes.fake_gateway import FakeGateway
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 
 def _fake_gateway(response_text: str) -> FakeGateway:
     return FakeGateway([{

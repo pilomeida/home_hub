@@ -14,6 +14,9 @@ from app.services.position_extraction import (
 from app.services.position_store import process_loan_history_document
 from tests.fakes.fake_gateway import FakeGateway
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 HEADER = "Consulta Movimentos\nData Mov. Data Valor N Descricao Valor Saldo\n"
 FOOTER = "Pagina 1 de 1\nAviso: documento sem valor legal\n"
 

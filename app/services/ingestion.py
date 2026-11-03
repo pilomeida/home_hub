@@ -267,7 +267,8 @@ async def update_document_fields(
     session.add(document)
     session.commit()
     session.refresh(document)
-    await spec.handler.on_fields_changed(session, document, previous)
+    with privacy_scope(session, document.domain, document.category):
+        await spec.handler.on_fields_changed(session, document, previous)
     session.refresh(document)
     return document
 
@@ -295,7 +296,8 @@ async def create_record(session: Session, record_input: RecordInput) -> Record:
     session.add(record)
     session.commit()
     session.refresh(record)
-    await validated.spec.handler.process_record(session, record)
+    with privacy_scope(session, record.domain, record.category):
+        await validated.spec.handler.process_record(session, record)
     return record
 
 
@@ -318,7 +320,8 @@ async def attach_file(session: Session, record: Record, incoming: IncomingFile) 
     session.add(record)
     session.commit()
     session.refresh(record)
-    await spec.handler.on_record_changed(session, record, load_fields(record))
+    with privacy_scope(session, record.domain, record.category):
+        await spec.handler.on_record_changed(session, record, load_fields(record))
     return record
 
 
@@ -333,7 +336,8 @@ async def update_record_fields(session: Session, record: Record, raw_fields: Map
     session.add(record)
     session.commit()
     session.refresh(record)
-    await spec.handler.on_record_changed(session, record, previous)
+    with privacy_scope(session, record.domain, record.category):
+        await spec.handler.on_record_changed(session, record, previous)
     session.refresh(record)
     return record
 

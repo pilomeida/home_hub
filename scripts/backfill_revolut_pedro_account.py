@@ -51,6 +51,7 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.transaction import Transaction, TransactionType
 from app.services.categorization import normalize_category
+from app.privacy.scope import privacy_scope
 from app.services.extraction import extract_statement_transactions
 from app.services.storage import save_upload
 
@@ -134,7 +135,8 @@ async def backfill() -> None:
                 session.refresh(document)
                 created_documents += 1
 
-                extracted = await extract_statement_transactions(file_path)
+                with privacy_scope(session, document.domain, document.category):   # the production level
+                    extracted = await extract_statement_transactions(file_path)
                 month_start = date(year, month, 1)
                 month_end = date(year + (month == 12), (month % 12) + 1, 1)
 

@@ -95,3 +95,19 @@ def test_a_bill_due_long_ago_is_history_and_gets_no_pay_todo(session, monkeypatc
     assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2026, 9, 2))) is not None    # 45 days: the edge
     assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2026, 9, 1))) is None        # 46 days: history
     assert generate_todo_for_transaction(session, _make_transaction(session, due_date=date(2024, 8, 21))) is None
+
+
+def test_reading_a_bill_again_keeps_one_pay_todo(session):
+    """Finding F15: a bill read twice must not ask to be paid twice."""
+    from datetime import timedelta
+    from sqlmodel import select
+    from app.models.todo import Todo
+    transaction = _make_transaction(session, due_date=date.today() + timedelta(days=10))
+    first = generate_todo_for_transaction(session, transaction)
+    transaction.amount = 90.0
+    second = generate_todo_for_transaction(session, transaction)
+    assert second.id == first.id and "90.00" in second.title
+    assert len(session.exec(select(Todo)).all()) == 1
+    second.done = True
+    session.add(second); session.commit()
+    assert generate_todo_for_transaction(session, transaction).id != first.id     # a paid one stays history

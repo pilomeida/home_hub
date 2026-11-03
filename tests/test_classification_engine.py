@@ -13,6 +13,9 @@ from app.services.classification_engine import (
     resolve_merchant_via_llm,
 )
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 
 def test_normalize_provider_strips_trailing_store_code():
     assert normalize_provider("MODELO HIPER 2640-MAFR") == "modelo hiper"

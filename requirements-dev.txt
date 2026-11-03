@@ -1,0 +1,4 @@
+# What the tests need on top of production: used by the deploy's test step and on a developer's machine.
+-r requirements.lock
+pytest==9.1.1
+pytest-asyncio==1.4.0

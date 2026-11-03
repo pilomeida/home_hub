@@ -44,7 +44,7 @@ def find_recipient(users: Mapping[int, str], name: str) -> Optional[int]:
     return None
 
 
-def _log_problem(session: Session, problem: Problem, technical: Optional[str] = None) -> None:
+def _log_problem_entry(session: Session, problem: Problem, technical: Optional[str] = None) -> None:
     """A reminder that couldn't go out is invisible by nature (nobody is watching a 09:00 timer), so it
     is kept on the Problems page until a later run sends it."""
     try:
@@ -54,8 +54,13 @@ def _log_problem(session: Session, problem: Problem, technical: Optional[str] = 
 
 
 def run(session: Session, today: date, *, send: Sender, token: str,
-        users: Mapping[int, str], name: str, users_error: Optional[str] = None) -> bool:
-    """True when the reminder was sent (and marked) in this run."""
+        users: Mapping[int, str], name: str, users_error: Optional[str] = None, log_problems: bool = True) -> bool:
+    """True when the reminder was sent (and marked) in this run. log_problems=False when the caller (the Hub's
+    scheduler) records the failure itself, so one failure is one entry on the Problems page."""
+    def _log_problem(session, problem, technical=None):
+        if log_problems:
+            _log_problem_entry(session, problem, technical)
+
     if not reminder_to_send(session, today):
         logger.info("no reminder due")
         resolve_for(session, msg.PROBLEM_REF)      # nothing is waiting to be sent any more

@@ -3,12 +3,16 @@ its prompt + parser. Each test feeds a null-heavy but parser-valid response
 through jsonschema.validate — the schema must accept what the parser would
 happily default."""
 
+import pytest
 import jsonschema
 
 from app.domains.house import warranty
 from app.services import classification_engine, domain_classifier, wiki_engine
 from app.services import extraction
 from app.services.wiki_lint import llm_checks
+
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
 
 
 def _validate(schema, instance):

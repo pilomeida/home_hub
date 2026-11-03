@@ -16,6 +16,9 @@ def _refusal():
     return {"text": "", "stop_reason": "refusal", "usage": {"input_tokens": 10, "output_tokens": 5}}
 from tests.knowledge_factories import make_claim, make_document, make_page, make_record
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 NOTE = "Assumed: Portugal's 3-year legal guarantee from the purchase date (12 Mar 2026)"
 
 

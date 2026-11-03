@@ -108,6 +108,19 @@ async def reclassify_unsorted(
     session: Session, gateway=None, concurrency: int = DEFAULT_CONCURRENCY, progress=None,
     best_guess: bool = False, only_undecided: bool = False,
 ) -> ReclassifyReport:
+    """`_reclassify_unsorted`, with every model call at the level of a bank-statement line (finding F7): the
+    descriptions sent are statement and feed lines. The concurrent calls inherit the scope when they are created."""
+    from app.models.domain import Domain
+    from app.privacy.scope import privacy_scope
+    with privacy_scope(session, Domain.FINANCIALS, "statement"):
+        return await _reclassify_unsorted(session, gateway=gateway, concurrency=concurrency, progress=progress,
+                                          best_guess=best_guess, only_undecided=only_undecided)
+
+
+async def _reclassify_unsorted(
+    session: Session, gateway=None, concurrency: int = DEFAULT_CONCURRENCY, progress=None,
+    best_guess: bool = False, only_undecided: bool = False,
+) -> ReclassifyReport:
     """Ask the LLM once per distinct merchant that has Unsorted transactions and
     file them under the answer. The merchant stays confirmed=False so Pedro can
     still correct it on the Needs Review page. Commits per merchant.

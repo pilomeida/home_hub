@@ -19,6 +19,9 @@ from app.services.statement_check import (
 )
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 NEW_STATEMENT_FIELDS = ("opening_balance", "closing_balance")
 NEW_LINE_FIELDS = ("page", "balance_after", "unclear")
 

@@ -12,6 +12,9 @@ from app.services.domain_classifier import (
 )
 from tests.fakes.fake_gateway import FakeGateway
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 _VISION_CLASSIFICATION = "vision_classification"
 
 

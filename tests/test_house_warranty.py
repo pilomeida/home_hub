@@ -13,6 +13,9 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.todo import Todo
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 
 def _fake_gateway(text):
     """A FakeGateway scripted with one warranty-dates JSON result."""

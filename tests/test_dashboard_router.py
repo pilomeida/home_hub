@@ -221,6 +221,13 @@ def test_post_budget_rejects_bad_input(client, session):
     assert client.post("/overview/budget/999999", data={"amount": "10"}).status_code == 400
     assert client.post(f"/overview/budget/{monthly}", data={}).status_code == 400
 
+    # a press on the panel: the three-part message goes to the banner, the panel stays as it was (finding F18)
+    r = client.post(f"/overview/budget/{monthly}", data={"amount": "abc"}, headers={"HX-Request": "true"})
+    assert r.status_code == 400 and r.headers["HX-Retarget"] == "#problem-banner"
+    assert "<strong>Not saved.</strong> The budget amount isn&#39;t a number." in r.text and "save again" in r.text
+    r = client.post(f"/overview/budget/{inflow}", data={"amount": "100"}, headers={"HX-Request": "true"})
+    assert "A budget can only be set on a sub-category" in r.text
+
 
 def test_overview_still_renders_with_no_taxonomy_data(client):
     response = client.get("/")
@@ -285,7 +292,6 @@ def test_panel_hints_and_error_slot(client, session):
     assert "No budgets yet" in month
     assert "Yearly items without a due month show in the Year view" in month
     assert "Yearly items without a due month" not in client.get("/overview/budget", params={"view": "year"}).text
-    assert "bud-error" in month and "htmx:responseError" in month
     # a budget on a hidden yearly line still counts as "a budget exists"
     other = 12 if today.month != 12 else 1
     set_budget(session, get_node(session, "taxes-financial-costs.taxes.imi-property-tax").id,
@@ -312,7 +318,8 @@ def test_budget_400_body_is_plain_text(client, session):
     r = client.post(f"/overview/budget/{monthly}", data={"amount": "abc"})
     assert r.status_code == 400
     assert r.headers["content-type"].startswith("text/plain")
-    assert r.text == "amount must be a number"
+    assert r.text == ("Not saved. The budget amount isn't a number. "
+                      "Type the amount in euros, for example 120 or 120,50, and save again.")
 
 
 def _loan_for_panel(session, due):

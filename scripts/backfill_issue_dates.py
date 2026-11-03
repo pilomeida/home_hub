@@ -16,6 +16,7 @@ from sqlmodel import Session, select  # noqa: E402
 from app.db import engine  # noqa: E402
 from app.models.document import Document  # noqa: E402
 from app.models.transaction import Transaction  # noqa: E402
+from app.privacy.scope import privacy_scope  # noqa: E402
 from app.services.extraction import extract_bill  # noqa: E402
 
 
@@ -30,7 +31,8 @@ async def main() -> None:
         done = 0
         for txn, document in rows:
             try:
-                extracted = await extract_bill(document.file_path)
+                with privacy_scope(session, document.domain, document.category or "bill"):   # the production level
+                    extracted = await extract_bill(document.file_path)
             except Exception as exc:  # noqa: BLE001
                 print(f"  document {document.id} {document.filename}: failed ({exc})")
                 continue

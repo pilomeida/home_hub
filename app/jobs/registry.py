@@ -13,9 +13,11 @@ from typing import Awaitable, Callable, Optional
 
 from sqlmodel import Session, select
 
+from app.jobs.backup import NIGHTLY_KEEP, run_backup
 from app.jobs.outcome import JobOutcome
 from app.jobs.runners import (
-    BANK_LIMIT_REASON, bank_legacy_last_start, run_bank_sync, run_check_nudge, run_mailbox_check, run_statement_reminder,
+    BANK_LIMIT_REASON, bank_legacy_last_start, run_bank_sync, run_check_nudge, run_mailbox_check, run_phone_notices,
+    run_statement_reminder,
 )
 from app.services.schedule import Spec
 
@@ -75,6 +77,12 @@ JOBS: dict[str, JobDef] = {
         description="Picks up documents forwarded to the Hub's email address and puts them in the Inbox.",
         default=Spec(kind="every_n_minutes", every_n=10),
         run=run_mailbox_check, quiet_when_ok=True),
+    "phone_notices": JobDef(
+        key="phone_notices", label="Phone notices",
+        description="Tells you on Telegram, once, when something needs you: a bank's access has expired, a scheduled job keeps "
+                    "failing, a bill is due within 3 days, or a loan has a new red flag. Nothing is sent between 22:00 and 08:00.",
+        default=Spec(kind="every_n_minutes", every_n=15),
+        run=run_phone_notices, quiet_when_ok=True),
     "statement_reminder": JobDef(
         key="statement_reminder", label="Statement reminder",
         description="Checks once a day whether it is time to download the latest bank statements, and if so reminds you on "
@@ -87,6 +95,12 @@ JOBS: dict[str, JobDef] = {
                     "and linking to the list. When nothing is waiting it sends nothing.",
         default=Spec(kind="weekly", weekday=0, time_of_day="09:00"),
         run=run_check_nudge),
+    "backup": JobDef(
+        key="backup", label="Backup",
+        description=f"Every night, copies the Hub's database (checked for damage) and every uploaded paper to the backup folder "
+                    f"on the server. The last {NIGHTLY_KEEP} nightly copies are kept.",
+        default=Spec(kind="daily", time_of_day="03:00"),
+        run=run_backup),
     "bank_sync": JobDef(
         key="bank_sync", label="Bank sync",
         description="Fetches new transactions from the linked bank accounts and files them. The bank allows only 4 requests per "

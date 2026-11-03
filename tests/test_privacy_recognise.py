@@ -3,6 +3,8 @@
 import io
 
 import pytest
+
+from app.privacy.tiers import TierBlocked
 from sqlmodel import select
 
 from app.llm_gateway import GatewayClient
@@ -135,11 +137,13 @@ async def test_gateway_calls_inside_a_scope_carry_the_level_and_an_explicit_valu
     client = GatewayClient("http://gw.test", "t", transport=httpx.MockTransport(handler))
     ps.set_enforcing(session, True, None)
     ps.save_type(session, "financials", "bill", "house_mid", False, None)
-    await client.run("classification", "s", "u")                       # outside any scope: unchanged
+    await client.run("classification", "s", "u", sensitivity="house_low")   # outside any scope: only an explicit level
+    with pytest.raises(TierBlocked):
+        await client.run("classification", "s", "u")                   # outside any scope, no level: refused
     with privacy_scope(session, Domain.FINANCIALS, "bill"):
         await client.run("classification", "s", "u")
         await client.run("classification", "s", "u", sensitivity="house_low")
-    assert [b.get("sensitivity") for b in bodies] == [None, "house_mid", "house_low"]
+    assert [b.get("sensitivity") for b in bodies] == ["house_low", "house_mid", "house_low"]
 
 
 @pytest.mark.asyncio

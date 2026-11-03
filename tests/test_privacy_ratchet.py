@@ -88,7 +88,7 @@ def test_the_scope_ends_with_the_block():
 
 
 @pytest.mark.asyncio
-async def test_without_a_ratchet_a_call_is_untouched():
+async def test_without_a_ratchet_a_call_is_untouched(levels_not_binding):
     wire = Wire()
     await wire.client().run("classification", "sys", "hello")
     assert "sensitivity" not in wire.bodies[0]

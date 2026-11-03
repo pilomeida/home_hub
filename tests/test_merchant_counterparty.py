@@ -9,6 +9,9 @@ from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.test_merchant_reconcile import _merchant, _t
 
+# These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
+pytestmark = pytest.mark.usefixtures("levels_not_binding")
+
 SAVINGS = "savings-investments.contributions.deposits-to-savings"
 CARD = "internal-transfers.between-my-accounts.top-ups-card-payments"
 

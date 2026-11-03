@@ -16,6 +16,17 @@ def pinned_today_for_the_stale_bill_rule(monkeypatch):
 
 
 @pytest.fixture()
+def levels_not_binding():
+    """For a unit test that calls a reader or the gateway directly: production always makes those calls inside a
+    privacy scope (app/privacy/scope.py), and with levels not binding a scope lets them through untiered. Outside
+    every scope the gateway refuses the call (finding F7), so a router or end-to-end test must never need this."""
+    from app.privacy import scope
+    token = scope._open.set(True)
+    yield
+    scope._open.reset(token)
+
+
+@pytest.fixture()
 def engine(tmp_path):
     db_path = tmp_path / "test.db"
     test_engine = create_engine(

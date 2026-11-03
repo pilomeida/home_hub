@@ -46,7 +46,7 @@ from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
 from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
 
 from app.privacy.settings import TierHeld  # noqa: E402
-from app.problems import Problem, for_http, render_html  # noqa: E402
+from app.problems import HTMX_BANNER_HEADERS, Problem, for_http, render_html  # noqa: E402
 from app.templating import templates  # noqa: E402
 
 
@@ -60,7 +60,7 @@ def _problem_response(request: Request, problem: Problem, status: int, technical
     HTMX (so a failed button press is never silent), and the original JSON for API-style callers."""
     if request.headers.get("hx-request"):
         return HTMLResponse(f'<div class="problem" role="alert">{render_html(problem, technical)}</div>', status_code=status,
-                            headers={"HX-Retarget": "#problem-banner", "HX-Reswap": "innerHTML"})
+                            headers=HTMX_BANNER_HEADERS)
     if _wants_html(request):
         return templates.TemplateResponse(request, "problems/error.html",
                                           {"problem": problem, "technical": technical}, status_code=status)

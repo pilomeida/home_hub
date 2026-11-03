@@ -62,6 +62,25 @@ class GatewayResult:
         self.assistant_content: list = body.get("assistant_content", [])
 
 
+def call_level(sensitivity: str | None, redaction: Redaction | None) -> tuple[str | None, Redaction | None]:
+    """The level a call goes out at: an explicit value, else the privacy scope's, then raised by the run's
+    ratchet (app/privacy/ratchet.py, never lowered). A call with no level that was made outside every privacy
+    scope is refused (TierBlocked): nothing reaches the AI without having passed the scope's check (finding F7).
+    The test fake (tests/fakes/fake_gateway.py) calls this too, so a forgotten scope fails the tests."""
+    from app.privacy.ratchet import apply_ratchet
+    from app.privacy.scope import current_scope, in_scope
+    from app.privacy.tiers import TierBlocked
+    if sensitivity is None:                       # an explicit value always wins
+        scope = current_scope()
+        if scope is not None:
+            sensitivity = scope.tier.value
+            redaction = redaction or scope.redaction
+    sensitivity, redaction = apply_ratchet(sensitivity, redaction)
+    if sensitivity is None and not in_scope():
+        raise TierBlocked("an AI call was made outside any privacy scope, so its privacy level is unknown")
+    return sensitivity, redaction
+
+
 class GatewayClient:
     """Async client for `POST {LLMSEL_URL}/run`. `transport` is a test-only
     seam (httpx.MockTransport); the app-level seam is `set_gateway_provider`."""
@@ -87,16 +106,8 @@ class GatewayClient:
         redaction: Redaction | None = None,
     ) -> GatewayResult:
         # The one outbound checkpoint (app/privacy/outbound.py): fail closed,
-        # nothing below runs if it raises. sensitivity=None = type not wired yet.
-        if sensitivity is None:                       # an explicit value always wins
-            from app.privacy.scope import current_scope
-            scope = current_scope()
-            if scope is not None:
-                sensitivity = scope.tier.value
-                redaction = redaction or scope.redaction
-        # The run's ratchet (app/privacy/ratchet.py) can only raise the level, never lower it.
-        from app.privacy.ratchet import apply_ratchet
-        sensitivity, redaction = apply_ratchet(sensitivity, redaction)
+        # nothing below runs if it raises.
+        sensitivity, redaction = call_level(sensitivity, redaction)
         out = prepare(system=system, user=user, messages=messages, tools=tools,
                       attachments=attachments, sensitivity=sensitivity, redaction=redaction)
         payload: dict = {

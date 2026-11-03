@@ -24,6 +24,8 @@ from app.db import engine
 from app.models.account import Account
 from app.models.document import Document
 from app.models.transaction import Transaction
+from app.models.domain import Domain
+from app.privacy.scope import privacy_scope
 from app.services.classification_engine import classify_transaction
 
 
@@ -50,7 +52,8 @@ async def backfill() -> None:
         errors = []
         for transaction in transactions:
             try:
-                await classify_transaction(session, transaction)
+                with privacy_scope(session, Domain.FINANCIALS, "statement"):   # the level of a statement line
+                    await classify_transaction(session, transaction)
                 session.commit()
                 classified += 1
             except Exception as exc:
