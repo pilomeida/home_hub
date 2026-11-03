@@ -4,9 +4,10 @@ resolves to, via rules-based normalization with an LLM fallback."""
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column, String
 from sqlmodel import Field, SQLModel
 
-from app.models.transaction import Category, Nature
+from app.models.transaction import Nature
 
 
 class Merchant(SQLModel, table=True):
@@ -14,7 +15,9 @@ class Merchant(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     canonical_name: str
-    default_category: Category = Field(default=Category.OTHER)
+    # The old flat spending list (column `default_category`), replaced by the tree (work-list B3): unused, kept
+    # in the table and NOT NULL, so new rows store "OTHER".
+    unused_old_category: str = Field(default="OTHER", sa_column=Column("default_category", String(14), nullable=False))
     default_category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id")
     # Money coming IN from this merchant can have another category than money going out (Segurança Social: a
     # contribution is a tax, a benefit is income; a client's payment is income). Unset: default_category_id applies.

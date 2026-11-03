@@ -9,10 +9,12 @@ from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource
-from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.models.transaction import Nature, Transaction, TransactionType
+from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 
 
-def _make_transaction(session, provider, category, amount, account_id=None, nature=None, paid_date=None):
+def _make_transaction(session, provider, leaf, amount, account_id=None, nature=None, paid_date=None):
+    """A line on its spending-tree leaf (slug), or not filed yet (None)."""
     document = Document(
         filename=f"{provider}.pdf", file_path=f"/tmp/{provider}.pdf",
         content_hash=f"hash-{provider}", source=DocumentSource.MANUAL,
@@ -21,19 +23,23 @@ def _make_transaction(session, provider, category, amount, account_id=None, natu
     session.commit()
     session.refresh(document)
     transaction = Transaction(
-        document_id=document.id, description=provider, category=category,
+        document_id=document.id, description=provider,
         amount=amount, currency="EUR", account_id=account_id, nature=nature,
         paid_date=paid_date,
     )
     session.add(transaction)
     session.commit()
+    if leaf is not None:
+        ensure_taxonomy(session)
+        file_transaction(session, transaction, get_node(session, leaf))
+        session.commit()
     session.refresh(transaction)
     return transaction
 
 
 def test_list_transactions_shows_all_by_default(client, session):
-    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0)
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0)
 
     response = client.get("/financials/transactions")
 
@@ -43,18 +49,18 @@ def test_list_transactions_shows_all_by_default(client, session):
 
 
 def test_list_transactions_filters_by_category(client, session):
-    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0)
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0)
 
-    response = client.get("/financials/transactions", params={"category": "electricity"})
+    response = client.get("/financials/transactions", params={"category_node": "housing.utilities.electricity"})
 
     assert "EDP" in response.text
     assert "CONTINENTE" not in response.text
 
 
 def test_list_transactions_filters_by_nature(client, session):
-    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, nature=Nature.ESSENTIAL)
-    _make_transaction(session, "NETFLIX", Category.SUBSCRIPTIONS, 12.99, nature=Nature.DISCRETIONARY)
+    _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0, nature=Nature.ESSENTIAL)
+    _make_transaction(session, "NETFLIX", "housing.utilities.streaming", 12.99, nature=Nature.DISCRETIONARY)
 
     response = client.get("/financials/transactions", params={"nature": "discretionary"})
 
@@ -68,8 +74,8 @@ def test_list_transactions_filters_by_account(client, session):
     session.commit()
     session.refresh(account)
 
-    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, account_id=account.id)
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0, account_id=account.id)
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0)
 
     response = client.get("/financials/transactions", params={"account_id": account.id})
 
@@ -78,8 +84,8 @@ def test_list_transactions_filters_by_account(client, session):
 
 
 def test_list_transactions_filters_by_date_range(client, session):
-    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, paid_date=date(2026, 6, 15))
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0, paid_date=date(2026, 1, 5))
+    _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0, paid_date=date(2026, 6, 15))
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0, paid_date=date(2026, 1, 5))
 
     response = client.get("/financials/transactions", params={"date_from": "2026-06-01", "date_to": "2026-06-30"})
 
@@ -88,11 +94,11 @@ def test_list_transactions_filters_by_date_range(client, session):
 
 
 def test_list_transactions_combines_category_and_nature_filters(client, session):
-    _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0, nature=Nature.ESSENTIAL)
-    _make_transaction(session, "NETFLIX", Category.SUBSCRIPTIONS, 12.99, nature=Nature.DISCRETIONARY)
-    _make_transaction(session, "GYM", Category.SUBSCRIPTIONS, 30.0, nature=Nature.ESSENTIAL)
+    _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0, nature=Nature.ESSENTIAL)
+    _make_transaction(session, "NETFLIX", "housing.utilities.streaming", 12.99, nature=Nature.DISCRETIONARY)
+    _make_transaction(session, "GYM", "housing.utilities.streaming", 30.0, nature=Nature.ESSENTIAL)
 
-    response = client.get("/financials/transactions", params={"category": "subscriptions", "nature": "discretionary"})
+    response = client.get("/financials/transactions", params={"category_node": "housing.utilities.streaming", "nature": "discretionary"})
 
     assert "NETFLIX" in response.text
     assert "GYM" not in response.text
@@ -101,7 +107,7 @@ def test_list_transactions_combines_category_and_nature_filters(client, session)
 
 def test_list_transactions_paginates_100_per_page(client, session):
     for i in range(120):
-        _make_transaction(session, f"SHOP {i:03d}", Category.OTHER_EXPENSE, 1.0, paid_date=date(2026, 1, 1))
+        _make_transaction(session, f"SHOP {i:03d}", None, 1.0, paid_date=date(2026, 1, 1))
 
     page1 = client.get("/financials/transactions", params={"page": 1})
     page2 = client.get("/financials/transactions", params={"page": 2})
@@ -121,14 +127,13 @@ def test_list_transactions_shows_resolved_merchant_name(client, session):
     from app.models.merchant import Merchant
 
     merchant = Merchant(
-        canonical_name="Modelo Hiper Resolved", default_category=Category.GROCERIES,
-        normalized_key="modelo-hiper-resolved-router-test",
+        canonical_name="Modelo Hiper Resolved", normalized_key="modelo-hiper-resolved-router-test",
     )
     session.add(merchant)
     session.commit()
     session.refresh(merchant)
 
-    transaction = _make_transaction(session, "MODELO HIPER 2640-MAFR", Category.GROCERIES, 40.0)
+    transaction = _make_transaction(session, "MODELO HIPER 2640-MAFR", "food.groceries.supermarket", 40.0)
     transaction.merchant_id = merchant.id
     session.add(transaction)
     session.commit()
@@ -142,23 +147,21 @@ def test_list_transactions_shows_resolved_merchant_name(client, session):
 def test_bulk_edit_applies_category_to_selected_transactions(client, session):
     from app.services.taxonomy import ensure_taxonomy, get_node
     ensure_taxonomy(session)
-    t1 = _make_transaction(session, "SHOP A", Category.OTHER_EXPENSE, 10.0)
-    t2 = _make_transaction(session, "SHOP B", Category.OTHER_EXPENSE, 20.0)
-    t3 = _make_transaction(session, "SHOP C", Category.OTHER_EXPENSE, 30.0)
+    t1 = _make_transaction(session, "SHOP A", None, 10.0)
+    t2 = _make_transaction(session, "SHOP B", None, 20.0)
+    t3 = _make_transaction(session, "SHOP C", None, 30.0)
 
     response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(t1.id), str(t2.id)],
-        "new_category": "shopping",
+        "new_category_node": "family.personal.general-shopping",
     })
 
     assert response.status_code == 200
     session.refresh(t1)
     session.refresh(t2)
     session.refresh(t3)
-    assert t1.category == Category.SHOPPING
-    assert t2.category == Category.SHOPPING
     assert t1.category_id == t2.category_id == get_node(session, "family.personal.general-shopping").id
-    assert t3.category == Category.OTHER_EXPENSE
+    assert t3.category_id is None
 
 
 def test_bulk_edit_applies_nature_and_account(client, session):
@@ -167,7 +170,7 @@ def test_bulk_edit_applies_nature_and_account(client, session):
     session.commit()
     session.refresh(account)
 
-    t1 = _make_transaction(session, "SHOP D", Category.SHOPPING, 10.0)
+    t1 = _make_transaction(session, "SHOP D", "family.personal.general-shopping", 10.0)
 
     response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(t1.id)],
@@ -182,24 +185,24 @@ def test_bulk_edit_applies_nature_and_account(client, session):
 
 
 def test_bulk_edit_with_no_selection_changes_nothing(client, session):
-    t1 = _make_transaction(session, "SHOP E", Category.OTHER_EXPENSE, 10.0)
+    t1 = _make_transaction(session, "SHOP E", None, 10.0)
 
-    response = client.post("/financials/transactions/bulk-edit", data={"new_category": "shopping"})
+    response = client.post("/financials/transactions/bulk-edit", data={"new_category_node": "family.personal.general-shopping"})
 
     assert response.status_code == 200
     session.refresh(t1)
-    assert t1.category == Category.OTHER_EXPENSE
+    assert t1.category_id is None
 
 
 def test_bulk_edit_preserves_active_filter_on_rerender(client, session):
-    t1 = _make_transaction(session, "EDP", Category.ELECTRICITY, 45.0)
-    t2 = _make_transaction(session, "EDP RENOVAVEIS", Category.ELECTRICITY, 55.0)
-    t3 = _make_transaction(session, "CONTINENTE", Category.GROCERIES, 40.0)
+    t1 = _make_transaction(session, "EDP", "housing.utilities.electricity", 45.0)
+    t2 = _make_transaction(session, "EDP RENOVAVEIS", "housing.utilities.electricity", 55.0)
+    t3 = _make_transaction(session, "CONTINENTE", "food.groceries.supermarket", 40.0)
 
     response = client.post("/financials/transactions/bulk-edit", data={
         "transaction_ids": [str(t1.id), str(t2.id)],
         "new_nature": "essential",
-        "category": "electricity",
+        "category_node": "housing.utilities.electricity",
     })
 
     assert response.status_code == 200
@@ -209,7 +212,7 @@ def test_bulk_edit_preserves_active_filter_on_rerender(client, session):
 
 def test_bulk_edit_preserves_active_page_on_rerender(client, session):
     for i in range(120):
-        _make_transaction(session, f"PAGE SHOP {i:03d}", Category.OTHER_EXPENSE, 1.0, paid_date=date(2026, 1, 1))
+        _make_transaction(session, f"PAGE SHOP {i:03d}", None, 1.0, paid_date=date(2026, 1, 1))
     page2_transaction = session.exec(
         select(Transaction).where(Transaction.description == "PAGE SHOP 000")
     ).first()
@@ -228,7 +231,7 @@ def test_bulk_edit_preserves_active_page_on_rerender(client, session):
 
 def _make_unconfirmed_merchant(session, name="New Shop", key="new-shop-router-test"):
     from app.models.merchant import Merchant
-    merchant = Merchant(canonical_name=name, default_category=Category.SHOPPING, normalized_key=key)
+    merchant = Merchant(canonical_name=name, normalized_key=key)
     session.add(merchant)
     session.commit()
     session.refresh(merchant)
@@ -280,8 +283,8 @@ def test_confirm_merchant_files_a_credit_as_a_refund_only_when_the_merchant_was_
     merchant = _make_unconfirmed_merchant(session, name="Shop2", key="shop2-router-test")
     doc = Document(filename="s.pdf", file_path="/tmp/s2.pdf", content_hash="h-shop2", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    deb = Transaction(document_id=doc.id, description="S", category=Category.OTHER, amount=1.0, merchant_id=merchant.id)
-    cred = Transaction(document_id=doc.id, description="S", category=Category.OTHER, amount=1.0,
+    deb = Transaction(document_id=doc.id, description="S", amount=1.0, merchant_id=merchant.id)
+    cred = Transaction(document_id=doc.id, description="S", amount=1.0,
                        merchant_id=merchant.id, transaction_type=TransactionType.CREDIT)
     session.add(deb); session.add(cred); session.commit()
     client.post(f"/financials/transactions/merchants/{merchant.id}/confirm",
@@ -299,7 +302,7 @@ def test_confirm_merchant_never_files_credits_of_a_never_paid_merchant_under_a_s
     merchant = _make_unconfirmed_merchant(session, name="Payer", key="payer-router-test")
     doc = Document(filename="p.pdf", file_path="/tmp/p.pdf", content_hash="h-payer", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    cred = Transaction(document_id=doc.id, description="P", category=Category.OTHER, amount=500.0,
+    cred = Transaction(document_id=doc.id, description="P", amount=500.0,
                        merchant_id=merchant.id, transaction_type=TransactionType.CREDIT)
     session.add(cred); session.commit()
     client.post(f"/financials/transactions/merchants/{merchant.id}/confirm",
@@ -322,7 +325,6 @@ def test_confirm_merchant_applies_edited_category_node_and_nature(client, sessio
     session.refresh(merchant)
     assert merchant.confirmed is True
     assert merchant.default_category_id == get_node(session, "food.eat-out.restaurants").id
-    assert merchant.default_category == Category.RESTAURANTS
     assert merchant.default_nature == Nature.DISCRETIONARY
 
 
@@ -340,7 +342,7 @@ def test_confirm_merchant_files_every_unsorted_transaction_of_that_merchant(clie
     groceries = get_node(session, "food.groceries.supermarket")
 
     def mk(m, node):
-        t = Transaction(document_id=doc.id, description="GALP", category=Category.OTHER, amount=10.0, merchant_id=m.id)
+        t = Transaction(document_id=doc.id, description="GALP", amount=10.0, merchant_id=m.id)
         session.add(t)
         session.commit()
         if node is not None:
@@ -396,8 +398,7 @@ def test_needs_review_page_lists_unsorted_transactions_grouped_by_merchant(clien
     session.add(doc)
     session.commit()
     for i in range(2):
-        session.add(Transaction(document_id=doc.id, description=f"PADARIA ZETA {i}", category=Category.OTHER,
-                                amount=3.0, merchant_id=m.id))
+        session.add(Transaction(document_id=doc.id, description=f"PADARIA ZETA {i}", amount=3.0, merchant_id=m.id))
     session.commit()
 
     response = client.get("/financials/transactions/needs-review")
@@ -409,14 +410,13 @@ def test_needs_review_page_lists_unsorted_transactions_grouped_by_merchant(clien
 def test_dismiss_recurring_marks_merchant_reviewed(client, session):
     from app.models.merchant import Merchant
     merchant = Merchant(
-        canonical_name="Recurring Test", default_category=Category.SUBSCRIPTIONS,
-        normalized_key="recurring-test-router", confirmed=True,
+        canonical_name="Recurring Test", normalized_key="recurring-test-router", confirmed=True,
     )
     session.add(merchant)
     session.commit()
     session.refresh(merchant)
     for i, period in enumerate(["2026-05", "2026-06", "2026-07"]):
-        t = _make_transaction(session, "RECURRING TEST", Category.SUBSCRIPTIONS, 9.99)
+        t = _make_transaction(session, "RECURRING TEST", "housing.utilities.streaming", 9.99)
         t.merchant_id = merchant.id
         t.statement_period = period
         session.add(t)
@@ -431,7 +431,7 @@ def test_dismiss_recurring_marks_merchant_reviewed(client, session):
 
 def test_dismiss_debt_candidate_marks_transaction_reviewed(client, session):
     transaction = _make_transaction(
-        session, "TRF CRED SEPA+ P/ SOME PERSON", Category.OTHER_EXPENSE, 600.0
+        session, "TRF CRED SEPA+ P/ SOME PERSON", None, 600.0
     )
 
     response = client.post(f"/financials/transactions/{transaction.id}/dismiss-debt-candidate")
@@ -446,13 +446,12 @@ def test_create_commitment_from_recurring_merchant(client, session):
     from app.models.merchant import Merchant
 
     merchant = Merchant(
-        canonical_name="Netflix Router Test", default_category=Category.SUBSCRIPTIONS,
-        normalized_key="netflix-router-test", confirmed=True,
+        canonical_name="Netflix Router Test", normalized_key="netflix-router-test", confirmed=True,
     )
     session.add(merchant)
     session.commit()
     session.refresh(merchant)
-    linked_transaction = _make_transaction(session, "NETFLIX ROUTER TEST", Category.SUBSCRIPTIONS, 12.99)
+    linked_transaction = _make_transaction(session, "NETFLIX ROUTER TEST", "housing.utilities.streaming", 12.99)
     linked_transaction.merchant_id = merchant.id
     session.add(linked_transaction)
     session.commit()
@@ -474,7 +473,7 @@ def test_create_commitment_from_recurring_merchant(client, session):
 def test_link_debt_creates_informal_debt_with_new_person(client, session):
     from app.models.debt import Debt
 
-    transaction = _make_transaction(session, "TRF CRED SEPA+ P/ NEW PERSON", Category.OTHER_EXPENSE, 3000.0)
+    transaction = _make_transaction(session, "TRF CRED SEPA+ P/ NEW PERSON", None, 3000.0)
 
     response = client.post(f"/financials/transactions/{transaction.id}/link-debt", data={
         "direction": "owed_to_us", "person_name": "New Person",
@@ -493,8 +492,8 @@ def test_link_debt_reuses_existing_person_with_same_name(client, session):
     from app.models.debt import Debt
     from app.models.person import Person
 
-    t1 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", Category.OTHER_EXPENSE, 1000.0)
-    t2 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", Category.OTHER_EXPENSE, 2000.0)
+    t1 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", None, 1000.0)
+    t2 = _make_transaction(session, "TRF CRED SEPA+ P/ REPEAT PERSON", None, 2000.0)
 
     response1 = client.post(f"/financials/transactions/{t1.id}/link-debt", data={
         "direction": "owed_to_us", "person_name": "Repeat Person",
@@ -518,8 +517,8 @@ def test_link_debt_reuses_existing_person_with_same_name(client, session):
 
 
 def test_list_transactions_filters_by_transaction_id(client, session):
-    t1 = _make_transaction(session, "SHOP F", Category.OTHER_EXPENSE, 10.0)
-    t2 = _make_transaction(session, "SHOP G", Category.OTHER_EXPENSE, 20.0)
+    t1 = _make_transaction(session, "SHOP F", None, 10.0)
+    t2 = _make_transaction(session, "SHOP G", None, 20.0)
 
     response = client.get("/financials/transactions", params={"transaction_id": t1.id})
 
@@ -532,15 +531,14 @@ def test_list_transactions_filters_by_merchant_id(client, session):
     from app.models.merchant import Merchant
 
     merchant = Merchant(
-        canonical_name="Merchant Filter Test", default_category=Category.SHOPPING,
-        normalized_key="merchant-filter-test-router",
+        canonical_name="Merchant Filter Test", normalized_key="merchant-filter-test-router",
     )
     session.add(merchant)
     session.commit()
     session.refresh(merchant)
 
-    t1 = _make_transaction(session, "SHOP H", Category.SHOPPING, 10.0)
-    t2 = _make_transaction(session, "SHOP I", Category.SHOPPING, 20.0)
+    t1 = _make_transaction(session, "SHOP H", "family.personal.general-shopping", 10.0)
+    t2 = _make_transaction(session, "SHOP I", "family.personal.general-shopping", 20.0)
     t1.merchant_id = merchant.id
     session.add(t1)
     session.commit()
@@ -564,11 +562,11 @@ def test_list_transactions_shows_linked_transaction(client, session):
     session.refresh(account_b)
 
     outgoing = _make_transaction(
-        session, "TRANSFER OUT", Category.TRANSFER, 100.0,
+        session, "TRANSFER OUT", "internal-transfers.between-my-accounts.santander-revolut", 100.0,
         account_id=account_a.id, paid_date=date(2026, 3, 5),
     )
     incoming = _make_transaction(
-        session, "TRANSFER IN", Category.TRANSFER, 100.0,
+        session, "TRANSFER IN", "internal-transfers.between-my-accounts.santander-revolut", 100.0,
         account_id=account_b.id, paid_date=date(2026, 3, 3),
     )
     outgoing.linked_transaction_id = incoming.id
@@ -592,7 +590,7 @@ def test_link_debt_to_existing_debt(client, session):
     session.commit()
     session.refresh(existing_debt)
 
-    transaction = _make_transaction(session, "TRF CRED SEPA+ P/ EXISTING PERSON", Category.OTHER_EXPENSE, 500.01)
+    transaction = _make_transaction(session, "TRF CRED SEPA+ P/ EXISTING PERSON", None, 500.01)
 
     response = client.post(f"/financials/transactions/{transaction.id}/link-debt", data={
         "existing_debt_id": str(existing_debt.id),
@@ -610,11 +608,11 @@ def test_list_transactions_filters_by_commitment(client, session):
     session.commit()
     session.refresh(commitment)
 
-    t1 = _make_transaction(session, "AT IMI", Category.OTHER_EXPENSE, 300.0)
+    t1 = _make_transaction(session, "AT IMI", None, 300.0)
     t1.commitment_id = commitment.id
     session.add(t1)
     session.commit()
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0)
 
     response = client.get("/financials/transactions", params={"commitment_id": commitment.id})
 
@@ -628,11 +626,11 @@ def test_list_transactions_filters_by_debt(client, session):
     session.commit()
     session.refresh(debt)
 
-    t1 = _make_transaction(session, "TRANSFER TO JOAO", Category.TRANSFER, 500.0)
+    t1 = _make_transaction(session, "TRANSFER TO JOAO", "internal-transfers.between-my-accounts.santander-revolut", 500.0)
     t1.debt_id = debt.id
     session.add(t1)
     session.commit()
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0)
 
     response = client.get("/financials/transactions", params={"debt_id": debt.id})
 
@@ -641,8 +639,8 @@ def test_list_transactions_filters_by_debt(client, session):
 
 
 def test_list_transactions_filters_by_transaction_type(client, session):
-    _make_transaction(session, "SALARIO", Category.INCOME, 2000.0)
-    _make_transaction(session, "EDP", Category.ELECTRICITY, 60.0)
+    _make_transaction(session, "SALARIO", "income.employment.salary", 2000.0)
+    _make_transaction(session, "EDP", "housing.utilities.electricity", 60.0)
     # _make_transaction defaults transaction_type to DEBIT; give SALARIO a CREDIT type directly.
     salario = session.exec(select(Transaction).where(Transaction.description == "SALARIO")).first()
     salario.transaction_type = TransactionType.CREDIT
@@ -659,7 +657,7 @@ from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 
 
 def _filed(session, provider, slug, amount=10.0, ttype=TransactionType.DEBIT):
-    t = _make_transaction(session, provider, Category.OTHER, amount)
+    t = _make_transaction(session, provider, None, amount)
     t.transaction_type = ttype
     file_transaction(session, t, get_node(session, slug))
     session.commit()
@@ -683,14 +681,13 @@ def test_filter_by_node_includes_descendants(client, session):
     assert "PINGO DOCE" in html and "GALP" not in html
 
 
-def test_bulk_edit_files_under_node_and_dual_writes(client, session):
+def test_bulk_edit_files_under_node(client, session):
     ensure_taxonomy(session)
-    t = _make_transaction(session, "EDP", Category.OTHER, 60.0)
+    t = _make_transaction(session, "EDP", None, 60.0)
     client.post("/financials/transactions/bulk-edit",
                 data={"transaction_ids": [str(t.id)], "new_category_node": "housing.utilities.electricity"})
     session.refresh(t)
     assert t.category_id == get_node(session, "housing.utilities.electricity").id
-    assert t.category == Category.ELECTRICITY
 
 
 def test_bulk_edit_unknown_node_slug_is_400(client, session):
@@ -701,23 +698,20 @@ def test_bulk_edit_unknown_node_slug_is_400(client, session):
     assert r.status_code == 400
 
 
-def test_bulk_edit_legacy_category_keeps_category_id_consistent(client, session):
+def test_bulk_edit_no_longer_takes_the_old_flat_list(client, session):
+    """The old list's field files nothing (work-list B3): only a place on the tree does."""
     from app.models.document import Document, DocumentSource
     from app.services.taxonomy import ensure_taxonomy, get_node
     ensure_taxonomy(session)
     doc = Document(filename="b.pdf", file_path="/tmp/b.pdf", content_hash="h-bulk", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, description="B", category=Category.OTHER, amount=1.0)
+    t = Transaction(document_id=doc.id, description="B", amount=1.0)
     session.add(t); session.commit(); session.refresh(t)
     ok = client.post("/financials/transactions/bulk-edit",
                      data={"transaction_ids": [str(t.id)], "new_category": "groceries"})
     assert ok.status_code == 200
     session.refresh(t)
-    assert t.category == Category.GROCERIES
-    assert t.category_id == get_node(session, "food.groceries.supermarket").id
-    ambiguous = client.post("/financials/transactions/bulk-edit",
-                            data={"transaction_ids": [str(t.id)], "new_category": "other_expense"})
-    assert ambiguous.status_code == 400
+    assert t.category_id is None
 
 
 def test_needs_review_survives_a_transaction_whose_merchant_is_missing(client, session):
@@ -726,8 +720,7 @@ def test_needs_review_survives_a_transaction_whose_merchant_is_missing(client, s
     ensure_taxonomy(session)
     doc = Document(filename="o.pdf", file_path="/tmp/o.pdf", content_hash="h-orphan", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    session.add(Transaction(document_id=doc.id, description="ORPHAN", category=Category.OTHER,
-                            amount=1.0, merchant_id=987654))
+    session.add(Transaction(document_id=doc.id, description="ORPHAN", amount=1.0, merchant_id=987654))
     session.commit()
     r = client.get("/financials/transactions/needs-review")
     assert r.status_code == 200
@@ -737,7 +730,7 @@ def test_link_debt_creates_match_rule_and_balance(client, session):
     from app.models.position import DebtMatchRule
     from app.services.classification_engine import normalize_provider
 
-    txn = _make_transaction(session, "TRF SEPA+ P/ SYNTH PERSON", Category.OTHER_EXPENSE, 400.0)
+    txn = _make_transaction(session, "TRF SEPA+ P/ SYNTH PERSON", None, 400.0)
     client.post(f"/financials/transactions/{txn.id}/link-debt", data={"direction": "owed_to_us", "person_name": "Synth Person"})
     session.refresh(txn)
     debt = session.get(Debt, txn.debt_id)
@@ -755,7 +748,7 @@ def test_link_debt_to_existing_debt_creates_rule_and_recomputes(client, session)
     debt = create_informal_debt(session, "Synth Other", DebtDirection.OWED_BY_US, opening_amount=1000.0)
     session.commit()
     session.refresh(debt)
-    txn = _make_transaction(session, "TRF SEPA+ P/ SYNTH OTHER", Category.OTHER_EXPENSE, 250.0)
+    txn = _make_transaction(session, "TRF SEPA+ P/ SYNTH OTHER", None, 250.0)
     client.post(f"/financials/transactions/{txn.id}/link-debt", data={"existing_debt_id": str(debt.id)})
     session.refresh(debt)
     assert session.exec(select(DebtMatchRule)).one().debt_id == debt.id
@@ -769,7 +762,7 @@ def test_link_debt_never_creates_rule_for_statement_loan(client, session):
     session.add(loan)
     session.commit()
     session.refresh(loan)
-    txn = _make_transaction(session, "SOME DEBIT", Category.OTHER_EXPENSE, 10.0)
+    txn = _make_transaction(session, "SOME DEBIT", None, 10.0)
     client.post(f"/financials/transactions/{txn.id}/link-debt", data={"existing_debt_id": str(loan.id)})
     assert session.exec(select(DebtMatchRule)).first() is None
 
@@ -781,15 +774,14 @@ async def test_second_matching_transaction_auto_links_and_lowers_balance(client,
     from app.services.classification_engine import classify_transaction, normalize_provider
     from tests.fakes.fake_gateway import FakeGateway  # noqa: F401
 
-    first = _make_transaction(session, "TRF SEPA+ P/ SYNTH REPEAT", Category.OTHER_EXPENSE, 400.0)
+    first = _make_transaction(session, "TRF SEPA+ P/ SYNTH REPEAT", None, 400.0)
     client.post(f"/financials/transactions/{first.id}/link-debt", data={"direction": "owed_to_us", "person_name": "Synth Repeat"})
     session.refresh(first)
     debt_id = first.debt_id
-    session.add(Merchant(canonical_name="Synth Repeat", default_category=Category.OTHER_EXPENSE,
-                         default_nature=Nature.ESSENTIAL, normalized_key=normalize_provider("TRF SEPA+ P/ SYNTH REPEAT")))
+    session.add(Merchant(canonical_name="Synth Repeat", default_nature=Nature.ESSENTIAL, normalized_key=normalize_provider("TRF SEPA+ P/ SYNTH REPEAT")))
     session.commit()
 
-    second = _make_transaction(session, "TRF SEPA+ P/ SYNTH REPEAT", Category.OTHER_EXPENSE, 100.0)
+    second = _make_transaction(session, "TRF SEPA+ P/ SYNTH REPEAT", None, 100.0)
     second.transaction_type = TransactionType.CREDIT  # they pay us back
     session.add(second)
     session.commit()
@@ -805,7 +797,7 @@ async def test_second_matching_transaction_auto_links_and_lowers_balance(client,
 # --- Block D: informal loans as a ledger ---------------------------------
 
 def _mk(session, provider, amount, ttype=TransactionType.DEBIT, paid=None):
-    t = _make_transaction(session, provider, Category.OTHER_EXPENSE, amount, paid_date=paid)
+    t = _make_transaction(session, provider, None, amount, paid_date=paid)
     t.transaction_type = ttype
     session.add(t)
     session.commit()
@@ -1021,10 +1013,8 @@ def _bulk_review_data(session, n=1500):
     for i, (m, g) in enumerate(zip(unconfirmed, groups)):
         copies = 3 if i == n - 1 else 1  # the last one is the busiest: it must come first
         for _ in range(copies):
-            session.add(Transaction(document_id=doc.id, description=f"SYNTH NEW {i}", category=Category.OTHER,
-                                    amount=1.0, merchant_id=m.id, category_id=filed.id))  # filed: only the groups are unsorted
-            session.add(Transaction(document_id=doc.id, description=f"SYNTH GROUP {i}", category=Category.OTHER,
-                                    amount=1.0, merchant_id=g.id))
+            session.add(Transaction(document_id=doc.id, description=f"SYNTH NEW {i}", amount=1.0, merchant_id=m.id, category_id=filed.id))  # filed: only the groups are unsorted
+            session.add(Transaction(document_id=doc.id, description=f"SYNTH GROUP {i}", amount=1.0, merchant_id=g.id))
     session.commit()
     return unconfirmed, groups
 
@@ -1110,7 +1100,7 @@ def test_offset_past_the_end_falls_back_to_the_last_page(client, session):
 
 def test_debt_candidates_are_limited_to_50(client, session):
     for i in range(55):
-        _make_transaction(session, f"TRF P/ PESSOA {chr(65 + i % 26)}{chr(65 + i // 26)}", Category.TRANSFER, 600.0)
+        _make_transaction(session, f"TRF P/ PESSOA {chr(65 + i % 26)}{chr(65 + i // 26)}", "internal-transfers.between-my-accounts.santander-revolut", 600.0)
     html = client.get("/financials/transactions/needs-review").text
     assert html.count(">Link Debt<") == 50
     assert "Showing 50 of 55" in html

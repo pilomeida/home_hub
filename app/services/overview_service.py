@@ -13,8 +13,10 @@ from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentStatus
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.category_node import CategoryNode
+from app.models.transaction import Transaction, TransactionType
 from app.domains.registry import document_url
+from app.services.budget_service import spend_of
 from app.services.classification_engine import get_needs_review_queue
 from app.services.loan_alerts import unacknowledged_groups
 from app.services.loan_math import informal_debt_rows, legacy_debt_total, newest_balances, summarize_all
@@ -279,7 +281,6 @@ def get_yearly_commitments_card(session: Session, today: date) -> YearlyCommitme
 
 
 _COMPARISON_ROLLING_MONTHS = 3
-_COMPARISON_EXCLUDED_CATEGORIES = (Category.TRANSFER, Category.ATM_WITHDRAWAL, Category.INCOME)
 _RANGE_TO_ROLLING_MONTHS = {"1m": 1, "3m": 3, "6m": 6, "9m": 9, "12m": 12}
 RANGE_LABELS = {"1m": "1M", "3m": "3M", "6m": "6M", "9m": "9M", "12m": "12M", "ytd": "YTD"}
 
@@ -299,7 +300,7 @@ def _resolve_lookback_months(range_key: str, today: date) -> int:
 
 @dataclass
 class CategoryComparisonRow:
-    category: str
+    category: str  # the spending tree's top-level group, by name ("Food")
     current_value: float
     rolling_avg_value: float
     delta_pct: Optional[float]
@@ -310,21 +311,37 @@ class CategoryComparisonRow:
 def get_category_comparison(
     session: Session, today: date, rolling_months: int = _COMPARISON_ROLLING_MONTHS
 ) -> list[CategoryComparisonRow]:
+    """Spending per top-level group of the tree, this month against the months before. Counted line by line with
+    the budget's own rule (budget_service.spend_of), so the Overview and the budget give the same totals."""
     cutoff = _month_start(today) - timedelta(days=31 * (rolling_months + 1))
     statement = select(Transaction).where(
-        Transaction.transaction_type == TransactionType.DEBIT,
-        Transaction.category.notin_(_COMPARISON_EXCLUDED_CATEGORIES),
         Transaction.counts(),
         Transaction.paid_date >= cutoff,
         Transaction.paid_date <= today,
     )
+    nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
+    by_slug = {n.slug: n for n in nodes.values()}
 
+    def group_of(node: Optional[CategoryNode]) -> tuple[str, str]:
+        if node is None:
+            unsorted = by_slug.get("unsorted")
+            return ("unsorted", unsorted.name if unsorted else "Unsorted")
+        while node.parent_id is not None:
+            node = nodes[node.parent_id]
+        return node.slug, node.name
+
+    names: dict[str, str] = {}
     per_month_category: dict[tuple[str, str], float] = {}
     for t in session.exec(statement):
         if t.paid_date is None:
             continue
-        key = (_month_key(t.paid_date), t.category.value)
-        per_month_category[key] = per_month_category.get(key, 0.0) + t.amount
+        node = nodes.get(t.category_id) if t.category_id is not None else None
+        amount = spend_of(t, node)
+        if amount is None:
+            continue
+        slug, names[slug] = group_of(node)
+        key = (_month_key(t.paid_date), slug)
+        per_month_category[key] = per_month_category.get(key, 0.0) + amount
 
     current_key = _month_key(today)
     history_periods = _complete_months_before(today, rolling_months)
@@ -347,10 +364,10 @@ def get_category_comparison(
 
     return [
         CategoryComparisonRow(
-            category=cat, current_value=current_value, rolling_avg_value=rolling_avg,
+            category=names[cat], current_value=current_value, rolling_avg_value=rolling_avg,
             delta_pct=delta_pct,
             bar_pct=round(current_value / max_value * 100.0, 1) if max_value else 0.0,
-            drill_down_url=f"/financials/transactions?category={cat}&date_from={month_start}&date_to={today_iso}",
+            drill_down_url=f"/financials/transactions?category_node={cat}&date_from={month_start}&date_to={today_iso}",
         )
         for cat, current_value, rolling_avg, delta_pct in computed
     ]
@@ -383,18 +400,15 @@ def get_narrative_insight(category_rows: list[CategoryComparisonRow]) -> Optiona
     drop_category = biggest_drop[0] if biggest_drop else None
     biggest_rise = deltas[-1] if deltas[-1][1] > 0 and deltas[-1][0] != drop_category else None
 
-    def _title(cat: str) -> str:
-        return cat.replace("_", " ").title()
-
     if biggest_drop and biggest_rise:
         sentence += (
-            f" {_title(biggest_drop[0])} accounted for €{abs(round(biggest_drop[1])):,.0f} of the "
-            f"reduction, partly offset by €{round(biggest_rise[1]):,.0f} more in {_title(biggest_rise[0])}."
+            f" {biggest_drop[0]} accounted for €{abs(round(biggest_drop[1])):,.0f} of the "
+            f"reduction, partly offset by €{round(biggest_rise[1]):,.0f} more in {biggest_rise[0]}."
         )
     elif biggest_drop:
-        sentence += f" {_title(biggest_drop[0])} accounted for €{abs(round(biggest_drop[1])):,.0f} of the change."
+        sentence += f" {biggest_drop[0]} accounted for €{abs(round(biggest_drop[1])):,.0f} of the change."
     elif biggest_rise:
-        sentence += f" {_title(biggest_rise[0])} accounted for €{round(biggest_rise[1]):,.0f} of the increase."
+        sentence += f" {biggest_rise[0]} accounted for €{round(biggest_rise[1]):,.0f} of the increase."
     return sentence
 
 
@@ -429,7 +443,7 @@ def get_needs_attention(
         ):
             items.append(NeedsAttentionItem(
                 kind="category_anomaly",
-                text=f"{row.category.replace('_', ' ').title()} is {row.delta_pct:.0f}% above its 3-month average this month",
+                text=f"{row.category} is {row.delta_pct:.0f}% above its 3-month average this month",
                 url=row.drill_down_url,
             ))
 

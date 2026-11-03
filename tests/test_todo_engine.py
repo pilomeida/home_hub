@@ -1,7 +1,7 @@
 from datetime import date
 
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Transaction
 from app.services.todo_engine import generate_todo_for_transaction
 
 
@@ -15,8 +15,7 @@ def _make_transaction(session, due_date=None):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=87.32, currency="EUR", due_date=due_date,
+        document_id=document.id, description="EDP", amount=87.32, currency="EUR", due_date=due_date,
     )
     session.add(transaction)
     session.commit()

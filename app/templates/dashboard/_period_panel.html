@@ -47,7 +47,7 @@
       <div class="fc-cat-head"><div>Category</div><div></div><div style="text-align:right">Current</div><div style="text-align:right">{{ range_label }} avg</div><div style="text-align:right">Δ</div></div>
       {% for row in rows %}
       <a class="fc-cat-row" href="{{ row.drill_down_url }}">
-        <div class="fc-cat-name">{{ row.category.replace('_', ' ')|title }}</div>
+        <div class="fc-cat-name">{{ row.category }}</div>
         <div class="fc-cat-track"><div class="fc-cat-fill" style="width: {{ row.bar_pct }}%;"></div></div>
         <div class="fc-cat-val">€{{ "{:,.0f}".format(row.current_value) }}</div>
         <div class="fc-cat-avg">€{{ "{:,.0f}".format(row.rolling_avg_value) }}</div>

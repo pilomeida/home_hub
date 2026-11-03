@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app.models.document import Document
@@ -17,14 +17,14 @@ from app.models.position import DebtMatchRule
 from app.services.debt_ledger import default_kind, link_transaction_as_entry
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.models.transaction import Nature, Transaction, TransactionType
 from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
 from app.services.merchant_merge import find_merchant_by_name, resolve_merchant
 from app.services.merchant_rules import is_multi_purpose, keyword_match, keyword_node_slug
 from app.services.provider_rules import find_rule_node, provider_fits
 from app.services.merchant_relabel import ensure_structured_merchant
 from app.services.structured_providers import structured_merchant
-from app.services.taxonomy import UNSORTED_SLUG, auto_fits, default_node_id, direction_matches, file_transaction, legacy_category_for, get_node, leaf_slugs
+from app.services.taxonomy import UNSORTED_SLUG, auto_fits, default_node_id, direction_matches, file_transaction, get_node, leaf_slugs
 from app.services.loan_insurance import link_insurance_transaction
 from app.services.loan_linking import link_transaction_to_loan
 from app.services.json_utils import strip_json_fences
@@ -113,7 +113,6 @@ class MerchantResolutionError(Exception):
 class ResolvedMerchant:
     canonical_name: str
     node_slug: str
-    category: Category  # legacy value of the node, for consumers still on the old column
     nature: Nature
 
 
@@ -170,7 +169,6 @@ async def resolve_merchant_via_llm(
     return ResolvedMerchant(
         canonical_name=name,
         node_slug=node_slug,
-        category=legacy_category_for(session, get_node(session, node_slug)),
         nature=nature,
     )
 
@@ -208,10 +206,7 @@ async def classify_transaction(
         keyword = keyword_match(transaction.description)
         if keyword:  # a fixed ruling, no LLM call
             keyword_slug, chain_name = keyword
-            keyword_node = get_node(session, keyword_slug)
-            resolved = ResolvedMerchant(
-                canonical_name=chain_name, node_slug=keyword_slug,
-                category=legacy_category_for(session, keyword_node), nature=Nature.ESSENTIAL)
+            resolved = ResolvedMerchant(canonical_name=chain_name, node_slug=keyword_slug, nature=Nature.ESSENTIAL)
         else:
             resolved = await resolve_merchant_via_llm(
                 transaction.description, session, gateway=gateway,
@@ -229,7 +224,6 @@ async def classify_transaction(
         else:
             merchant = Merchant(
                 canonical_name=resolved.canonical_name,
-                default_category=resolved.category,
                 default_category_id=get_node(session, resolved.node_slug).id,
                 default_nature=resolved.nature,
                 normalized_key=normalized_key,
@@ -357,20 +351,23 @@ def detect_recurring_candidates(session: Session) -> list[Merchant]:
 
 
 _DEBT_TRANSFER_MARKER_RE = re.compile(r"P/\s*[A-ZÀ-Ú][A-ZÀ-Ú\s]+", re.IGNORECASE)
-_DEBT_CANDIDATE_CATEGORIES = (Category.TRANSFER, Category.OTHER_EXPENSE)
+# Where a payment to a named person can sit: not filed yet, Unsorted, an internal transfer, or a group about people
+# and money (work-list B3: on the tree, as the old list's "transfer" and "other expense" were).
+_DEBT_CANDIDATE_GROUPS = ("unsorted", "internal-transfers", "loans-debt", "family", "cash-giving")
 _DEBT_CANDIDATE_MIN_AMOUNT = 500.0
 
 
 def detect_debt_candidates(session: Session) -> list[Transaction]:
     """Transactions that look like a person-to-person transfer (a debt
-    draw/repayment candidate): category TRANSFER or OTHER_EXPENSE, amount
+    draw/repayment candidate): not filed yet or filed where a payment to a person can sit, amount
     above the threshold, and provider text matching a Portuguese
     bank-transfer-to-a-named-individual pattern. Never auto-linked to a
     Debt — surfaced for a human decision only."""
     # keeps held rows: debt-candidate detection shows a person every candidate line
     statement = (
         select(Transaction)
-        .where(Transaction.category.in_(_DEBT_CANDIDATE_CATEGORIES))
+        .where(Transaction.category_id.is_(None) | Transaction.category_id.in_(
+            select(CategoryNode.id).where(or_(*(CategoryNode.slug.like(f"{g}.%") for g in _DEBT_CANDIDATE_GROUPS)))))
         .where(Transaction.amount > _DEBT_CANDIDATE_MIN_AMOUNT)
         .where(Transaction.debt_id.is_(None))
         .where(Transaction.debt_candidate_reviewed.isnot(True))

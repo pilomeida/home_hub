@@ -15,7 +15,7 @@ from app.models.debt import DebtDirection
 from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
 from app.models.record import Record
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus, LintRun
 from app.services.debt_ledger import create_informal_debt, link_transaction_as_entry
 from app.services.taxonomy import ensure_taxonomy
@@ -63,8 +63,7 @@ def _txn(session, provider, amount, ttype=TransactionType.DEBIT):
     session.add(document)
     session.commit()
     session.refresh(document)
-    t = Transaction(document_id=document.id, description=provider, category=Category.OTHER_EXPENSE,
-                    amount=amount, currency="EUR", transaction_type=ttype)
+    t = Transaction(document_id=document.id, description=provider, amount=amount, currency="EUR", transaction_type=ttype)
     session.add(t)
     session.commit()
     session.refresh(t)
@@ -103,8 +102,7 @@ def test_file_notices_writes_out_file_refusals_and_leaves_instructions_alone():
 
 
 def _txn_for_document(session, document, provider):
-    t = Transaction(document_id=document.id, description=provider, category=Category.OTHER_EXPENSE,
-                    amount=10.0, currency="EUR", transaction_type=TransactionType.DEBIT)
+    t = Transaction(document_id=document.id, description=provider, amount=10.0, currency="EUR", transaction_type=TransactionType.DEBIT)
     session.add(t)
     session.commit()
     session.refresh(t)

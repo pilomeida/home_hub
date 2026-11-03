@@ -17,7 +17,7 @@ from sqlmodel import Session, select
 from app.baseline import BASELINE_DATE
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.models.transaction import Nature, Transaction, TransactionType
 from app.services.classification_engine import _find_merchant_by_key, normalize_provider
 from app.services.taxonomy import auto_fits, file_transaction, get_node
 
@@ -222,7 +222,7 @@ def add_lines(session: Session, account_id: int, lines: list[CardLine], document
                                  else "Cartão 123 reembolso" if is_cashback else "Juros e encargos do cartão de crédito",
                                  fee_node.id)
         txn = Transaction(
-            document_id=document_id, description=line.description, category=Category.OTHER,
+            document_id=document_id, description=line.description,
             transaction_type=TransactionType.CREDIT if line.credit else TransactionType.DEBIT,
             amount=abs(line.amount), currency="EUR", paid_date=line.day, statement_period=line.day.strftime("%Y-%m"),
             account_id=account_id, merchant_id=merchant.id if merchant else None,
@@ -243,7 +243,7 @@ def _merchant(session: Session, name: str, category_id: int) -> Merchant:
     key = re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
     merchant = session.exec(select(Merchant).where(Merchant.normalized_key == key)).first()
     if merchant is None:
-        merchant = Merchant(canonical_name=name, normalized_key=key, default_category=Category.OTHER,
+        merchant = Merchant(canonical_name=name, normalized_key=key,
                             default_category_id=category_id, confirmed=True)
         session.add(merchant)
         session.flush()

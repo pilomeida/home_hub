@@ -9,7 +9,7 @@ from app.models.transaction import Nature, Transaction
 from app.services.structured_providers import StructuredMerchant, structured_merchant
 from app.services.merchant_merge import find_merchant_by_name, resolve_merchant
 from app.services.merchant_rules import is_multi_purpose
-from app.services.taxonomy import get_node, legacy_category_for
+from app.services.taxonomy import get_node
 
 
 @dataclass
@@ -33,7 +33,7 @@ def ensure_structured_merchant(session: Session, spec: StructuredMerchant) -> tu
         return survivor, False
     node = get_node(session, spec.node_slug)
     merchant = Merchant(canonical_name=spec.name, normalized_key=spec.key, default_category_id=node.id,
-                        default_category=legacy_category_for(session, node), default_nature=Nature.ESSENTIAL,
+                        default_nature=Nature.ESSENTIAL,
                         confirmed=True, by_provider=is_multi_purpose(spec.name))
     session.add(merchant)
     session.flush()

@@ -27,10 +27,11 @@ from sqlmodel import Session
 from app.db import engine
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.dedup import find_existing_document_by_hash
 from app.services.storage import save_upload
+from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 
 ELECTRICITY_DIR = Path(__file__).resolve().parent.parent / "Utilities" / "Electricity"
 XLSX_PATH = ELECTRICITY_DIR / "Electricity consumption.xlsx"
@@ -170,7 +171,6 @@ def backfill() -> None:
             transaction = Transaction(
                 document_id=document.id,
                 description=PROVIDER,
-                category=Category.ELECTRICITY,
                 transaction_type=TransactionType.DEBIT,
                 amount=row["cost_total"],
                 currency="EUR",
@@ -179,6 +179,8 @@ def backfill() -> None:
                 statement_period=period_label,
             )
             session.add(transaction)
+            ensure_taxonomy(session)
+            file_transaction(session, transaction, get_node(session, "housing.utilities.electricity"))
 
             reading = UtilityReading(
                 document_id=document.id,

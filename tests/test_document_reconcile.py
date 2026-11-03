@@ -6,7 +6,7 @@ from sqlmodel import select
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.merchant import Merchant
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.document_reconcile import reconcile_documents
 
 _n = [0]
@@ -21,7 +21,7 @@ def _doc(session, category, source=DocumentSource.MANUAL, name=None):
 
 
 def _txn(session, doc, provider, amount, paid, ttype=TransactionType.DEBIT, **kw):
-    t = Transaction(document_id=doc.id, description=provider, category=Category.OTHER, transaction_type=ttype,
+    t = Transaction(document_id=doc.id, description=provider, transaction_type=ttype,
                     amount=amount, paid_date=paid, **kw)
     session.add(t); session.commit(); session.refresh(t)
     return t

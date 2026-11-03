@@ -2,8 +2,8 @@ from app.models.budget import Budget
 from app.models.category_node import CategoryNode
 from app.models.document import Document, DocumentSource
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction, TransactionType
-from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node, legacy_category_for
+from app.models.transaction import Transaction, TransactionType
+from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from app.services.taxonomy_migration import remap_to_current_tree, seed_slugs
 from app.services.taxonomy_slugmap import SLUG_MAP
 
@@ -32,7 +32,7 @@ def _txn(session, node, merchant=None):
     doc = Document(filename=f"m{_n[0]}.pdf", file_path=f"/tmp/m{_n[0]}.pdf",
                    content_hash=f"mig-{_n[0]}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, description="X", category=Category.OTHER, amount=10.0,
+    t = Transaction(document_id=doc.id, description="X", amount=10.0,
                     transaction_type=TransactionType.DEBIT, category_id=node.id,
                     merchant_id=merchant.id if merchant else None)
     session.add(t); session.commit(); session.refresh(t)
@@ -109,8 +109,7 @@ def test_remap_is_idempotent_and_keeps_nodes_that_still_hold_data(session):
 def test_new_seed_shape(session):
     ensure_taxonomy(session)
     # repeated names resolve by group: Personal exists under Insurances and Family
-    assert legacy_category_for(session, get_node(session, "family.personal.general-shopping")) == Category.SHOPPING
-    assert legacy_category_for(session, get_node(session, "insurances.personal.health-insurance")) == Category.INSURANCE
+    assert get_node(session, "family.personal.general-shopping").parent_id != get_node(session, "insurances.personal.health-insurance").parent_id
     # a leaf keeps its own cadence when it differs from its category's
     assert get_node(session, "transport.car-running-costs.car-inspection-ipo").cadence == "yearly"
     assert get_node(session, "insurances.home.life-insurance-house-loan").cadence == "monthly"
@@ -119,5 +118,4 @@ def test_new_seed_shape(session):
     assert get_node(session, "loans-debt.money-lent-out.to-family").kind == "out"
     assert get_node(session, "loans-debt.money-lent-out.from-family").kind == "in"
     assert get_node(session, "loans-debt.money-borrowed.mortgage-drawdown").kind == "in"
-    assert legacy_category_for(session, get_node(session, "loans-debt.money-lent-out.to-family")) == Category.OTHER_EXPENSE
     assert get_node(session, "income.freelance.ballet-classes").kind == "in"

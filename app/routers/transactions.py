@@ -21,13 +21,12 @@ from app.models.position import DebtMatchRule
 from app.services import debt_ledger as ledger
 from app.models.document import Document
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.models.transaction import Nature, Transaction, TransactionType
 from app.problems import Problem, notice, refusal_response
-from app.services.taxonomy_seed import LEGACY_TO_SLUG
 from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
 from app.services.merchant_assign import assign_category, list_merchants
 from app.services.taxonomy import (
-    auto_fits, descendant_ids, direction_matches, file_transaction, flow_of, get_node, is_refund, legacy_category_for,
+    auto_fits, descendant_ids, direction_matches, file_transaction, flow_of, get_node, is_refund,
 )
 from app.templating import templates
 
@@ -38,7 +37,6 @@ _PAGE_SIZE = 100
 def _apply_transaction_filters(
     session: Session,
     statement,
-    category: Optional[str] = None,
     nature: Optional[str] = None,
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
@@ -66,8 +64,6 @@ def _apply_transaction_filters(
         statement = statement.where(
             Transaction.category_id.in_(descendant_ids(session, node.id) if node else [])
         )
-    if category:
-        statement = statement.where(Transaction.category == Category(category))
     if nature:
         statement = statement.where(Transaction.nature == Nature(nature))
     if account_id:
@@ -90,7 +86,6 @@ def _apply_transaction_filters(
 
 def _filtered_transactions(
     session: Session,
-    category: Optional[str] = None,
     nature: Optional[str] = None,
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
@@ -109,7 +104,7 @@ def _filtered_transactions(
     statement = (select(Transaction).where(Transaction.after_baseline())
                  .order_by(Transaction.paid_date.desc(), Transaction.id.desc()))
     statement = _apply_transaction_filters(
-        session, statement, category=category, nature=nature, account_id=account_id,
+        session, statement, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
         merchant_id=merchant_id, category_node=category_node, tag=tag, q=q,
@@ -144,7 +139,6 @@ def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tupl
 
 def _count_filtered_transactions(
     session: Session,
-    category: Optional[str] = None,
     nature: Optional[str] = None,
     account_id: Optional[int] = None,
     date_from: Optional[str] = None,
@@ -161,7 +155,7 @@ def _count_filtered_transactions(
     # keeps held rows: page count of the full ledger list above
     statement = select(Transaction).where(Transaction.after_baseline())
     statement = _apply_transaction_filters(
-        session, statement, category=category, nature=nature, account_id=account_id,
+        session, statement, nature=nature, account_id=account_id,
         date_from=date_from, date_to=date_to, commitment_id=commitment_id,
         debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
         merchant_id=merchant_id, category_node=category_node, tag=tag, q=q,
@@ -171,7 +165,7 @@ def _count_filtered_transactions(
 def _node_context(session: Session, transactions: list[Transaction]) -> tuple[dict, dict]:
     """(node_labels, row_flow) keyed by transaction id. Loads the whole (small)
     category tree once, so rows cost no queries. Unfiled rows get no label
-    (the template falls back to the legacy category) and a type-based flow."""
+    and a type-based flow."""
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
 
     def label(node: CategoryNode) -> str:
@@ -227,7 +221,6 @@ def _int(value, default=None):
 @router.get("")
 async def list_transactions(
     request: Request,
-    category: Optional[str] = None,
     nature: Optional[str] = None,
     account_id: Optional[str] = None,
     date_from: Optional[str] = None,
@@ -245,16 +238,16 @@ async def list_transactions(
 ):
     account_id, commitment_id, debt_id = _int(account_id), _int(commitment_id), _int(debt_id)
     transaction_id, merchant_id, page = _int(transaction_id), _int(merchant_id), max(1, _int(page, 1))
-    category, nature, date_from, date_to = (category or None), (nature or None), (date_from or None), (date_to or None)
+    nature, date_from, date_to = (nature or None), (date_from or None), (date_to or None)
     transaction_type, category_node, tag, q = (transaction_type or None), (category_node or None), (tag or None), ((q or "").strip() or None)
     transactions = _filtered_transactions(
-        session, category, nature, account_id, date_from, date_to,
+        session, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         page=page, transaction_id=transaction_id, merchant_id=merchant_id,
         category_node=category_node, tag=tag, q=q,
     )
     total_count = _count_filtered_transactions(
-        session, category, nature, account_id, date_from, date_to,
+        session, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         transaction_id=transaction_id, merchant_id=merchant_id,
         category_node=category_node, tag=tag, q=q,
@@ -279,17 +272,16 @@ async def list_transactions(
             "baseline_note": baseline_note(session),
             "transactions": transactions,
             "accounts": accounts,
-            "categories": list(Category),
             "natures": list(Nature),
             "filters": {
-                "category": category, "nature": nature, "account_id": account_id,
+                "nature": nature, "account_id": account_id,
                 "date_from": date_from, "date_to": date_to,
                 "commitment_id": commitment_id, "debt_id": debt_id,
                 "transaction_type": transaction_type, "merchant_id": merchant_id,
                 "category_node": category_node, "tag": tag, "q": q,
             },
             "filters_qs": urlencode({k: v for k, v in {
-                "category": category, "category_node": category_node, "tag": tag, "nature": nature,
+                "category_node": category_node, "tag": tag, "nature": nature,
                 "account_id": account_id, "date_from": date_from, "date_to": date_to, "commitment_id": commitment_id,
                 "debt_id": debt_id, "transaction_type": transaction_type, "merchant_id": merchant_id, "q": q,
             }.items() if v not in (None, "")}),
@@ -310,12 +302,10 @@ async def list_transactions(
 async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     form = await request.form()
     transaction_ids = [int(v) for v in form.getlist("transaction_ids")]
-    new_category = form.get("new_category") or None
     new_category_node = form.get("new_category_node") or None
     new_nature = form.get("new_nature") or None
     new_account_id = form.get("new_account_id") or None
 
-    filter_category = form.get("category") or None
     filter_category_node = form.get("category_node") or None
     filter_tag = form.get("tag") or None
     filter_q = form.get("q") or None
@@ -335,16 +325,6 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
             target_node = session.exec(select(CategoryNode).where(CategoryNode.slug == new_category_node)).first()
             if target_node is None:
                 raise HTTPException(status_code=400, detail="Unknown category")
-        elif new_category:
-            # Legacy parameter: only honoured when it maps to one tree leaf, so
-            # category and category_id can never disagree.
-            try:
-                legacy_slug = LEGACY_TO_SLUG.get(Category(new_category))
-            except ValueError:
-                legacy_slug = None
-            if not legacy_slug:
-                raise HTTPException(status_code=400, detail="Ambiguous or unknown category; pick a tree category")
-            target_node = get_node(session, legacy_slug)
         for t in transactions:
             if target_node is not None:
                 file_transaction(session, t, target_node)
@@ -357,7 +337,6 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
 
     transactions = _filtered_transactions(
         session,
-        category=filter_category,
         category_node=filter_category_node,
         tag=filter_tag,
         q=filter_q,
@@ -423,7 +402,6 @@ def _needs_review_context(session: Session, offsets: Optional[dict[str, int]] = 
         "offsets_json": json.dumps({f"{k}_off": v.offset for k, v in page.sections.items()}),
         "debt_options": _debt_candidate_options(session, queue.debt_candidates),
         "node_by_id": {o["id"]: o for o in nodes},
-        "categories": list(Category),
         "natures": list(Nature),
     }
 
@@ -529,7 +507,7 @@ async def create_commitment_from_merchant(
 
     commitment = Commitment(
         name=merchant.canonical_name,
-        category=merchant.default_category,
+        category_id=merchant.default_category_id,
         cadence=Cadence(form["cadence"]),
         planned_amount=float(form["planned_amount"]),
         year=int(form["year"]) if form.get("year") else None,

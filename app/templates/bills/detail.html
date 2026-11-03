@@ -18,7 +18,7 @@
     {% for transaction in transactions %}
     <tr>
       <td>{{ transaction.description }}</td>
-      <td>{{ transaction.category.value }}</td>
+      <td>{{ node_labels.get(transaction.id) or "Not filed yet" }}</td>
       <td>{{ transaction.transaction_type.value }}</td>
       <td>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</td>
       <td>{{ transaction.due_date or transaction.paid_date or "—" }}</td>

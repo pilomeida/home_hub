@@ -20,7 +20,7 @@ from app.models.merchant import Merchant  # noqa: E402
 from app.models.transaction import Transaction  # noqa: E402
 from app.services.classification_engine import normalize_provider  # noqa: E402
 from app.services.ingestion import Classification, refile_document  # noqa: E402
-from app.services.taxonomy import file_transaction, get_node, legacy_category_for, path_label  # noqa: E402
+from app.services.taxonomy import file_transaction, get_node, path_label  # noqa: E402
 
 DENTAL_SLUG = "health.care.dental"
 CLINIC = "FACULDADE DE MEDICINA DENTÁRIA DA U.L."
@@ -34,7 +34,6 @@ def pin_clinic_to_dental(session: Session) -> Merchant:
     if merchant is None:
         merchant = Merchant(canonical_name="Faculdade de Medicina Dentária da U.L.", normalized_key=key)
     merchant.default_category_id = node.id
-    merchant.default_category = legacy_category_for(session, node)
     merchant.confirmed = True
     session.add(merchant)
     session.commit()

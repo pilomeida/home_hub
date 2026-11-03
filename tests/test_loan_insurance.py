@@ -13,7 +13,7 @@ from app.models.position import LoanInsuranceRule, LoanMovement
 from app.models.transaction import Transaction, TransactionType
 from app.services.loan_insurance import insurance_key, link_insurance_transaction
 from app.services.loan_linking import link_all_unlinked
-from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node, legacy_category_for
+from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 
 LIFE_SLUG = "insurances.home.life-insurance-house-loan"
 BUILDING_SLUG = "insurances.home.building-insurance-house-loan"
@@ -89,7 +89,6 @@ def test_amount_match_links_files_and_creates_the_rule(session, tree):
     session.refresh(t)
     node = get_node(session, BUILDING_SLUG)
     assert t.debt_id == debt.id and t.category_id == node.id and t.debt_candidate_reviewed is True
-    assert t.category == legacy_category_for(session, node)  # node + legacy category agree
     rule = session.exec(select(LoanInsuranceRule)).one()
     assert (rule.debt_id, rule.component, rule.normalized_key) == (debt.id, "building", "seg edf")
 

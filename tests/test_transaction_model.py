@@ -1,5 +1,5 @@
 from app.models.document import Document, DocumentSource
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Transaction
 
 
 def test_create_and_read_transaction(session):
@@ -14,7 +14,6 @@ def test_create_and_read_transaction(session):
     transaction = Transaction(
         document_id=document.id,
         description="EDP",
-        category=Category.ELECTRICITY,
         amount=87.32,
         currency="EUR",
         statement_period="2026-08",
@@ -24,7 +23,7 @@ def test_create_and_read_transaction(session):
     session.refresh(transaction)
 
     assert transaction.id is not None
-    assert transaction.category == Category.ELECTRICITY
+    assert transaction.category_id is None and transaction.unused_old_category == "OTHER"  # the old list's column keeps its filler (B3)
     assert transaction.currency == "EUR"
 
 
@@ -41,8 +40,7 @@ def test_transaction_type_defaults_to_debit(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=87.32, currency="EUR", statement_period="2026-08",
+        document_id=document.id, description="EDP", amount=87.32, currency="EUR", statement_period="2026-08",
     )
     session.add(transaction)
     session.commit()
@@ -51,7 +49,7 @@ def test_transaction_type_defaults_to_debit(session):
     assert transaction.transaction_type == TransactionType.DEBIT
 
 
-def test_transaction_supports_new_category_and_credit_type(session):
+def test_transaction_supports_the_credit_type(session):
     document = Document(
         filename="statement.pdf", file_path="/tmp/statement.pdf",
         content_hash="hash3", source=DocumentSource.MANUAL,
@@ -61,15 +59,13 @@ def test_transaction_supports_new_category_and_credit_type(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, description="SALARIO EMPRESA X", category=Category.INCOME,
-        transaction_type=TransactionType.CREDIT, amount=2200.0, currency="EUR",
+        document_id=document.id, description="SALARIO EMPRESA X", transaction_type=TransactionType.CREDIT, amount=2200.0, currency="EUR",
         statement_period="2026-07",
     )
     session.add(transaction)
     session.commit()
     session.refresh(transaction)
 
-    assert transaction.category == Category.INCOME
     assert transaction.transaction_type == TransactionType.CREDIT
 
 
@@ -88,7 +84,7 @@ def test_transaction_links_to_account_commitment_and_debt(session):
     session.refresh(document)
 
     account = Account(name="Current Account", institution="Millennium BCP", currency="EUR", account_type=AccountType.CHECKING)
-    commitment = Commitment(name="IMI 2026", category=Category.HOME, cadence=Cadence.YEARLY, planned_amount=4800.0, year=2026)
+    commitment = Commitment(name="IMI 2026", cadence=Cadence.YEARLY, planned_amount=4800.0, year=2026)
     debt = Debt(kind=DebtKind.FORMAL, original_amount=142300.0, current_balance=142300.0)
     session.add_all([account, commitment, debt])
     session.commit()
@@ -99,7 +95,6 @@ def test_transaction_links_to_account_commitment_and_debt(session):
     transaction = Transaction(
         document_id=document.id,
         description="AT - IMI",
-        category=Category.HOME,
         amount=1600.0,
         currency="EUR",
         account_id=account.id,
@@ -128,8 +123,7 @@ def test_transaction_new_fields_default_to_none(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
-        amount=45.20, currency="EUR",
+        document_id=document.id, description="CONTINENTE", amount=45.20, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -151,8 +145,7 @@ def test_transaction_merchant_and_debt_review_fields_default_to_none(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
-        amount=30.0, currency="EUR",
+        document_id=document.id, description="CONTINENTE", amount=30.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -174,16 +167,14 @@ def test_transaction_links_to_merchant(session):
     session.refresh(document)
 
     merchant = Merchant(
-        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
-        normalized_key="modelo hiper",
+        canonical_name="Modelo Hiper", normalized_key="modelo hiper",
     )
     session.add(merchant)
     session.commit()
     session.refresh(merchant)
 
     transaction = Transaction(
-        document_id=document.id, description="MODELO HIPER MAFRA", category=Category.GROCERIES,
-        amount=45.0, currency="EUR", merchant_id=merchant.id,
+        document_id=document.id, description="MODELO HIPER MAFRA", amount=45.0, currency="EUR", merchant_id=merchant.id,
     )
     session.add(transaction)
     session.commit()

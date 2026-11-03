@@ -2,7 +2,7 @@ import io
 
 import app.domains.financials.handler as financials_handler
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 
 
 async def _fake_process(session, document):
@@ -66,13 +66,11 @@ def test_bill_detail_renders_multiple_transactions(client, session):
     session.refresh(document)
 
     session.add(Transaction(
-        document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
-        transaction_type=TransactionType.DEBIT, amount=40.0, currency="EUR",
+        document_id=document.id, description="CONTINENTE", transaction_type=TransactionType.DEBIT, amount=40.0, currency="EUR",
         statement_period="2026-08",
     ))
     session.add(Transaction(
-        document_id=document.id, description="SALARIO", category=Category.INCOME,
-        transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
+        document_id=document.id, description="SALARIO", transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
         statement_period="2026-08",
     ))
     session.commit()

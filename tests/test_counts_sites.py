@@ -18,7 +18,7 @@ from app.domains.financials.overview import financials_overview_card
 from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.domain import Domain
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.budget_service import get_budget_overview
 from app.services.overview_service import get_cash_kpi, get_category_comparison, get_overview_data
 from app.services.tag_service import ensure_tags, tag_totals
@@ -69,11 +69,18 @@ def _tool(name):
 
 # ---- Ask ----------------------------------------------------------------------------------------
 
+def _groceries(session):
+    """File each row on the groceries leaf, as the classifier would."""
+    ensure_taxonomy(session)
+    node = get_node(session, "food.groceries.supermarket")
+    return lambda t: file_transaction(session, t, node)
+
+
 def test_ask_spending_total_counts_only_rows_that_count(session, doc):
-    five(session, doc, category=Category.GROCERIES)
+    five(session, doc, post=_groceries(session))
     out = _tool("financials_spending").run(session, {"date_from": "2026-10-01", "date_to": "2026-10-31"})
     assert "total €11.00" in out.text
-    assert "groceries: €11.00 (2 payments)" in out.text
+    assert "Food › Groceries: €11.00 (2 payments)" in out.text
 
 
 def test_ask_find_transactions_lists_only_rows_that_count(session, doc):
@@ -123,14 +130,14 @@ def test_overview_yearly_commitments_actual_total(session, doc):
 
 
 def test_overview_where_it_went_category_comparison(session, doc):
-    five(session, doc, category=Category.GROCERIES, paid_date=date(2026, 10, 5))
+    five(session, doc, post=_groceries(session), paid_date=date(2026, 10, 5))
     rows = get_category_comparison(session, date(2026, 10, 15))
-    assert {r.category: r.current_value for r in rows} == {"groceries": RIGHT}
+    assert {r.category: r.current_value for r in rows} == {"Food": RIGHT}
 
 
 def test_overview_page_shows_the_right_figures(client, session, doc):
     """Through the page, with today's date: the Financials card and the Expenses card."""
-    five(session, doc, scale=100.0, paid_date=date.today(), category=Category.GROCERIES)
+    five(session, doc, scale=100.0, paid_date=date.today())
     html = client.get("/").text
     assert "Spent this month: €1,100.00" in html
     expenses = re.search(r"Expenses.*?fc-card-val\">€([\d,]+)<", html, re.S)

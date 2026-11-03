@@ -14,13 +14,13 @@ from app.domains.base import DomainHandler
 from app.domains.fields import dump_fields, load_fields
 from app.domains.financials.categories import FinancialsCategory
 from app.models.document import Document, DocumentStatus
+from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.position import PositionExtraction
 from app.models.todo import Todo
 from app.models.transaction import StatementCheck, Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.debt_ledger import detach_entries_for_transactions
-from app.services.categorization import normalize_category
 from app.services.classification_engine import classify_transaction
 from app.services.dedup import find_duplicate_transaction
 from app.services.document_reconcile import reconcile_quietly
@@ -36,18 +36,35 @@ from app.services.statement_check import apply_statement_check
 from app.services.position_store import (
     detach_positions, process_loan_history_document, process_positions_document,
 )
+from app.services.taxonomy import path_label
 from app.services.todo_engine import generate_todo_for_transaction
 from app.services.wiki_engine import ingest_into_wiki
 
-_UTILITY_CATEGORY_VALUES = {t.value for t in UtilityType}
+# The tree leaves whose bills carry a meter reading (work-list B3: read from the tree, not the old flat list).
+_UTILITY_LEAVES = {f"housing.utilities.{t.value}": t for t in UtilityType}
 
 
-def _wiki_context(transaction: Transaction) -> str:
+def _node(session: Session, transaction: Transaction) -> Optional[CategoryNode]:
+    return session.get(CategoryNode, transaction.category_id) if transaction.category_id else None
+
+
+def _utility_type(session: Session, transaction: Transaction, hint: str) -> Optional[UtilityType]:
+    """The bill's utility, from where it is filed on the tree. A bill still in Unsorted falls back on the
+    reader's own word for it (electricity, water, telecom)."""
+    node = _node(session, transaction)
+    if node is not None and not node.slug.startswith("unsorted"):
+        return _UTILITY_LEAVES.get(node.slug)
+    word = (hint or "").strip().lower()
+    return next((t for t in UtilityType if t.value == word), None)
+
+
+def _wiki_context(session: Session, transaction: Transaction) -> str:
     # Text-only context (no file) -- the same cheap input the pre-knowledge-
     # layer wiki assessment used.
+    node = _node(session, transaction)
     return (
         f"Provider: {transaction.description}\n"
-        f"Category: {transaction.category.value}\n"
+        f"Category: {path_label(session, node) if node is not None else 'not filed yet'}\n"
         f"Statement period: {transaction.statement_period}\n"
     )
 
@@ -178,7 +195,6 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     transaction = Transaction(
         document_id=document.id,
         description=extracted.provider,
-        category=normalize_category(extracted.category_hint),
         transaction_type=TransactionType.DEBIT,
         amount=extracted.amount,
         currency=extracted.currency,
@@ -203,12 +219,13 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
         print(f"classification failed for transaction {transaction.id}: {exc}")
 
     utility_detail_failure_reason = None
-    if transaction.category.value in _UTILITY_CATEGORY_VALUES:
+    utility = _utility_type(session, transaction, extracted.category_hint)
+    if utility is not None:
         try:
-            detail = await extract_utility_detail(document.file_path, transaction.category.value)
+            detail = await extract_utility_detail(document.file_path, utility.value)
             reading = UtilityReading(
                 document_id=document.id,
-                utility_type=UtilityType(transaction.category.value),
+                utility_type=utility,
                 period_label=detail.period_label,
                 billing_period_start=detail.billing_period_start,
                 billing_period_end=detail.billing_period_end,
@@ -240,7 +257,7 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
 
     try:
         generate_todo_for_transaction(session, transaction)
-        await ingest_into_wiki(session, document, context=_wiki_context(transaction))
+        await ingest_into_wiki(session, document, context=_wiki_context(session, transaction))
     except Exception as exc:
         # The Transaction is already safely committed at this point — an
         # enrichment failure (todo generation or the wiki's Claude call /
@@ -301,7 +318,6 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
             transaction = Transaction(
                 document_id=document.id,
                 description=item.description,
-                category=normalize_category(item.category_hint),
                 transaction_type=TransactionType(item.transaction_type.strip().lower()),
                 amount=abs(item.amount),
                 currency=item.currency,

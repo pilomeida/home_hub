@@ -50,7 +50,6 @@ from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.transaction import Transaction, TransactionType
-from app.services.categorization import normalize_category
 from app.privacy.scope import privacy_scope
 from app.services.extraction import extract_statement_transactions
 from app.services.storage import save_upload
@@ -147,7 +146,6 @@ async def backfill() -> None:
                     transaction = Transaction(
                         document_id=document.id,
                         description=item.description,
-                        category=normalize_category(item.category_hint),
                         transaction_type=TransactionType(item.transaction_type.strip().lower()),
                         amount=abs(item.amount),
                         currency=item.currency,

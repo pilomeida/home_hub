@@ -6,7 +6,7 @@ import pytest
 from sqlmodel import select
 
 from app.models.document import Document, DocumentSource
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.tag_service import ensure_tags, tag_totals
 from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 
@@ -25,8 +25,7 @@ def test_tag_totals_aggregates_spending_by_tag(session):
 
     # Add some insurance transactions
     txn1 = Transaction(
-        document_id=doc.id, description="Car Insurance", category=Category.OTHER,
-        transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
+        document_id=doc.id, description="Car Insurance", transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
     session.add(txn1)
@@ -61,8 +60,7 @@ def test_tag_totals_in_overview_data(session):
     session.commit()
 
     txn = Transaction(
-        document_id=doc.id, description="Insurance", category=Category.OTHER,
-        transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
+        document_id=doc.id, description="Insurance", transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
     session.add(txn)
@@ -91,8 +89,7 @@ def test_tag_totals_by_period(session):
 
     # Add insurance from current month
     txn_current = Transaction(
-        document_id=doc.id, description="Insurance", category=Category.OTHER,
-        transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
+        document_id=doc.id, description="Insurance", transaction_type=TransactionType.DEBIT, amount=100.0, currency="EUR",
         paid_date=date(2026, 10, 5)
     )
     session.add(txn_current)
@@ -102,8 +99,7 @@ def test_tag_totals_by_period(session):
 
     # Add insurance from previous month
     txn_prev = Transaction(
-        document_id=doc.id, description="Insurance", category=Category.OTHER,
-        transaction_type=TransactionType.DEBIT, amount=80.0, currency="EUR",
+        document_id=doc.id, description="Insurance", transaction_type=TransactionType.DEBIT, amount=80.0, currency="EUR",
         paid_date=date(2026, 9, 5)
     )
     session.add(txn_prev)
@@ -113,8 +109,7 @@ def test_tag_totals_by_period(session):
 
     # Add insurance from last year
     txn_last_year = Transaction(
-        document_id=doc.id, description="Insurance", category=Category.OTHER,
-        transaction_type=TransactionType.DEBIT, amount=90.0, currency="EUR",
+        document_id=doc.id, description="Insurance", transaction_type=TransactionType.DEBIT, amount=90.0, currency="EUR",
         paid_date=date(2025, 11, 5)
     )
     session.add(txn_last_year)
@@ -148,8 +143,7 @@ def test_dashboard_renders_the_by_tag_panel_with_links_and_amounts(client, sessi
     doc = Document(filename="d.pdf", file_path="/tmp/d.pdf", content_hash="dash-tag", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
     today = _date.today()
-    t = Transaction(document_id=doc.id, description="Seguro Carro", category=Category.OTHER,
-                    transaction_type=TransactionType.DEBIT, amount=321.0, paid_date=today)
+    t = Transaction(document_id=doc.id, description="Seguro Carro", transaction_type=TransactionType.DEBIT, amount=321.0, paid_date=today)
     session.add(t); session.commit()
     file_transaction(session, t, get_node(session, "insurances.cars.car-insurance")); session.commit()
 

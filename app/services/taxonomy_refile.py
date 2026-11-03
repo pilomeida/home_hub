@@ -9,13 +9,11 @@ from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import UNSORTED_SLUG, auto_fits, file_transaction, get_node
-from app.services.taxonomy_seed import LEGACY_TO_SLUG
 
 
 @dataclass
 class RefileReport:
     filed_from_merchant: int = 0
-    filed_from_legacy: int = 0
     sent_to_review: int = 0
     already_filed: int = 0
 
@@ -23,29 +21,15 @@ class RefileReport:
 def refile_all(session: Session, dry_run: bool = True) -> RefileReport:
     report = RefileReport()
     unsorted = get_node(session, UNSORTED_SLUG)
-    # Pre-pass: a confirmed merchant with no node gets one from the MERCHANT's own
-    # legacy value only (never from a transaction), so row order cannot matter.
-    derived: dict[int, int] = {}
-    for m in session.exec(select(Merchant).where(
-            Merchant.confirmed == True, Merchant.default_category_id.is_(None))).all():  # noqa: E712
-        slug = LEGACY_TO_SLUG.get(m.default_category)
-        if slug:
-            derived[m.id] = get_node(session, slug).id
-            if not dry_run:
-                m.default_category_id = derived[m.id]
-                session.add(m)
     # keeps held rows: migration refiles every row so a held line is right once confirmed
     for t in session.exec(select(Transaction)).all():
         if t.category_id is not None:
             report.already_filed += 1
             continue
         merchant = session.get(Merchant, t.merchant_id) if t.merchant_id else None
-        merchant_node_id = (merchant.default_category_id or derived.get(merchant.id)) if (
-            merchant and merchant.confirmed) else None
+        merchant_node_id = merchant.default_category_id if (merchant and merchant.confirmed) else None
         if merchant_node_id:
             node, bucket = session.get(CategoryNode, merchant_node_id), "filed_from_merchant"
-        elif LEGACY_TO_SLUG.get(t.category):
-            node, bucket = get_node(session, LEGACY_TO_SLUG[t.category]), "filed_from_legacy"
         else:
             node, bucket = unsorted, "sent_to_review"
         if not auto_fits(session, t, node):
@@ -133,7 +117,7 @@ async def _reclassify_unsorted(
     is counted and skipped; ABORT_AFTER_CONSECUTIVE_FAILURES in a row abort."""
     from app.llm_gateway import get_gateway
     from app.services.classification_engine import (
-        MerchantResolutionError, ask_merchant_llm, candidate_slugs, legacy_category_for,
+        MerchantResolutionError, ask_merchant_llm, candidate_slugs,
     )
 
     concurrency = max(1, min(MAX_CONCURRENCY, concurrency))
@@ -150,7 +134,6 @@ async def _reclassify_unsorted(
         select(Merchant).where(Merchant.id.in_(list(by_merchant)))).all()} if by_merchant else {}
 
     # Prepare every work item up front, from data loaded once.
-    legacy_items: list[tuple[int, str]] = []
     llm_items: list[_WorkItem] = []
     for merchant_id, group in by_merchant.items():
         merchant = merchants.get(merchant_id)
@@ -160,17 +143,12 @@ async def _reclassify_unsorted(
             continue  # Pedro's own decisions are never touched; rows stay Unsorted
         if only_undecided and merchant.default_category_id is not None:
             continue  # a merchant that already has a node is for reconcile, not for the model
-        legacy_slug = LEGACY_TO_SLUG.get(merchant.default_category) if merchant.confirmed else None
-        if legacy_slug:
-            legacy_items.append((merchant_id, legacy_slug))
-        else:
-            llm_items.append(_WorkItem(
-                merchant_id, group[0].description,
-                any(t.transaction_type == TransactionType.CREDIT for t in group), len(group)))
+        llm_items.append(_WorkItem(
+            merchant_id, group[0].description,
+            any(t.transaction_type == TransactionType.CREDIT for t in group), len(group)))
     order = lambda mid: (-len(by_merchant[mid]), merchants[mid].canonical_name or "", mid)  # noqa: E731
-    legacy_items.sort(key=lambda x: order(x[0]))
     llm_items.sort(key=lambda w: order(w.merchant_id))
-    total = len(legacy_items) + len(llm_items)
+    total = len(llm_items)
     done = 0
 
     def tick(final: bool = False) -> None:
@@ -182,11 +160,9 @@ async def _reclassify_unsorted(
                  f"still unsorted {report.still_unsorted}, failed {report.failed}, "
                  f"transactions filed {report.transactions_filed}")
 
-    def file_group(merchant_id: int, node, legacy_category=None) -> None:
+    def file_group(merchant_id: int, node) -> None:
         merchant = merchants[merchant_id]
         merchant.default_category_id = node.id
-        if legacy_category is not None:
-            merchant.default_category = legacy_category
         session.add(merchant)
         group = by_merchant[merchant_id]
         fitting = [t for t in group if auto_fits(session, t, node)]
@@ -196,10 +172,6 @@ async def _reclassify_unsorted(
         report.transactions_filed += len(fitting)
         report.still_unsorted += len(group) - len(fitting)
         session.commit()
-
-    for merchant_id, slug in legacy_items:  # no LLM: his legacy category is the decision
-        file_group(merchant_id, get_node(session, slug))
-        tick()
 
     if llm_items:
         slugs = candidate_slugs(session)
@@ -253,7 +225,7 @@ async def _reclassify_unsorted(
                     report.still_unsorted += len(by_merchant[item.merchant_id])
                 else:
                     node = get_node(session, node_slug)
-                    file_group(item.merchant_id, node, legacy_category_for(session, node))
+                    file_group(item.merchant_id, node)
                 tick()
         finally:
             for task in tasks:

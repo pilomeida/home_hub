@@ -15,7 +15,7 @@ from app.domains.health.store import apply_extraction
 from app.models.document import Document
 from app.models.domain import Domain
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.privacy import settings as ps
 from app.privacy.ratchet import RatchetLog
 from app.privacy.scope import reachable_scope

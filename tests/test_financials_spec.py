@@ -9,7 +9,7 @@ from app.domains.financials.overview import financials_overview_card
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.extraction import ExtractedStatement
 from app.services.ingestion import Classification, IncomingFile, ingest
 
@@ -45,10 +45,8 @@ def test_overview_card_reports_spend_and_attention(session):
     session.add(broken)
     session.commit()
     session.refresh(document)
-    session.add(Transaction(document_id=document.id, description="CONTINENTE", category=Category.GROCERIES,
-                            transaction_type=TransactionType.DEBIT, amount=40.0, paid_date=date(2026, 9, 3)))
-    session.add(Transaction(document_id=document.id, description="OLD", category=Category.GROCERIES,
-                            transaction_type=TransactionType.DEBIT, amount=99.0, paid_date=date(2026, 8, 3)))
+    session.add(Transaction(document_id=document.id, description="CONTINENTE", transaction_type=TransactionType.DEBIT, amount=40.0, paid_date=date(2026, 9, 3)))
+    session.add(Transaction(document_id=document.id, description="OLD", transaction_type=TransactionType.DEBIT, amount=99.0, paid_date=date(2026, 8, 3)))
     session.commit()
 
     card = financials_overview_card(session, date(2026, 9, 24))

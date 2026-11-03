@@ -139,12 +139,13 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
 
     # The Overview screen (built in this branch's later tasks) now renders
     # real finance content on the home page -- the ingested statement's
-    # groceries spend shows up in the category-comparison table (as last
-    # month's rolling-average contribution, since last_month_date falls
-    # outside the current, still-empty month-to-date bucket).
+    # spend shows up in the category-comparison table (as last month's
+    # rolling-average contribution, since last_month_date falls outside the
+    # current, still-empty month-to-date bucket). Classification is stubbed,
+    # so the lines are not filed on the tree yet: they show as Unsorted.
     dashboard_response = client.get("/")
     assert dashboard_response.status_code == 200
-    assert "groceries" in dashboard_response.text.lower()
+    assert "unsorted" in dashboard_response.text.lower()
 
     todos_response = client.get("/todos")
     assert "CONTINENTE" not in todos_response.text

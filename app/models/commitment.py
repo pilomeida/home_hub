@@ -6,9 +6,8 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Column, String
 from sqlmodel import Field, SQLModel
-
-from app.models.transaction import Category
 
 
 class Cadence(str, Enum):
@@ -23,7 +22,10 @@ class Commitment(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    category: Category = Field(default=Category.OTHER)
+    # Where it sits on the spending tree, like the lines that pay it (work-list B3).
+    category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id")
+    # The old flat spending list (column `category`): unused, kept in the table and NOT NULL.
+    unused_old_category: str = Field(default="OTHER", sa_column=Column("category", String(14), nullable=False))
     cadence: Cadence
     planned_amount: float
     year: Optional[int] = None

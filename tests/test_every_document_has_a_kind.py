@@ -12,7 +12,7 @@ from app.models.account import Account
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.schedule import ProblemEntry
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Transaction
 from app.problems import explain
 from app.services import ingestion
 from tests.domain_fakes import RecordingHandler, make_fake_spec
@@ -44,7 +44,7 @@ def live_like(session):
         "unclear": _doc(session, "something.pdf", DocumentStatus.NEEDS_ATTENTION),
         "dental": _doc(session, "FR_3_B_0000059724.pdf", DocumentStatus.PROCESSED, domain=Domain.HEALTH, category="medical_bill"),
     }
-    session.add(Transaction(document_id=docs["metlife"].id, description="MetLife", category=Category.INSURANCE, amount=109.64,
+    session.add(Transaction(document_id=docs["metlife"].id, description="MetLife", amount=109.64,
                             currency="EUR"))
     session.commit()
     return docs, santander, revolut

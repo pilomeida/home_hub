@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.models.transaction import Category, Nature
+from app.models.transaction import Nature
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from app.services.classification_engine import (
     ClassificationResult,
@@ -73,7 +73,6 @@ async def test_resolve_merchant_via_llm_parses_valid_response(session):
     assert isinstance(result, ResolvedMerchant)
     assert result.canonical_name == "Modelo Hiper"
     assert result.node_slug == "food.groceries.supermarket"
-    assert result.category == Category.GROCERIES
     assert result.nature == Nature.ESSENTIAL
     # the prompt lists the leaf slugs and the schema enum is exactly that list,
     # minus the nodes only the loan-insurance linker may use
@@ -122,8 +121,7 @@ async def test_classify_transaction_reuses_existing_merchant(session):
     from app.models.transaction import Transaction
 
     merchant = Merchant(
-        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
-        default_nature=Nature.ESSENTIAL, normalized_key="modelo hiper",
+        canonical_name="Modelo Hiper", default_nature=Nature.ESSENTIAL, normalized_key="modelo hiper",
     )
     session.add(merchant)
     session.commit()
@@ -139,7 +137,7 @@ async def test_classify_transaction_reuses_existing_merchant(session):
 
     transaction = Transaction(
         document_id=document.id, description="MODELO HIPER MAFRA",
-        category=Category.GROCERIES, amount=42.0, currency="EUR",
+        amount=42.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -172,7 +170,7 @@ async def test_classify_transaction_creates_new_merchant_via_llm_fallback(sessio
 
     transaction = Transaction(
         document_id=document.id, description="LOJA NOVA DESCONHECIDA",
-        category=Category.OTHER_EXPENSE, amount=15.0, currency="EUR",
+        amount=15.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -211,15 +209,13 @@ async def test_classify_transaction_inherits_account_id_from_document(session):
     session.refresh(document)
 
     merchant = Merchant(
-        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
-        normalized_key="modelo hiper",
+        canonical_name="Modelo Hiper", normalized_key="modelo hiper",
     )
     session.add(merchant)
     session.commit()
 
     transaction = Transaction(
-        document_id=document.id, description="MODELO HIPER", category=Category.GROCERIES,
-        amount=20.0, currency="EUR",
+        document_id=document.id, description="MODELO HIPER", amount=20.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -255,15 +251,13 @@ async def test_classify_transaction_does_not_overwrite_existing_account_id(sessi
     session.refresh(document)
 
     merchant = Merchant(
-        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
-        normalized_key="modelo hiper",
+        canonical_name="Modelo Hiper", normalized_key="modelo hiper",
     )
     session.add(merchant)
     session.commit()
 
     transaction = Transaction(
-        document_id=document.id, description="MODELO HIPER", category=Category.GROCERIES,
-        amount=20.0, currency="EUR", account_id=account_b.id,
+        document_id=document.id, description="MODELO HIPER", amount=20.0, currency="EUR", account_id=account_b.id,
     )
     session.add(transaction)
     session.commit()
@@ -282,8 +276,7 @@ async def test_classify_transaction_does_not_overwrite_existing_nature(session):
     from app.models.transaction import Transaction
 
     merchant = Merchant(
-        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
-        default_nature=Nature.ESSENTIAL, normalized_key="modelo hiper nature guard",
+        canonical_name="Modelo Hiper", default_nature=Nature.ESSENTIAL, normalized_key="modelo hiper nature guard",
     )
     session.add(merchant)
     session.commit()
@@ -299,7 +292,7 @@ async def test_classify_transaction_does_not_overwrite_existing_nature(session):
 
     transaction = Transaction(
         document_id=document.id, description="MODELO HIPER NATURE GUARD",
-        category=Category.GROCERIES, amount=20.0, currency="EUR",
+        amount=20.0, currency="EUR",
         nature=Nature.DISCRETIONARY,
     )
     session.add(transaction)
@@ -331,7 +324,7 @@ async def test_classify_transaction_does_not_commit_internally(session):
 
     transaction = Transaction(
         document_id=document.id, description="LOJA NOVA DESCONHECIDA",
-        category=Category.OTHER_EXPENSE, amount=15.0, currency="EUR",
+        amount=15.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -358,8 +351,7 @@ def test_detect_recurring_candidates_flags_three_consecutive_similar_months(sess
     from app.services.classification_engine import detect_recurring_candidates
 
     merchant = Merchant(
-        canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS,
-        normalized_key="netflix",
+        canonical_name="Netflix", normalized_key="netflix",
     )
     session.add(merchant)
     session.commit()
@@ -374,8 +366,7 @@ def test_detect_recurring_candidates_flags_three_consecutive_similar_months(sess
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, description="NETFLIX", category=Category.SUBSCRIPTIONS,
-            amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
+            document_id=document.id, description="NETFLIX", amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
 
@@ -391,8 +382,7 @@ def test_detect_recurring_candidates_skips_already_reviewed_merchant(session):
     from app.services.classification_engine import detect_recurring_candidates
 
     merchant = Merchant(
-        canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS,
-        normalized_key="netflix-reviewed", recurring_reviewed=True,
+        canonical_name="Netflix", normalized_key="netflix-reviewed", recurring_reviewed=True,
     )
     session.add(merchant)
     session.commit()
@@ -407,8 +397,7 @@ def test_detect_recurring_candidates_skips_already_reviewed_merchant(session):
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, description="NETFLIX", category=Category.SUBSCRIPTIONS,
-            amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
+            document_id=document.id, description="NETFLIX", amount=12.99, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
 
@@ -424,8 +413,7 @@ def test_detect_recurring_candidates_ignores_two_month_run(session):
     from app.services.classification_engine import detect_recurring_candidates
 
     merchant = Merchant(
-        canonical_name="One-off Shop", default_category=Category.SHOPPING,
-        normalized_key="one-off shop",
+        canonical_name="One-off Shop", normalized_key="one-off shop",
     )
     session.add(merchant)
     session.commit()
@@ -440,8 +428,7 @@ def test_detect_recurring_candidates_ignores_two_month_run(session):
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, description="ONE-OFF SHOP", category=Category.SHOPPING,
-            amount=30.0, currency="EUR", statement_period=period, merchant_id=merchant.id,
+            document_id=document.id, description="ONE-OFF SHOP", amount=30.0, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
 
@@ -457,8 +444,7 @@ def test_detect_recurring_candidates_ignores_run_with_dissimilar_amounts(session
     from app.services.classification_engine import detect_recurring_candidates
 
     merchant = Merchant(
-        canonical_name="Groceries Chain", default_category=Category.GROCERIES,
-        normalized_key="groceries chain",
+        canonical_name="Groceries Chain", normalized_key="groceries chain",
     )
     session.add(merchant)
     session.commit()
@@ -474,8 +460,7 @@ def test_detect_recurring_candidates_ignores_run_with_dissimilar_amounts(session
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, description="GROCERIES CHAIN", category=Category.GROCERIES,
-            amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
+            document_id=document.id, description="GROCERIES CHAIN", amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
 
@@ -491,8 +476,7 @@ def test_detect_recurring_candidates_flags_four_month_alternating_amounts(sessio
     from app.services.classification_engine import detect_recurring_candidates
 
     merchant = Merchant(
-        canonical_name="Alternating Service", default_category=Category.SUBSCRIPTIONS,
-        normalized_key="alternating-service",
+        canonical_name="Alternating Service", normalized_key="alternating-service",
     )
     session.add(merchant)
     session.commit()
@@ -508,8 +492,7 @@ def test_detect_recurring_candidates_flags_four_month_alternating_amounts(sessio
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, description="ALTERNATING SERVICE", category=Category.SUBSCRIPTIONS,
-            amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
+            document_id=document.id, description="ALTERNATING SERVICE", amount=amount, currency="EUR", statement_period=period, merchant_id=merchant.id,
         ))
     session.commit()
 
@@ -534,7 +517,7 @@ def test_detect_debt_candidates_flags_person_transfer_above_threshold(session):
     transaction = Transaction(
         document_id=document.id,
         description="TRF CRED SEPA+ P/ EDUARDO MANUEL DA SILVA-17471463",
-        category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
+        amount=5000.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -560,7 +543,7 @@ def test_detect_debt_candidates_ignores_small_amount(session):
 
     transaction = Transaction(
         document_id=document.id, description="TRF MBWAY P/ JOAO SANTOS",
-        category=Category.OTHER_EXPENSE, amount=20.0, currency="EUR",
+        amount=20.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -586,7 +569,7 @@ def test_detect_debt_candidates_ignores_grocery_category(session):
 
     transaction = Transaction(
         document_id=document.id, description="MODELO HIPER MAFRA",
-        category=Category.GROCERIES, amount=600.0, currency="EUR",
+        amount=600.0, currency="EUR",
     )
     session.add(transaction)
     session.commit()
@@ -595,6 +578,33 @@ def test_detect_debt_candidates_ignores_grocery_category(session):
     candidates = detect_debt_candidates(session)
 
     assert transaction.id not in [t.id for t in candidates]
+
+
+def test_detect_debt_candidates_go_by_the_tree(session):
+    """A transfer to a person filed where such a payment sits (not filed yet, internal transfers, loans, family,
+    cash) is a candidate; the same text filed under a purpose such as groceries is not (work-list B3)."""
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import detect_debt_candidates
+    from app.services.taxonomy import file_transaction
+
+    ensure_taxonomy(session)
+    document = Document(filename="tree.pdf", file_path="/tmp/tree.pdf", content_hash="hash-tree-debt",
+                        source=DocumentSource.MANUAL)
+    session.add(document); session.commit()
+    filed = {}
+    for leaf in ("internal-transfers.between-my-accounts.santander-revolut", "food.groceries.supermarket", None):
+        t = Transaction(document_id=document.id, description=f"TRF CRED SEPA+ P/ ANA COSTA {leaf}", amount=900.0)
+        session.add(t); session.commit()
+        if leaf:
+            file_transaction(session, t, get_node(session, leaf)); session.commit()
+        filed[leaf] = t.id
+
+    candidates = {t.id for t in detect_debt_candidates(session)}
+
+    assert filed["internal-transfers.between-my-accounts.santander-revolut"] in candidates
+    assert filed[None] in candidates
+    assert filed["food.groceries.supermarket"] not in candidates
 
 
 def test_detect_debt_candidates_skips_already_reviewed(session):
@@ -613,7 +623,7 @@ def test_detect_debt_candidates_skips_already_reviewed(session):
     transaction = Transaction(
         document_id=document.id,
         description="TRF CRED SEPA+ P/ MARIA COSTA",
-        category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
+        amount=5000.0, currency="EUR",
         debt_candidate_reviewed=True,
     )
     session.add(transaction)
@@ -632,16 +642,14 @@ def test_get_needs_review_queue_aggregates_all_three_categories(session):
     from app.services.classification_engine import get_needs_review_queue
 
     unconfirmed = Merchant(
-        canonical_name="New Shop", default_category=Category.SHOPPING,
-        normalized_key="new shop",
+        canonical_name="New Shop", normalized_key="new shop",
     )
     session.add(unconfirmed)
     session.commit()
     session.refresh(unconfirmed)
 
     recurring_merchant = Merchant(
-        canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS,
-        normalized_key="netflix-queue", confirmed=True,
+        canonical_name="Netflix", normalized_key="netflix-queue", confirmed=True,
     )
     session.add(recurring_merchant)
     session.commit()
@@ -655,8 +663,7 @@ def test_get_needs_review_queue_aggregates_all_three_categories(session):
         session.commit()
         session.refresh(document)
         session.add(Transaction(
-            document_id=document.id, description="NETFLIX", category=Category.SUBSCRIPTIONS,
-            amount=12.99, currency="EUR", statement_period=period,
+            document_id=document.id, description="NETFLIX", amount=12.99, currency="EUR", statement_period=period,
             merchant_id=recurring_merchant.id,
         ))
     session.commit()
@@ -670,7 +677,7 @@ def test_get_needs_review_queue_aggregates_all_three_categories(session):
     session.refresh(debt_document)
     debt_transaction = Transaction(
         document_id=debt_document.id, description="TRF CRED SEPA+ P/ ANA PEREIRA",
-        category=Category.OTHER_EXPENSE, amount=5000.0, currency="EUR",
+        amount=5000.0, currency="EUR",
     )
     session.add(debt_transaction)
     session.commit()
@@ -698,7 +705,7 @@ def test_get_needs_review_queue_includes_unclassified_transactions(session):
 
     unclassified_transaction = Transaction(
         document_id=document.id, description="UNRESOLVABLE PROVIDER",
-        category=Category.OTHER, amount=25.0, currency="EUR", merchant_id=None,
+        amount=25.0, currency="EUR", merchant_id=None,
     )
     session.add(unclassified_transaction)
     session.commit()
@@ -717,8 +724,7 @@ def _txn(session, provider, ttype=None, amount=15.0, hash_=None):
                         content_hash=hash_ or f"h5-{provider}", source=DocumentSource.MANUAL)
     session.add(document)
     session.commit()
-    t = Transaction(document_id=document.id, description=provider, category=Category.OTHER,
-                    transaction_type=ttype or TransactionType.DEBIT, amount=amount, currency="EUR")
+    t = Transaction(document_id=document.id, description=provider, transaction_type=ttype or TransactionType.DEBIT, amount=amount, currency="EUR")
     session.add(t)
     session.commit()
     session.refresh(t)
@@ -739,17 +745,17 @@ async def test_classify_files_new_merchant_under_tree_leaf(session):
     fuel = get_node(session, "transport.car-running-costs.fuel")
     assert result.merchant.default_category_id == fuel.id
     assert t.category_id == fuel.id
-    assert t.category == Category.OTHER_EXPENSE  # dual-write via kind default (fuel has no legacy value)
 
 
 @pytest.mark.asyncio
-async def test_classify_dual_writes_legacy_on_merchant_and_transaction(session):
+async def test_classify_writes_only_the_tree(session):
+    """The old flat list is no longer written (work-list B3): its columns keep their filler."""
     ensure_taxonomy(session)
     t = _txn(session, "MODELO")
     result = await classify_transaction(
         session, t, gateway=_reply("food.groceries.supermarket", "Modelo"))
-    assert t.category == Category.GROCERIES
-    assert result.merchant.default_category == Category.GROCERIES
+    assert t.category_id == result.merchant.default_category_id == get_node(session, "food.groceries.supermarket").id
+    assert t.unused_old_category == result.merchant.unused_old_category == "OTHER"
 
 
 @pytest.mark.asyncio
@@ -786,7 +792,7 @@ async def test_classify_existing_merchant_without_node_is_not_filed(session):
     from app.models.merchant import Merchant
 
     ensure_taxonomy(session)
-    session.add(Merchant(canonical_name="Old", normalized_key="old", default_category=Category.GROCERIES))
+    session.add(Merchant(canonical_name="Old", normalized_key="old"))
     session.commit()
     t = _txn(session, "OLD")
     await classify_transaction(session, t, gateway=_fake_merchant_gateway("{}"))
@@ -950,14 +956,13 @@ async def _classify_with_rule(session, direction, ttype, amount=100.0):
     provider = "TRF SEPA+ P/ TEST PERSON"
     debt = create_informal_debt(session, "Test Person", direction, opening_amount=1000.0)
     session.add(DebtMatchRule(debt_id=debt.id, normalized_key=normalize_provider(provider)))
-    session.add(Merchant(canonical_name="Test Person", default_category=Category.OTHER_EXPENSE,
-                         default_nature=Nature.ESSENTIAL, normalized_key=normalize_provider(provider),
+    session.add(Merchant(canonical_name="Test Person", default_nature=Nature.ESSENTIAL, normalized_key=normalize_provider(provider),
                          default_category_id=get_node(session, UNSORTED_SLUG).id))
     doc = Document(filename="ac.pdf", file_path="/tmp/ac.pdf", content_hash=f"ac-{direction}-{ttype}", source=DocumentSource.MANUAL)
     session.add(doc)
     session.commit()
     txn = Transaction(document_id=doc.id, description=provider, amount=amount, transaction_type=ttype,
-                      category=Category.OTHER_EXPENSE, paid_date=date(2026, 2, 1))
+                      paid_date=date(2026, 2, 1))
     session.add(txn)
     session.commit()
     await classify_transaction(session, txn, gateway=_fake_merchant_gateway("{}"))

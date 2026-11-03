@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
-from app.services.taxonomy import auto_fits, file_transaction, legacy_category_for
+from app.services.taxonomy import auto_fits, file_transaction
 
 
 @dataclass
@@ -35,7 +35,6 @@ def assign_category(session: Session, merchant_ids: list[int], node: CategoryNod
                 merchant.default_credit_category_id = node.id
             else:
                 merchant.default_category_id = node.id
-                merchant.default_category = legacy_category_for(session, node)
             if confirm:
                 merchant.confirmed = True
             session.add(merchant)

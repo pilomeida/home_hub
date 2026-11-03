@@ -159,7 +159,7 @@ def test_null_heavy_bill_response_parses_with_parser_defaults(tmp_path):
     assert bill.currency == "EUR"
     assert bill.amount == 0.0
     # category_hint: `data.get("category_hint", "other")` returns the null
-    # that IS present; normalize_category(None) downstream maps to OTHER.
+    # that IS present; downstream it names no utility, so only the tree decides.
     assert bill.category_hint is None
 
 # --- position extraction schemas: parser indexes only as_of / rows --------

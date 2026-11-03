@@ -1,31 +1,12 @@
-"""Transaction: an extracted line item from a Document, plus the controlled
-category vocabulary."""
+"""Transaction: an extracted line item from a Document. What a line was spent on is its place on the spending
+tree (`category_id`, glossary in docs/ARCHITECTURE.md)."""
 
 from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Column, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
-
-
-class Category(str, Enum):
-    ELECTRICITY = "electricity"
-    WATER = "water"
-    GAS = "gas"
-    TELECOM = "telecom"
-    INSURANCE = "insurance"
-    SUBSCRIPTIONS = "subscriptions"
-    GROCERIES = "groceries"
-    HEALTH = "health"
-    HOME = "home"
-    INCOME = "income"
-    TRANSFER = "transfer"
-    ATM_WITHDRAWAL = "atm_withdrawal"
-    RESTAURANTS = "restaurants"
-    SHOPPING = "shopping"
-    OTHER_EXPENSE = "other_expense"
-    OTHER = "other"
 
 
 class TransactionType(str, Enum):
@@ -46,7 +27,9 @@ class Transaction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     document_id: int = Field(foreign_key="documents.id", index=True)
     description: str
-    category: Category = Field(default=Category.OTHER)
+    # The column `category` held the old flat spending list, replaced by the tree (work-list B3, 2026-11-03).
+    # Nothing reads it; it stays in the table (additive-only migrations) and is NOT NULL, so new rows store "OTHER".
+    unused_old_category: str = Field(default="OTHER", sa_column=Column("category", String(14), nullable=False))
     category_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id", index=True)
     transaction_type: TransactionType = Field(
         default=TransactionType.DEBIT, sa_column_kwargs={"server_default": "DEBIT"}

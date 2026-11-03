@@ -417,14 +417,14 @@ async def test_match_rule_auto_link_reattaches_after_a_reupload(fk_session):
     from app.domains.financials.handler import FinancialsHandler
     from app.models.merchant import Merchant
     from app.models.position import DebtMatchRule
-    from app.models.transaction import Category, Nature
+    from app.models.transaction import Nature
     from app.services.classification_engine import classify_transaction, normalize_provider
 
     s = fk_session
     ensure_taxonomy(s)
     debt = ledger.create_informal_debt(s, "Test Person", LENT)
     s.add(DebtMatchRule(debt_id=debt.id, normalized_key=normalize_provider("TRF SEPA+ P/ TEST PERSON")))
-    s.add(Merchant(canonical_name="Test Person", default_category=Category.OTHER_EXPENSE, default_nature=Nature.ESSENTIAL,
+    s.add(Merchant(canonical_name="Test Person", default_nature=Nature.ESSENTIAL,
                    normalized_key=normalize_provider("TRF SEPA+ P/ TEST PERSON")))
     doc = _fk_stmt_doc(s)
     t = _fk_txn(s, doc, 400.0)

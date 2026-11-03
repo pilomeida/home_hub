@@ -6,7 +6,7 @@ from sqlmodel import select
 
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
 from app.domains.financials import handler as pipeline
@@ -83,7 +83,6 @@ async def test_process_financials_document_creates_transaction(session, monkeypa
     ).first()
     assert transaction is not None
     assert transaction.description == "EDP"
-    assert transaction.category == Category.ELECTRICITY
     assert transaction.amount == 87.32
     assert transaction.transaction_type == TransactionType.DEBIT
 
@@ -127,8 +126,7 @@ async def test_process_financials_document_skips_duplicate_transaction(session, 
     session.commit()
 
     session.add(Transaction(
-        document_id=existing_document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=87.32, currency="EUR", statement_period="2026-08",
+        document_id=existing_document.id, description="EDP", amount=87.32, currency="EUR", statement_period="2026-08",
     ))
     session.commit()
 
@@ -240,13 +238,10 @@ async def test_ingest_statement_creates_one_transaction_per_line_item(session, m
     ).all()
     assert len(transactions) == 3
     assert transactions[0].description == "CONTINENTE MAFRA"
-    assert transactions[0].category == Category.GROCERIES
     assert transactions[0].transaction_type == TransactionType.DEBIT
     assert transactions[0].statement_period == "2026-07"
     assert transactions[1].transaction_type == TransactionType.CREDIT
-    assert transactions[1].category == Category.INCOME
     assert transactions[2].transaction_type == TransactionType.TRANSFER
-    assert transactions[2].category == Category.TRANSFER
 
 
 @pytest.mark.asyncio
@@ -577,8 +572,7 @@ async def test_process_financials_document_bill_dedup_still_works_when_prior_doc
     session.commit()
 
     session.add(Transaction(
-        document_id=legacy_document.id, description="EDP", category=Category.ELECTRICITY,
-        transaction_type=TransactionType.DEBIT, amount=87.32, currency="EUR", statement_period="2026-07",
+        document_id=legacy_document.id, description="EDP", transaction_type=TransactionType.DEBIT, amount=87.32, currency="EUR", statement_period="2026-07",
     ))
     session.commit()
 
@@ -688,6 +682,53 @@ async def test_ingest_bill_creates_utility_reading_for_water_category(session, m
     assert reading is not None
     assert reading.utility_type == UtilityType.WATER
     assert reading.consumption_unit == "m3"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("leaf, hint, expected", [
+    ("housing.utilities.electricity", "other", UtilityType.ELECTRICITY),   # the tree decides, whatever the hint
+    ("food.groceries.supermarket", "electricity", None),                  # filed elsewhere: not a utility bill
+])
+async def test_the_bills_place_on_the_tree_decides_its_utility(session, monkeypatch, tmp_path, leaf, hint, expected):
+    """Work-list B3: the utility is read from where the bill is filed; the reader's word counts only while the
+    bill is still unsorted. Filed through the real classifier, from a known merchant (no model call)."""
+    from app.models.merchant import Merchant
+    from app.services.taxonomy import ensure_taxonomy, get_node
+
+    ensure_taxonomy(session)
+    session.add(Merchant(canonical_name="EDP", normalized_key="edp", confirmed=True,
+                         default_category_id=get_node(session, leaf).id))
+    session.commit()
+    monkeypatch.setattr(pipeline, "classify_transaction", _real_classify_transaction)
+    document = _make_document(session, tmp_path, filename="edp-tree.pdf", content_hash=f"hash-tree-{leaf}")
+
+    async def fake_extract_bill(file_path, gateway=None):
+        return ExtractedBill(provider="EDP", category_hint=hint, amount=85.0, currency="EUR",
+                             due_date=None, paid_date=None, statement_period="2026-07")
+
+    asked = []
+
+    async def fake_extract_utility_detail(file_path, utility_type, client=None):
+        asked.append(utility_type)
+        return ExtractedUtilityDetail(period_label="2026-07", billing_period_start=None, billing_period_end=None,
+                                      invoice_number=None, consumption_value=401.0, consumption_unit="kWh",
+                                      energy_cost=None, power_cost=None, fees_taxes_cost=None, vat_cost=None)
+
+    async def fake_ingest_into_wiki(session, document, context=None, **kwargs):
+        return None
+
+    monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)
+    monkeypatch.setattr(pipeline, "extract_bill", fake_extract_bill)
+    monkeypatch.setattr(pipeline, "extract_utility_detail", fake_extract_utility_detail)
+    monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
+
+    await pipeline.process_financials_document(session, document)
+
+    line = session.exec(select(Transaction).where(Transaction.document_id == document.id)).one()
+    assert line.category_id == get_node(session, leaf).id
+    reading = session.exec(select(UtilityReading).where(UtilityReading.document_id == document.id)).first()
+    assert (reading.utility_type if reading else None) == expected
+    assert asked == ([expected.value] if expected else [])
 
 
 @pytest.mark.asyncio
@@ -932,8 +973,7 @@ async def test_failed_statement_cleanup_keeps_informal_ledger_entries(fk_session
     key = normalize_provider("TRF SEPA+ P/ TEST PERSON")
     debt = debt_ledger.create_informal_debt(session, "Test Person", DebtDirection.OWED_TO_US, opening_amount=100.0)
     session.add(DebtMatchRule(debt_id=debt.id, normalized_key=key))
-    session.add(Merchant(canonical_name="Test Person", default_category=Category.OTHER_EXPENSE,
-                         default_nature=Nature.ESSENTIAL, normalized_key=key))
+    session.add(Merchant(canonical_name="Test Person", default_nature=Nature.ESSENTIAL, normalized_key=key))
     session.commit()
     document = _make_document(session, tmp_path, filename="fk-cleanup.pdf", content_hash="hash-fk-cleanup")
     extracted = ExtractedStatement(statement_period="2026-07", transactions=[

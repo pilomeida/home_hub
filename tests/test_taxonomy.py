@@ -39,9 +39,7 @@ def test_yearly_and_loan_cadences(session):
     assert get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments").kind == "neutral"
 
 
-def test_loan_insurance_nodes_are_monthly_spend_with_the_insurance_legacy_category(session):
-    from app.models.transaction import Category
-    from app.services.taxonomy import legacy_category_for
+def test_loan_insurance_nodes_are_monthly_spend_under_home_insurance(session):
     ensure_taxonomy(session)
     parent = get_node(session, "insurances.home")
     assert parent.kind == "out"
@@ -49,7 +47,6 @@ def test_loan_insurance_nodes_are_monthly_spend_with_the_insurance_legacy_catego
                        ("insurances.home.building-insurance-house-loan", "Building insurance, house loan")):
         node = get_node(session, slug)
         assert node.name == name and node.cadence == "monthly" and node.parent_id == parent.id
-        assert legacy_category_for(session, node) == Category.INSURANCE
 
 
 def test_descendants_include_self(session):

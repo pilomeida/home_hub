@@ -166,6 +166,18 @@ def _signed(txn: Transaction, flow: str) -> Optional[float]:
     return sign * txn.amount
 
 
+def spend_of(txn: Transaction, node: Optional[CategoryNode]) -> Optional[float]:
+    """What one line adds to spending, or None when it is not spending: the one rule the budget, the Overview's
+    "Where it went" and Ask share (work-list B3). A line on a monthly or yearly spending leaf counts, a refund
+    there takes off; a line not filed yet (or in Unsorted) counts when it is a debit; income, transfers and loan
+    instalments never count."""
+    if node is None or node.slug.startswith("unsorted"):
+        return txn.amount if txn.transaction_type == TransactionType.DEBIT else None
+    if node.level != 3 or node.kind != "out" or node.cadence not in ("monthly", "yearly"):
+        return None
+    return _signed(txn, "out")
+
+
 def _load_buckets(session: Session, today: date, nodes: dict[int, CategoryNode]):
     """ONE query for all transactions with a paid_date in the window; returns
     ({node_id: {"YYYY-MM": signed amount}}, {"YYYY-MM": unsorted outflow},

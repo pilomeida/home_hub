@@ -24,7 +24,7 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.inbox_item import InboxItem
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.privacy import settings as ps
 from tests.fakes.fake_gateway import gateway_text_result, gateway_tool_result
 from tests.knowledge_factories import make_claim, make_document, make_link, make_page, make_record
@@ -147,7 +147,7 @@ def build_world(session, docs_dir) -> SimpleNamespace:
 
     # Transactions: one read from the included bill, two from the statement that has no level.
     for doc, desc, amount in ((w.b, CLEAN_PAYEE, 80.0), (w.d, f"{TXN}-payee", 120.0), (w.d, f"{TXN}-other", 5.0)):
-        session.add(Transaction(document_id=doc.id, description=desc, category=Category.OTHER_EXPENSE, amount=amount,
+        session.add(Transaction(document_id=doc.id, description=desc, amount=amount,
                                 currency="EUR", paid_date=date(2026, 3, 1), transaction_type=TransactionType.DEBIT))
     session.commit()
 

@@ -4,7 +4,7 @@ import pytest
 
 from app.models.document import Document, DocumentSource
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.merchant_reconcile import reconcile_merchants
 from app.services.merchant_rules import keyword_node_slug
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, file_transaction, get_node, is_refund
@@ -28,8 +28,7 @@ def _t(session, m, slug, ttype=TransactionType.DEBIT, amount=10.0, description=N
     doc = Document(filename=f"d{_n[0]}.pdf", file_path=f"/tmp/d{_n[0]}.pdf",
                    content_hash=f"hash-{_n[0]}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, description=description or m.canonical_name, category=Category.OTHER,
-                    transaction_type=ttype, amount=amount, merchant_id=m.id, debt_id=debt_id)
+    t = Transaction(document_id=doc.id, description=description or m.canonical_name, transaction_type=ttype, amount=amount, merchant_id=m.id, debt_id=debt_id)
     session.add(t); session.commit()
     file_transaction(session, t, get_node(session, slug))
     session.commit(); session.refresh(t)

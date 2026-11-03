@@ -17,8 +17,7 @@ from app.models.account import Account, AccountType
 from app.models.bank import BankAccountLink, BankApiCall, BankConnection, BankConnectionStatus
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
-from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.privacy.scope import privacy_scope
 from app.problems import Problem, record_problem, resolve_for
 from app.services.bankapi import messages as msg
@@ -328,7 +327,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             continue
         try:
             txn = Transaction(
-                document_id=document.id, description=_provider(raw, is_credit), category=Category.OTHER,
+                document_id=document.id, description=_provider(raw, is_credit),
                 transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
                 paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                 account_id=link.account_id, external_id=external_id,
@@ -342,15 +341,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                 # statement line), refused while that level is held (finding F7).
                 with privacy_scope(session, document.domain, document.category):
                     await classify(session, txn)
-                session.add(txn)
-                # classify already filed the transaction under the merchant's tree
-                # node (dual-writing the legacy category). Only a merchant with no
-                # node yet (legacy row) still hands over its legacy category.
-                if txn.merchant_id is not None:
-                    merchant = session.get(Merchant, txn.merchant_id)
-                    if (merchant is not None and merchant.default_category_id is None
-                            and merchant.default_category != Category.OTHER):
-                        txn.category = merchant.default_category
+                session.add(txn)  # classify filed it under the merchant's tree node, if the merchant has one
             except Exception:
                 session.rollback()
                 # Keep the transaction: the bank reference prevents duplicates on
@@ -361,7 +352,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                     Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()
                 if txn is None:
                     txn = Transaction(
-                        document_id=document.id, description=_provider(raw, is_credit), category=Category.OTHER,
+                        document_id=document.id, description=_provider(raw, is_credit),
                         transaction_type=kind, amount=amount, currency=amount_info.get("currency", "EUR"),
                         paid_date=paid, statement_period=paid.strftime("%Y-%m"),
                         account_id=link.account_id, external_id=external_id,
@@ -369,7 +360,6 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                     )
                     session.add(txn)
                     session.flush()
-                txn.category = Category.OTHER
                 txn.category_id = None  # unfiled: surfaces in Needs Review
                 txn.merchant_id = None
                 session.add(txn)

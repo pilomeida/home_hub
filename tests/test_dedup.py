@@ -1,5 +1,5 @@
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Transaction
 from app.services.dedup import find_duplicate_transaction, find_existing_document_by_hash
 
 
@@ -31,8 +31,7 @@ def test_find_duplicate_transaction_matches_provider_and_period(session):
     session.refresh(document)
 
     transaction = Transaction(
-        document_id=document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=50.0, currency="EUR", statement_period="2026-08",
+        document_id=document.id, description="EDP", amount=50.0, currency="EUR", statement_period="2026-08",
     )
     session.add(transaction)
     session.commit()
@@ -60,8 +59,7 @@ def test_find_duplicate_transaction_ignores_statement_derived_transactions(sessi
     session.refresh(statement_document)
 
     session.add(Transaction(
-        document_id=statement_document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=87.32, currency="EUR", statement_period="2026-07",
+        document_id=statement_document.id, description="EDP", amount=87.32, currency="EUR", statement_period="2026-07",
     ))
     session.commit()
 
@@ -82,8 +80,7 @@ def test_find_duplicate_transaction_matches_bill_derived_transaction(session):
     session.refresh(bill_document)
 
     transaction = Transaction(
-        document_id=bill_document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=87.32, currency="EUR", statement_period="2026-07",
+        document_id=bill_document.id, description="EDP", amount=87.32, currency="EUR", statement_period="2026-07",
     )
     session.add(transaction)
     session.commit()
@@ -108,8 +105,7 @@ def test_find_duplicate_transaction_matches_when_category_is_null(session):
     session.refresh(legacy_document)
 
     transaction = Transaction(
-        document_id=legacy_document.id, description="EDP", category=Category.ELECTRICITY,
-        amount=87.32, currency="EUR", statement_period="2026-07",
+        document_id=legacy_document.id, description="EDP", amount=87.32, currency="EUR", statement_period="2026-07",
     )
     session.add(transaction)
     session.commit()
@@ -127,7 +123,7 @@ def _bill(session, description, amount, period, issue, name, h):
     session.add(doc)
     session.commit()
     session.refresh(doc)
-    tx = Transaction(document_id=doc.id, description=description, category=Category.ELECTRICITY, amount=amount,
+    tx = Transaction(document_id=doc.id, description=description, amount=amount,
                      currency="EUR", statement_period=period, issue_date=issue)
     session.add(tx)
     session.commit()

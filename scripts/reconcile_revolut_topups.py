@@ -69,7 +69,7 @@ from sqlmodel import Session, select
 from app.db import engine
 from app.models.account import Account
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Nature, Transaction
+from app.models.transaction import Nature, Transaction
 
 MAX_GAP_DAYS = 10
 
@@ -83,7 +83,7 @@ REVOLUT_CANONICAL_NAME = "Revolut Top-up (incoming)"
 
 def _merge_merchant_group(session: Session, names: tuple[str, ...], canonical_name: str) -> Merchant:
     """Merge the named Merchant rows into one survivor with canonical_name,
-    Category.TRANSFER, confirmed=True, recurring_reviewed=True. Repoints
+    confirmed=True, recurring_reviewed=True. Repoints
     every transaction referencing a merged-away row. If canonical_name
     already exists as its own Merchant row (e.g. a re-run), reuse it as the
     survivor instead of creating a new one."""
@@ -105,7 +105,6 @@ def _merge_merchant_group(session: Session, names: tuple[str, ...], canonical_na
     else:
         survivor = existing_survivor
 
-    survivor.default_category = Category.TRANSFER
     survivor.confirmed = True
     survivor.recurring_reviewed = True
     session.add(survivor)

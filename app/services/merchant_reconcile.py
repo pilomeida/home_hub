@@ -15,7 +15,7 @@ from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.services.merchant_rules import keyword_node_slug
-from app.services.taxonomy import auto_fits, file_transaction, get_node, legacy_category_for
+from app.services.taxonomy import auto_fits, file_transaction, get_node
 
 _UNSORTED = "unsorted"
 
@@ -85,7 +85,6 @@ def reconcile_merchants(session: Session, dry_run: bool = True, only_ids: list[i
             report.merchants_changed += 1
             if not dry_run:
                 merchant.default_category_id = target.id
-                merchant.default_category = legacy_category_for(session, target)
                 session.add(merchant)
         for t in movable:
             aim = credit_target if (t.transaction_type == TransactionType.CREDIT and credit_target is not None) else target

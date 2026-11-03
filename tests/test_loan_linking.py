@@ -8,7 +8,7 @@ from sqlmodel import select
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Nature, Transaction, TransactionType
+from app.models.transaction import Nature, Transaction, TransactionType
 from app.services.classification_engine import classify_transaction
 from app.services.loan_linking import digits_only, find_loan_for, link_all_unlinked, link_transaction_to_loan
 from app.services.taxonomy import ensure_taxonomy, get_node
@@ -66,8 +66,6 @@ def test_debit_links_and_files_under_mortgage(session, tree):
     session.refresh(t)
     node = get_node(session, "loans-debt.loan-repayments.mortgage")
     assert t.debt_id == debt.id and t.category_id == node.id and t.debt_candidate_reviewed is True
-    from app.services.taxonomy import legacy_category_for
-    assert t.category == legacy_category_for(session, node)
     session.refresh(debt)
     assert float(debt.current_balance) == 900.0
 
@@ -159,7 +157,7 @@ async def test_classify_does_not_refile_with_existing_merchant_memory(session, t
     debt = _debt(session, MORTGAGE_NO)
     prov = f"COB.REC.31.{MORTGAGE_NO}/ 35"
     from app.services.classification_engine import normalize_provider
-    m = Merchant(canonical_name="Bank", default_category=Category.GROCERIES, normalized_key=normalize_provider(prov),
+    m = Merchant(canonical_name="Bank", normalized_key=normalize_provider(prov),
                  default_category_id=get_node(session, "food.groceries.supermarket").id,
                  default_nature=Nature.ESSENTIAL)
     session.add(m)

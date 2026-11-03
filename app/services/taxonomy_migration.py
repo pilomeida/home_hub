@@ -29,7 +29,7 @@ def seed_slugs() -> set[str]:
         for gname, cats in groups:
             g = _slug(gname)
             slugs.add(g)
-            for cname, _cad, _legacy, subs in cats:
+            for cname, _cad, subs in cats:
                 c = f"{g}.{_slug(cname)}"
                 slugs.add(c)
                 for sub in subs:

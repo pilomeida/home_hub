@@ -3,7 +3,6 @@ from decimal import Decimal
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.person import Person
-from app.models.transaction import Category
 
 
 def test_informal_debt_links_to_person(session):
@@ -33,7 +32,6 @@ def test_informal_debt_links_to_person(session):
 def test_formal_debt_links_to_commitment(session):
     commitment = Commitment(
         name="Mortgage payment",
-        category=Category.HOME,
         cadence=Cadence.MONTHLY,
         planned_amount=650.0,
     )

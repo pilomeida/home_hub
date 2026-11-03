@@ -3,7 +3,7 @@ from datetime import date
 from app.models.account import Account
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.bankapi.sync import _provider
 from app.services.taxonomy import ensure_taxonomy, get_node
 from app.services.bankapi.topups import link_revolut_topups
@@ -47,7 +47,6 @@ def test_pair_is_linked_and_typed_as_transfer(session):
     session.refresh(credit); session.refresh(debit)
     assert debit.linked_transaction_id == credit.id and credit.linked_transaction_id == debit.id
     assert debit.transaction_type == credit.transaction_type == TransactionType.TRANSFER
-    assert debit.category == credit.category == Category.TRANSFER
     node = get_node(session, "internal-transfers.between-my-accounts.santander-revolut")
     assert debit.category_id == credit.category_id == node.id
 

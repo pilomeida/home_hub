@@ -1,72 +1,64 @@
 import pytest
 from app.models.document import Document, DocumentSource
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, file_transaction, flow_of, get_node
 from app.services.taxonomy_refile import refile_all
 
 
-def _txn(session, provider, category, ttype=TransactionType.DEBIT, merchant_id=None):
+def _txn(session, provider, ttype=TransactionType.DEBIT, merchant_id=None):
     doc = Document(filename=f"{provider}.pdf", file_path=f"/tmp/{provider}.pdf",
                    content_hash=f"h-{provider}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    t = Transaction(document_id=doc.id, description=provider, category=category,
-                    transaction_type=ttype, amount=10.0, merchant_id=merchant_id)
+    t = Transaction(document_id=doc.id, description=provider, transaction_type=ttype, amount=10.0, merchant_id=merchant_id)
     session.add(t); session.commit(); session.refresh(t)
     return t
 
 
-def test_file_transaction_dual_writes_legacy_category(session):
+def test_file_transaction_files_under_the_node_only(session):
+    """The tree is the only record of what a line was spent on (work-list B3); the old column keeps its filler."""
     ensure_taxonomy(session)
-    t = _txn(session, "EDP", Category.OTHER)
+    t = _txn(session, "EDP")
     file_transaction(session, t, get_node(session, "housing.utilities.electricity"))
     assert t.category_id == get_node(session, "housing.utilities.electricity").id
-    assert t.category == Category.ELECTRICITY
-
-
-def test_file_transaction_under_unsorted_keeps_legacy_category(session):
-    ensure_taxonomy(session)
-    t = _txn(session, "SALARY", Category.INCOME, TransactionType.CREDIT)
-    unsorted = get_node(session, UNSORTED_SLUG)
-    file_transaction(session, t, unsorted)
-    assert t.category_id == unsorted.id
-    assert t.category == Category.INCOME
+    assert t.unused_old_category == "OTHER"
 
 
 def test_flow_of_uses_kind_and_falls_back_to_type_for_unsorted(session):
     ensure_taxonomy(session)
-    out_t = _txn(session, "A", Category.GROCERIES)
+    out_t = _txn(session, "A")
     assert flow_of(out_t, get_node(session, "food.groceries.supermarket")) == "out"
     assert flow_of(out_t, get_node(session, "income.psi.sessions")) == "in"
     assert flow_of(out_t, get_node(session, "internal-transfers.between-my-accounts.santander-card")) == "neutral"
-    credit = _txn(session, "B", Category.OTHER, TransactionType.CREDIT)
+    credit = _txn(session, "B", TransactionType.CREDIT)
     assert flow_of(credit, get_node(session, UNSORTED_SLUG)) == "in"
     assert flow_of(out_t, get_node(session, UNSORTED_SLUG)) == "out"
 
 
-def test_refile_prefers_confirmed_merchant_then_legacy_then_review(session):
+def test_refile_files_from_a_confirmed_merchant_else_sends_to_review(session):
     ensure_taxonomy(session)
     fuel = get_node(session, "transport.car-running-costs.fuel")
     m = Merchant(canonical_name="Galp", normalized_key="galp", confirmed=True, default_category_id=fuel.id)
     session.add(m); session.commit()
-    from_merchant = _txn(session, "GALP", Category.OTHER_EXPENSE, merchant_id=m.id)
-    from_legacy = _txn(session, "CONTINENTE", Category.GROCERIES)
-    ambiguous = _txn(session, "MYSTERY", Category.OTHER_EXPENSE)
+    from_merchant = _txn(session, "GALP", merchant_id=m.id)
+    unknown = _txn(session, "MYSTERY")
 
     report = refile_all(session, dry_run=False)
 
     assert from_merchant.category_id == fuel.id
-    assert from_legacy.category_id == get_node(session, "food.groceries.supermarket").id
-    assert ambiguous.category_id == get_node(session, UNSORTED_SLUG).id
-    assert (report.filed_from_merchant, report.filed_from_legacy, report.sent_to_review) == (1, 1, 1)
+    assert unknown.category_id == get_node(session, UNSORTED_SLUG).id
+    assert (report.filed_from_merchant, report.sent_to_review) == (1, 1)
 
 
 def test_refile_dry_run_changes_nothing_and_rerun_skips_filed(session):
     ensure_taxonomy(session)
-    t = _txn(session, "CONTINENTE", Category.GROCERIES)
+    sm = get_node(session, "food.groceries.supermarket")
+    m = Merchant(canonical_name="Continente", normalized_key="continente", confirmed=True, default_category_id=sm.id)
+    session.add(m); session.commit()
+    t = _txn(session, "CONTINENTE", merchant_id=m.id)
     report = refile_all(session, dry_run=True)
     session.refresh(t)
-    assert t.category_id is None and report.filed_from_legacy == 1
+    assert t.category_id is None and report.filed_from_merchant == 1
     refile_all(session, dry_run=False)
     assert refile_all(session, dry_run=False).already_filed == 1
 
@@ -82,8 +74,8 @@ async def test_reclassify_unsorted_costs_one_llm_call_per_merchant(session):
     m = Merchant(canonical_name="Galp", normalized_key="galp", confirmed=False)
     mystery = Merchant(canonical_name="Mystery", normalized_key="mystery")
     session.add(m); session.add(mystery); session.commit()
-    t1, t2 = _txn(session, "GALP 1", Category.OTHER, merchant_id=m.id), _txn(session, "GALP 2", Category.OTHER, merchant_id=m.id)
-    t3 = _txn(session, "MYSTERY", Category.OTHER, merchant_id=mystery.id)
+    t1, t2 = _txn(session, "GALP 1", merchant_id=m.id), _txn(session, "GALP 2", merchant_id=m.id)
+    t3 = _txn(session, "MYSTERY", merchant_id=mystery.id)
     for t in (t1, t2, t3):
         file_transaction(session, t, unsorted)
     session.commit()
@@ -120,9 +112,9 @@ async def test_reclassify_skips_confirmed_merchants_and_respects_direction(sessi
                          default_category_id=get_node(session, "transport.car-running-costs.fuel").id)
     open_m = Merchant(canonical_name="Shop", normalized_key="shop")
     session.add(confirmed); session.add(open_m); session.commit()
-    c1 = _txn(session, "MINE", Category.OTHER, merchant_id=confirmed.id)
-    debit = _txn(session, "SHOP D", Category.OTHER, merchant_id=open_m.id)
-    credit = _txn(session, "SHOP C", Category.OTHER, TransactionType.CREDIT, merchant_id=open_m.id)
+    c1 = _txn(session, "MINE", merchant_id=confirmed.id)
+    debit = _txn(session, "SHOP D", merchant_id=open_m.id)
+    credit = _txn(session, "SHOP C", TransactionType.CREDIT, merchant_id=open_m.id)
     for t in (c1, debit, credit):
         file_transaction(session, t, unsorted)
     session.commit()
@@ -143,80 +135,43 @@ async def test_reclassify_skips_confirmed_merchants_and_respects_direction(sessi
 
 def test_refile_falls_back_to_unsorted_when_direction_does_not_fit(session):
     ensure_taxonomy(session)
-    credit = _txn(session, "REFUND", Category.SHOPPING, TransactionType.CREDIT)
-    transfer = _txn(session, "MOVE", Category.GROCERIES, TransactionType.TRANSFER)
-    debit = _txn(session, "SHOP", Category.SHOPPING)
+    shopping = get_node(session, "family.personal.general-shopping")
+    shop = Merchant(canonical_name="Shop", normalized_key="shop", confirmed=True, default_category_id=shopping.id)
+    session.add(shop); session.commit()
+    credit = _txn(session, "REFUND", TransactionType.CREDIT)
+    transfer = _txn(session, "MOVE", TransactionType.TRANSFER, merchant_id=shop.id)
+    debit = _txn(session, "SHOP", merchant_id=shop.id)
     refile_all(session, dry_run=False)
     unsorted = get_node(session, UNSORTED_SLUG)
     for t in (credit, transfer, debit):
         session.refresh(t)
-    shopping = get_node(session, "family.personal.general-shopping")
     assert credit.category_id == unsorted.id  # no merchant, so no purchase to refund
     assert transfer.category_id == unsorted.id  # a transfer only fits neutral nodes
     assert debit.category_id == shopping.id
 
 
-@pytest.mark.parametrize("home_first", [True, False])
-def test_refile_derives_a_confirmed_merchants_node_from_its_own_value_not_row_order(session, home_first):
+def test_refile_leaves_a_confirmed_merchant_without_a_node_for_review(session):
     ensure_taxonomy(session)
-    m = Merchant(canonical_name="Mod", normalized_key="mod", confirmed=True, default_category=Category.GROCERIES)
+    m = Merchant(canonical_name="Vague", normalized_key="vague", confirmed=True)
     session.add(m); session.commit()
-    rows = [("MOD H", Category.HOME), ("MOD G", Category.GROCERIES)]
-    if not home_first:
-        rows.reverse()
-    made = {name: _txn(session, name, cat, merchant_id=m.id) for name, cat in rows}
-    refile_all(session, dry_run=False)
-    session.refresh(m)
-    sm = get_node(session, "food.groceries.supermarket")
-    assert m.default_category_id == sm.id
-    for t in made.values():
-        session.refresh(t)
-    assert made["MOD G"].category_id == sm.id
-    # the HOME row follows the merchant node: same outcome whatever the row order
-    assert made["MOD H"].category_id == sm.id
-
-
-def test_refile_never_derives_a_merchant_node_from_a_transaction_legacy_value(session):
-    ensure_taxonomy(session)
-    m = Merchant(canonical_name="Vague", normalized_key="vague", confirmed=True, default_category=Category.OTHER)
-    session.add(m); session.commit()
-    t = _txn(session, "VAGUE", Category.GROCERIES, merchant_id=m.id)
+    t = _txn(session, "VAGUE", merchant_id=m.id)
     refile_all(session, dry_run=False)
     session.refresh(m); session.refresh(t)
     assert m.default_category_id is None
-    assert t.category_id == get_node(session, "food.groceries.supermarket").id
+    assert t.category_id == get_node(session, UNSORTED_SLUG).id
 
 
 @pytest.mark.asyncio
-async def test_reclassify_confirmed_merchant_without_node_uses_legacy_no_llm(session):
-    from tests.fakes.fake_gateway import FakeGateway
-    from app.services.taxonomy_refile import reclassify_unsorted
-
-    ensure_taxonomy(session)
-    unsorted = get_node(session, UNSORTED_SLUG)
-    m = Merchant(canonical_name="Mod", normalized_key="mod2", confirmed=True, default_category=Category.GROCERIES)
-    session.add(m); session.commit()
-    t = _txn(session, "MOD", Category.OTHER, merchant_id=m.id)
-    file_transaction(session, t, unsorted); session.commit()
-    gw = FakeGateway([])
-    await reclassify_unsorted(session, gateway=gw)
-    session.refresh(t); session.refresh(m)
-    sm = get_node(session, "food.groceries.supermarket")
-    assert gw.requests == []
-    assert m.default_category_id == sm.id and t.category_id == sm.id and m.confirmed is True
-
-
-@pytest.mark.asyncio
-async def test_reclassify_confirmed_merchant_with_ambiguous_legacy_asks_llm_keeps_confirmed(session):
+async def test_reclassify_confirmed_merchant_without_a_node_asks_llm_keeps_confirmed(session):
     import json
     from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
     from app.services.taxonomy_refile import reclassify_unsorted
 
     ensure_taxonomy(session)
     unsorted = get_node(session, UNSORTED_SLUG)
-    m = Merchant(canonical_name="Amb", normalized_key="amb", confirmed=True, default_category=Category.OTHER)
+    m = Merchant(canonical_name="Amb", normalized_key="amb", confirmed=True)
     session.add(m); session.commit()
-    t = _txn(session, "AMB", Category.OTHER, merchant_id=m.id)
+    t = _txn(session, "AMB", merchant_id=m.id)
     file_transaction(session, t, unsorted); session.commit()
     gw = FakeGateway([gateway_text_result(json.dumps(
         {"canonical_name": "Amb", "node_slug": "transport.car-running-costs.fuel", "nature": "essential"}))])
@@ -282,7 +237,7 @@ def _merchants_with_unsorted(session, counts):
         session.add(m); session.commit()
         rows = []
         for i in range(n):
-            t = _txn(session, f"{provider}", Category.OTHER, merchant_id=m.id)
+            t = _txn(session, f"{provider}", merchant_id=m.id)
             t.description = provider
             file_transaction(session, t, unsorted)
             rows.append(t)

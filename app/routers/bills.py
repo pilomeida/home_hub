@@ -10,10 +10,12 @@ from app.db import get_session
 from app.domains.fields import InvalidClassification
 from app.domains.registry import document_url
 from app.models.account import Account
+from app.models.category_node import CategoryNode
 from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
 from app.models.transaction import Transaction
 from app.services.ingestion import Classification, IncomingFile, ingest
+from app.services.taxonomy import path_label
 from app.services.todo_backlog import backlog_context
 from app.templating import templates
 
@@ -71,6 +73,9 @@ async def bill_detail(request: Request, document_id: int, session: Session = Dep
         .where(Transaction.document_id == document_id)
         .order_by(Transaction.paid_date, Transaction.id)
     ).all()
+    # Each line's place on the spending tree (work-list B3); a line not filed yet has none.
+    node_labels = {t.id: path_label(session, session.get(CategoryNode, t.category_id))
+                   for t in transactions if t.category_id is not None}
     return templates.TemplateResponse(
-        request, "bills/detail.html", {"document": document, "transactions": transactions}
+        request, "bills/detail.html", {"document": document, "transactions": transactions, "node_labels": node_labels}
     )

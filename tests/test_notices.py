@@ -18,7 +18,7 @@ from app.models.notice import Notice
 from app.models.position import LoanAlert
 from app.models.schedule import JobRun
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Transaction
 from app.services import notices
 from app.services.schedule import Spec
 
@@ -45,7 +45,7 @@ def _expired_bank(session, owner="Rute"):
 def _bill_todo(session, due: date, title="Pay EDP — 87.32 EUR"):
     doc = Document(filename="b.pdf", file_path="/tmp/b.pdf", content_hash=f"h-{due}-{title}", source=DocumentSource.MANUAL)
     session.add(doc); session.commit(); session.refresh(doc)
-    t = Transaction(document_id=doc.id, description="EDP", category=Category.ELECTRICITY, amount=87.32, currency="EUR", due_date=due)
+    t = Transaction(document_id=doc.id, description="EDP", amount=87.32, currency="EUR", due_date=due)
     session.add(t); session.commit(); session.refresh(t)
     todo = Todo(title=title, due_date=due, transaction_id=t.id)
     session.add(todo); session.commit(); session.refresh(todo)

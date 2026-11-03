@@ -229,8 +229,6 @@ def test_classify_failure_keeps_the_transaction_as_other(session):
     txn = session.query(Transaction).one()
     assert txn.description == "Continente"
     assert txn.merchant_id is None
-    from app.models.transaction import Category
-    assert txn.category == Category.OTHER
     assert txn.category_id is None
 
 
@@ -427,7 +425,6 @@ def test_referenceless_rows_use_the_real_date_and_a_stable_id_across_fetch_days(
 
 def test_sync_files_classified_transaction_under_the_merchant_node(session):
     import json
-    from app.models.transaction import Category
     from app.services.classification_engine import classify_transaction
     from app.services.taxonomy import ensure_taxonomy, get_node
     from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
@@ -446,20 +443,18 @@ def test_sync_files_classified_transaction_under_the_merchant_node(session):
     _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4), classify=classify))
     txn = session.query(Transaction).one()
     assert txn.category_id == get_node(session, "food.groceries.supermarket").id
-    assert txn.category == Category.GROCERIES
 
 
-def test_credit_for_a_merchant_with_an_out_node_keeps_legacy_other_and_no_node(session):
+def test_credit_for_a_merchant_with_an_out_node_is_left_unfiled(session):
     import json
     from app.models.merchant import Merchant
-    from app.models.transaction import Category
     from app.services.classification_engine import classify_transaction
     from app.services.taxonomy import ensure_taxonomy, get_node
 
     ensure_taxonomy(session)
     sm = get_node(session, "food.groceries.supermarket")
     session.add(Merchant(canonical_name="Continente", normalized_key="continente",
-                         default_category=Category.GROCERIES, default_category_id=sm.id))
+                         default_category_id=sm.id))
     session.commit()
     link, _ = make_link(session)
     rows = [{"entry_reference": "r9", "status": "BOOK", "credit_debit_indicator": "CRDT",
@@ -472,11 +467,7 @@ def test_credit_for_a_merchant_with_an_out_node_keeps_legacy_other_and_no_node(s
     _run(sync_link(session, FakeClient(rows), link, today=date(2026, 10, 4), classify=classify))
     txn = session.query(Transaction).one()
     assert txn.merchant_id is not None
-    # The row is built with legacy OTHER, so `category == OTHER` alone cannot tell
-    # whether the legacy fallback ran (it would have set GROCERIES). Together with
-    # category_id None it shows the direction mismatch left the row untouched.
-    assert txn.category == Category.OTHER
-    assert txn.category_id is None
+    assert txn.category_id is None  # the direction does not fit the merchant's node: left for a person
 
 
 

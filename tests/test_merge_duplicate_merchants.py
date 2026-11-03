@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.models.document import Document, DocumentSource
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction
+from app.models.transaction import Transaction
 
 
 def _make_transaction_for_merchant(session, merchant_id, provider, amount=10.0):
@@ -17,8 +17,7 @@ def _make_transaction_for_merchant(session, merchant_id, provider, amount=10.0):
     session.commit()
     session.refresh(document)
     transaction = Transaction(
-        document_id=document.id, description=provider, category=Category.GROCERIES,
-        amount=amount, currency="EUR", merchant_id=merchant_id,
+        document_id=document.id, description=provider, amount=amount, currency="EUR", merchant_id=merchant_id,
     )
     session.add(transaction)
     session.commit()
@@ -31,20 +30,16 @@ def test_merge_keeps_survivor_with_most_transactions_and_repoints_others(session
     monkeypatch.setattr(merge_script, "engine", session.get_bind())
 
     survivor = Merchant(
-        canonical_name="Modelo Hiper", default_category=Category.GROCERIES,
-        normalized_key="modelo hiper",
+        canonical_name="Modelo Hiper", normalized_key="modelo hiper",
     )
     loser_a = Merchant(
-        canonical_name="modelo hiper", default_category=Category.GROCERIES,
-        normalized_key="ccr-modelo hiper",
+        canonical_name="modelo hiper", normalized_key="ccr-modelo hiper",
     )
     loser_b = Merchant(
-        canonical_name="MODELO HIPER", default_category=Category.GROCERIES,
-        normalized_key="compra modelo hiper", confirmed=True, recurring_reviewed=True,
+        canonical_name="MODELO HIPER", normalized_key="compra modelo hiper", confirmed=True, recurring_reviewed=True,
     )
     unrelated = Merchant(
-        canonical_name="Continente", default_category=Category.GROCERIES,
-        normalized_key="continente",
+        canonical_name="Continente", normalized_key="continente",
     )
     session.add_all([survivor, loser_a, loser_b, unrelated])
     session.commit()
@@ -88,8 +83,8 @@ def test_merge_is_idempotent(session, monkeypatch):
     from scripts import merge_duplicate_merchants as merge_script
     monkeypatch.setattr(merge_script, "engine", session.get_bind())
 
-    m1 = Merchant(canonical_name="Netflix", default_category=Category.SUBSCRIPTIONS, normalized_key="netflix")
-    m2 = Merchant(canonical_name="netflix", default_category=Category.SUBSCRIPTIONS, normalized_key="netflix-2")
+    m1 = Merchant(canonical_name="Netflix", normalized_key="netflix")
+    m2 = Merchant(canonical_name="netflix", normalized_key="netflix-2")
     session.add_all([m1, m2])
     session.commit()
 

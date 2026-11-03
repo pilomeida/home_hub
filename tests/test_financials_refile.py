@@ -6,7 +6,7 @@ from app.models.commitment import Cadence, Commitment
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.ingestion import Classification, RefileRefusedError, refile_document
 
@@ -18,8 +18,7 @@ def _bill(session):
     session.add(document)
     session.commit()
     session.refresh(document)
-    transaction = Transaction(document_id=document.id, description="Worten", category=Category.OTHER_EXPENSE,
-                              transaction_type=TransactionType.DEBIT, amount=499.0)
+    transaction = Transaction(document_id=document.id, description="Worten", transaction_type=TransactionType.DEBIT, amount=499.0)
     session.add(transaction)
     session.commit()
     session.refresh(transaction)

@@ -11,7 +11,7 @@ from sqlmodel import select
 from app.models.debt import Debt
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.position import SavingsSnapshot
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 from app.services.loan_math import position_totals, savings_lines
 from app.services.position_extraction import (
     ComponentRow, ExtractedBalance, ExtractedFund, ExtractedLoan, ExtractedPositions,
@@ -138,7 +138,7 @@ def test_unknown_balance_loan_listed_and_excluded(client, session):
 def test_informal_debt_section(client, session):
     _seed(session)
     doc = _doc(session, 9)
-    t = Transaction(document_id=doc.id, description="TRF P/ JOAO", category=Category.OTHER_EXPENSE, amount=300.0,
+    t = Transaction(document_id=doc.id, description="TRF P/ JOAO", amount=300.0,
                     transaction_type=TransactionType.DEBIT)
     session.add(t)
     session.commit()

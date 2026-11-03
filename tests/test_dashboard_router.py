@@ -5,7 +5,7 @@ from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.document import Document, DocumentSource
 from app.models.todo import Todo
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
 
 
 def test_dashboard_renders_open_todos(client, session):
@@ -43,8 +43,7 @@ def test_overview_page_renders_kpi_cards_and_sections(client, session):
     session.refresh(document)
 
     t = Transaction(
-        document_id=document.id, description="SALARIO", category=Category.INCOME,
-        transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
+        document_id=document.id, description="SALARIO", transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
         account_id=account.id, paid_date=date.today(),
     )
     session.add(t)
@@ -104,8 +103,7 @@ def test_cash_flow_range_pill_swap_changes_content(client, session):
     session.commit()
     session.refresh(document)
     session.add(Transaction(
-        document_id=document.id, description="SALARIO", category=Category.INCOME,
-        transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
+        document_id=document.id, description="SALARIO", transaction_type=TransactionType.CREDIT, amount=2000.0, currency="EUR",
         paid_date=date(2025, 1, 15),
     ))
     session.commit()

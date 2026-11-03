@@ -6,11 +6,10 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.models.category_node import CategoryNode
-from app.models.transaction import Category, Transaction, TransactionType
-from app.services.taxonomy_seed import LEGACY_TO_SLUG, SEED, SUB_LEGACY  # noqa: F401
+from app.models.transaction import Transaction, TransactionType
+from app.services.taxonomy_seed import SEED
 
 UNSORTED_SLUG = "unsorted.needs-review.needs-review"
-_KIND_LEGACY = {"out": Category.OTHER_EXPENSE, "in": Category.INCOME, "neutral": Category.TRANSFER}
 
 
 def _slug(name: str) -> str:
@@ -42,7 +41,7 @@ def ensure_taxonomy(session: Session) -> int:
     for kind, groups in SEED.items():
         for gname, cats in groups:
             g = upsert(_slug(gname), None, 1, gname, kind, None, order := order + 1)
-            for cname, cadence, _legacy, subs in cats:
+            for cname, cadence, subs in cats:
                 c = upsert(f"{g.slug}.{_slug(cname)}", g, 2, cname, kind, cadence, order := order + 1)
                 for sub in subs:
                     sname, scadence = sub if isinstance(sub, tuple) else (sub, cadence)
@@ -78,28 +77,9 @@ def path_label(session: Session, node: CategoryNode) -> str:
 
 
 def file_transaction(session: Session, txn: Transaction, node: CategoryNode) -> None:
-    """File txn under node and dual-write the legacy Category so old readers keep working."""
+    """File txn under node: its place on the spending tree is the only record of what it was spent on."""
     txn.category_id = node.id
-    if not node.slug.startswith("unsorted"):
-        txn.category = legacy_category_for(session, node)
     session.add(txn)
-
-
-def legacy_category_for(session: Session, node: CategoryNode) -> Category:
-    if node.level == 3 and node.name in SUB_LEGACY:
-        return SUB_LEGACY[node.name]
-    cat = session.get(CategoryNode, node.parent_id) if node.level == 3 else node
-    group = session.get(CategoryNode, cat.parent_id) if cat.level == 2 else None
-    for kind, groups in SEED.items():
-        if kind != node.kind:
-            continue  # a category can exist under two kinds (Money lent out)
-        for gname, cats in groups:
-            if group is not None and gname != group.name:
-                continue  # category names repeat across groups (Personal), so match the pair
-            for cname, _cad, legacy, _subs in cats:
-                if cname == cat.name and legacy is not None:
-                    return legacy
-    return _KIND_LEGACY[node.kind]
 
 
 def flow_of(txn: Transaction, node: Optional[CategoryNode]) -> str:
@@ -108,9 +88,6 @@ def flow_of(txn: Transaction, node: Optional[CategoryNode]) -> str:
         return "in" if txn.transaction_type == TransactionType.CREDIT else (
             "neutral" if txn.transaction_type == TransactionType.TRANSFER else "out")
     return node.kind
-
-
-_legacy_for = legacy_category_for  # backwards-compatible alias
 
 
 # A credit may sit under a spending node as a refund of what was bought there, except

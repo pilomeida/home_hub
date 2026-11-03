@@ -7,7 +7,9 @@ from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.domain import Domain
 from app.models.merchant import Merchant
-from app.models.transaction import Category, Transaction, TransactionType
+from app.models.transaction import Transaction, TransactionType
+from app.services.budget_service import get_budget_overview
+from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 from app.services.overview_service import get_flow_kpis, _monthly_flow_totals, get_cash_kpi, get_debt_kpi, get_yearly_commitments_card, get_category_comparison, CategoryComparisonRow, get_narrative_insight, get_needs_attention, get_overview_data, get_period_dependent_data, _resolve_lookback_months
 
 
@@ -22,13 +24,18 @@ def _doc(session, name="doc"):
     return document
 
 
-def _txn(session, document, provider, amount, ttype, paid_date, category=Category.OTHER_EXPENSE):
+def _txn(session, document, provider, amount, ttype, paid_date, leaf=None):
+    """A line on its spending-tree leaf (slug), or not filed yet (None)."""
     t = Transaction(
-        document_id=document.id, description=provider, category=category,
+        document_id=document.id, description=provider,
         transaction_type=ttype, amount=amount, currency="EUR", paid_date=paid_date,
     )
     session.add(t)
     session.commit()
+    if leaf is not None:
+        ensure_taxonomy(session)
+        file_transaction(session, t, get_node(session, leaf))
+        session.commit()
     return t
 
 
@@ -234,46 +241,46 @@ def test_yearly_commitments_empty_state(session):
 
 def test_category_comparison_ranked_with_delta(session):
     document = _doc(session)
-    # This month: groceries 100, restaurants 50
-    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), Category.GROCERIES)
-    _txn(session, document, "RESTAURANT A", 50.0, TransactionType.DEBIT, date(2026, 8, 6), Category.RESTAURANTS)
-    # Prior 3 months: groceries averages to 80, restaurants to 100
+    # This month: groceries 100, fuel 50
+    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), "food.groceries.supermarket")
+    _txn(session, document, "GALP", 50.0, TransactionType.DEBIT, date(2026, 8, 6), "transport.car-running-costs.fuel")
+    # Prior 3 months: groceries averages to 80, fuel to 100
     for m, amt in [(7, 90.0), (6, 80.0), (5, 70.0)]:
-        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), "food.groceries.supermarket")
     for m, amt in [(7, 100.0), (6, 100.0), (5, 100.0)]:
-        _txn(session, document, "RESTAURANT A", amt, TransactionType.DEBIT, date(2026, m, 6), Category.RESTAURANTS)
+        _txn(session, document, "GALP", amt, TransactionType.DEBIT, date(2026, m, 6), "transport.car-running-costs.fuel")
 
     rows = get_category_comparison(session, today=date(2026, 8, 10))
 
     by_cat = {r.category: r for r in rows}
-    assert by_cat["groceries"].current_value == 100.0
-    assert by_cat["groceries"].rolling_avg_value == 80.0
-    assert by_cat["groceries"].delta_pct == 25.0
-    assert by_cat["restaurants"].current_value == 50.0
-    assert by_cat["restaurants"].rolling_avg_value == 100.0
-    assert by_cat["restaurants"].delta_pct == -50.0
-    # Ranked by current value descending.
-    assert [r.category for r in rows] == ["groceries", "restaurants"]
-    assert by_cat["groceries"].bar_pct == 100.0
-    assert by_cat["restaurants"].bar_pct == 50.0
-    assert by_cat["groceries"].drill_down_url == "/financials/transactions?category=groceries&date_from=2026-08-01&date_to=2026-08-10"
+    assert by_cat["Food"].current_value == 100.0
+    assert by_cat["Food"].rolling_avg_value == 80.0
+    assert by_cat["Food"].delta_pct == 25.0
+    assert by_cat["Transport"].current_value == 50.0
+    assert by_cat["Transport"].rolling_avg_value == 100.0
+    assert by_cat["Transport"].delta_pct == -50.0
+    # Ranked by current value descending; one row per group of the spending tree.
+    assert [r.category for r in rows] == ["Food", "Transport"]
+    assert by_cat["Food"].bar_pct == 100.0
+    assert by_cat["Transport"].bar_pct == 50.0
+    assert by_cat["Food"].drill_down_url == "/financials/transactions?category_node=food&date_from=2026-08-01&date_to=2026-08-10"
 
 
 def test_category_comparison_rolling_months_is_configurable(session):
     document = _doc(session)
-    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), Category.GROCERIES)
+    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), "food.groceries.supermarket")
     # 3-month history (May-Jul): averages to 80. 6-month history (Feb-Jul)
     # adds Feb-Apr at 40 each, pulling the average down to 60.
     for m, amt in [(7, 90.0), (6, 80.0), (5, 70.0)]:
-        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), "food.groceries.supermarket")
     for m, amt in [(4, 40.0), (3, 40.0), (2, 40.0)]:
-        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), "food.groceries.supermarket")
 
     default_rows = get_category_comparison(session, today=date(2026, 8, 10))
     six_month_rows = get_category_comparison(session, today=date(2026, 8, 10), rolling_months=6)
 
-    assert {r.category: r for r in default_rows}["groceries"].rolling_avg_value == 80.0
-    assert {r.category: r for r in six_month_rows}["groceries"].rolling_avg_value == 60.0
+    assert {r.category: r for r in default_rows}["Food"].rolling_avg_value == 80.0
+    assert {r.category: r for r in six_month_rows}["Food"].rolling_avg_value == 60.0
 
 
 def test_resolve_lookback_months_maps_known_ranges():
@@ -291,24 +298,44 @@ def test_resolve_lookback_months_ytd_uses_elapsed_months():
 
 def test_period_dependent_data_links_chart_and_table_to_same_range(session):
     document = _doc(session)
-    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), Category.GROCERIES)
+    _txn(session, document, "CONTINENTE", 100.0, TransactionType.DEBIT, date(2026, 8, 5), "food.groceries.supermarket")
     for m, amt in [(7, 90.0), (6, 80.0), (5, 70.0), (4, 40.0), (3, 40.0), (2, 40.0)]:
-        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), Category.GROCERIES)
+        _txn(session, document, "CONTINENTE", amt, TransactionType.DEBIT, date(2026, m, 5), "food.groceries.supermarket")
 
     chart, rows = get_period_dependent_data(session, date(2026, 8, 10), "6m")
 
     assert chart.range_key == "6m"
-    assert {r.category: r for r in rows}["groceries"].rolling_avg_value == 60.0
+    assert {r.category: r for r in rows}["Food"].rolling_avg_value == 60.0
 
 
-def test_category_comparison_excludes_transfers_and_atm(session):
+def test_category_comparison_leaves_out_what_is_not_spending(session):
+    """Transfers, income and loan instalments are not spending, on the Overview as in the budget."""
     document = _doc(session)
-    _txn(session, document, "REVOLUT TOPUP", 200.0, TransactionType.TRANSFER, date(2026, 8, 5), Category.TRANSFER)
-    _txn(session, document, "ATM", 40.0, TransactionType.DEBIT, date(2026, 8, 5), Category.ATM_WITHDRAWAL)
+    _txn(session, document, "REVOLUT TOPUP", 200.0, TransactionType.TRANSFER, date(2026, 8, 5),
+         "internal-transfers.between-my-accounts.santander-revolut")
+    _txn(session, document, "SALARIO", 2000.0, TransactionType.CREDIT, date(2026, 8, 5), "income.employment.salary")
+    _txn(session, document, "PRESTACAO", 600.0, TransactionType.DEBIT, date(2026, 8, 5), "loans-debt.loan-repayments.mortgage")
 
     rows = get_category_comparison(session, today=date(2026, 8, 10))
 
     assert rows == []
+
+
+def test_the_overview_and_the_budget_give_the_same_totals(session):
+    """Work-list B3: one spending tree, one way of counting. Cash, a refund and a yearly line included."""
+    document = _doc(session)
+    today = date(2026, 8, 20)
+    _txn(session, document, "CONTINENTE", 120.0, TransactionType.DEBIT, date(2026, 8, 3), "food.groceries.supermarket")
+    _txn(session, document, "CONTINENTE", 20.0, TransactionType.CREDIT, date(2026, 8, 4), "food.groceries.supermarket")
+    _txn(session, document, "TASCA", 35.0, TransactionType.DEBIT, date(2026, 8, 5), "food.eat-out.restaurants")
+    _txn(session, document, "MULTIBANCO", 60.0, TransactionType.DEBIT, date(2026, 8, 6), "cash-giving.cash.atm-withdrawals")
+    _txn(session, document, "AT IMI", 300.0, TransactionType.DEBIT, date(2026, 8, 7), "taxes-financial-costs.taxes.imi-property-tax")
+    _txn(session, document, "CONTINENTE", 90.0, TransactionType.DEBIT, date(2026, 7, 3), "food.groceries.supermarket")
+
+    overview = {r.category: r.current_value for r in get_category_comparison(session, today=today)}
+    budget = {g.name: g.spent for g in get_budget_overview(session, today, "month").groups}
+
+    assert overview == budget == {"Food": 135.0, "Cash & giving": 60.0, "Taxes & financial costs": 300.0}
 
 
 def test_category_comparison_excludes_zero_zero_categories(session):
@@ -316,20 +343,20 @@ def test_category_comparison_excludes_zero_zero_categories(session):
     # A transaction from April, which is outside both the current month (Aug)
     # and the 3-month rolling history (May, June, July).
     # This triggers the zero-zero exclusion branch in get_category_comparison().
-    _txn(session, document, "SHOPPING", 75.0, TransactionType.DEBIT, date(2026, 4, 15), Category.SHOPPING)
+    _txn(session, document, "SHOPPING", 75.0, TransactionType.DEBIT, date(2026, 4, 15), "family.personal.general-shopping")
 
     rows = get_category_comparison(session, today=date(2026, 8, 24))
 
     # The shopping category should not appear in the results because
     # current_value (0.0) == 0 and rolling_avg (0.0) == 0
-    assert "shopping" not in [r.category for r in rows]
+    assert "Family" not in [r.category for r in rows]
 
 
 def test_narrative_insight_names_biggest_drop_and_rise():
     rows = [
-        CategoryComparisonRow("travel", current_value=0.0, rolling_avg_value=600.0, delta_pct=-100.0, bar_pct=0.0, drill_down_url=""),
-        CategoryComparisonRow("restaurants", current_value=220.0, rolling_avg_value=100.0, delta_pct=120.0, bar_pct=100.0, drill_down_url=""),
-        CategoryComparisonRow("groceries", current_value=300.0, rolling_avg_value=300.0, delta_pct=0.0, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("Holidays & travel", current_value=0.0, rolling_avg_value=600.0, delta_pct=-100.0, bar_pct=0.0, drill_down_url=""),
+        CategoryComparisonRow("Food", current_value=220.0, rolling_avg_value=100.0, delta_pct=120.0, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("Housing", current_value=300.0, rolling_avg_value=300.0, delta_pct=0.0, bar_pct=100.0, drill_down_url=""),
     ]
     # total_current = 520, total_avg = 1000 -> -48.0% overall
 
@@ -337,8 +364,8 @@ def test_narrative_insight_names_biggest_drop_and_rise():
 
     assert sentence is not None
     assert "fell 48.0%" in sentence
-    assert "Travel" in sentence
-    assert "Restaurants" in sentence
+    assert "Holidays & travel" in sentence
+    assert "Food" in sentence
 
 
 def test_narrative_insight_none_when_no_history():
@@ -347,8 +374,8 @@ def test_narrative_insight_none_when_no_history():
 
 def test_narrative_insight_none_when_total_avg_is_zero():
     rows = [
-        CategoryComparisonRow("groceries", current_value=100.0, rolling_avg_value=0.0, delta_pct=None, bar_pct=100.0, drill_down_url=""),
-        CategoryComparisonRow("restaurants", current_value=50.0, rolling_avg_value=0.0, delta_pct=None, bar_pct=50.0, drill_down_url=""),
+        CategoryComparisonRow("Housing", current_value=100.0, rolling_avg_value=0.0, delta_pct=None, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("Food", current_value=50.0, rolling_avg_value=0.0, delta_pct=None, bar_pct=50.0, drill_down_url=""),
     ]
     # total_current = 150, total_avg = 0 -> should return None (prevents division-by-zero)
 
@@ -359,7 +386,7 @@ def test_narrative_insight_none_when_total_avg_is_zero():
 
 def test_narrative_insight_single_row_drop_only():
     rows = [
-        CategoryComparisonRow("travel", current_value=100.0, rolling_avg_value=200.0, delta_pct=-50.0, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("Holidays & travel", current_value=100.0, rolling_avg_value=200.0, delta_pct=-50.0, bar_pct=100.0, drill_down_url=""),
     ]
     # total_current = 100, total_avg = 200 -> -50.0% overall, drop only, no rise
 
@@ -367,14 +394,14 @@ def test_narrative_insight_single_row_drop_only():
 
     assert sentence is not None
     assert "fell 50.0%" in sentence
-    assert "Travel" in sentence
+    assert "Holidays & travel" in sentence
     assert "of the change" in sentence
     assert "offset by" not in sentence  # ensure no rise phrase when only drop exists
 
 
 def test_narrative_insight_single_row_rise_only():
     rows = [
-        CategoryComparisonRow("restaurants", current_value=300.0, rolling_avg_value=200.0, delta_pct=50.0, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("Food", current_value=300.0, rolling_avg_value=200.0, delta_pct=50.0, bar_pct=100.0, drill_down_url=""),
     ]
     # total_current = 300, total_avg = 200 -> 50.0% overall, rise only, no drop
 
@@ -382,28 +409,23 @@ def test_narrative_insight_single_row_rise_only():
 
     assert sentence is not None
     assert "rose 50.0%" in sentence
-    assert "Restaurants" in sentence
+    assert "Food" in sentence
     assert "of the increase" in sentence
     assert "accounted for" not in sentence or "reduction" not in sentence  # no drop phrase
 
 
-def test_narrative_insight_title_cases_underscored_category_names():
+def test_narrative_insight_names_the_groups_as_the_tree_writes_them():
     rows = [
-        CategoryComparisonRow("other_expense", current_value=50.0, rolling_avg_value=200.0, delta_pct=-75.0, bar_pct=25.0, drill_down_url=""),
-        CategoryComparisonRow("travel_dining", current_value=300.0, rolling_avg_value=100.0, delta_pct=200.0, bar_pct=100.0, drill_down_url=""),
+        CategoryComparisonRow("Taxes & financial costs", current_value=50.0, rolling_avg_value=200.0, delta_pct=-75.0, bar_pct=25.0, drill_down_url=""),
+        CategoryComparisonRow("Holidays & travel", current_value=300.0, rolling_avg_value=100.0, delta_pct=200.0, bar_pct=100.0, drill_down_url=""),
     ]
-    # total_current = 350, total_avg = 300 -> 16.7% overall
-    # biggest drop: other_expense (50 - 200 = -150)
-    # biggest rise: travel_dining (300 - 100 = 200)
 
     sentence = get_narrative_insight(rows)
 
     assert sentence is not None
     assert "rose 16.7%" in sentence
-    assert "Other Expense" in sentence  # underscore replaced with space, title-cased
-    assert "Travel Dining" in sentence  # same for this category
-    assert "other_expense" not in sentence  # raw underscore form should not appear
-    assert "travel_dining" not in sentence
+    assert "Taxes & financial costs accounted for €150" in sentence
+    assert "more in Holidays & travel" in sentence
 
 
 def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documents(session):
@@ -472,10 +494,10 @@ def test_get_overview_data_suppresses_narrative_in_first_3_days_of_month(session
     # This month (posted on day 1, so it's present regardless of which
     # "today" we ask about below): a category spend that would otherwise
     # produce a narrative sentence.
-    _txn(session, document, "RESTAURANT A", 10.0, TransactionType.DEBIT, date(2026, 8, 1), Category.RESTAURANTS)
+    _txn(session, document, "GALP", 10.0, TransactionType.DEBIT, date(2026, 8, 1), "transport.car-running-costs.fuel")
     # Prior 3 months: restaurants averages to 100 -- a steep, narrative-worthy drop.
     for m, amt in [(7, 100.0), (6, 100.0), (5, 100.0)]:
-        _txn(session, document, "RESTAURANT A", amt, TransactionType.DEBIT, date(2026, m, 6), Category.RESTAURANTS)
+        _txn(session, document, "GALP", amt, TransactionType.DEBIT, date(2026, m, 6), "transport.car-running-costs.fuel")
 
     early_month = get_overview_data(session, today=date(2026, 8, 2))
     later_in_month = get_overview_data(session, today=date(2026, 8, 10))
