@@ -14,6 +14,13 @@ from tests.domain_fakes import RecordingHandler, make_fake_spec
 pytestmark = pytest.mark.usefixtures("levels_not_binding")
 
 
+def _wire(status: int, body: dict) -> str:
+    """The gateway's error body exactly as the HTTP library puts it on the wire (its JSON spacing differs between
+    versions), so the expected reason is built by the production library, not typed by hand."""
+    import httpx
+    return f"gateway returned {status}: {httpx.Response(status, json=body).text}"
+
+
 def _client_with_handler(handler):
     import httpx
 
@@ -104,19 +111,19 @@ async def test_gateway_transport_reason_is_mapped_to_outage_message(session, mon
 
 def test_real_client_5xx_produces_mapped_reason():
     reason = _reason_from_gateway_status(529, {"detail": "overloaded"})
-    assert reason == 'gateway returned 529: {"detail": "overloaded"}'
+    assert reason == _wire(529, {"detail": "overloaded"})
     assert presentation.humanize_reason_text(reason) == "The AI service couldn't be reached."
 
 
 def test_real_client_408_produces_mapped_reason():
     reason = _reason_from_gateway_status(408, {"detail": "request timeout"})
-    assert reason == 'gateway returned 408: {"detail": "request timeout"}'
+    assert reason == _wire(408, {"detail": "request timeout"})
     assert presentation.humanize_reason_text(reason) == "The AI service couldn't be reached."
 
 
 def test_real_client_4xx_produces_read_failure_reason():
     reason = _reason_from_gateway_status(413, {"detail": "request too large"})
-    assert reason == 'gateway returned 413: {"detail": "request too large"}'
+    assert reason == _wire(413, {"detail": "request too large"})
     assert presentation.humanize_reason_text(reason) == "This document couldn't be read automatically."
 
 
@@ -128,5 +135,5 @@ def test_real_client_transport_failure_produces_mapped_reason():
 
 def test_gateway_error_with_pdf_detail_is_a_file_problem():
     reason = _reason_from_gateway_status(400, {"detail": "The PDF specified was not valid."})
-    assert reason == "gateway returned 400: {\"detail\": 'The PDF specified was not valid.'}" or reason == 'gateway returned 400: {"detail": "The PDF specified was not valid."}'
+    assert reason == _wire(400, {"detail": "The PDF specified was not valid."})
     assert presentation.humanize_reason_text(reason) == "The file couldn't be read."
