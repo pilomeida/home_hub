@@ -121,14 +121,20 @@ async def test_finalize_marks_needs_attention_when_handler_raises(session, docum
 async def test_finalize_allows_missing_category_when_domain_infers_it(session, documents_dir, monkeypatch):
     from app.domains import registry
 
-    spec = make_fake_spec(infers_category=True)
+    class InfersTheKind(RecordingHandler):            # as Financials does: bill or statement, worked out on reading
+        async def process(self, session, document):
+            document.category = "manual"
+            return await super().process(session, document)
+
+    spec = make_fake_spec(handler=InfersTheKind(), infers_category=True)
     monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
     document = ingestion.receive_file(session, _incoming()).document
 
     result = await ingestion.finalize_document(session, document, Classification(Domain.HOUSE))
 
+    # Accepted without a kind, but filed only with the kind the handler worked out (work-list B6).
     assert result.status == DocumentStatus.PROCESSED
-    assert result.category is None
+    assert result.category == "manual"
 
 
 @pytest.mark.asyncio

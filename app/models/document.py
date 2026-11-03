@@ -36,10 +36,9 @@ class Document(SQLModel, table=True):
     content_hash: str = Field(index=True)
     source: DocumentSource
     status: DocumentStatus = Field(default=DocumentStatus.PENDING)
-    # DEPRECATED: superseded by `category` (migration 3b7e9c1d2f40 copied it
-    # across). Kept per the additive-only migration policy; nothing reads or
-    # writes it.
-    doc_type: Optional[str] = None
+    # The paper KIND (glossary, docs/ARCHITECTURE.md). Set on every filed document (work-list B6); empty only while
+    # it waits in the Inbox or after it was discarded. The old `doc_type` column stays in the table, unused
+    # (additive-only migrations; migration 3b7e9c1d2f40 copied it here).
     category: Optional[str] = Field(default=None, index=True)
     fields_json: str = Field(default="{}")
     domain: Optional[Domain] = None

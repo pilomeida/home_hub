@@ -118,6 +118,9 @@ def _not_hand_entered_error(spec: DomainSpec, category: Optional[str]) -> Invali
     return InvalidClassification({"category": f"{label} is filed from a document, not entered by hand"})
 
 
+NO_KIND_REASON = "the Hub couldn't work out what kind of paper it is, so it wasn't filed"
+
+
 def mark_needs_attention(session: Session, document: Document, reason: str) -> Document:
     document.status = DocumentStatus.NEEDS_ATTENTION
     document.failure_reason = reason
@@ -201,6 +204,9 @@ async def _file_under(session: Session, document: Document, validated: Validated
     # no level is held (decision D12). A no-op while levels are not binding.
     with privacy_scope(session, validated.spec.domain, validated.category):
         result = await _file_under_scoped(session, document, validated)
+    if result.status == DocumentStatus.PROCESSED and (result.domain is None or result.category is None):
+        # Every filed paper has a kind (work-list B6): one the Hub could not give a kind to goes to a person.
+        result = mark_needs_attention(session, result, NO_KIND_REASON)
     if result.status == DocumentStatus.PROCESSED:
         from app.problems import resolve_for
         resolve_for(session, f"document:{result.id}")      # it works now: clear its earlier problem

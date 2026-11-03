@@ -19,7 +19,7 @@ Size: S is under half a day, M is one to two days, L is three days or more.
 **Order (2026-11-03):** B1a glossary (done: top of docs/ARCHITECTURE.md) → B6 every document a kind → B3 one
 spending taxonomy (it frees the word "category" in the code) → B1b rename in code and fix Insurance's kinds → B2 each
 kind carries its four attributes → B5 bank lines explicit → B3b commitments for cash flow → B4 registry of subjects
-(largest; last, because it builds on the renamed kinds).
+(largest; last, because it builds on the renamed kinds). Renames happen in code only; database columns keep their names (additive-only migrations, docs/ARCHITECTURE.md).
 | # | What | Finding | Done when | Size |
 |---|---|---|---|---|
 | B1 | **Glossary and names.** Decide the words: category, paper kind, spending tree. Rename in the code step by step, behind aliases: `Domain` becomes category, the code's `category` becomes kind. Insurance stays a category (Pedro, 2026-11-03); fix its double inversion so its kinds are papers (policy, renewal notice, claim), and what is covered becomes a field. | F6 | The glossary is in ARCHITECTURE.md; the code, forms and docs use one word for each idea | M |
@@ -28,7 +28,7 @@ kind carries its four attributes → B5 bank lines explicit → B3b commitments 
 | B3b | **Budgets and commitments both stay, with distinct jobs** (Pedro, 2026-11-03). A budget is a planned maximum, a baseline to monitor against. A commitment is a known spend that is coming, used to anticipate cash flow. Put commitments on the spending tree; show them in a cash-flow view of what is due and when; let a commitment be created by hand as well as from Needs Review. | F20 | A commitment shows on the cash-flow view with its due date, separately from the budget | M |
 | B4 | **Registry of subjects.** One `subjects` store (person, account, counterparty, thing, policy, condition) with aliases and merge, built from Health's `people.py`. Link `people`, `health_people`, accounts (with owner), and the merchants that are people. Wiki entity keys point at subjects. One name normaliser. | F1, F9 | Matias is one subject seen from the loan, the merchant and the bank lines; Rute is one subject across Health and Money | L |
 | B5 | **Bank lines inherit the statement's level** (Pedro, 2026-11-03: no level of their own). Make the synthetic feed document explicit (named, documented, tested) instead of a workaround. The AI calls are already scoped at the statement level (A3). | F7, F10 | Every row the AI can see has a tier, through its statement | S |
-| B6 | **Give every document a kind.** Classify the 65 documents with no kind, the 5 Money documents with no kind, and the 1 `medical_bill`. Drop `doc_type`. | F6, F20 | No document without a kind; no dead kind | S |
+| B6 | **Give every document a kind.** Built 2026-11-03: a paper is filed only with a kind (`services/ingestion.py`, otherwise it goes to a person); `scripts/give_every_document_a_kind.py` gives the 5 Money documents theirs and moves the Revolut history onto the Revolut account; `doc_type` is out of the code (the column stays: additive-only migrations). Inbox papers (68) get their kind when approved; the dental receipt moves with `scripts/file_dental_receipt.py` (other session). | F6, F20 | No filed document without a kind; no dead kind | S |
 
 ## C. Functions
 | # | What | Finding | Done when | Size |
@@ -54,6 +54,8 @@ kind carries its four attributes → B5 bank lines explicit → B3b commitments 
 ## Backlog (parked, not scheduled)
 - **Matias's loan: reconcile where we are** (Pedro, 2026-11-03). The Hub shows it at 0 and still active. Park until Pedro picks it up.
 - **Emanuel's €15,000 from before 2025-10-10.** It is already counted as an opening balance of 15,000 on 2025-10-09, which is why the balance shows 17,000. Pedro wants it brought in properly: when it was received, how, and whether any of it was paid back before the bank data starts. Needs the date and the amount.
+
+- **Missing bank history** (found by B6, 2026-11-03): the Santander statements of 2024-03 (no lines at all) and 2025-02 (1 line) failed to read on 2026-08-18 with bugs fixed since, and Revolut before 2024-01 was never loaded. Read them again through the normal path, with a check against lines already stored so nothing doubles. Before the 2025-10-10 baseline, so history and spending analysis only.
 
 ## Pedro's to-dos from this mapping
 1. Renew Rute's Santander access on the Bank connections page; it has been expired since before today.

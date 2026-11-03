@@ -68,6 +68,10 @@ HEALTH_BILL_NEXT_STEP = 'Use "change" at the top of this page to move it to Fina
 _HEALTH_BILL = re.compile(r"so it is not filed under Health", re.I)
 
 _RETRY = "Nothing is lost: try again in a few minutes. If it keeps happening, tell Pedro."
+# A filed paper must have a kind (work-list B6; services/ingestion.py NO_KIND_REASON).
+_NO_KIND = re.compile(r"couldn't work out what kind of paper", re.I)
+# The gateway refused a call made outside every privacy scope (finding F7; app/llm_gateway.py call_level).
+_NO_SCOPE = re.compile(r"outside any privacy scope", re.I)
 
 
 def is_health_bill_refusal(raw: Optional[str]) -> bool:
@@ -78,6 +82,14 @@ def classify_reason(raw: Optional[str]) -> Optional[Cause]:
     """A Cause for a technical-looking stored reason, or None when the text is already plain English."""
     if not raw:
         return None
+    if _NO_KIND.search(raw):
+        return Cause("This paper wasn't filed.",
+                     "The Hub couldn't work out what kind of paper it is (a bill, a statement, …), and every filed paper needs one.",
+                     'Open it and use "change" to choose its kind; it is then read again.')
+    if _NO_SCOPE.search(raw):
+        return Cause("The AI wasn't asked.",
+                     "The Hub couldn't tell which privacy level applies to this, and it never sends anything without one.",
+                     "Nothing was sent and nothing is lost. Tell Pedro: the technical details below show where it happened.")
     if is_health_bill_refusal(raw):
         return Cause("This paper isn't filed under Health.",
                      "It looks like a bill or receipt, and bills are dealt with under Bills, like any other bill.",
