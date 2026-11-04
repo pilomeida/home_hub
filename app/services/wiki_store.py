@@ -225,7 +225,7 @@ def _record_source_label(domain: Optional[Domain], record: Record) -> str:
     label, not the raw internal category key."""
     category_label = record.category
     if domain is not None and is_implemented(domain):
-        category_label = get_spec(domain).category_label(record.category) or record.category
+        category_label = get_spec(domain).kind_label(record.category) or record.category
     return f"{category_label} (entered by hand) #{record.id}"
 
 

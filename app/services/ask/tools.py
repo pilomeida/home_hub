@@ -162,7 +162,7 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
         source = _entry_source(entry)
         spec = get_spec(source.domain)
         fields_text = entry_fields_text(entry)
-        haystack = " ".join([entry.title, entry.category or "", spec.category_label(entry.category), spec.label, fields_text])
+        haystack = " ".join([entry.title, entry.category or "", spec.kind_label(entry.category), spec.label, fields_text])
         score = len(query_tokens & tokens(haystack)) if query_tokens else 1
         if score > 0:
             scored.append((score, entry, source, spec, fields_text))
@@ -172,7 +172,7 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
     for _, entry, source, spec, fields_text in shown:
         attachment = (f" | attachment doc:{entry.document.id}"
                       if entry.kind == SourceKind.RECORD and entry.document is not None else "")
-        lines.append(f"{source_ref(source)} | {spec.label} | {spec.category_label(entry.category) or '-'} | "
+        lines.append(f"{source_ref(source)} | {spec.label} | {spec.kind_label(entry.category) or '-'} | "
                      f"{entry.title} | added {entry.created_at:%Y-%m-%d} | {fields_text or 'no details'}{attachment}")
     # The header counts every match, so the level is judged on every match, not only the ones shown.
     touched = [s for _, e, src, _, _ in scored for s in (src, e.document if e.document is not src else None)

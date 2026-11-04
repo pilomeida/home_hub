@@ -1,7 +1,7 @@
 """Insurance's DomainSpec."""
 
 from app.domains.base import (
-    CategorySpec, DomainSpec, EntityTypeSpec, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
+    KindSpec, DomainSpec, EntityTypeSpec, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
 )
 from app.domains.insurance.categories import (
     ALL_KINDS, COVERS, POLICY_PAGE_TYPE, POLICY_PARTS, InsuranceKind, insurance_derived_fields,
@@ -19,13 +19,13 @@ SPEC = DomainSpec(
         "for money: it is a bill, filed under Bills and shown on its policy."
     ),
     home_url="/insurance",
-    categories=(
-        CategorySpec(InsuranceKind.POLICY.value, "Policy",
+    kinds=(
+        KindSpec(InsuranceKind.POLICY.value, "Policy",
                      "A policy's own paper: general or particular conditions, schedule, summary, payment plan or "
                      "green card, for the house, a car, health or life. A premium notice or receipt is NOT this: "
                      "it is a bill, dealt with under Bills. A statement of what a health insurer reimbursed is "
                      "a bill-type paper too."),
-        CategorySpec(InsuranceKind.CLAIM.value, "Claim",
+        KindSpec(InsuranceKind.CLAIM.value, "Claim",
                      "A claim made on a policy, or the insurer's answer to one."),
     ),
     fields=(
@@ -33,7 +33,7 @@ SPEC = DomainSpec(
         FieldSpec("policy_number", "Policy number", FieldKind.TEXT, required=True),
         FieldSpec("covers", "What the policy is for", FieldKind.CHOICE, required=True, choices=COVERS),
         FieldSpec("part", "Which part of the policy", FieldKind.CHOICE,
-                  categories=frozenset({InsuranceKind.POLICY.value}), required=True, choices=POLICY_PARTS),
+                  kinds=frozenset({InsuranceKind.POLICY.value}), required=True, choices=POLICY_PARTS),
         FieldSpec("insured", "What or whom it covers", FieldKind.SUGGEST,
                   help="e.g. Mafra house, Toyota Avensis 82-CL-65, the family."),
         FieldSpec("product", "Product", FieldKind.TEXT, help="e.g. Zurich Lar Seguro."),
@@ -52,7 +52,7 @@ SPEC = DomainSpec(
         entity_types=(
             EntityTypeSpec(
                 page_type=POLICY_PAGE_TYPE, label="Policies", key_field="policy_number",
-                categories=ALL_KINDS,
+                kinds=ALL_KINDS,
                 facts=(
                     FactSpec("type", "Type", "covers_label"),
                     FactSpec("insurer", "Insurer", "insurer"),

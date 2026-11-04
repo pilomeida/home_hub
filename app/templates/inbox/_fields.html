@@ -10,14 +10,14 @@
 </label>
 {% if errors.domain %}<span class="needs-attention">{{ errors.domain }}</span>{% endif %}
 <label>Type
-  <select name="category" {% if not (selected_spec and selected_spec.infers_category) %}required{% endif %}
+  <select name="category" {% if not (selected_spec and selected_spec.infers_kind) %}required{% endif %}
           hx-get="/inbox/{{ entry.document.id }}/fields" hx-target="#fields-{{ entry.document.id }}"
           hx-include="closest form" hx-trigger="change">
     <option value="" {% if not selected_category %}selected{% endif %}>
-      {% if selected_spec and selected_spec.infers_category %}Let the Hub work it out{% else %}Choose…{% endif %}
+      {% if selected_spec and selected_spec.infers_kind %}Let the Hub work it out{% else %}Choose…{% endif %}
     </option>
     {% if selected_spec %}
-      {% for category in selected_spec.categories %}
+      {% for category in selected_spec.kinds %}
         <option value="{{ category.value }}" {% if category.value == selected_category %}selected{% endif %}>{{ category.label }}</option>
       {% endfor %}
     {% endif %}

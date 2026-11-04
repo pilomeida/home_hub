@@ -40,7 +40,7 @@ def _context(session: Session, *, action: str, title: str, has_file: bool, filen
     return {
         "action": action, "title": title, "has_file": has_file,
         "domains": implemented_domains(), "domain": domain, "category": category,
-        "categories": spec.categories if spec else (),
+        "categories": spec.kinds if spec else (),
         "form_fields": build_form_fields(session, spec, category, values, errors, media_kind=media_kind) if spec and category else [],
         "errors": file_notices(errors), "refused": notice(refused) if refused else None,
     }
@@ -75,7 +75,7 @@ def _home_of(session: Session, result) -> str:
 @router.get("/documents/edit/categories")
 async def category_options(request: Request, domain: Optional[str] = None):
     parsed = _domain_or_none(domain)
-    categories = get_spec(parsed).categories if parsed else ()
+    categories = get_spec(parsed).kinds if parsed else ()
     return templates.TemplateResponse(request, "documents/_category_select.html",
                                       {"categories": categories, "category": None})
 
@@ -85,7 +85,7 @@ async def field_inputs(request: Request, domain: Optional[str] = None, category:
                        session: Session = Depends(get_session)):
     parsed = _domain_or_none(domain)
     spec = get_spec(parsed) if parsed else None
-    known = category if spec and any(c.value == category for c in spec.categories) else None
+    known = category if spec and any(c.value == category for c in spec.kinds) else None
     form_fields = build_form_fields(session, spec, known, {}, {}) if known else []
     return templates.TemplateResponse(request, "domains/_field_inputs.html", {"form_fields": form_fields})
 

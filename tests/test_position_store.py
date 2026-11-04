@@ -318,7 +318,7 @@ def test_new_categories_registered_but_not_offered_to_the_classifier():
     from app.models.domain import Domain
     from app.services.domain_classifier import build_system_prompt
     spec = get_spec(Domain.FINANCIALS)
-    assert {"statement_positions", "loan_history"} <= {c.value for c in spec.categories}
+    assert {"statement_positions", "loan_history"} <= {c.value for c in spec.kinds}
     prompt = build_system_prompt([spec])
     assert "statement_positions" not in prompt and "loan_history" not in prompt
     assert 'category "statement"' in prompt

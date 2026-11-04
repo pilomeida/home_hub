@@ -126,7 +126,7 @@ async def test_finalize_allows_missing_category_when_domain_infers_it(session, d
             document.category = "manual"
             return await super().process(session, document)
 
-    spec = make_fake_spec(handler=InfersTheKind(), infers_category=True)
+    spec = make_fake_spec(handler=InfersTheKind(), infers_kind=True)
     monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
     document = ingestion.receive_file(session, _incoming()).document
 

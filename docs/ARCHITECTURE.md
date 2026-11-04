@@ -11,7 +11,7 @@ Use the model's word in anything a person reads (pages, messages, docs).
 | Model word | Means | Code name today |
 |---|---|---|
 | **category** | A subject area of household life: Money & Bills, Health, House Records, Insurance (planned: Identity & Legal, Education, Vehicles) | `Domain` (`app/models/domain.py`), `DomainSpec`, columns `domain` |
-| **paper kind** | A kind of paper or record inside a category: bill, statement, lab result, warranty, policy… It carries the privacy level, how it is read, how it is checked and what it is filed as | `CategorySpec` (`app/domains/base.py`), columns `category`. Insurance's kinds are Policy and Claim; what a policy covers is the field `covers` (2026-11-04). A premium notice is a Money bill carrying `policy_number` |
+| **paper kind** | A kind of paper or record inside a category: bill, statement, lab result, warranty, policy… It carries the privacy level, how it is read, how it is checked and what it is filed as | `KindSpec` (`app/domains/base.py`), columns `category`. Insurance's kinds are Policy and Claim; what a policy covers is the field `covers` (2026-11-04). A premium notice is a Money bill carrying `policy_number` |
 | **spending category** | A node of the 3-level spending tree a money line is filed under (Food › Groceries › Supermarket) | `CategoryNode`, table `category_nodes`, `Transaction.category_id` |
 | *(retired)* spending label | The old flat 16-value list (GROCERIES, OTHER_EXPENSE…), retired 2026-11-03 (work-list B3): the tree is the only record. Its columns stay in the tables, unread, filled with "OTHER" | `unused_old_category` on `Transaction`, `Merchant`, `Commitment` (columns `category`, `default_category`) |
 | **subject** | Who or what a paper is about: a person, account, counterparty, thing, policy, condition | today several unlinked stores (`people`, `health_people`, `merchants`, `accounts`, text fields); one registry planned (work-list B4) |
@@ -170,8 +170,8 @@ Home & Family/
 │   │
 │   ├── domains/                Domain registry — the ONLY extension point (see Design Decisions
 │   │   │                       and "Adding a domain"); shared code never names a domain
-│   │   ├── base.py             Domain enum, DomainSpec / DomainHandler / CategorySpec / FieldSpec /
-│   │   │                       WikiSchema dataclasses; SourceKind (DOCUMENT | RECORD, on CategorySpec)
+│   │   ├── base.py             Domain enum, DomainSpec / DomainHandler / KindSpec / FieldSpec /
+│   │   │                       WikiSchema dataclasses; SourceKind (DOCUMENT | RECORD, on KindSpec)
 │   │   ├── registry.py         get_spec / all_specs — loads SPEC from _SPEC_MODULES, validates
 │   │   │                       domain uniqueness; document_url / record_url
 │   │   ├── fields.py           FieldInput helpers shared by the domain field-inputs template
@@ -623,7 +623,7 @@ The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the fam
 
 **Migrations are additive-only by policy**, not just by accident: every sub-project's plan explicitly forbids column removals or enum-value changes, and every new `Transaction`/`Document` column has shipped nullable specifically so historical rows never need a backfill *at the same time* as the schema change — backfilling is always a separate, later, explicitly-run step.
 
-**Domain registry is the only extension point.** Every per-domain behavior — categories, metadata fields, handlers, overview cards, wiki schema — is declared in a `DomainSpec` (`app/domains/<domain>/spec.py`) and reached through `app/domains/registry.py`; shared code (ingestion core, backlogs, overview cards, wiki engine, templating, base template) never names a domain, it looks everything up. A `DomainSpec` declares: the `Domain` member, its `CategorySpec`s (label + which media kinds it applies to + option ordering), its `FieldSpec`s (per-category metadata fields with validation rules), a `WikiSchema` (which entity claims this domain's fields feed), its `DomainHandler` (the `process` / `on_fields_changed` hooks the ingestion core dispatches to), and its `overview_card`. The ingestion core is deliberately split into `receive_file` (dedup → store → UNCLASSIFIED Document with `domain=NULL`) and `finalize_document` (validate domain+category+fields against the registry → tag → dispatch to the handler) so that a reviewing channel — Plan B's Inbox — can hold a document between the two, letting a human classify instead of forcing an eager guess at upload time.
+**Domain registry is the only extension point.** Every per-domain behavior — categories, metadata fields, handlers, overview cards, wiki schema — is declared in a `DomainSpec` (`app/domains/<domain>/spec.py`) and reached through `app/domains/registry.py`; shared code (ingestion core, backlogs, overview cards, wiki engine, templating, base template) never names a domain, it looks everything up. A `DomainSpec` declares: the `Domain` member, its `KindSpec`s (label + which media kinds it applies to + option ordering), its `FieldSpec`s (per-category metadata fields with validation rules), a `WikiSchema` (which entity claims this domain's fields feed), its `DomainHandler` (the `process` / `on_fields_changed` hooks the ingestion core dispatches to), and its `overview_card`. The ingestion core is deliberately split into `receive_file` (dedup → store → UNCLASSIFIED Document with `domain=NULL`) and `finalize_document` (validate domain+category+fields against the registry → tag → dispatch to the handler) so that a reviewing channel — Plan B's Inbox — can hold a document between the two, letting a human classify instead of forcing an eager guess at upload time.
 
 **Domain metadata is `fields_json` validated by `FieldSpec`s, not per-domain tables.** Each domain wants different metadata on its documents (a warranty has an expiry date; a bill has a provider and period), and per-domain tables would mean a new table + migration + query surface per domain forever. Instead every Document carries one generic `fields_json` blob of string values, and the registry's `FieldSpec`s are what make it meaningful — they define which fields exist per category, which are required, and how they validate, so `finalize_document` can refuse an invalid write and templates can render fields generically.
 
@@ -632,7 +632,7 @@ The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the fam
 **Documents vs Records.** A `Document` is an immutable raw source: a file plus its provenance
 (`file_path`, `content_hash`, `source`) — it is never rewritten, only re-tagged. A `Record` is a
 human-authored source: domain, category, `fields_json` and who entered it, with no file of its
-own required. The registry decides per category which shape applies: `CategorySpec.kind` is
+own required. The registry decides per category which shape applies: `KindSpec.kind` is
 `SourceKind.DOCUMENT` (the entry IS an uploaded file) or `SourceKind.RECORD` (typed in by hand; a
 file *may* be attached — e.g. a maintenance visit with a receipt). A Record's optional attachment
 is a normal Document with `Record.document_id` pointing at it (unique — a Document attaches to at
@@ -732,7 +732,7 @@ and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy 
 3. Append `"app.domains.<domain>.spec"` to `_SPEC_MODULES` in `app/domains/registry.py`.
 4. Create `app/routers/<domain>.py` (+ `app/templates/<domain>/`) using `app.templating.templates`, the ingestion core (`receive_file` / `finalize_document`) for uploads, `domains/_field_inputs.html` for metadata, and `todos/_backlog.html` for the backlog; include the router in `app/main.py`.
 5. For any category that's hand-entered rather than filed from a file (a mileage log, a doctor
-   visit), declare `kind=SourceKind.RECORD` on its `CategorySpec` and set `DomainSpec.record_url`
+   visit), declare `kind=SourceKind.RECORD` on its `KindSpec` and set `DomainSpec.record_url`
    (where a Record of this domain is viewed — parallel to `document_url`). Optionally set
    `DomainSpec.derive_fields` for any fact that should be computed rather than stated (see *Derived
    fields and claim notes*).

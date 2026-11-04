@@ -53,7 +53,7 @@ def _no_derived_fields(category: Optional[str], fields: dict[str, str]) -> dict[
 
 
 @dataclass(frozen=True)
-class CategorySpec:
+class KindSpec:
     """In the model's words: a PAPER KIND inside a category (glossary, docs/ARCHITECTURE.md)."""
     value: str            # stored in Document.category, e.g. "warranty_invoice"
     label: str            # human label, e.g. "Warranty / invoice"
@@ -68,7 +68,7 @@ class FieldSpec:
     key: str
     label: str
     kind: FieldKind
-    categories: Optional[frozenset[str]] = None      # None = every category of the domain
+    kinds: Optional[frozenset[str]] = None           # None = every kind of the domain
     media: Optional[frozenset[MediaKind]] = None     # None = any file type
     required: bool = False
     choices: tuple[tuple[str, str], ...] = ()        # CHOICE: static (value, label) options
@@ -79,7 +79,7 @@ class FieldSpec:
     private: bool = False
 
     def applies_to(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> bool:
-        if self.categories is not None and category not in self.categories:
+        if self.kinds is not None and category not in self.kinds:
             return False
         if media_kind is not None and self.media is not None and media_kind not in self.media:
             return False
@@ -101,7 +101,7 @@ class FactSpec:
     key: str                                   # claim key on the wiki page, e.g. "warranty_expires"
     label: str                                 # human label, e.g. "Warranty expires"
     field: str                                 # document field key it comes from ("category" = category label)
-    categories: Optional[frozenset[str]] = None
+    kinds: Optional[frozenset[str]] = None
     policy: FactPolicy = FactPolicy.REPLACE
     note_field: Optional[str] = None
 
@@ -110,7 +110,7 @@ class FactSpec:
 class LinkSpec:
     field: str                                  # document field naming the target entity, e.g. "room"
     target_page_type: str                       # e.g. "house.room"
-    categories: Optional[frozenset[str]] = None
+    kinds: Optional[frozenset[str]] = None
     bidirectional: bool = True
 
 
@@ -119,7 +119,7 @@ class EntityTypeSpec:
     page_type: str                  # e.g. "house.item"; unique across all domains
     label: str                      # index section heading, e.g. "Items"
     key_field: str                  # document field naming the entity, e.g. "item_name"
-    categories: frozenset[str]      # document categories that feed this entity
+    kinds: frozenset[str]           # paper kinds that feed this entity
     facts: tuple[FactSpec, ...]
     links: tuple[LinkSpec, ...] = ()
 
@@ -184,7 +184,7 @@ class DomainHandler:
         return None
 
 
-class UnknownCategoryError(KeyError):
+class UnknownKindError(KeyError):
     pass
 
 
@@ -194,20 +194,20 @@ class DomainSpec:
     label: str
     description: str                                  # one sentence; also fed to Plan B's classifier
     home_url: str                                     # the domain tab's landing page
-    categories: tuple[CategorySpec, ...]
+    kinds: tuple[KindSpec, ...]
     fields: tuple[FieldSpec, ...]
     handler: DomainHandler
     nav_links: tuple[NavLink, ...]
     overview_card: Callable[[Session, date], DomainCard]
     document_url: Callable[[Document], str]
     wiki: WikiSchema = WikiSchema()
-    infers_category: bool = False                     # True: handler may determine a missing category itself
+    infers_kind: bool = False                         # True: handler may determine a missing kind itself
     record_url: Optional[Callable[[Record], str]] = None
     derive_fields: Callable[[Optional[str], dict[str, str]], dict[str, str]] = _no_derived_fields
     ask_tools: tuple = ()                             # tuple[app.services.ask.contracts.AskTool, ...] (Plan C)
 
     def __post_init__(self) -> None:
-        values = [c.value for c in self.categories]
+        values = [c.value for c in self.kinds]
         if len(values) != len(set(values)):
             raise ValueError(f"{self.label}: duplicate category values")
         keys = [f.key for f in self.fields]
@@ -217,18 +217,18 @@ class DomainSpec:
         if reserved:
             raise ValueError(f"{self.label}: reserved field keys used: {sorted(reserved)}")
 
-    def category(self, value: str) -> CategorySpec:
-        for category in self.categories:
-            if category.value == value:
-                return category
-        raise UnknownCategoryError(value)
+    def kind(self, value: str) -> KindSpec:
+        for kind in self.kinds:
+            if kind.value == value:
+                return kind
+        raise UnknownKindError(value)
 
-    def category_label(self, value: Optional[str]) -> str:
+    def kind_label(self, value: Optional[str]) -> str:
         if value is None:
             return ""
         try:
-            return self.category(value).label
-        except UnknownCategoryError:
+            return self.kind(value).label
+        except UnknownKindError:
             return value
 
     def fields_for(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> list[FieldSpec]:

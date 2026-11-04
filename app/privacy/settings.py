@@ -94,7 +94,7 @@ def _s(value: object) -> str:
 def known_types() -> list[TypeInfo]:
     out = []
     for spec in implemented_domains():
-        for c in spec.categories:
+        for c in spec.kinds:
             key = (spec.domain.value, c.value)
             suggested = FORCED_TIERS.get(spec.domain.value) or SUGGESTED_TIERS.get(key, FALLBACK_SUGGESTION)
             out.append(TypeInfo(spec.domain.value, spec.label, c.value, c.label, c.description, suggested))

@@ -16,7 +16,7 @@ HEALTH_CATEGORIES = {"lab_result", "imaging_report", "medical_report", "prescrip
 def test_health_is_a_registered_domain_with_the_agreed_categories():
     assert Domain.HEALTH.value == "health" and is_implemented(Domain.HEALTH)
     spec = get_spec(Domain.HEALTH)
-    assert {c.value for c in spec.categories} == HEALTH_CATEGORIES
+    assert {c.value for c in spec.kinds} == HEALTH_CATEGORIES
     assert spec.home_url == "/health/records"
 
 

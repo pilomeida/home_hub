@@ -1,7 +1,7 @@
 """House's DomainSpec."""
 
 from app.domains.base import (
-    DEFAULT_MEDIA, CategorySpec, DomainSpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec,
+    DEFAULT_MEDIA, KindSpec, DomainSpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec,
     LinkSpec, MediaKind, NavLink, SourceKind, WikiSchema,
 )
 from app.domains.house.categories import ITEM_CATEGORIES, ITEM_KIND_CATEGORIES, ITEM_PAGE_TYPE, ROOM_PAGE_TYPE, HouseCategory
@@ -22,37 +22,37 @@ SPEC = DomainSpec(
         "maintenance records, floor plans and pipe/electrical layouts, and property ownership documents."
     ),
     home_url="/house",
-    categories=(
-        CategorySpec(HouseCategory.HOUSE_APPLIANCE.value, "House appliance",
+    kinds=(
+        KindSpec(HouseCategory.HOUSE_APPLIANCE.value, "House appliance",
                      "Manual or documentation for an indoor appliance (boiler, dishwasher, oven, heat pump...)."),
-        CategorySpec(HouseCategory.OUTDOOR_GEAR.value, "Outdoor gear",
+        KindSpec(HouseCategory.OUTDOOR_GEAR.value, "Outdoor gear",
                      "Manual or documentation for outdoor equipment (lawnmower, barbecue, garden tools...)."),
-        CategorySpec(HouseCategory.WARRANTY_INVOICE.value, "Warranty / invoice",
+        KindSpec(HouseCategory.WARRANTY_INVOICE.value, "Warranty / invoice",
                      "A purchase invoice, receipt or warranty certificate for a household item."),
-        CategorySpec(HouseCategory.MAINTENANCE_LOG.value, "Maintenance log",
+        KindSpec(HouseCategory.MAINTENANCE_LOG.value, "Maintenance log",
                      "A service, repair or inspection done on a household item — typed in by hand, "
                      "optionally with its receipt or report attached.", kind=SourceKind.RECORD),
-        CategorySpec(HouseCategory.FLOOR_PLAN.value, "Floor plan",
+        KindSpec(HouseCategory.FLOOR_PLAN.value, "Floor plan",
                      "A floor plan, or a diagram, photo or video of the house's pipes, sewage, wiring or floors.",
                      accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}),
-        CategorySpec(HouseCategory.OWNERSHIP_DOCUMENT.value, "Ownership document",
+        KindSpec(HouseCategory.OWNERSHIP_DOCUMENT.value, "Ownership document",
                      "A property deed, land registry record or purchase contract for the house."),
     ),
     fields=(
-        FieldSpec("item_name", "Item", FieldKind.SUGGEST, categories=ITEM_CATEGORIES, required=True,
+        FieldSpec("item_name", "Item", FieldKind.SUGGEST, kinds=ITEM_CATEGORIES, required=True,
                   help="The same name groups the item's manual, warranty and maintenance records."),
-        FieldSpec("room", "Room / location", FieldKind.SUGGEST, categories=ITEM_CATEGORIES),
-        FieldSpec("warranty_expiry", "Warranty expires", FieldKind.DATE, categories=_WARRANTY,
+        FieldSpec("room", "Room / location", FieldKind.SUGGEST, kinds=ITEM_CATEGORIES),
+        FieldSpec("warranty_expiry", "Warranty expires", FieldKind.DATE, kinds=_WARRANTY,
                   help="Leave blank to have it read from the document (or assumed from the purchase date)."),
-        FieldSpec("purchase_date", "Purchase / invoice date", FieldKind.DATE, categories=_WARRANTY,
+        FieldSpec("purchase_date", "Purchase / invoice date", FieldKind.DATE, kinds=_WARRANTY,
                   help="Used to assume Portugal's 3-year legal guarantee when no expiry date is stated."),
-        FieldSpec("service_date", "Service date", FieldKind.DATE, categories=_MAINTENANCE, required=True),
-        FieldSpec("notes", "Notes", FieldKind.LONGTEXT, categories=_MAINTENANCE),
-        FieldSpec("system_type", "System", FieldKind.SUGGEST, categories=_FLOOR_PLAN, required=True,
+        FieldSpec("service_date", "Service date", FieldKind.DATE, kinds=_MAINTENANCE, required=True),
+        FieldSpec("notes", "Notes", FieldKind.LONGTEXT, kinds=_MAINTENANCE),
+        FieldSpec("system_type", "System", FieldKind.SUGGEST, kinds=_FLOOR_PLAN, required=True,
                   help="e.g. Pipes, Sewage, Electricity, Floor material."),
-        FieldSpec("indoor_outdoor", "Indoor / outdoor", FieldKind.CHOICE, categories=_FLOOR_PLAN, required=True,
+        FieldSpec("indoor_outdoor", "Indoor / outdoor", FieldKind.CHOICE, kinds=_FLOOR_PLAN, required=True,
                   choices=(("indoor", "Indoor"), ("outdoor", "Outdoor"))),
-        FieldSpec("observations", "Observations", FieldKind.LONGTEXT, categories=_FLOOR_PLAN,
+        FieldSpec("observations", "Observations", FieldKind.LONGTEXT, kinds=_FLOOR_PLAN,
                   media=frozenset({MediaKind.IMAGE, MediaKind.VIDEO}),
                   help="For photos and videos: what the picture shows."),
     ),
@@ -63,20 +63,20 @@ SPEC = DomainSpec(
     wiki=WikiSchema(
         entity_types=(
             EntityTypeSpec(
-                page_type=ITEM_PAGE_TYPE, label="Items", key_field="item_name", categories=ITEM_CATEGORIES,
+                page_type=ITEM_PAGE_TYPE, label="Items", key_field="item_name", kinds=ITEM_CATEGORIES,
                 links=(LinkSpec("room", ROOM_PAGE_TYPE),),
                 facts=(
-                    FactSpec("type", "Type", "category", categories=frozenset(ITEM_KIND_CATEGORIES)),
+                    FactSpec("type", "Type", "category", kinds=frozenset(ITEM_KIND_CATEGORIES)),
                     FactSpec("room", "Room / location", "room"),
                     FactSpec("warranty_expires", "Warranty expires", "effective_warranty_expiry",
-                             categories=_WARRANTY, policy=FactPolicy.LATEST, note_field="warranty_expiry_note"),
+                             kinds=_WARRANTY, policy=FactPolicy.LATEST, note_field="warranty_expiry_note"),
                     FactSpec("last_serviced", "Last serviced", "service_date",
-                             categories=_MAINTENANCE, policy=FactPolicy.LATEST),
+                             kinds=_MAINTENANCE, policy=FactPolicy.LATEST),
                 ),
             ),
             EntityTypeSpec(
                 page_type=ROOM_PAGE_TYPE, label="Rooms", key_field="room",
-                categories=ITEM_CATEGORIES, facts=(),
+                kinds=ITEM_CATEGORIES, facts=(),
             ),
         ),
     ),

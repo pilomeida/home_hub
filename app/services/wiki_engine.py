@@ -67,21 +67,21 @@ class WikiAssessmentError(Exception):
 
 def _fact_fields(spec: DomainSpec, source: Document | Record) -> dict[str, str]:
     return {**effective_fields(spec, source.category, load_fields(source)),
-            "category": spec.category_label(source.category)}
+            "category": spec.kind_label(source.category)}
 
 
 def claims_from_fields(spec: DomainSpec, document: Document | Record) -> list[ClaimInput]:
     fields = _fact_fields(spec, document)
     claims: list[ClaimInput] = []
     for entity_type in spec.wiki.entity_types:
-        if document.category not in entity_type.categories:
+        if document.category not in entity_type.kinds:
             continue
         name = fields.get(entity_type.key_field)
         if not name:
             continue
         page = PageRef(page_type=entity_type.page_type, title=name, entity_key=normalize_entity_key(name))
         for fact in entity_type.facts:
-            if fact.categories is not None and document.category not in fact.categories:
+            if fact.kinds is not None and document.category not in fact.kinds:
                 continue
             value = fields.get(fact.field)
             if value:
@@ -94,14 +94,14 @@ def links_from_fields(spec: DomainSpec, document: Document | Record) -> list[Lin
     fields = _fact_fields(spec, document)
     links: list[LinkInput] = []
     for entity_type in spec.wiki.entity_types:
-        if document.category not in entity_type.categories:
+        if document.category not in entity_type.kinds:
             continue
         name = fields.get(entity_type.key_field)
         if not name:
             continue
         source = PageRef(page_type=entity_type.page_type, title=name, entity_key=normalize_entity_key(name))
         for link in entity_type.links:
-            if link.categories is not None and document.category not in link.categories:
+            if link.kinds is not None and document.category not in link.kinds:
                 continue
             target_name = fields.get(link.field)
             if target_name:

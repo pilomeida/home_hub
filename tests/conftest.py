@@ -102,7 +102,7 @@ def two_domains(monkeypatch):
     import dataclasses
 
     from app.domains import registry
-    from app.domains.base import CategorySpec, WikiSchema
+    from app.domains.base import KindSpec, WikiSchema
     from app.models.domain import Domain
     from tests.domain_fakes import make_fake_spec
 
@@ -110,9 +110,9 @@ def two_domains(monkeypatch):
     money = dataclasses.replace(
         make_fake_spec(domain=Domain.FINANCIALS),
         label="Money", description="Money documents.", home_url="/money",
-        categories=(CategorySpec("bill", "Bill", "A single bill."),
-                    CategorySpec("statement", "Bank statement", "A list of transactions.")),
-        fields=(), wiki=WikiSchema(), infers_category=True,
+        kinds=(KindSpec("bill", "Bill", "A single bill."),
+                    KindSpec("statement", "Bank statement", "A list of transactions.")),
+        fields=(), wiki=WikiSchema(), infers_kind=True,
         document_url=lambda document: f"/money/{document.id}",
     )
     monkeypatch.setattr(registry, "_specs_cache", {money.domain: money, house.domain: house})

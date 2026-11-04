@@ -52,7 +52,7 @@ def test_registry_lists_financials_house_insurance_then_health():
         Domain.FINANCIALS, Domain.HOUSE, Domain.INSURANCE, Domain.HEALTH]
     spec = registry.get_spec(Domain.HOUSE)
     assert spec.home_url == "/house"
-    assert [c.value for c in spec.categories] == [
+    assert [c.value for c in spec.kinds] == [
         "house_appliance", "outdoor_gear", "warranty_invoice", "maintenance_log", "floor_plan", "ownership_document",
     ]
 

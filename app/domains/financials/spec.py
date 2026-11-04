@@ -3,7 +3,7 @@
 from sqlmodel import Session, select
 
 from app.domains.base import (
-    CategorySpec, DomainSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
+    KindSpec, DomainSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
 )
 from app.domains.financials.ask import FINANCIALS_ASK_TOOLS
 from app.domains.financials.categories import FinancialsCategory
@@ -23,21 +23,21 @@ SPEC = DomainSpec(
     label="Financials",
     description="Money: bills and invoices to pay, and bank or card account statements.",
     home_url="/financials/bills",
-    categories=(
-        CategorySpec(
+    kinds=(
+        KindSpec(
             FinancialsCategory.BILL.value, "Bill / invoice",
             "A single bill, invoice, receipt or premium notice from one provider with one amount due.",
         ),
-        CategorySpec(
+        KindSpec(
             FinancialsCategory.STATEMENT.value, "Bank statement",
             "A bank or card account statement listing many transactions.",
         ),
-        CategorySpec(
+        KindSpec(
             FinancialsCategory.POSITIONS.value, "Statement – loans & savings positions only",
             "A consolidated bank statement read only for loan, fund and balance positions (never for transactions).",
             classifiable=False,
         ),
-        CategorySpec(
+        KindSpec(
             FinancialsCategory.LOAN_HISTORY.value, "Online-banking loan movements printout",
             "An online-banking printout of one loan's instalment movements.",
             classifiable=False,
@@ -50,7 +50,7 @@ SPEC = DomainSpec(
         ),
         FieldSpec(
             "policy_number", "Insurance policy number", FieldKind.TEXT,
-            categories=frozenset({FinancialsCategory.BILL.value}),
+            kinds=frozenset({FinancialsCategory.BILL.value}),
             help="For an insurance premium: the policy it pays. The bill is then shown on that policy in Insurance.",
         ),
     ),
@@ -71,6 +71,6 @@ SPEC = DomainSpec(
             "numbers, tariffs, and renewal dates."
         ),
     ),
-    infers_category=True,
+    infers_kind=True,
     ask_tools=FINANCIALS_ASK_TOOLS,
 )

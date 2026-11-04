@@ -1,7 +1,7 @@
 """Health's DomainSpec. Always house_high (app/privacy/settings.py FORCED_TIERS)."""
 
 from app.domains.base import (
-    CategorySpec, DomainSpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
+    KindSpec, DomainSpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
 )
 from app.domains.health.ask import HEALTH_TOOLS
 from app.domains.health.categories import ALL_CATEGORIES, PERSON_PAGE_TYPE, RECORD_KINDS, HealthCategory
@@ -24,17 +24,17 @@ SPEC = DomainSpec(
         "prescriptions, referrals, vaccination records and appointment letters."
     ),
     home_url="/health/records",
-    categories=(
-        CategorySpec(HealthCategory.LAB_RESULT.value, "Lab result", "Blood, urine or other laboratory results."),
-        CategorySpec(HealthCategory.IMAGING_REPORT.value, "Imaging report",
+    kinds=(
+        KindSpec(HealthCategory.LAB_RESULT.value, "Lab result", "Blood, urine or other laboratory results."),
+        KindSpec(HealthCategory.IMAGING_REPORT.value, "Imaging report",
                      "An X-ray, ultrasound, MRI, CT or similar report."),
-        CategorySpec(HealthCategory.MEDICAL_REPORT.value, "Medical report",
+        KindSpec(HealthCategory.MEDICAL_REPORT.value, "Medical report",
                      "A consultation note, discharge letter, medical certificate or other clinical letter."),
-        CategorySpec(HealthCategory.PRESCRIPTION.value, "Prescription", "A prescription for medicines or treatment."),
-        CategorySpec(HealthCategory.REFERRAL.value, "Referral", "A referral to a specialist, exam or treatment."),
-        CategorySpec(HealthCategory.VACCINATION.value, "Vaccination record",
+        KindSpec(HealthCategory.PRESCRIPTION.value, "Prescription", "A prescription for medicines or treatment."),
+        KindSpec(HealthCategory.REFERRAL.value, "Referral", "A referral to a specialist, exam or treatment."),
+        KindSpec(HealthCategory.VACCINATION.value, "Vaccination record",
                      "A vaccination card, certificate or record."),
-        CategorySpec(HealthCategory.APPOINTMENT.value, "Appointment",
+        KindSpec(HealthCategory.APPOINTMENT.value, "Appointment",
                      "A letter, email or message confirming a medical appointment."),
     ),
     fields=(
@@ -45,9 +45,9 @@ SPEC = DomainSpec(
         FieldSpec("provider_address", "Provider address", FieldKind.TEXT),
         FieldSpec("record_kind", "What kind of event", FieldKind.CHOICE, choices=RECORD_KINDS, private=True),
         FieldSpec("appointment_date", "Appointment date", FieldKind.DATE,
-                  categories=frozenset({HealthCategory.APPOINTMENT.value})),
+                  kinds=frozenset({HealthCategory.APPOINTMENT.value})),
         FieldSpec("appointment_time", "Appointment time (HH:MM)", FieldKind.TEXT,
-                  categories=frozenset({HealthCategory.APPOINTMENT.value})),
+                  kinds=frozenset({HealthCategory.APPOINTMENT.value})),
         FieldSpec("indication", "Why this was done", FieldKind.LONGTEXT, private=True,
                   help="The reason the paper was requested, as printed (Indicação, Motivo). If the paper gives none, write it here."),
         FieldSpec("clinical_notes", "Clinical notes on the request", FieldKind.LONGTEXT, private=True,
@@ -59,7 +59,7 @@ SPEC = DomainSpec(
         FieldSpec("notes", "Notes", FieldKind.LONGTEXT, private=True),
     ),
     handler=HealthHandler(),
-    infers_category=True,       # the upload page asks only for the file; the reading proposes the kind of paper
+    infers_kind=True,       # the upload page asks only for the file; the reading proposes the kind of paper
     ask_tools=HEALTH_TOOLS,
     nav_links=(NavLink("Records", "/health/records"), NavLink("Areas", "/health/areas"), NavLink("Topics", "/health/topics"),
                NavLink("People", "/health/people")),
@@ -69,7 +69,7 @@ SPEC = DomainSpec(
         guidance=_GUIDANCE,
         entity_types=(
             EntityTypeSpec(
-                page_type=PERSON_PAGE_TYPE, label="People", key_field="person", categories=ALL_CATEGORIES,
+                page_type=PERSON_PAGE_TYPE, label="People", key_field="person", kinds=ALL_CATEGORIES,
                 facts=(FactSpec("last_record", "Most recent paper", "document_date", policy=FactPolicy.LATEST),),
             ),
         ),

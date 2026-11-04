@@ -81,7 +81,7 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
             domain_lines.append(f"- {spec.domain.value} ({spec.label}): PRIVATE. Nothing is listed here; use the "
                                 f"{spec.domain.value}_* tools if the question needs it (this makes the answer private).")
             continue
-        public = [c for c in spec.categories if not reach.is_private_type(spec.domain, c.value)]
+        public = [c for c in spec.kinds if not reach.is_private_type(spec.domain, c.value)]
         counts = Counter(e.category or "uncategorised" for e in settled_entries(session, spec.domain, reach=reach))
         categories = ", ".join(f"{c.value} ({c.label})" for c in public)
         fields = ", ".join(f.label for f in spec.fields) or "none"

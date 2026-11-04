@@ -86,7 +86,7 @@ def find_stale_links(session: Session) -> list[FindingDraft]:
                     candidates = []
                     for source in sources.values():
                         value = effective_fields(spec, source.category, load_fields(source)).get(link.field)
-                        if value and (link.categories is None or source.category in link.categories):
+                        if value and (link.kinds is None or source.category in link.kinds):
                             candidates.append((source.created_at, source.id, source, value))
                     if not candidates:
                         continue

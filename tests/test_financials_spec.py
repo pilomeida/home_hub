@@ -17,11 +17,11 @@ from app.services.ingestion import Classification, IncomingFile, ingest
 def test_financials_is_registered():
     spec = registry.get_spec(Domain.FINANCIALS)
     assert spec.label == "Financials"
-    assert [c.value for c in spec.categories] == [c.value for c in FinancialsCategory]
+    assert [c.value for c in spec.kinds] == [c.value for c in FinancialsCategory]
     explicit_only = {FinancialsCategory.POSITIONS.value, FinancialsCategory.LOAN_HISTORY.value}
-    assert {c.value for c in spec.categories if not c.classifiable} == explicit_only
-    assert all(c.classifiable for c in spec.categories if c.value not in explicit_only)
-    assert spec.infers_category is True
+    assert {c.value for c in spec.kinds if not c.classifiable} == explicit_only
+    assert all(c.classifiable for c in spec.kinds if c.value not in explicit_only)
+    assert spec.infers_kind is True
     assert [link.url for link in spec.nav_links] == [
         "/financials/bills", "/financials/transactions", "/financials/bank/",
         "/financials/loans",

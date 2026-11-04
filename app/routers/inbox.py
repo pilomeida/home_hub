@@ -38,12 +38,12 @@ def _spec_for_value(domain_value: Optional[str]):
 def _fields_context(session: Session, entry, domain_value: Optional[str], category: Optional[str],
                     values: dict, errors: dict) -> dict:
     spec = _spec_for_value(domain_value)
-    if spec is None or category not in {c.value for c in spec.categories}:
+    if spec is None or category not in {c.value for c in spec.kinds}:
         category = None   # changing the area resets the type
     form_fields = (
         build_form_fields(session, spec, category, values, errors,
                           media_kind=media_kind_for(entry.document.filename))
-        if spec is not None and (category or spec.infers_category) else []
+        if spec is not None and (category or spec.infers_kind) else []
     )
     return {
         "entry": entry,

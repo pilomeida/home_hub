@@ -2,7 +2,7 @@ import pytest
 
 from app.domains import registry
 from app.domains.base import (
-    CategorySpec, FieldKind, FieldSpec, MediaKind, UnknownCategoryError,
+    KindSpec, FieldKind, FieldSpec, MediaKind, UnknownKindError,
 )
 from app.models.document import Document, DocumentSource
 from app.models.domain import Domain
@@ -11,12 +11,12 @@ from tests.domain_fakes import make_fake_spec
 
 def test_category_lookup_and_labels():
     spec = make_fake_spec()
-    assert spec.category("manual").label == "Manual"
-    assert spec.category_label("clip") == "Clip"
-    assert spec.category_label("unknown") == "unknown"
-    assert spec.category_label(None) == ""
-    with pytest.raises(UnknownCategoryError):
-        spec.category("nope")
+    assert spec.kind("manual").label == "Manual"
+    assert spec.kind_label("clip") == "Clip"
+    assert spec.kind_label("unknown") == "unknown"
+    assert spec.kind_label(None) == ""
+    with pytest.raises(UnknownKindError):
+        spec.kind("nope")
 
 
 def test_spec_rejects_duplicate_categories_and_reserved_field_keys():
@@ -24,7 +24,7 @@ def test_spec_rejects_duplicate_categories_and_reserved_field_keys():
 
     spec = make_fake_spec()
     with pytest.raises(ValueError):
-        dataclasses.replace(spec, categories=spec.categories + (CategorySpec("manual", "Again", "dup"),))
+        dataclasses.replace(spec, kinds=spec.kinds + (KindSpec("manual", "Again", "dup"),))
     with pytest.raises(ValueError):
         dataclasses.replace(spec, fields=spec.fields + (FieldSpec("category", "Category", FieldKind.TEXT),))
 

@@ -36,13 +36,13 @@ _NON_FIELD_KEYS = {"file", "category"}
 
 def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
     spec = get_spec(Domain.HOUSE)
-    known = category if category and any(c.value == category for c in spec.categories) else None
+    known = category if category and any(c.value == category for c in spec.kinds) else None
     return {
-        "categories": spec.categories,
+        "categories": spec.kinds,
         "category": known,
         "form_fields": build_form_fields(session, spec, known, values, errors) if known else [],
         "errors": file_notices(errors),
-        "optional_file_labels": [c.label for c in spec.categories if c.kind == SourceKind.RECORD],
+        "optional_file_labels": [c.label for c in spec.kinds if c.kind == SourceKind.RECORD],
     }
 
 
@@ -65,7 +65,7 @@ def _record_context(session: Session, record: Record, values: dict, errors: dict
     attachment = session.get(Document, record.document_id) if record.document_id else None
     media_kind = media_kind_for(attachment.filename) if attachment else None
     return {
-        "record": record, "category_label": spec.category_label(record.category),
+        "record": record, "category_label": spec.kind_label(record.category),
         "attachment": attachment, "attachment_description": describe_document(attachment) if attachment else None,
         "media_kind": media_kind.value if media_kind else None,
         "form_fields": build_form_fields(session, spec, record.category, values, errors, media_kind=media_kind),
@@ -99,7 +99,7 @@ async def house_landing(request: Request, group_by: str = "type", session: Sessi
         "group_by": group_by,
         "sections": group_item_cards(build_item_cards(session), group_by),
         "reference": reference_sections(session),
-        "category_label": spec.category_label,
+        "category_label": spec.kind_label,
         "today": date.today(),
         "reminder_days": REMINDER_LEAD_DAYS,
         **backlog_context(session, Domain.HOUSE),
@@ -128,7 +128,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
     values = {k: v for k, v in form.items() if k not in _NON_FIELD_KEYS and isinstance(v, str)}
     upload_file = form.get("file")
     spec = get_spec(Domain.HOUSE)
-    is_record = category is not None and any(c.value == category and c.kind == SourceKind.RECORD for c in spec.categories)
+    is_record = category is not None and any(c.value == category and c.kind == SourceKind.RECORD for c in spec.kinds)
     has_file = upload_file is not None and not isinstance(upload_file, str) and bool(upload_file.filename)
     if is_record:
         attachment = None

@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlmodel import Session, func, select  # noqa: E402
 
 from app.db import engine  # noqa: E402
-from app.domains.base import UnknownCategoryError  # noqa: E402
+from app.domains.base import UnknownKindError  # noqa: E402
 from app.domains.registry import get_spec  # noqa: E402
 from app.models.account import Account  # noqa: E402
 from app.models.document import Document, DocumentStatus  # noqa: E402
@@ -71,8 +71,8 @@ def run(session: Session, apply: bool) -> list[str]:
             session.add(document)
     for document in session.exec(select(Document).where(Document.category.is_not(None), Document.domain.is_not(None))).all():
         try:
-            get_spec(document.domain).category(document.category)
-        except UnknownCategoryError:
+            get_spec(document.domain).kind(document.category)
+        except UnknownKindError:
             report.append(f"document {document.id} {document.filename}: kind {document.category!r} no longer exists "
                           "in its category; move it (for the dental receipt: scripts/file_dental_receipt.py)")
     if apply:

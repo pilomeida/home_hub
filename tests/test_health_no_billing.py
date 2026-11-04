@@ -75,7 +75,7 @@ async def test_a_reply_with_an_amount_is_read_and_the_amount_is_dropped(tmp_path
 # (c) the spec no longer knows bills
 def test_the_spec_has_neither_bill_category_and_does_not_speak_of_bills():
     spec = get_spec(Domain.HEALTH)
-    values = {c.value for c in spec.categories}
+    values = {c.value for c in spec.kinds}
     assert not values & {"medical_bill", "claim_statement"}
     assert not ALL_CATEGORIES & {"medical_bill", "claim_statement"}
     assert LEGACY_CATEGORIES == {"medical_bill", "claim_statement"}

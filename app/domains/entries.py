@@ -33,7 +33,7 @@ class SourceEntry:
         if self.document is not None:
             return self.document.filename
         domain = self.record.domain if self.record is not None else None
-        label = get_spec(domain).category_label(self.category) if is_implemented(domain) else (self.category or "")
+        label = get_spec(domain).kind_label(self.category) if is_implemented(domain) else (self.category or "")
         return f"{label} — entered by hand"
 
 

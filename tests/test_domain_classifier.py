@@ -51,7 +51,7 @@ def test_prompt_is_built_from_the_registry(two_domains):
     prompt = build_system_prompt(implemented_domains())
     for spec in two_domains.values():
         assert f'"{spec.domain.value}"' in prompt and spec.description in prompt
-        for category in spec.categories:
+        for category in spec.kinds:
             assert f'"{category.value}"' in prompt and category.description in prompt
     assert "may be null" in prompt   # Money infers its own category
 

@@ -39,9 +39,9 @@ def build_system_prompt(domains: Sequence) -> str:
         "",
     ]
     for spec in domains:
-        inferred = " (category may be null — this area works out its own category)" if spec.infers_category else ""
+        inferred = " (category may be null — this area works out its own category)" if spec.infers_kind else ""
         lines.append(f'- domain "{spec.domain.value}" ({spec.label}): {spec.description}{inferred}')
-        for category in (c for c in spec.categories if c.classifiable):
+        for category in (c for c in spec.kinds if c.classifiable):
             lines.append(f'    - category "{category.value}" ({category.label}): {category.description}')
     lines += [
         "",
@@ -110,8 +110,8 @@ async def suggest_domain_and_category(
         return _empty(reason or "Didn't match any area.")
     spec = next((s for s in specs if s.domain.value == domain_value), None)
     valid_category = spec is not None and (
-        category_value in {c.value for c in spec.categories if c.classifiable}
-        or (category_value is None and spec.infers_category)
+        category_value in {c.value for c in spec.kinds if c.classifiable}
+        or (category_value is None and spec.infers_kind)
     )
     if not valid_category:
         return _empty(f"Suggestion '{domain_value}/{category_value}' isn't a known area — please choose.")

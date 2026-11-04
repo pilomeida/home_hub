@@ -32,7 +32,7 @@ _PREMIUM_TARGET = (Domain.FINANCIALS, FinancialsCategory.BILL.value)
 
 
 def _kind_choices(spec) -> list[tuple[str, str]]:
-    policy, *others = [(c.value, c.label) for c in spec.categories]
+    policy, *others = [(c.value, c.label) for c in spec.kinds]
     return [policy, (PREMIUM_NOTICE, "Premium notice or receipt (filed with the Bills)"), *others]
 
 

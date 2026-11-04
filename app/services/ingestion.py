@@ -21,7 +21,7 @@ from typing import Any, Mapping, Optional
 
 from sqlmodel import Session, select
 
-from app.domains.base import DomainSpec, SourceKind, UnknownCategoryError
+from app.domains.base import DomainSpec, SourceKind, UnknownKindError
 from app.domains.entries import record_for_document
 from app.domains.fields import (
     InvalidClassification, dump_fields, load_fields, media_kind_for, validate_fields,
@@ -89,8 +89,8 @@ class RecordInput:
 
 def _category_kind(validated: ValidatedClassification) -> SourceKind:
     if validated.category is None:
-        return SourceKind.DOCUMENT  # only infers_category domains allow this, and they file documents
-    return validated.spec.category(validated.category).kind
+        return SourceKind.DOCUMENT  # only infers_kind domains allow this, and they file documents
+    return validated.spec.kind(validated.category).kind
 
 
 def _target_kind(classification: Classification) -> Optional[SourceKind]:
@@ -108,13 +108,13 @@ def _target_kind(classification: Classification) -> Optional[SourceKind]:
     if category is None:
         return None
     try:
-        return spec.category(category).kind
-    except UnknownCategoryError:
+        return spec.kind(category).kind
+    except UnknownKindError:
         return None
 
 
 def _not_hand_entered_error(spec: DomainSpec, category: Optional[str]) -> InvalidClassification:
-    label = spec.category_label(category)
+    label = spec.kind_label(category)
     return InvalidClassification({"category": f"{label} is filed from a document, not entered by hand"})
 
 
@@ -176,14 +176,14 @@ def validate_classification(
     media_kind = media_kind_for(filename) if filename else None
     errors: dict[str, str] = {}
     if category is None:
-        if not spec.infers_category:
+        if not spec.infers_kind:
             errors["category"] = "Choose a category"
         elif media_kind is None:
             errors["file"] = "Choose a file to upload"
     else:
         try:
-            category_spec = spec.category(category)
-        except UnknownCategoryError:
+            category_spec = spec.kind(category)
+        except UnknownKindError:
             errors["category"] = f"Unknown {spec.label} category"
         else:
             if media_kind is None and category_spec.kind == SourceKind.DOCUMENT:
@@ -311,7 +311,7 @@ async def attach_file(session: Session, record: Record, incoming: IncomingFile) 
     if record.document_id is not None:
         raise RefileRefusedError("This record already has a file attached.")
     spec = get_spec(record.domain)
-    category_spec = spec.category(record.category)
+    category_spec = spec.kind(record.category)
     if media_kind_for(incoming.filename) not in category_spec.accepted_media:
         raise InvalidClassification({"file": f"{category_spec.label} does not accept this file type"})
     received = receive_file(session, incoming)
@@ -359,7 +359,7 @@ def _drop_open_derived_todos(session: Session, *, document_id: Optional[int] = N
 
 
 def _describe(spec: DomainSpec, category: Optional[str]) -> str:
-    return f"{spec.label} / {spec.category_label(category) or 'auto'}"
+    return f"{spec.label} / {spec.kind_label(category) or 'auto'}"
 
 
 async def refile_document(session: Session, document: Document, classification: Classification) -> Document:

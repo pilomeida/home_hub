@@ -156,7 +156,7 @@ def describe(domain: Optional[Domain], category: Optional[str]) -> Optional[str]
     if not is_implemented(domain):
         return None
     spec = get_spec(domain)
-    return f"{spec.label} › {spec.category_label(category)}" if category else spec.label
+    return f"{spec.label} › {spec.kind_label(category)}" if category else spec.label
 
 
 def is_confident(item: InboxItem) -> bool:
@@ -165,8 +165,8 @@ def is_confident(item: InboxItem) -> bool:
         return False
     spec = get_spec(domain)
     if item.suggested_category is None:
-        return spec.infers_category
-    return item.suggested_category in {c.value for c in spec.categories}
+        return spec.infers_kind
+    return item.suggested_category in {c.value for c in spec.kinds}
 
 
 def _entry(item: InboxItem, document: Document) -> InboxEntry:

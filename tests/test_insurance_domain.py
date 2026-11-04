@@ -36,7 +36,7 @@ def test_the_registry_has_insurance_whose_kinds_are_papers():
     """Work-list B1b (Pedro, 2026-11-04): the kind is what the paper is; what the policy covers is a detail."""
     spec = registry.get_spec(Domain.INSURANCE)
     assert spec.home_url == "/insurance"
-    assert [c.value for c in spec.categories] == ["policy", "claim"]
+    assert [c.value for c in spec.kinds] == ["policy", "claim"]
     covers = next(f for f in spec.fields if f.key == "covers")
     assert covers.required and [v for v, _ in covers.choices] == ["home", "car", "health", "life"]
 
