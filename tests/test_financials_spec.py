@@ -38,9 +38,9 @@ def test_account_field_offers_accounts(session):
 
 def test_overview_card_reports_spend_and_attention(session):
     document = Document(filename="s.pdf", file_path="/tmp/s.pdf", content_hash="c1",
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.FINANCIALS)
     broken = Document(filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="c2",
-                      source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, domain=Category.FINANCIALS)
+                      source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, category=Category.FINANCIALS)
     session.add(document)
     session.add(broken)
     session.commit()

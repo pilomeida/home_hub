@@ -112,7 +112,7 @@ async def test_with_levels_off_the_audit_bodies_are_exactly_todays(session, worl
     for spec in (get_spec(Category.FINANCIALS), get_spec(Category.HOUSE), get_spec(Category.INSURANCE), get_spec(Category.HEALTH)):
         body = {"workload_type": "critique_review", "system": llm_checks._SYSTEM_PROMPT, "max_tokens": 16000,
                 "response_schema": llm_checks._FINDINGS_SCHEMA, "user": llm_checks.build_domain_payload(session, spec).text}
-        if spec.domain == Category.HEALTH:
+        if spec.category == Category.HEALTH:
             body["sensitivity"] = "house_high"                                      # forced High: the one body that carries a level
         expected.append(body)
     assert sorted(wire.parsed(), key=lambda b: b["user"]) == sorted(expected, key=lambda b: b["user"])
@@ -177,9 +177,9 @@ async def test_the_run_summary_and_the_problems_log_say_what_was_left_out_and_cl
     assert logged.times == 2
 
     for info in ps.known_types():                                           # every type gets a readable level
-        if info.domain in ps.FORCED_TIERS:                                   # (Health is always High: it cannot be set)
+        if info.category in ps.FORCED_TIERS:                                   # (Health is always High: it cannot be set)
             continue
-        ps.save_type(session, info.domain, info.paper_kind, "house_low", False, "pedro")
+        ps.save_type(session, info.category, info.paper_kind, "house_low", False, "pedro")
     world.unk.paper_kind = "floor_plan"                                       # and the odd document is filed as a real type
     session.add(world.unk)
     session.commit()

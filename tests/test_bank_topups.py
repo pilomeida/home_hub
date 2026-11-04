@@ -14,7 +14,7 @@ def _accounts(session):
     rev = Account(name="Revolut Current Account", institution="Revolut Bank UAB")
     session.add(san); session.add(rev); session.commit()
     doc = Document(filename="d", file_path="", content_hash="h", source=DocumentSource.API,
-                   status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS, paper_kind="statement")
+                   status=DocumentStatus.PROCESSED, category=Category.FINANCIALS, paper_kind="statement")
     session.add(doc); session.commit()
     return san, rev, doc
 

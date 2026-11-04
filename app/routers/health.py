@@ -38,7 +38,7 @@ def spec_for_health():
 
 def _document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain != Category.HEALTH:
+    if document is None or document.category != Category.HEALTH:
         raise HTTPException(status_code=404, detail={
             "what": "Paper not found.", "why": "No Health paper has that number; it may have been deleted, or it belongs to another tab.",
             "next_step": "Open the Health records list and choose the paper from there."})
@@ -166,7 +166,7 @@ async def _read_in_background(session_factory, document_id: int) -> None:
 async def landing(request: Request, session: Session = Depends(get_session)):
     f = browse.parse_filters(request.query_params)
     waiting = list(session.exec(select(Document).where(
-        Document.domain == Category.HEALTH,
+        Document.category == Category.HEALTH,
         Document.status.in_([DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION])).order_by(Document.id)))
     return templates.TemplateResponse(request, "health/landing.html", {
         "rows": browse.rows(session, f), "f": f, "facets": browse.facets(session), "waiting": waiting})
@@ -190,7 +190,7 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
     try:
         result = file_for_later(session, IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
                                                       getattr(request.state, "user_email", None)),
-                                Classification(domain=Category.HEALTH, paper_kind=category, fields=values))
+                                Classification(category=Category.HEALTH, paper_kind=category, fields=values))
     except InvalidClassification as exc:
         return templates.TemplateResponse(request, "health/upload.html", _upload_context(exc.errors), status_code=400)
     if not result.duplicate:       # the reading takes minutes: the person lands on the paper's page, which shows its progress

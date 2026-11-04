@@ -56,7 +56,7 @@ def tokens(text: str) -> set[str]:
 
 
 def is_settled(doc: Optional[Document]) -> bool:
-    return doc is not None and doc.domain is not None and doc.status == DocumentStatus.PROCESSED
+    return doc is not None and doc.category is not None and doc.status == DocumentStatus.PROCESSED
 
 
 def is_settled_source(source: Optional[Source]) -> bool:
@@ -70,7 +70,7 @@ def settled_entries(session: Session, domain: Optional[Category] = None,
     """PROCESSED documents and non-retired records of implemented domains, newest first.
     With a binding `reach`, only those of types the AI may read (everything the AI is shown
     about documents comes through here)."""
-    domains = [domain] if domain is not None else [s.domain for s in implemented_domains()]
+    domains = [domain] if domain is not None else [s.category for s in implemented_domains()]
     entries = [e for d in domains for e in domain_entries(session, d)
                if e.kind == SourceKind.RECORD or is_settled(e.document)]
     if reach is not None:
@@ -83,7 +83,7 @@ def _entry_source(entry: SourceEntry) -> Source:
 
 
 def entry_fields_text(entry: SourceEntry) -> str:
-    spec = get_spec(_entry_source(entry).domain)
+    spec = get_spec(_entry_source(entry).category)
     fields = effective_fields(spec, entry.paper_kind, entry.fields)
     labels = {f.key: f.label for f in spec.fields}
     return "; ".join(f"{labels.get(k, k.replace('_', ' '))}: {v}" for k, v in fields.items() if v not in (None, ""))
@@ -130,7 +130,7 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
             shown_sources.append(source)
             if is_settled_source(source):
                 citables.append(citable_for_source(source))
-        lines = [f"## wiki:{page.id} — {page.topic} ({page.domain.value if page.domain else 'general'}, {page.page_type})",
+        lines = [f"## wiki:{page.id} — {page.topic} ({page.category.value if page.category else 'general'}, {page.page_type})",
                  f"Summary: {(visible_summary(session, page, view) if page.id in view.trimmed_pages else page.summary) or '-'}",
                  "Current facts:"]
         lines += [_claim_line(c, sources.get(c.id, [])) for c in current] or ["- (none)"]
@@ -160,7 +160,7 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
         if category and entry.paper_kind != category:
             continue
         source = _entry_source(entry)
-        spec = get_spec(source.domain)
+        spec = get_spec(source.category)
         fields_text = entry_fields_text(entry)
         haystack = " ".join([entry.title, entry.paper_kind or "", spec.kind_label(entry.paper_kind), spec.label, fields_text])
         score = len(query_tokens & tokens(haystack)) if query_tokens else 1
@@ -209,7 +209,7 @@ def _list_todos(session: Session, args: dict) -> ToolOutput:
     if not args.get("include_done", False):
         statement = statement.where(Todo.done == False)  # noqa: E712
     if domain is not None:
-        statement = statement.where(Todo.domain == domain)
+        statement = statement.where(Todo.category == domain)
     reach = reach_for(session)
     todos = session.exec(statement.order_by(Todo.due_date)).all()
     todos = [t for t in todos if reach.includes_todo(session, t)][:100]
@@ -217,13 +217,13 @@ def _list_todos(session: Session, args: dict) -> ToolOutput:
     tier = Tier.HIGH if n else None
     lines = [f"{len(todos)} to-dos:"] + [
         f"todo:{t.id} | {t.title} | due {t.due_date or '-'} | {'done' if t.done else 'open'} | "
-        f"{t.domain.value if t.domain else 'general'}" for t in todos]
+        f"{t.category.value if t.category else 'general'}" for t in todos]
     return ToolOutput(text="\n".join(lines), citables=[citable_for_todo(t) for t in todos], used_raw_sources=True,
                       tier=tier, opened=f"{n} private to-do{'s' if n != 1 else ''}" if tier else "")
 
 
 def core_tools() -> list[AskTool]:
-    domain_prop = {"type": "string", "enum": [s.domain.value for s in implemented_domains()],
+    domain_prop = {"type": "string", "enum": [s.category.value for s in implemented_domains()],
                    "description": "Restrict to one domain."}
     return [
         AskTool(name="read_wiki_pages",
@@ -259,8 +259,8 @@ def domain_tools() -> list[AskTool]:
     tools: list[AskTool] = []
     for spec in implemented_domains():
         for tool in spec.ask_tools:
-            if not tool.name.startswith(f"{spec.domain.value}_"):
-                raise ValueError(f"Ask tool {tool.name!r} must be prefixed with '{spec.domain.value}_'")
+            if not tool.name.startswith(f"{spec.category.value}_"):
+                raise ValueError(f"Ask tool {tool.name!r} must be prefixed with '{spec.category.value}_'")
             tools.append(tool)
     names = [t.name for t in tools]
     if len(names) != len(set(names)):

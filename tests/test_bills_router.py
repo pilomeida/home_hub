@@ -39,7 +39,7 @@ def test_list_bills_shows_a_friendly_datetime_not_the_raw_one(client, session):
 
     document = Document(
         filename="statement.pdf", file_path="/tmp/statement.pdf", content_hash="hlistdt",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS,
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.FINANCIALS,
         created_at=datetime(2026, 8, 18, 9, 5, 52, 222395),
     )
     session.add(document)
@@ -101,7 +101,7 @@ def test_upload_bill_sets_financials_domain_and_account(client, monkeypatch, ses
 
     document_id = int(response.headers["location"].rsplit("/", 1)[-1])
     document = session.get(Document, document_id)
-    assert document.domain == Category.FINANCIALS
+    assert document.category == Category.FINANCIALS
     assert document.paper_kind is None  # the handler infers it; the fake handler did not
 
 
@@ -139,9 +139,9 @@ def test_list_bills_shows_only_financials_documents(client, session):
     from app.models.category import Category
 
     session.add(Document(filename="edp.pdf", file_path="/tmp/edp.pdf", content_hash="f1",
-                         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS))
+                         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.FINANCIALS))
     session.add(Document(filename="boiler-manual.pdf", file_path="/tmp/b.pdf", content_hash="h1",
-                         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.HOUSE))
+                         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.HOUSE))
     session.commit()
 
     response = client.get("/financials/bills")
@@ -154,7 +154,7 @@ def test_bills_page_shows_the_financials_backlog(client, session):
     from app.models.category import Category
     from app.models.todo import Todo
 
-    session.add(Todo(title="Pay the water bill", domain=Category.FINANCIALS))
+    session.add(Todo(title="Pay the water bill", category=Category.FINANCIALS))
     session.commit()
 
     response = client.get("/financials/bills")

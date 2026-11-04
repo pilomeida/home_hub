@@ -48,14 +48,14 @@ def _upload_context(session: Session, category: Optional[str], values: dict, err
 
 def _house_document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain != Category.HOUSE:
+    if document is None or document.category != Category.HOUSE:
         raise HTTPException(status_code=404, detail="House document not found")
     return document
 
 
 def _house_record_or_404(session: Session, record_id: int) -> Record:
     record = session.get(Record, record_id)
-    if record is None or record.domain != Category.HOUSE or record.retired_at is not None:
+    if record is None or record.category != Category.HOUSE or record.retired_at is not None:
         raise HTTPException(status_code=404, detail="House record not found")
     return record
 
@@ -152,7 +152,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
         result = await ingest(
             session,
             IncomingFile(upload_file.filename, content, DocumentSource.MANUAL, getattr(request.state, "user_email", None)),
-            Classification(domain=Category.HOUSE, paper_kind=category, fields=values),
+            Classification(category=Category.HOUSE, paper_kind=category, fields=values),
         )
     except InvalidClassification as exc:
         return templates.TemplateResponse(

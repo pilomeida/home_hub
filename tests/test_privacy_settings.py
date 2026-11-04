@@ -14,26 +14,26 @@ from app.privacy.tiers import Tier, TierBlocked
 
 def _doc(session, name, domain, category, tier=None):
     d = Document(filename=name, file_path=name, content_hash=name, source=DocumentSource.MANUAL,
-                 domain=domain, paper_kind=category, sensitivity_tier=tier)
+                 category=domain, paper_kind=category, sensitivity_tier=tier)
     session.add(d); session.commit(); session.refresh(d)
     return d
 
 
 def test_every_registry_type_is_listed_with_a_suggestion_and_none_is_saved_yet(session):
     rows = ps.type_rows(session)
-    keys = {(r.info.domain, r.info.paper_kind) for r in rows}
+    keys = {(r.info.category, r.info.paper_kind) for r in rows}
     assert ("financials", "statement") in keys and ("insurance", "policy") in keys
     open_rows = [r for r in rows if not r.locked]
     assert all(r.tier is None and not r.is_saved for r in open_rows)
     assert {r.shown_tier for r in open_rows} <= {Tier.LOW, Tier.MID}     # never suggests house_high
-    health = [r for r in rows if r.info.domain == "health"]               # Health is locked High, not suggested
+    health = [r for r in rows if r.info.category == "health"]               # Health is locked High, not suggested
     assert len(health) == 7 and all(r.locked and r.tier == Tier.HIGH and r.is_saved for r in health)
-    assert {r.info.domain for r in rows if r.locked} == {"health"}
+    assert {r.info.category for r in rows if r.locked} == {"health"}
     assert all(s != Tier.HIGH for s in ps.SUGGESTED_TIERS.values())
 
 
 def test_suggestions_cover_every_registry_type():
-    assert {(i.domain, i.paper_kind) for i in ps.known_types() if i.domain not in ps.FORCED_TIERS} == set(ps.SUGGESTED_TIERS)
+    assert {(i.category, i.paper_kind) for i in ps.known_types() if i.category not in ps.FORCED_TIERS} == set(ps.SUGGESTED_TIERS)
 
 
 def test_off_by_default_so_the_live_hub_is_unchanged(session):
@@ -65,9 +65,9 @@ def test_unsetting_a_tier_holds_the_type_again(session):
 
 def test_confirming_suggestions_saves_each_unset_type_once(session):
     n = ps.confirm_suggestions(session, "pedro@example.com")
-    assert n == len([i for i in ps.known_types() if i.domain not in ps.FORCED_TIERS])   # Health is locked: never saved
+    assert n == len([i for i in ps.known_types() if i.category not in ps.FORCED_TIERS])   # Health is locked: never saved
     assert ps.confirm_suggestions(session, "pedro@example.com") == 0
-    saved = {(s.domain, s.paper_kind): s.tier for s in session.exec(select(DocumentTypeSetting))}
+    saved = {(s.category, s.paper_kind): s.tier for s in session.exec(select(DocumentTypeSetting))}
     assert saved[("financials", "statement")] == "house_mid" and saved[("house", "floor_plan")] == "house_low"
 
 
@@ -80,7 +80,7 @@ def test_confirming_does_not_override_a_choice_already_made(session):
 def test_saving_retiers_documents_and_records_already_filed(session):
     a = _doc(session, "a", Category.FINANCIALS, "statement")
     b = _doc(session, "b", Category.FINANCIALS, "bill", tier="house_low")
-    r = Record(domain=Category.FINANCIALS, paper_kind="statement"); session.add(r); session.commit()
+    r = Record(category=Category.FINANCIALS, paper_kind="statement"); session.add(r); session.commit()
     ps.save_type(session, "financials", "statement", "house_mid", False, None)
     session.refresh(a); session.refresh(b); session.refresh(r)
     assert (a.sensitivity_tier, r.sensitivity_tier, b.sensitivity_tier) == ("house_mid", "house_mid", "house_low")
@@ -94,7 +94,7 @@ def test_saving_retiers_documents_and_records_already_filed(session):
 
 def test_backfill_applies_saved_settings(session):
     a = _doc(session, "a", Category.INSURANCE, "policy")
-    session.add(DocumentTypeSetting(domain="insurance", paper_kind="policy", tier="house_mid")); session.commit()
+    session.add(DocumentTypeSetting(category="insurance", paper_kind="policy", tier="house_mid")); session.commit()
     assert backfill_tiers(session) == 1
     session.refresh(a)
     assert a.sensitivity_tier == "house_mid" and backfill_tiers(session) == 0
@@ -239,7 +239,7 @@ from app.models.privacy import DocumentFingerprint  # noqa: E402
 def test_rules_can_be_added_listed_and_deleted_on_the_screen(client, session, pairings):
     client.post("/privacy/rules", data={"kind": "sender", "pattern": " Billing@Exemplo.pt ", "doc_type": "financials/bill"})
     rule = session.exec(select(DocumentFingerprint)).one()
-    assert (rule.kind, rule.pattern, rule.domain, rule.paper_kind) == ("sender", "billing@exemplo.pt", "financials", "bill")
+    assert (rule.kind, rule.pattern, rule.category, rule.paper_kind) == ("sender", "billing@exemplo.pt", "financials", "bill")
     page = client.get("/privacy").text
     assert "billing@exemplo.pt" in page and "Financials › Bill / invoice" in page
     client.post(f"/privacy/rules/{rule.id}/delete")

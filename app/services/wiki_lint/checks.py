@@ -33,7 +33,7 @@ def _active(session: Session) -> list[WikiClaim]:
 def find_orphan_pages(session: Session) -> list[FindingDraft]:
     linked = {p for pair in _links(session) for p in pair}
     return [FindingDraft(LintFindingKind.ORPHAN_PAGE, f"“{p.topic}” isn't linked to or from any other wiki page.",
-                         domain=p.domain, wiki_page_ids=(p.id,),
+                         category=p.category, wiki_page_ids=(p.id,),
                          suggested_action="Link it from a related page, or dismiss if it stands on its own.")
             for p in session.exec(select(WikiPage).order_by(WikiPage.id)).all() if p.id not in linked]
 
@@ -49,7 +49,7 @@ def find_unsourced_claims(session: Session) -> list[FindingDraft]:
     return [FindingDraft(LintFindingKind.UNSOURCED_CLAIM,
                          f"“{pages[pid].topic}” has {len(cs)} fact(s) with no current source "
                          f"(never had one, or its source was re-filed elsewhere): {', '.join(c.label or c.key for c in cs)}.",
-                         domain=pages[pid].domain, wiki_page_ids=(pid,), claim_ids=tuple(c.id for c in cs),
+                         category=pages[pid].category, wiki_page_ids=(pid,), claim_ids=tuple(c.id for c in cs),
                          suggested_action="Check whether these facts are still true; dismiss if they were entered by hand.")
             for pid, cs in sorted(by_page.items())]
 
@@ -70,7 +70,7 @@ def find_missing_links(session: Session) -> list[FindingDraft]:
             if re.search(rf"\b{re.escape(topic)}\b", haystack):
                 drafts.append(FindingDraft(
                     LintFindingKind.MISSING_LINK, f"“{source.topic}” mentions “{target.topic}” but doesn't link to it.",
-                    domain=source.domain, wiki_page_ids=(source.id, target.id), suggested_action="Add link"))
+                    category=source.category, wiki_page_ids=(source.id, target.id), suggested_action="Add link"))
     return drafts
 
 
@@ -99,7 +99,7 @@ def find_stale_links(session: Session) -> list[FindingDraft]:
                                 LintFindingKind.STALE_LINK,
                                 f"“{page.topic}” is still linked to “{target.topic}”, but its latest source "
                                 f"({source_ref(newest)}) says “{current_value}”.",
-                                domain=spec.domain, wiki_page_ids=(page.id, target.id),
+                                category=spec.category, wiki_page_ids=(page.id, target.id),
                                 document_ids=() if is_record else (newest.id,),
                                 record_ids=(newest.id,) if is_record else (),
                                 suggested_action="Links are kept as history. Check the latest source is right, "
@@ -115,7 +115,7 @@ def find_uningested_sources(session: Session) -> list[FindingDraft]:
     drafts = []
     for spec in implemented_domains():
         missing_docs, missing_recs = [], []
-        for entry in settled_entries(session, spec.domain):
+        for entry in settled_entries(session, spec.category):
             if entry.kind == SourceKind.RECORD:
                 attached = entry.document.id if entry.document is not None else None
                 if entry.record.id not in rec_ids and attached not in doc_ids:
@@ -127,7 +127,7 @@ def find_uningested_sources(session: Session) -> list[FindingDraft]:
                 LintFindingKind.UNINGESTED_SOURCES,
                 f"{len(missing_docs) + len(missing_recs)} {spec.label} source(s) "
                 f"({len(missing_docs)} document(s), {len(missing_recs)} record(s)) have never been read into the wiki.",
-                domain=spec.domain, document_ids=tuple(sorted(missing_docs)), record_ids=tuple(sorted(missing_recs)),
+                category=spec.category, document_ids=tuple(sorted(missing_docs)), record_ids=tuple(sorted(missing_recs)),
                 suggested_action="Re-run wiki ingest for these sources."))
     return drafts
 
@@ -148,7 +148,7 @@ def find_stale_saved_answers(session: Session) -> list[FindingDraft]:
             drafts.append(FindingDraft(
                 LintFindingKind.STALE_SAVED_ANSWER,
                 f"Saved answer “{ans.topic}” may be out of date: {names} changed since it was saved.",
-                domain=ans.domain, wiki_page_ids=(ans.id, *changed),
+                category=ans.category, wiki_page_ids=(ans.id, *changed),
                 suggested_action="Ask the question again and re-save it, or dismiss if still correct."))
     return drafts
 

@@ -14,7 +14,7 @@ from app.services.ingestion import Classification, RefileRefusedError, refile_do
 def _bill(session):
     document = Document(filename="boiler-invoice.pdf", file_path="/tmp/b.pdf", content_hash="rf1",
                         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-                        domain=Category.FINANCIALS, paper_kind="bill", account_id=None)
+                        category=Category.FINANCIALS, paper_kind="bill", account_id=None)
     session.add(document)
     session.commit()
     session.refresh(document)
@@ -22,8 +22,8 @@ def _bill(session):
     session.add(transaction)
     session.commit()
     session.refresh(transaction)
-    session.add(Todo(title="Pay Worten", transaction_id=transaction.id, domain=Category.FINANCIALS))
-    session.add(Todo(title="Paid earlier", transaction_id=transaction.id, domain=Category.FINANCIALS, done=True))
+    session.add(Todo(title="Pay Worten", transaction_id=transaction.id, category=Category.FINANCIALS))
+    session.add(Todo(title="Paid earlier", transaction_id=transaction.id, category=Category.FINANCIALS, done=True))
     session.add(UtilityReading(document_id=document.id, utility_type=UtilityType.ELECTRICITY, period_label="2026-08",
                                cost_total=45.0))
     session.commit()
@@ -44,7 +44,7 @@ async def test_refiling_a_bill_into_house_reverses_financials_derivations(sessio
     result = await refile_document(session, document, Classification(
         Category.HOUSE, "warranty_invoice", {"item_name": "Boiler", "purchase_date": "2026-03-12"}))
 
-    assert result.domain == Category.HOUSE and result.status == DocumentStatus.PROCESSED
+    assert result.category == Category.HOUSE and result.status == DocumentStatus.PROCESSED
     assert session.exec(select(Transaction)).all() == []
     assert session.exec(select(UtilityReading)).all() == []
     todos = {t.title: t for t in session.exec(select(Todo)).all()}

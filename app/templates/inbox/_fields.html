@@ -1,15 +1,15 @@
-<label>Area
+<label>Category
   <select name="domain" required
           hx-get="/inbox/{{ entry.document.id }}/fields" hx-target="#fields-{{ entry.document.id }}"
           hx-include="closest form" hx-trigger="change">
     <option value="" {% if not selected_domain %}selected{% endif %}>Choose…</option>
     {% for spec in domains %}
-      <option value="{{ spec.domain.value }}" {% if spec.domain.value == selected_domain %}selected{% endif %}>{{ spec.label }}</option>
+      <option value="{{ spec.category.value }}" {% if spec.category.value == selected_domain %}selected{% endif %}>{{ spec.label }}</option>
     {% endfor %}
   </select>
 </label>
 {% if errors.domain %}<span class="needs-attention">{{ errors.domain }}</span>{% endif %}
-<label>Type
+<label>Kind of paper
   <select name="category" {% if not (selected_spec and selected_spec.infers_kind) %}required{% endif %}
           hx-get="/inbox/{{ entry.document.id }}/fields" hx-target="#fields-{{ entry.document.id }}"
           hx-include="closest form" hx-trigger="change">

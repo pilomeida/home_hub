@@ -90,7 +90,7 @@ def fake_domain(monkeypatch):
     from tests.domain_fakes import make_fake_spec
 
     spec = make_fake_spec()
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     return spec
 
 
@@ -115,7 +115,7 @@ def two_domains(monkeypatch):
         fields=(), wiki=WikiSchema(), infers_kind=True,
         document_url=lambda document: f"/money/{document.id}",
     )
-    monkeypatch.setattr(registry, "_specs_cache", {money.domain: money, house.domain: house})
+    monkeypatch.setattr(registry, "_specs_cache", {money.category: money, house.category: house})
     return {"money": money, "house": house}
 
 

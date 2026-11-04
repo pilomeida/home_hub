@@ -14,13 +14,13 @@ from app.models.todo import Todo
 
 
 def open_todos_for_domain(session: Session, domain: Category) -> list[Todo]:
-    todos = session.exec(select(Todo).where(Todo.done == False, Todo.domain == domain)).all()  # noqa: E712
+    todos = session.exec(select(Todo).where(Todo.done == False, Todo.category == domain)).all()  # noqa: E712
     return sorted(todos, key=lambda t: (t.due_date is None, t.due_date or date.max, t.created_at))
 
 
 def open_todo_count(session: Session, domain: Category) -> int:
     return session.exec(
-        select(func.count()).select_from(Todo).where(Todo.done == False, Todo.domain == domain)  # noqa: E712
+        select(func.count()).select_from(Todo).where(Todo.done == False, Todo.category == domain)  # noqa: E712
     ).one()
 
 
@@ -28,7 +28,7 @@ def add_todo(session: Session, title: str, domain: Category, due_date: Optional[
     clean = title.strip()
     if not clean:
         raise ValueError("A to-do needs a title")
-    todo = Todo(title=clean, domain=domain, due_date=due_date)
+    todo = Todo(title=clean, category=domain, due_date=due_date)
     session.add(todo)
     session.commit()
     session.refresh(todo)

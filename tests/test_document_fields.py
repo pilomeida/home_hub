@@ -15,7 +15,7 @@ def _doc(session, fields, domain=Category.HOUSE, content_hash="h", category="man
     document = Document(
         filename="x.pdf", file_path="/srv/app/static/documents/abc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        domain=domain, paper_kind=category, fields_json=json.dumps(fields),
+        category=domain, paper_kind=category, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()
@@ -108,6 +108,6 @@ def test_build_form_fields_carries_options_values_and_errors(session, fake_domai
 def test_suggestions_include_record_values(session, fake_domain):
     from app.models.record import Record
 
-    session.add(Record(domain=Category.HOUSE, paper_kind="visit", fields_json='{"item_name": "Heat pump"}'))
+    session.add(Record(category=Category.HOUSE, paper_kind="visit", fields_json='{"item_name": "Heat pump"}'))
     session.commit()
     assert distinct_field_values(session, Category.HOUSE, "item_name") == ["Heat pump"]

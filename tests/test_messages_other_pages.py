@@ -92,13 +92,21 @@ def test_file_type_refusals_are_not_mistaken_for_a_damaged_pdf():
     assert "photo or PDF files" in text and "damaged" not in text and "password" not in text
 
 
-def test_file_notices_writes_out_file_refusals_and_leaves_instructions_alone():
-    out = pr.file_notices({"file": "This file is already filed elsewhere", "category": "Choose a category",
-                           "domain": "Choose a domain"})
-    assert out["file"].startswith("Not filed. ") and out["category"] == "Choose a category"
-    assert out["domain"] == "Choose a domain"
-    stale = pr.file_notices({"category": "Unknown House category"})["category"]
-    assert stale.startswith("Not saved. The House category you chose doesn't exist") and "Reload the page" in stale
+def _refusal(session, category, paper_kind):
+    """The errors the production check writes for a classification (never typed by hand)."""
+    from app.categories.fields import InvalidClassification
+    from app.services.ingestion import Classification, validate_classification
+    with pytest.raises(InvalidClassification) as refused:
+        validate_classification(session, Classification(category=category, paper_kind=paper_kind, fields={}), "a.pdf")
+    return refused.value.errors
+
+
+def test_file_notices_writes_out_file_refusals_and_leaves_instructions_alone(session):
+    no_kind = _refusal(session, Category.HOUSE, None)
+    out = pr.file_notices({"file": "This file is already filed elsewhere", **no_kind})
+    assert out["file"].startswith("Not filed. ") and out["category"] == no_kind["category"] == "Choose a kind of paper"
+    stale = pr.file_notices(_refusal(session, Category.HOUSE, "no_such_kind"))["category"]
+    assert stale.startswith("Not saved. The House kind of paper you chose doesn't exist") and "Reload the page" in stale
 
 
 def _txn_for_document(session, document, provider):

@@ -22,7 +22,7 @@ def make_document(session, *, domain: Optional[Category] = Category.HOUSE, statu
                   category: Optional[str] = "manual", fields: Optional[dict] = None, filename="doc.pdf",
                   file_path="/tmp/doc.pdf", created_at: Optional[datetime] = None) -> Document:
     doc = Document(filename=filename, file_path=file_path, content_hash=f"h-{next(_seq)}",
-                   source=DocumentSource.MANUAL, status=status, domain=domain, paper_kind=category,
+                   source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=category,
                    fields_json=json.dumps(fields or {}))
     if created_at:
         doc.created_at = created_at
@@ -34,7 +34,7 @@ def make_document(session, *, domain: Optional[Category] = Category.HOUSE, statu
 
 def make_page(session, topic, *, domain: Optional[Category] = Category.HOUSE, page_type=TOPIC_PAGE_TYPE,
               summary: Optional[str] = None, entity_key: Optional[str] = None) -> WikiPage:
-    page = WikiPage(topic=topic, domain=domain, page_type=page_type, summary=summary, entity_key=entity_key)
+    page = WikiPage(topic=topic, category=domain, page_type=page_type, summary=summary, entity_key=entity_key)
     session.add(page)
     session.commit()
     session.refresh(page)
@@ -44,7 +44,7 @@ def make_page(session, topic, *, domain: Optional[Category] = Category.HOUSE, pa
 def make_record(session, *, domain=Category.HOUSE, category="visit", fields: Optional[dict] = None,
                 document_id: Optional[int] = None, retired: bool = False,
                 created_at: Optional[datetime] = None) -> Record:
-    record = Record(domain=domain, paper_kind=category, fields_json=json.dumps(fields or {}),
+    record = Record(category=domain, paper_kind=category, fields_json=json.dumps(fields or {}),
                     document_id=document_id, retired_at=datetime(2026, 1, 1) if retired else None)
     if created_at:
         record.created_at = created_at

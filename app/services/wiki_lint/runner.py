@@ -60,7 +60,7 @@ def persist_findings(session: Session, run: LintRun, drafts: list[FindingDraft])
             seen_ids.add(latest.id)
             continue
         finding = LintFinding(
-            fingerprint=fp, kind=draft.kind, domain=draft.domain, summary=draft.summary,
+            fingerprint=fp, kind=draft.kind, category=draft.category, summary=draft.summary,
             suggested_action=draft.suggested_action, wiki_page_ids_json=json.dumps(list(draft.wiki_page_ids)),
             claim_ids_json=json.dumps(list(draft.claim_ids)), document_ids_json=json.dumps(list(draft.document_ids)),
             record_ids_json=json.dumps(list(draft.record_ids)), first_seen_run_id=run.id, last_seen_run_id=run.id)

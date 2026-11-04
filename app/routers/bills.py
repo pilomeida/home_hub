@@ -24,7 +24,7 @@ router = APIRouter(prefix="/financials/bills", tags=["bills"])
 @router.get("")
 async def list_bills(request: Request, session: Session = Depends(get_session)):
     documents = session.exec(
-        select(Document).where(Document.domain == Category.FINANCIALS).order_by(Document.created_at.desc())
+        select(Document).where(Document.category == Category.FINANCIALS).order_by(Document.created_at.desc())
     ).all()
     from app.routers.bank import bank_notices
     return templates.TemplateResponse(
@@ -46,7 +46,7 @@ async def upload_bill(
 ):
     content = await file.read()
     classification = Classification(
-        domain=Category.FINANCIALS, paper_kind=None,
+        category=Category.FINANCIALS, paper_kind=None,
         fields={"account_id": account_id} if account_id else {},
     )
     try:

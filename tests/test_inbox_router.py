@@ -66,7 +66,7 @@ def test_approve_finalizes_and_returns_result(client, session, two_domains):
     assert "Fake › Manual" in response.text and 'href="/fake/documents/' in response.text
     assert two_domains["house"].handler.processed == [document.id]
     session.expire_all()
-    assert session.get(Document, document.id).domain == Category.HOUSE
+    assert session.get(Document, document.id).category == Category.HOUSE
 
 
 def test_approve_into_record_category_links_to_the_record(client, session, two_domains):
@@ -92,7 +92,7 @@ def test_approve_shows_validation_errors(client, session, two_domains):
     assert two_domains["house"].handler.processed == []
 
     bad_category = client.post(f"/inbox/{document.id}/approve", data={"domain": "house", "category": "bill"})
-    assert bad_category.status_code == 422 and "Unknown Fake category" in bad_category.text
+    assert bad_category.status_code == 422 and "Unknown Fake kind of paper" in bad_category.text
 
 
 def test_discard(client, session, two_domains):

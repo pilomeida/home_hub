@@ -18,23 +18,24 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Enum as SAEnum, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.models.category import Category
+from app.models.strict import RefusesUnknownFields
 
 TOPIC_PAGE_TYPE = "topic"
 ANSWER_PAGE_TYPE = "answer"  # Plan C's saved Ask answers (no source document)
 
 
-class WikiPage(SQLModel, table=True):
+class WikiPage(RefusesUnknownFields, SQLModel, table=True):
     __tablename__ = "wiki_pages"
     __table_args__ = (UniqueConstraint("page_type", "entity_key", name="uq_wiki_pages_page_type_entity_key"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     topic: str = Field(unique=True, index=True)
     facts_json: str = Field(default="{}")
-    domain: Optional[Category] = None
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))
     page_type: str = Field(default=TOPIC_PAGE_TYPE, index=True)
     entity_key: Optional[str] = None
     summary: Optional[str] = None

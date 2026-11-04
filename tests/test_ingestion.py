@@ -29,7 +29,7 @@ def test_receive_file_stores_an_unclassified_pending_document(session, documents
     document = result.document
     assert document.id is not None
     assert document.status == DocumentStatus.PENDING
-    assert document.domain is None and document.paper_kind is None
+    assert document.category is None and document.paper_kind is None
     assert load_fields(document) == {}
     assert document.uploaded_by == "pedro@example.com"
     assert len(list(documents_dir.iterdir())) == 1
@@ -59,7 +59,7 @@ async def test_finalize_tags_document_and_dispatches_to_handler(session, documen
     )
 
     assert result.status == DocumentStatus.PROCESSED
-    assert result.domain == Category.HOUSE
+    assert result.category == Category.HOUSE
     assert result.paper_kind == "manual"
     assert load_fields(result) == {"item_name": "Boiler"}
     assert fake_domain.handler.processed == [document.id]
@@ -82,7 +82,7 @@ async def test_finalize_rejects_invalid_classification_without_mutating(session,
     assert "domain" in unknown_domain.value.errors
 
     session.refresh(document)
-    assert document.domain is None and document.status == DocumentStatus.PENDING
+    assert document.category is None and document.status == DocumentStatus.PENDING
     assert fake_domain.handler.processed == []
 
 
@@ -107,14 +107,14 @@ async def test_finalize_marks_needs_attention_when_handler_raises(session, docum
     from app.categories import registry
 
     spec = make_fake_spec(handler=RecordingHandler(fail_with=RuntimeError("boom")))
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     document = ingestion.receive_file(session, _incoming()).document
 
     result = await ingestion.finalize_document(session, document, Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))
 
     assert result.status == DocumentStatus.NEEDS_ATTENTION
     assert "boom" in result.failure_reason
-    assert result.domain == Category.HOUSE  # still finalized: it belongs to the domain, it just failed
+    assert result.category == Category.HOUSE  # still finalized: it belongs to the domain, it just failed
 
 
 @pytest.mark.asyncio
@@ -127,7 +127,7 @@ async def test_finalize_allows_missing_category_when_domain_infers_it(session, d
             return await super().process(session, document)
 
     spec = make_fake_spec(handler=InfersTheKind(), infers_kind=True)
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     document = ingestion.receive_file(session, _incoming()).document
 
     result = await ingestion.finalize_document(session, document, Classification(Category.HOUSE))
@@ -195,7 +195,7 @@ async def test_record_with_attachment_and_later_attachment(session, documents_di
         Category.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}, attachment=_incoming("r.pdf", b"r"),
     ))
     attachment = session.get(Document, with_file.document_id)
-    assert attachment.domain == Category.HOUSE and attachment.paper_kind == "visit"
+    assert attachment.category == Category.HOUSE and attachment.paper_kind == "visit"
     assert attachment.fields_json == "{}" and attachment.status == DocumentStatus.PROCESSED
 
     later = await ingestion.create_record(session, RecordInput(Category.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-04-01"}))
@@ -245,7 +245,7 @@ async def test_refile_is_refused_when_the_old_handler_blocks_it(session, documen
             return "linked to a commitment"
 
     spec = make_fake_spec(handler=Blocking())
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     document = (await ingestion.ingest(session, _incoming(), Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))).document
 
     with pytest.raises(RefileRefusedError, match="commitment"):

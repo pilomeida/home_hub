@@ -89,7 +89,7 @@ def resolve_strictest(session: Session, domain: object, category: Optional[str])
         return ps.resolve(session, domain, category)
     if not ps.enforcing(session):
         return ps.Resolution("off")
-    cats = [i.paper_kind for i in ps.known_types() if i.domain == ps._s(domain)]
+    cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(domain)]
     resolved = [ps.resolve(session, domain, c) for c in cats]
     if not resolved or any(r.state != "ready" for r in resolved):
         return ps.Resolution("held")

@@ -83,7 +83,7 @@ def test_effective_expiry_prefers_stated_then_assumes_legal_guarantee():
 def _warranty_document(session, fields):
     document = Document(
         filename="w.pdf", file_path="/tmp/w.pdf", content_hash=f"h-{json.dumps(fields)}",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.HOUSE,
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.HOUSE,
         paper_kind=HouseKind.WARRANTY_INVOICE.value, fields_json=json.dumps(fields),
     )
     session.add(document)
@@ -99,7 +99,7 @@ def test_sync_creates_the_renewal_todo(session):
 
     assert todo.title == "Renew Boiler warranty"
     assert todo.due_date == date(2027, 2, 8)
-    assert todo.domain == Category.HOUSE and todo.document_id == document.id
+    assert todo.category == Category.HOUSE and todo.document_id == document.id
 
 
 def test_sync_skips_missing_or_lapsed_expiry_and_other_categories(session):

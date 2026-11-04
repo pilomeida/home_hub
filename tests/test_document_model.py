@@ -59,7 +59,7 @@ def test_document_domain_defaults_to_none(session):
     session.commit()
     session.refresh(document)
 
-    assert document.domain is None
+    assert document.category is None
 
 
 def test_document_domain_can_be_set(session):
@@ -67,13 +67,13 @@ def test_document_domain_can_be_set(session):
 
     document = Document(
         filename="s.pdf", file_path="/tmp/s.pdf", content_hash="hash-domain-set",
-        source=DocumentSource.MANUAL, domain=Category.FINANCIALS,
+        source=DocumentSource.MANUAL, category=Category.FINANCIALS,
     )
     session.add(document)
     session.commit()
     session.refresh(document)
 
-    assert document.domain == Category.FINANCIALS
+    assert document.category == Category.FINANCIALS
 
 
 def test_document_category_and_fields_default(session):
@@ -95,13 +95,13 @@ def test_document_accepts_house_domain_category_and_fields(session):
     document = Document(
         filename="boiler-warranty.pdf", file_path="/tmp/boiler-warranty.pdf",
         content_hash="hash-house", source=DocumentSource.MANUAL,
-        domain=Category.HOUSE, paper_kind="warranty_invoice",
+        category=Category.HOUSE, paper_kind="warranty_invoice",
         fields_json='{"item_name": "Boiler"}',
     )
     session.add(document)
     session.commit()
     session.refresh(document)
 
-    assert document.domain == Category.HOUSE
+    assert document.category == Category.HOUSE
     assert document.paper_kind == "warranty_invoice"
     assert document.fields_json == '{"item_name": "Boiler"}'

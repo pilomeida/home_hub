@@ -15,7 +15,7 @@ _MAINTENANCE = frozenset({HouseKind.MAINTENANCE_LOG.value})
 _FLOOR_PLAN = frozenset({HouseKind.FLOOR_PLAN.value})
 
 SPEC = CategorySpec(
-    domain=Category.HOUSE,
+    category=Category.HOUSE,
     label="House",
     description=(
         "The home itself: appliance and outdoor-gear manuals, warranties and purchase invoices, "

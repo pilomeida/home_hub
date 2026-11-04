@@ -13,7 +13,7 @@ from app.services import document_reconcile, to_check
 
 def _doc(session, name, category):
     d = Document(filename=name, file_path=name, content_hash=name, source=DocumentSource.MANUAL,
-                 domain=Category.FINANCIALS, paper_kind=category)
+                 category=Category.FINANCIALS, paper_kind=category)
     session.add(d); session.commit(); session.refresh(d)
     return d
 

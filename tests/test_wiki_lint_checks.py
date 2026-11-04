@@ -57,7 +57,7 @@ def _linked_spec(monkeypatch):
     base = make_fake_spec()
     item_type = dataclasses.replace(base.wiki.entity_types[0], links=(LinkSpec("seen_on", "fake.day"),))
     spec = dataclasses.replace(base, wiki=dataclasses.replace(base.wiki, entity_types=(item_type,)))
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
 
 
 def test_stale_link_when_the_newest_source_names_another_target(session, monkeypatch):

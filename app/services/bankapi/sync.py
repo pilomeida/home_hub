@@ -60,7 +60,7 @@ def sync_document(session: Session, account_id: int, bank_name: str) -> Document
         doc = Document(
             filename=f"{bank_name} — automatic bank sync", file_path="", content_hash=key,
             source=DocumentSource.API, status=DocumentStatus.PROCESSED,
-            domain=Category.FINANCIALS, paper_kind="statement", account_id=account_id,
+            category=Category.FINANCIALS, paper_kind="statement", account_id=account_id,
         )
         session.add(doc)
         session.flush()
@@ -339,7 +339,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             try:
                 # The merchant classifier may ask the AI: at the level of the line's paper kind (a feed line is a
                 # statement line), refused while that level is held (finding F7).
-                with privacy_scope(session, document.domain, document.paper_kind):
+                with privacy_scope(session, document.category, document.paper_kind):
                     await classify(session, txn)
                 session.add(txn)  # classify filed it under the merchant's tree node, if the merchant has one
             except Exception:

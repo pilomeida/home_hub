@@ -96,7 +96,7 @@ def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Categor
     if title is None:
         raise ValueError(f"Wiki title collision for {ref.title!r} ({ref.page_type})")
     page = WikiPage(topic=title, page_type=ref.page_type, entity_key=ref.entity_key,
-                    summary=ref.summary, domain=domain)
+                    summary=ref.summary, category=domain)
     session.add(page)
     session.flush()
     return page
@@ -280,7 +280,7 @@ def apply_claims(
 ) -> IngestReport:
     source_given = document is not None or record is not None
     domain = domain if domain is not None else (
-        record.domain if record is not None else (document.domain if document is not None else None)
+        record.category if record is not None else (document.category if document is not None else None)
     )
     now = datetime.utcnow()
     report = IngestReport()
@@ -418,8 +418,8 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
     from app.categories.registry import implemented_domains
 
     specs = implemented_domains()
-    domain_order = {spec.domain: i for i, spec in enumerate(specs)}
-    domain_labels = {spec.domain: spec.label for spec in specs}
+    domain_order = {spec.category: i for i, spec in enumerate(specs)}
+    domain_labels = {spec.category: spec.label for spec in specs}
     type_labels = {TOPIC_PAGE_TYPE: "Topics", ANSWER_PAGE_TYPE: "Saved answers"}
     for spec in specs:
         for entity_type in spec.wiki.entity_types:
@@ -431,7 +431,7 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
             continue
         page_type = page.page_type or TOPIC_PAGE_TYPE
         summary = visible_summary(session, page, view)
-        grouped.setdefault((page.domain, page_type), []).append(
+        grouped.setdefault((page.category, page_type), []).append(
             IndexEntry(page_id=page.id, title=page.topic, summary=summary, updated_at=page.updated_at)
         )
 

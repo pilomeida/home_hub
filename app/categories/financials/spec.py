@@ -19,7 +19,7 @@ def _account_choices(session: Session) -> list[tuple[str, str]]:
 
 
 SPEC = CategorySpec(
-    domain=Category.FINANCIALS,
+    category=Category.FINANCIALS,
     label="Financials",
     description="Money: bills and invoices to pay, and bank or card account statements.",
     home_url="/financials/bills",

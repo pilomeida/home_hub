@@ -93,8 +93,8 @@ def test_read_document_file_video_is_a_soft_error(session, fake_domain, tmp_path
 
 
 def test_list_todos_open_only_and_links_to_domain_backlog(session, fake_domain):
-    session.add(Todo(title="Renew boiler warranty", domain=Category.HOUSE))
-    session.add(Todo(title="Old", done=True, domain=Category.HOUSE))
+    session.add(Todo(title="Renew boiler warranty", category=Category.HOUSE))
+    session.add(Todo(title="Old", done=True, category=Category.HOUSE))
     session.commit()
     out = _tool("list_todos").run(session, {})
     assert "Renew boiler warranty" in out.text and "Old" not in out.text
@@ -105,6 +105,6 @@ def test_domain_tools_must_be_prefixed(monkeypatch):
     bad = AskTool(name="spending", description="d", input_schema={"type": "object"},
                   run=lambda s, a: ToolOutput(text=""))
     spec = dataclasses.replace(make_fake_spec(), ask_tools=(bad,))
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     with pytest.raises(ValueError):
         ask_tools.domain_tools()

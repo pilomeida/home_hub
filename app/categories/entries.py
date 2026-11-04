@@ -32,7 +32,7 @@ class SourceEntry:
     def title(self) -> str:
         if self.document is not None:
             return self.document.filename
-        domain = self.record.domain if self.record is not None else None
+        domain = self.record.category if self.record is not None else None
         label = get_spec(domain).kind_label(self.paper_kind) if is_implemented(domain) else (self.paper_kind or "")
         return f"{label} — entered by hand"
 
@@ -45,7 +45,7 @@ def record_for_document(session: Session, document: Document) -> Optional[Record
 
 def domain_entries(session: Session, domain: Category) -> list[SourceEntry]:
     records = list(session.exec(
-        select(Record).where(Record.domain == domain, Record.retired_at.is_(None))
+        select(Record).where(Record.category == domain, Record.retired_at.is_(None))
     ).all())
     attached_ids = {r.document_id for r in records if r.document_id is not None}
     attachments = {}
@@ -53,7 +53,7 @@ def domain_entries(session: Session, domain: Category) -> list[SourceEntry]:
         attachments = {d.id: d for d in session.exec(select(Document).where(Document.id.in_(attached_ids))).all()}
     documents = session.exec(
         select(Document).where(
-            Document.domain == domain,
+            Document.category == domain,
             Document.status.in_([DocumentStatus.PROCESSED, DocumentStatus.NEEDS_ATTENTION]),
         )
     ).all()

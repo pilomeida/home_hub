@@ -8,17 +8,17 @@ from app.models.record import Record
 
 def test_entries_merge_documents_and_records_without_double_counting_attachments(session, fake_domain):
     manual = Document(filename="m.pdf", file_path="/tmp/m.pdf", content_hash="e1", source=DocumentSource.MANUAL,
-                      status=DocumentStatus.PROCESSED, domain=Category.HOUSE, paper_kind="manual",
+                      status=DocumentStatus.PROCESSED, category=Category.HOUSE, paper_kind="manual",
                       fields_json=json.dumps({"item_name": "Boiler"}))
     attachment = Document(filename="receipt.pdf", file_path="/tmp/r.pdf", content_hash="e2", source=DocumentSource.MANUAL,
-                          status=DocumentStatus.PROCESSED, domain=Category.HOUSE, paper_kind="visit")
+                          status=DocumentStatus.PROCESSED, category=Category.HOUSE, paper_kind="visit")
     pending = Document(filename="p.pdf", file_path="/tmp/p.pdf", content_hash="e3", source=DocumentSource.MANUAL)
     session.add_all([manual, attachment, pending])
     session.commit()
-    with_file = Record(domain=Category.HOUSE, paper_kind="visit", document_id=attachment.id,
+    with_file = Record(category=Category.HOUSE, paper_kind="visit", document_id=attachment.id,
                        fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-01-01"}))
-    by_hand = Record(domain=Category.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-05-01"}))
-    retired = Record(domain=Category.HOUSE, paper_kind="visit", retired_at=manual.created_at)
+    by_hand = Record(category=Category.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-05-01"}))
+    retired = Record(category=Category.HOUSE, paper_kind="visit", retired_at=manual.created_at)
     session.add_all([with_file, by_hand, retired])
     session.commit()
 

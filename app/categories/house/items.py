@@ -65,7 +65,7 @@ class ItemCard:
 def house_documents(session: Session) -> list[Document]:
     return list(session.exec(
         select(Document).where(
-            Document.domain == Category.HOUSE,
+            Document.category == Category.HOUSE,
             Document.status.in_([DocumentStatus.PROCESSED, DocumentStatus.NEEDS_ATTENTION]),
         ).order_by(Document.created_at, Document.id)
     ).all())

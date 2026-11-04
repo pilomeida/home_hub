@@ -32,7 +32,7 @@ def generate_todo_for_transaction(session: Session, transaction: Transaction) ->
     if todo is not None:
         todo.title, todo.due_date = title, transaction.due_date
     else:
-        todo = Todo(title=title, due_date=transaction.due_date, transaction_id=transaction.id, domain=Category.FINANCIALS)
+        todo = Todo(title=title, due_date=transaction.due_date, transaction_id=transaction.id, category=Category.FINANCIALS)
     session.add(todo)
     session.commit()
     session.refresh(todo)
@@ -46,7 +46,7 @@ def upsert_source_todo(session: Session, source: Document | Record, *, title: st
     link = Todo.record_id == source.id if isinstance(source, Record) else Todo.document_id == source.id
     todo = session.exec(select(Todo).where(link, Todo.done == False)).first()  # noqa: E712
     if todo is None:
-        todo = Todo(title=title, due_date=due_date, domain=domain,
+        todo = Todo(title=title, due_date=due_date, category=domain,
                     record_id=source.id if isinstance(source, Record) else None,
                     document_id=None if isinstance(source, Record) else source.id)
     else:

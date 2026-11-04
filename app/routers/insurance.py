@@ -53,13 +53,13 @@ def _classification(category: Optional[str], values: dict) -> Classification:
         if not (values.get("policy_number") or "").strip():
             raise InvalidClassification({"policy_number": "Which policy this premium is for, so it shows on that policy"})
         target_domain, target_kind = _PREMIUM_TARGET
-        return Classification(domain=target_domain, paper_kind=target_kind, fields=values)
-    return Classification(domain=Category.INSURANCE, paper_kind=category, fields=values)
+        return Classification(category=target_domain, paper_kind=target_kind, fields=values)
+    return Classification(category=Category.INSURANCE, paper_kind=category, fields=values)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain != Category.INSURANCE:
+    if document is None or document.category != Category.INSURANCE:
         raise HTTPException(status_code=404, detail="Insurance document not found")
     return document
 

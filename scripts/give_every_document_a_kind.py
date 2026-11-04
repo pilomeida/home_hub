@@ -38,7 +38,7 @@ REVOLUT_STATEMENT = re.compile(r"^account-statement_.*\.pdf$", re.I)
 
 def decide(session: Session, document: Document) -> tuple[str, int | None] | None:
     """(kind, account to move it to or None), or None when no rule fits and a person must choose."""
-    if document.domain != Category.FINANCIALS:
+    if document.category != Category.FINANCIALS:
         return None
     if SANTANDER_STATEMENT.match(document.filename):
         return "statement", None
@@ -65,13 +65,13 @@ def run(session: Session, apply: bool) -> list[str]:
         report.append(f"document {document.id} {document.filename} ({document.status.value}): kind {kind}{note}")
         if apply:
             document.paper_kind = kind
-            document.sensitivity_tier = configured_tier(session, document.domain, kind)
+            document.sensitivity_tier = configured_tier(session, document.category, kind)
             if account_id is not None:
                 document.account_id = account_id
             session.add(document)
-    for document in session.exec(select(Document).where(Document.paper_kind.is_not(None), Document.domain.is_not(None))).all():
+    for document in session.exec(select(Document).where(Document.paper_kind.is_not(None), Document.category.is_not(None))).all():
         try:
-            get_spec(document.domain).kind(document.paper_kind)
+            get_spec(document.category).kind(document.paper_kind)
         except UnknownKindError:
             report.append(f"document {document.id} {document.filename}: kind {document.paper_kind!r} no longer exists "
                           "in its category; move it (for the dental receipt: scripts/file_dental_receipt.py)")

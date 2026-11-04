@@ -101,13 +101,13 @@ def build_domain_payload(session: Session, spec: CategorySpec, reach: Optional[R
     `reach` is the view the audit may read; default = the run's reach."""
     reach = reach or reach_for(session)
     view = reach.wiki_view(session)
-    pages = [p for p in session.exec(select(WikiPage).where(WikiPage.domain == spec.domain,
+    pages = [p for p in session.exec(select(WikiPage).where(WikiPage.category == spec.category,
                                                             WikiPage.page_type != ANSWER_PAGE_TYPE)
                                      .order_by(WikiPage.id)).all() if view.page_visible(p.id)]
     claims_by_page = {p.id: [c for c in active_claims(session, p.id) if view.claim_visible(c.id)] for p in pages}
     claims = {c.id: c for cs in claims_by_page.values() for c in cs}
     sources = claim_sources(session, list(claims))                  # withdrawn links excluded
-    entries = settled_entries(session, spec.domain, reach=reach)[:_MAX_SOURCES]
+    entries = settled_entries(session, spec.category, reach=reach)[:_MAX_SOURCES]
 
     lines = [f"Domain: {spec.label}", "Wiki schema:", _schema_text(spec), "", "Wiki pages:"]
     for p in pages:
@@ -132,7 +132,7 @@ def build_domain_payload(session: Session, spec: CategorySpec, reach: Optional[R
 
 async def check_domain(session: Session, spec: CategorySpec, gateway=None) -> list[FindingDraft]:
     reach = reach_for(session)
-    private = reach.domain_has_private(spec.domain)
+    private = reach.domain_has_private(spec.category)
     # A domain that holds private records is audited as a whole at High; every other domain is audited
     # from a view without them (a claim with any private source is left out, D16/D18).
     payload = build_domain_payload(session, spec, reach=reach if private else reach.without_private())
@@ -159,7 +159,7 @@ async def check_domain(session: Session, spec: CategorySpec, gateway=None) -> li
         if kind in (LintFindingKind.GAP, LintFindingKind.STALE_CLAIM) and claim_ids \
                 and all(payload.claims[i].note for i in claim_ids):
             continue   # assumed (noted) claims are deliberate, not gaps
-        drafts.append(FindingDraft(kind, item["summary"], domain=spec.domain, wiki_page_ids=pages,
+        drafts.append(FindingDraft(kind, item["summary"], category=spec.category, wiki_page_ids=pages,
                                    claim_ids=claim_ids, document_ids=docs, record_ids=recs,
                                    suggested_action=item.get("suggested_action")))
     return drafts
@@ -172,6 +172,6 @@ async def run_llm_checks(session: Session, gateway=None) -> tuple[list[FindingDr
         try:
             drafts += await check_domain(session, spec, gw)
         except Exception as exc:  # one domain's failure must not sink the run
-            logger.exception("Lint LLM audit failed for %s", spec.domain.value)
+            logger.exception("Lint LLM audit failed for %s", spec.category.value)
             errors.append(f"{spec.label}: {exc}")
     return drafts, errors

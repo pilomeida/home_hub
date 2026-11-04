@@ -77,16 +77,16 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
 
     domain_lines = ["Domains:"]
     for spec in implemented_domains():
-        if reach.domain_is_private(spec.domain):
-            domain_lines.append(f"- {spec.domain.value} ({spec.label}): PRIVATE. Nothing is listed here; use the "
-                                f"{spec.domain.value}_* tools if the question needs it (this makes the answer private).")
+        if reach.domain_is_private(spec.category):
+            domain_lines.append(f"- {spec.category.value} ({spec.label}): PRIVATE. Nothing is listed here; use the "
+                                f"{spec.category.value}_* tools if the question needs it (this makes the answer private).")
             continue
-        public = [c for c in spec.kinds if not reach.is_private_type(spec.domain, c.value)]
-        counts = Counter(e.paper_kind or "uncategorised" for e in settled_entries(session, spec.domain, reach=reach))
+        public = [c for c in spec.kinds if not reach.is_private_type(spec.category, c.value)]
+        counts = Counter(e.paper_kind or "uncategorised" for e in settled_entries(session, spec.category, reach=reach))
         categories = ", ".join(f"{c.value} ({c.label})" for c in public)
         fields = ", ".join(f.label for f in spec.fields) or "none"
         on_file = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"
-        domain_lines.append(f"- {spec.domain.value} ({spec.label}): categories [{categories}]; "
+        domain_lines.append(f"- {spec.category.value} ({spec.label}): categories [{categories}]; "
                             f"details [{fields}]; sources on file (documents and records) [{on_file}]")
     sections.append("\n".join(domain_lines))
 

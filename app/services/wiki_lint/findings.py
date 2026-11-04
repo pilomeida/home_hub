@@ -17,7 +17,7 @@ DETERMINISTIC_KINDS = frozenset({
 class FindingDraft:
     kind: LintFindingKind
     summary: str
-    domain: Optional[Category] = None
+    category: Optional[Category] = None
     wiki_page_ids: tuple[int, ...] = ()   # order kept for storage (MISSING_LINK/STALE_LINK = (from, to))
     claim_ids: tuple[int, ...] = ()
     document_ids: tuple[int, ...] = ()

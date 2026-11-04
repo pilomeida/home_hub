@@ -69,7 +69,7 @@ class Facets:
 
 def _all_rows(session: Session) -> list[Row]:
     docs = session.exec(select(Document).where(
-        Document.domain == Category.HEALTH,
+        Document.category == Category.HEALTH,
         Document.status.in_([DocumentStatus.PROCESSED, DocumentStatus.NEEDS_ATTENTION]))).all()
     entries = {e.document_id: e for e in session.exec(select(HealthEntry)).all()}
     people = {p.id: p for p in session.exec(select(HealthPerson)).all()}

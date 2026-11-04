@@ -8,11 +8,11 @@ from app.services.todo_backlog import add_todo, backlog_context, open_todo_count
 
 
 def test_open_todos_for_domain_filters_and_orders(session):
-    session.add(Todo(title="undated house", domain=Category.HOUSE))
-    session.add(Todo(title="later house", domain=Category.HOUSE, due_date=date(2026, 12, 1)))
-    session.add(Todo(title="sooner house", domain=Category.HOUSE, due_date=date(2026, 10, 1)))
-    session.add(Todo(title="done house", domain=Category.HOUSE, done=True))
-    session.add(Todo(title="money", domain=Category.FINANCIALS))
+    session.add(Todo(title="undated house", category=Category.HOUSE))
+    session.add(Todo(title="later house", category=Category.HOUSE, due_date=date(2026, 12, 1)))
+    session.add(Todo(title="sooner house", category=Category.HOUSE, due_date=date(2026, 10, 1)))
+    session.add(Todo(title="done house", category=Category.HOUSE, done=True))
+    session.add(Todo(title="money", category=Category.FINANCIALS))
     session.commit()
 
     titles = [t.title for t in open_todos_for_domain(session, Category.HOUSE)]
@@ -24,7 +24,7 @@ def test_open_todos_for_domain_filters_and_orders(session):
 
 def test_add_todo_tags_domain_and_rejects_blank(session):
     todo = add_todo(session, "  Clean gutters ", Category.HOUSE, date(2026, 11, 1))
-    assert todo.title == "Clean gutters" and todo.domain == Category.HOUSE and todo.due_date == date(2026, 11, 1)
+    assert todo.title == "Clean gutters" and todo.category == Category.HOUSE and todo.due_date == date(2026, 11, 1)
     with pytest.raises(ValueError):
         add_todo(session, "   ", Category.HOUSE)
 

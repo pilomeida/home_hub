@@ -50,9 +50,9 @@ def save_answer_as_wiki_page(session: Session, turn_id: int, title: str) -> Wiki
     known = known_from_turn(turn)
     refs = cited_refs(turn.answer_text, known)
     wiki_ids, doc_ids, rec_ids = _ids(refs, "wiki"), _ids(refs, "doc"), _ids(refs, "rec")
-    domains = {p.domain for p in (session.get(WikiPage, i) for i in wiki_ids) if p} | \
-              {d.domain for d in (session.get(Document, i) for i in doc_ids) if d} | \
-              {r.domain for r in (session.get(Record, i) for i in rec_ids) if r}
+    domains = {p.category for p in (session.get(WikiPage, i) for i in wiki_ids) if p} | \
+              {d.category for d in (session.get(Document, i) for i in doc_ids) if d} | \
+              {r.category for r in (session.get(Record, i) for i in rec_ids) if r}
     domain = next(iter(domains)) if len(domains) == 1 else None
 
     title = (title or turn.question).strip()[:200]

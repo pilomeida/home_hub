@@ -29,7 +29,7 @@ from app.services.ingestion import Classification, refile_document  # noqa: E402
 
 
 def premium_notices(session: Session) -> list[Document]:
-    return [d for d in session.exec(select(Document).where(Document.domain == Category.INSURANCE)).all()
+    return [d for d in session.exec(select(Document).where(Document.category == Category.INSURANCE)).all()
             if load_fields(d).get("document_kind") == "premium_notice"]
 
 
@@ -41,7 +41,7 @@ async def run(session: Session, apply: bool) -> list[str]:
         if not apply:
             continue
         document = await refile_document(session, document, Classification(
-            domain=Category.FINANCIALS, paper_kind=FinancialsKind.BILL.value, fields={"policy_number": number}))
+            category=Category.FINANCIALS, paper_kind=FinancialsKind.BILL.value, fields={"policy_number": number}))
         lines = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
         read = ", ".join(f"{t.description} €{t.amount:,.2f}{' (settled by a bank line)' if t.settled_by_id else ''}"
                          for t in lines) or "no bill line read"

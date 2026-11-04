@@ -50,7 +50,7 @@ def test_get_spec_and_unknown_domain(fake_domain):
 def test_document_url_is_none_until_finalized(fake_domain):
     unfinalized = Document(id=7, filename="a.pdf", file_path="/tmp/a.pdf", content_hash="h", source=DocumentSource.MANUAL)
     finalized = Document(id=8, filename="b.pdf", file_path="/tmp/b.pdf", content_hash="h2",
-                         source=DocumentSource.MANUAL, domain=Category.HOUSE)
+                         source=DocumentSource.MANUAL, category=Category.HOUSE)
     assert registry.document_url(unfinalized) is None
     assert registry.document_url(finalized) == "/fake/documents/8"
 

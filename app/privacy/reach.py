@@ -58,7 +58,7 @@ def type_key(domain: object, category: Optional[str]) -> str:
 
 @dataclass(frozen=True)
 class TypeAccess:
-    domain: str
+    category: str
     paper_kind: str
     label: str
     included: bool
@@ -191,7 +191,7 @@ class Reach:
 
     @property
     def excluded_keys(self) -> frozenset:
-        return frozenset(type_key(a.domain, a.paper_kind) for a in self.access.values() if not a.included)
+        return frozenset(type_key(a.category, a.paper_kind) for a in self.access.values() if not a.included)
 
     # tiers
     def type_tier(self, domain: object, category: Optional[str]) -> Optional[Tier]:
@@ -208,24 +208,24 @@ class Reach:
 
     def has_private(self) -> bool:
         return any(a.private for a in self.access.values()) or any(
-            i.domain in ps.FORCED_TIERS for i in ps.known_types())
+            i.category in ps.FORCED_TIERS for i in ps.known_types())
 
     def domain_has_private(self, domain: object) -> bool:
-        return any(self.is_private_type(domain, i.paper_kind) for i in ps.known_types() if i.domain == ps._s(domain))
+        return any(self.is_private_type(domain, i.paper_kind) for i in ps.known_types() if i.category == ps._s(domain))
 
     def domain_is_private(self, domain: object) -> bool:
-        cats = [i.paper_kind for i in ps.known_types() if i.domain == ps._s(domain)]
+        cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(domain)]
         return bool(cats) and all(self.is_private_type(domain, c) for c in cats)
 
     def tier_of_source(self, source: object) -> Optional[Tier]:
-        return None if source is None else self.type_tier(source.domain, source.paper_kind)
+        return None if source is None else self.type_tier(source.category, source.paper_kind)
 
     def private_tier(self, sources: "Iterable") -> Optional[Tier]:
         """HIGH if any of these sources is of a private type, else None."""
         return Tier.HIGH if any(self.tier_of_source(s) == Tier.HIGH for s in sources) else None
 
     def tier_of_todo(self, session: Session, todo: "Todo") -> Optional[Tier]:
-        if ps.forced_tier(todo.domain) == Tier.HIGH:       # e.g. a Health to-do, even with no linked source
+        if ps.forced_tier(todo.category) == Tier.HIGH:       # e.g. a Health to-do, even with no linked source
             return Tier.HIGH
         sources = []
         if todo.document_id is not None:
@@ -259,10 +259,10 @@ class Reach:
         return a is not None and a.included
 
     def includes_document(self, doc: Optional[Document]) -> bool:
-        return doc is not None and self.includes_type(doc.domain, doc.paper_kind)
+        return doc is not None and self.includes_type(doc.category, doc.paper_kind)
 
     def includes_record(self, record: Optional[Record]) -> bool:
-        return record is not None and self.includes_type(record.domain, record.paper_kind)
+        return record is not None and self.includes_type(record.category, record.paper_kind)
 
     def includes_source(self, source: object) -> bool:
         return self.includes_record(source) if isinstance(source, Record) else self.includes_document(source)
@@ -272,7 +272,7 @@ class Reach:
         if not self.filtering:
             return None
         if "docs" not in self._cache:
-            self._cache["docs"] = {i for i, d, c in session.exec(select(Document.id, Document.domain, Document.paper_kind))
+            self._cache["docs"] = {i for i, d, c in session.exec(select(Document.id, Document.category, Document.paper_kind))
                                    if self.includes_type(d, c)}
         return self._cache["docs"]
 
@@ -280,7 +280,7 @@ class Reach:
         if not self.filtering:
             return None
         if "recs" not in self._cache:
-            self._cache["recs"] = {i for i, d, c in session.exec(select(Record.id, Record.domain, Record.paper_kind))
+            self._cache["recs"] = {i for i, d, c in session.exec(select(Record.id, Record.category, Record.paper_kind))
                                    if self.includes_type(d, c)}
         return self._cache["recs"]
 
@@ -359,11 +359,11 @@ class Reach:
         for e in settled_entries(session):
             if e.record is not None:
                 if not self.includes_record(e.record):
-                    bump(e.record.domain, e.record.paper_kind, True)
+                    bump(e.record.category, e.record.paper_kind, True)
                 elif e.document is not None and not self.includes_document(e.document):
-                    bump(e.document.domain, e.document.paper_kind, False)
+                    bump(e.document.category, e.document.paper_kind, False)
             elif not self.includes_document(e.document):
-                bump(e.document.domain, e.document.paper_kind, False)
+                bump(e.document.category, e.document.paper_kind, False)
         types = []
         for (domain, category), (n_docs, n_recs) in sorted(counts.items(), key=lambda kv: str(kv[0])):
             a = self.access.get((domain, category))
@@ -375,11 +375,11 @@ class Reach:
 def compute_reach(session: Session) -> Reach:
     if not ps.enforcing(session):
         return Reach(binding=False)
-    saved = {(r.domain, r.paper_kind): r for r in session.exec(select(DocumentTypeSetting))}
+    saved = {(r.category, r.paper_kind): r for r in session.exec(select(DocumentTypeSetting))}
     access = {}
     for info in ps.known_types():
-        row = saved.get((info.domain, info.paper_kind))
-        tier: Optional[Tier] = ps.forced_tier(info.domain)
+        row = saved.get((info.category, info.paper_kind))
+        tier: Optional[Tier] = ps.forced_tier(info.category)
         if tier is None and row is not None and row.tier is not None:
             try:
                 tier = parse_tier(row.tier)
@@ -390,8 +390,8 @@ def compute_reach(session: Session) -> Reach:
             reason = UNSET
         elif tier != Tier.HIGH and row is not None and row.redact:
             reason = HIDES
-        access[(info.domain, info.paper_kind)] = TypeAccess(
-            info.domain, info.paper_kind, info.label, reason is None, reason, tier, private=(tier == Tier.HIGH))
+        access[(info.category, info.paper_kind)] = TypeAccess(
+            info.category, info.paper_kind, info.label, reason is None, reason, tier, private=(tier == Tier.HIGH))
     levels = [a.tier for a in access.values() if a.included and not a.private]
     call_tier = max(levels, key=_ORDER.__getitem__) if levels else Tier.MID
     return Reach(binding=True, access=access, tier=call_tier)

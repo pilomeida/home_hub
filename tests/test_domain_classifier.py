@@ -50,7 +50,7 @@ def pdf(tmp_path):
 def test_prompt_is_built_from_the_registry(two_domains):
     prompt = build_system_prompt(implemented_domains())
     for spec in two_domains.values():
-        assert f'"{spec.domain.value}"' in prompt and spec.description in prompt
+        assert f'"{spec.category.value}"' in prompt and spec.description in prompt
         for category in spec.kinds:
             assert f'"{category.value}"' in prompt and category.description in prompt
     assert "may be null" in prompt   # Money infers its own category
@@ -67,23 +67,23 @@ async def test_valid_answer_and_wire_shape(pdf, two_domains):
 @pytest.mark.asyncio
 async def test_null_category_allowed_only_for_inferring_domains(pdf, two_domains):
     ok = await suggest_domain_and_category(pdf, gateway=_answer(domain="financials", category=None, confidence=0.9, reason="x"))
-    assert ok.domain == Category.FINANCIALS and ok.paper_kind is None
+    assert ok.category == Category.FINANCIALS and ok.paper_kind is None
     bad = await suggest_domain_and_category(pdf, gateway=_answer(domain="house", category=None, confidence=0.9, reason="x"))
-    assert bad.domain is None
+    assert bad.category is None
 
 
 @pytest.mark.asyncio
 async def test_answer_outside_registry_becomes_empty(pdf, two_domains):
     wrong_cat = await suggest_domain_and_category(pdf, gateway=_answer(domain="house", category="bill", confidence=0.99, reason="x"))
     unknown_domain = await suggest_domain_and_category(pdf, gateway=_answer(domain="health", category="x", confidence=0.99, reason="x"))
-    assert wrong_cat.domain is None and wrong_cat.confidence == 0.0
-    assert unknown_domain.domain is None
+    assert wrong_cat.category is None and wrong_cat.confidence == 0.0
+    assert unknown_domain.category is None
 
 
 @pytest.mark.asyncio
 async def test_null_domain_keeps_reason(pdf, two_domains):
     result = await suggest_domain_and_category(pdf, gateway=_answer(domain=None, category=None, confidence=0.2, reason="a birthday card"))
-    assert result.domain is None and result.note == "a birthday card"
+    assert result.category is None and result.note == "a birthday card"
 
 
 @pytest.mark.asyncio
@@ -98,7 +98,7 @@ async def test_unreadable_file_skips_the_model(tmp_path, two_domains):
     video.write_bytes(b"\x00\x00")
     client = _answer(domain=None)
     result = await suggest_domain_and_category(str(video), gateway=client)
-    assert client.requests == [] and result.domain is None
+    assert client.requests == [] and result.category is None
     assert "can't be read automatically" in result.note
 
 
@@ -117,4 +117,4 @@ async def test_non_classifiable_category_from_the_model_is_treated_as_unknown(pd
     assert f'"{category}"' not in prompt
     result = await suggest_domain_and_category(
         pdf, gateway=_answer(domain="financials", category=category, confidence=0.99, reason="x"))
-    assert result.domain is None and result.confidence == 0.0
+    assert result.category is None and result.confidence == 0.0

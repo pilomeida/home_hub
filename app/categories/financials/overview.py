@@ -22,7 +22,7 @@ def financials_overview_card(session: Session, today: date) -> CategoryCard:
     ).one()
     needing_attention = session.exec(
         select(func.count()).select_from(Document).where(
-            Document.domain == Category.FINANCIALS, Document.status == DocumentStatus.NEEDS_ATTENTION,
+            Document.category == Category.FINANCIALS, Document.status == DocumentStatus.NEEDS_ATTENTION,
         )
     ).one()
 

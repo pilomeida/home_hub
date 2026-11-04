@@ -162,7 +162,7 @@ def backfill() -> None:
                 status=DocumentStatus.PROCESSED,
                 paper_kind="bill",
                 uploaded_by="backfill-electricity-history-script",
-                domain=Category.FINANCIALS,
+                category=Category.FINANCIALS,
             )
             session.add(document)
             session.commit()

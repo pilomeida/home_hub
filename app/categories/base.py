@@ -55,7 +55,7 @@ def _no_derived_fields(category: Optional[str], fields: dict[str, str]) -> dict[
 @dataclass(frozen=True)
 class KindSpec:
     """In the model's words: a PAPER KIND inside a category (glossary, docs/ARCHITECTURE.md)."""
-    value: str            # stored in Document.category, e.g. "warranty_invoice"
+    value: str            # stored in Document.paper_kind, e.g. "warranty_invoice"
     label: str            # human label, e.g. "Warranty / invoice"
     description: str      # one sentence; also fed to Plan B's classifier prompt
     accepted_media: frozenset[MediaKind] = DEFAULT_MEDIA
@@ -190,7 +190,7 @@ class UnknownKindError(KeyError):
 
 @dataclass(frozen=True)
 class CategorySpec:
-    domain: Category
+    category: Category
     label: str
     description: str                                  # one sentence; also fed to Plan B's classifier
     home_url: str                                     # the domain tab's landing page

@@ -281,7 +281,7 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
         received = await ingest(
             session,
             IncomingFile(name, content, DocumentSource.MANUAL, getattr(request.state, "user_email", None)),
-            Classification(domain=Category.FINANCIALS, paper_kind=slot["category"], fields={}),
+            Classification(category=Category.FINANCIALS, paper_kind=slot["category"], fields={}),
         )
         document = received.document
         if not received.duplicate:

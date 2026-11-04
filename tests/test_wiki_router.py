@@ -65,7 +65,7 @@ from app.services.wiki_store import ClaimInput, PageRef
 
 def _house_document(session, name="boiler-warranty.pdf", content_hash="hw1"):
     document = Document(filename=name, file_path=f"/srv/docs/{content_hash}.pdf", content_hash=content_hash,
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.HOUSE)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.HOUSE)
     session.add(document)
     session.commit()
     session.refresh(document)

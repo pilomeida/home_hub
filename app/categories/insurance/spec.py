@@ -11,7 +11,7 @@ from app.categories.insurance.overview import insurance_overview_card
 from app.models.category import Category
 
 SPEC = CategorySpec(
-    domain=Category.INSURANCE,
+    category=Category.INSURANCE,
     label="Insurance",
     description=(
         "The household's insurance policies, for the home, the cars, health and life: the policy's own papers "

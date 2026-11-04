@@ -200,7 +200,7 @@ def test_banner_shows_on_financials_pages_not_others(client, session):
     conn.valid_until = datetime.utcnow() + timedelta(days=5, hours=2)
     session.add(conn); session.commit()
     doc = Document(filename="s.pdf", file_path="/x", content_hash="b1",
-                   source=DocumentSource.API, domain=Category.FINANCIALS)
+                   source=DocumentSource.API, category=Category.FINANCIALS)
     session.add(doc); session.commit()
     assert "expires in 5 days" in client.get("/financials/bank/").text
     assert "expires in 5 days" in client.get("/financials/bills").text

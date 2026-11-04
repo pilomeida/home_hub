@@ -38,7 +38,7 @@ class _ExplodingGateway:
 @pytest.fixture()
 def guided_domain(monkeypatch):
     spec = make_fake_spec(wiki_guidance="Record provider facts.")
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     return spec
 
 
@@ -46,7 +46,7 @@ def _document(session, category="manual", fields=None, content_hash="h1"):
     document = Document(
         filename="doc.pdf", file_path="/tmp/doc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        domain=Category.HOUSE, paper_kind=category, fields_json=json.dumps(fields or {}),
+        category=Category.HOUSE, paper_kind=category, fields_json=json.dumps(fields or {}),
     )
     session.add(document)
     session.commit()
@@ -72,7 +72,7 @@ def test_claims_from_fields_skips_unnamed_or_unrelated_documents(session, fake_d
 
 @pytest.mark.asyncio
 async def test_assess_returns_topic_claims_and_offers_existing_titles(session, guided_domain):
-    session.add(WikiPage(topic="Electricity — provider & contract", domain=Category.HOUSE))
+    session.add(WikiPage(topic="Electricity — provider & contract", category=Category.HOUSE))
     session.commit()
     document = _document(session)
     client = _fake_gateway(json.dumps({"pages": [
@@ -114,7 +114,7 @@ async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_doma
 
     titles = {p.topic for p in session.exec(select(WikiPage)).all()}
     assert titles == {"Boiler", "Gas supply"}
-    assert all(p.domain == Category.HOUSE for p in session.exec(select(WikiPage)).all())
+    assert all(p.category == Category.HOUSE for p in session.exec(select(WikiPage)).all())
     entry = session.get(WikiLogEntry, report.log_entry_id)
     assert entry.operation == WikiOperation.INGEST and entry.document_id == document.id
 
@@ -155,7 +155,7 @@ def test_links_from_fields_follow_the_schema(session, monkeypatch):
     base = make_fake_spec()
     item_type = dataclasses.replace(base.wiki.entity_types[0], links=(LinkSpec("seen_on", "fake.day"),))
     spec = dataclasses.replace(base, wiki=WikiSchema(entity_types=(item_type,)))
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
 
     links = links_from_fields(spec, _document(session, fields={"item_name": "Boiler", "seen_on": "2026-01-01"}))
 
@@ -169,7 +169,7 @@ def test_links_from_fields_follow_the_schema(session, monkeypatch):
 async def test_records_are_ingested_like_documents(session, fake_domain):
     from app.models.record import Record
 
-    record = Record(domain=Category.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
+    record = Record(category=Category.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
     session.add(record)
     session.commit()
     session.refresh(record)

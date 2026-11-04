@@ -5,9 +5,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Column, Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
 from app.models.category import Category
+from app.models.strict import RefusesUnknownFields
 
 
 class LintRunStatus(str, Enum):
@@ -53,13 +55,13 @@ class LintRun(SQLModel, table=True):
     left_out_json: Optional[str] = None
 
 
-class LintFinding(SQLModel, table=True):
+class LintFinding(RefusesUnknownFields, SQLModel, table=True):
     __tablename__ = "lint_findings"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     fingerprint: str = Field(index=True)
     kind: LintFindingKind
-    domain: Optional[Category] = None
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))
     summary: str
     suggested_action: Optional[str] = None
     wiki_page_ids_json: str = Field(default="[]")   # order kept (MISSING_LINK/STALE_LINK = [from, to])

@@ -67,7 +67,7 @@ def test_upload_creates_a_house_document_and_redirects(client, session):
     document_id = int(response.headers["location"].rsplit("/", 1)[-1])
     document = session.get(Document, document_id)
     assert response.headers["location"] == f"/house/documents/{document_id}"
-    assert document.domain == Category.HOUSE and document.paper_kind == "house_appliance"
+    assert document.category == Category.HOUSE and document.paper_kind == "house_appliance"
     assert json.loads(document.fields_json) == {"item_name": "Boiler", "room": "Kitchen"}
 
 
@@ -144,7 +144,7 @@ def test_editing_with_invalid_fields_shows_errors(client):
 
 def test_non_house_documents_are_404(client, session):
     document = Document(filename="edp.pdf", file_path="/tmp/edp.pdf", content_hash="f1",
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category=Category.FINANCIALS)
     session.add(document)
     session.commit()
     session.refresh(document)

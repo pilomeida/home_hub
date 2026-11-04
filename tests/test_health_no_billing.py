@@ -124,7 +124,7 @@ async def test_changing_a_refused_bill_to_financials_bill_files_it_as_a_bill(cli
     from app.services.ingestion import refile_document
 
     doc, _ = await _ingest_a_bill(session)
-    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.domain == Category.HEALTH
+    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.category == Category.HEALTH
     assert client.get(f"/documents/{doc.id}/edit").status_code == 200          # the "change" link opens
 
     async def fake_extract_bill(file_path, gateway=None):
@@ -146,7 +146,7 @@ async def test_changing_a_refused_bill_to_financials_bill_files_it_as_a_bill(cli
     monkeypatch.setattr(financials, "classify_transaction", no_classify)
 
     moved = await refile_document(session, doc, Classification(Category.FINANCIALS, "bill", {}))
-    assert moved.domain == Category.FINANCIALS and moved.paper_kind == "bill"
+    assert moved.category == Category.FINANCIALS and moved.paper_kind == "bill"
     assert moved.status == DocumentStatus.PROCESSED and moved.failure_reason is None
     txn = session.exec(select(Transaction).where(Transaction.document_id == doc.id)).one()
     assert txn.amount == 45.5

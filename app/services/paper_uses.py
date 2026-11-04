@@ -100,7 +100,7 @@ def uses_of(session: Session, document: Document) -> list[PaperUse]:
         page = session.get(WikiPage, page_id)
         uses.append(PaperUse(WIKI, f"{_n(count, 'fact', 'facts')} on the wiki page “{page.topic}”", f"/wiki/{page_id}"))
 
-    if document.domain == Category.FINANCIALS:     # a premium notice is a bill shown on its policy's card
+    if document.category == Category.FINANCIALS:     # a premium notice is a bill shown on its policy's card
         from app.categories.insurance.policies import build_policy_cards
         for card in build_policy_cards(session):
             if any(p.entry.document is not None and p.entry.document.id == doc_id for p in card.documents):

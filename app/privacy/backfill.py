@@ -13,5 +13,5 @@ from app.privacy.settings import retier
 def backfill_tiers(session: Session) -> int:
     changed = 0
     for s in session.exec(select(DocumentTypeSetting)):
-        changed += retier(session, s.domain, s.paper_kind, s.tier)
+        changed += retier(session, s.category, s.paper_kind, s.tier)
     return changed

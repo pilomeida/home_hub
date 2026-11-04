@@ -32,11 +32,11 @@
   <thead><tr><th>Type of document</th><th>Level</th><th>Hide personal details first</th><th></th></tr></thead>
   <tbody>
   {% for r in rows %}
-  {% set fid = "f-" ~ r.info.domain ~ "-" ~ r.info.paper_kind %}
+  {% set fid = "f-" ~ r.info.category ~ "-" ~ r.info.paper_kind %}
   <tr>
     <td>{{ r.info.label }}<div style="font-size:12px;color:#666;">{{ r.info.description }}</div>
       <form id="{{ fid }}" method="post" action="/privacy/types">
-        <input type="hidden" name="domain" value="{{ r.info.domain }}"><input type="hidden" name="category" value="{{ r.info.paper_kind }}">
+        <input type="hidden" name="domain" value="{{ r.info.category }}"><input type="hidden" name="category" value="{{ r.info.paper_kind }}">
       </form></td>
     <td>
       {% if r.locked %}

@@ -459,7 +459,7 @@ def test_unknown_bank_connection_and_account_are_complete_404s(client, session, 
 
 def test_bill_that_needs_attention_always_explains_itself(client, session):
     doc = Document(filename="bill.pdf", file_path="/x", content_hash="needs-1", source=DocumentSource.MANUAL,
-                   domain=Category.FINANCIALS, status=DocumentStatus.NEEDS_ATTENTION)
+                   category=Category.FINANCIALS, status=DocumentStatus.NEEDS_ATTENTION)
     session.add(doc); session.commit(); session.refresh(doc)
     listing = client.get("/financials/bills").text
     assert "to see why and what to do" in listing

@@ -48,7 +48,7 @@ def _active(session, page_id):
 
 
 def test_registry_lists_financials_house_insurance_then_health():
-    assert [s.domain for s in registry.implemented_domains()] == [
+    assert [s.category for s in registry.implemented_domains()] == [
         Category.FINANCIALS, Category.HOUSE, Category.INSURANCE, Category.HEALTH]
     spec = registry.get_spec(Category.HOUSE)
     assert spec.home_url == "/house"
@@ -63,7 +63,7 @@ async def test_appliance_manual_is_stored_tagged_and_builds_the_item_page(sessio
 
     assert document.status == DocumentStatus.PROCESSED and document.failure_reason is None
     page = session.exec(select(WikiPage).where(WikiPage.page_type == "house.item")).one()
-    assert page.topic == "Boiler" and page.domain == Category.HOUSE
+    assert page.topic == "Boiler" and page.category == Category.HOUSE
     assert _active(session, page.id) == {"type": "House appliance", "room": "Kitchen"}
     assert extraction[0] == []  # no LLM for a manual
 
@@ -78,7 +78,7 @@ async def test_warranty_expiry_is_extracted_reminded_and_recorded(session, extra
     assert len(calls) == 1
     assert load_fields(document)["warranty_expiry"] == "2030-03-01"
     todo = session.exec(select(Todo)).one()
-    assert todo.title == "Renew Boiler warranty" and todo.due_date == date(2030, 2, 8) and todo.domain == Category.HOUSE
+    assert todo.title == "Renew Boiler warranty" and todo.due_date == date(2030, 2, 8) and todo.category == Category.HOUSE
     page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
     assert _active(session, page.id)["warranty_expires"] == "2030-03-01"
 

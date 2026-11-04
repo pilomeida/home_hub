@@ -31,7 +31,7 @@ class RecordingHandler(CategoryHandler):
 
 def make_fake_spec(handler=None, domain=Category.HOUSE, infers_kind=False, wiki_guidance=""):
     return CategorySpec(
-        domain=domain,
+        category=domain,
         label="Fake",
         description="A fake domain used by tests.",
         home_url="/fake",

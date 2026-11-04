@@ -170,7 +170,7 @@ def _health_paper(session, docs_dir) -> Document:
 @pytest.fixture()
 def world(session, inbox_documents_dir):
     w = pw.build_world(session, inbox_documents_dir)
-    session.add_all([Todo(title=HEALTHTODO, domain=Category.HEALTH),                       # no linked source at all
+    session.add_all([Todo(title=HEALTHTODO, category=Category.HEALTH),                       # no linked source at all
                      Todo(title=f"{pw.HIGH}-todo", document_id=w.c.id)])                 # made from a High document
     session.commit()
     w.health = _health_paper(session, inbox_documents_dir)
@@ -276,7 +276,7 @@ def test_a_record_with_a_private_attached_file_is_private_in_find_sources(sessio
 
 
 def test_an_unlinked_health_todo_is_private(session):
-    session.add(Todo(title="Book the dentist", domain=Category.HEALTH))
+    session.add(Todo(title="Book the dentist", category=Category.HEALTH))
     session.commit()
     with reachable_scope(session):
         out = next(t for t in available_tools() if t.name == "list_todos").run(session, {})

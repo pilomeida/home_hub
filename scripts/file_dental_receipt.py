@@ -47,9 +47,9 @@ async def main(document_id: int) -> int:
         if document is None:
             print(f"{document_id}: no such document")
             return 1
-        if document.domain != Category.FINANCIALS:
+        if document.category != Category.FINANCIALS:
             document = await refile_document(
-                session, document, Classification(domain=Category.FINANCIALS, paper_kind=FinancialsKind.BILL.value))
+                session, document, Classification(category=Category.FINANCIALS, paper_kind=FinancialsKind.BILL.value))
         node = get_node(session, DENTAL_SLUG)
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document_id)).all()
         for txn in transactions:

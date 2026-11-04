@@ -60,7 +60,7 @@ def test_health_cannot_be_given_another_level(session):
 
 
 def test_type_rows_show_health_as_locked_high(session):
-    rows = {(r.info.domain, r.info.paper_kind): r for r in ps.type_rows(session)}
+    rows = {(r.info.category, r.info.paper_kind): r for r in ps.type_rows(session)}
     row = rows[("health", "lab_result")]
     assert row.locked and row.tier == Tier.HIGH and row.shown_tier == Tier.HIGH and row.is_saved
     assert rows[("house", "house_appliance")].locked is False

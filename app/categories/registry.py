@@ -34,9 +34,9 @@ def _specs() -> dict[Category, CategorySpec]:
         specs: dict[Category, CategorySpec] = {}
         for module_path in _SPEC_MODULES:
             spec: CategorySpec = importlib.import_module(module_path).SPEC
-            if spec.domain in specs:
-                raise ValueError(f"Domain {spec.domain} registered twice")
-            specs[spec.domain] = spec
+            if spec.category in specs:
+                raise ValueError(f"Domain {spec.category} registered twice")
+            specs[spec.category] = spec
         _specs_cache = specs
     return _specs_cache
 
@@ -59,15 +59,15 @@ def get_spec(domain: Optional[Category]) -> CategorySpec:
 def document_url(document: Document) -> Optional[str]:
     """Where a document is viewed: its domain's page once finalized; its
     Inbox card while it waits for review; None otherwise (e.g. discarded)."""
-    if is_implemented(document.domain):
-        return get_spec(document.domain).document_url(document)
-    if document.domain is None and document.status == DocumentStatus.PENDING_REVIEW:
+    if is_implemented(document.category):
+        return get_spec(document.category).document_url(document)
+    if document.category is None and document.status == DocumentStatus.PENDING_REVIEW:
         return f"/inbox#inbox-{document.id}"
     return None
 
 
 def record_url(record) -> Optional[str]:
-    if not is_implemented(record.domain):
+    if not is_implemented(record.category):
         return None
-    spec = get_spec(record.domain)
+    spec = get_spec(record.category)
     return spec.record_url(record) if spec.record_url else None

@@ -35,7 +35,7 @@ async def _receive(session, name, spy, ctx=FROM_BILLER, content=None):
 
 
 def _rule(session, kind, pattern):
-    session.add(DocumentFingerprint(kind=kind, pattern=pattern, domain="house", paper_kind="manual")); session.commit()
+    session.add(DocumentFingerprint(kind=kind, pattern=pattern, category="house", paper_kind="manual")); session.commit()
 
 
 async def test_known_document_is_prefilled_by_a_rule_and_no_ai_is_called(session):

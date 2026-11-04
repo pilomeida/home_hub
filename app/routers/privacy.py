@@ -45,7 +45,7 @@ def _back() -> RedirectResponse:
 async def settings_page(request: Request, session: Session = Depends(get_session),
                         gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = "", refused: str = ""):
     rows = ps.type_rows(session)
-    type_names = {(r.info.domain, r.info.paper_kind): f"{r.info.domain_label} › {r.info.label}" for r in rows}
+    type_names = {(r.info.category, r.info.paper_kind): f"{r.info.domain_label} › {r.info.label}" for r in rows}
     groups: dict[str, list] = {}
     for r in rows:
         groups.setdefault(r.info.domain_label, []).append(r)
@@ -64,9 +64,9 @@ async def settings_page(request: Request, session: Session = Depends(get_session
         "changes": ps.recent_changes(session),
         "jobs": jobs, "jobs_error": jobs_error, "saved_job": saved, "job_problem": problem,
         "privacy_labels": PRIVACY_LABELS, "quality_labels": QUALITY_LABELS,
-        "rules": [(r, type_names.get((r.domain, r.paper_kind), f"{r.domain}/{r.paper_kind}"))
+        "rules": [(r, type_names.get((r.category, r.paper_kind), f"{r.category}/{r.paper_kind}"))
                   for r in session.exec(select(DocumentFingerprint).order_by(DocumentFingerprint.id))],
-        "kinds": KINDS, "type_choices": [(f"{i.domain}/{i.paper_kind}", f"{i.domain_label} › {i.label}") for i in ps.known_types()],
+        "kinds": KINDS, "type_choices": [(f"{i.category}/{i.paper_kind}", f"{i.domain_label} › {i.label}") for i in ps.known_types()],
     })
 
 
@@ -130,9 +130,9 @@ def _friendly(exc: GatewayError) -> str:
 def add_rule(request: Request, kind: str = Form(...), pattern: str = Form(...), doc_type: str = Form(...),
              session: Session = Depends(get_session)):
     domain, _, category = doc_type.partition("/")
-    valid = {(i.domain, i.paper_kind) for i in ps.known_types()}
+    valid = {(i.category, i.paper_kind) for i in ps.known_types()}
     if kind in KINDS and pattern.strip() and (domain, category) in valid:
-        session.add(DocumentFingerprint(kind=kind, pattern=pattern.strip().lower(), domain=domain, paper_kind=category,
+        session.add(DocumentFingerprint(kind=kind, pattern=pattern.strip().lower(), category=domain, paper_kind=category,
                                         note="Added on the Privacy page", created_by=_by(request)))
         session.commit()
     return _back()

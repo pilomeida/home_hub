@@ -66,14 +66,14 @@ async def _stored_reason_via_ingestion(session, monkeypatch, exc) -> str:
     from app.categories import registry
 
     spec = make_fake_spec(handler=RecordingHandler(fail_with=exc))
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     incoming = ingestion.IncomingFile(
         filename="doc.pdf", content=b"pdf-bytes",
         source=DocumentSource.MANUAL, uploaded_by="pedro@example.com",
     )
     result = await ingestion.ingest(
         session, incoming,
-        ingestion.Classification(spec.domain, "manual", {"item_name": "Boiler"}),
+        ingestion.Classification(spec.category, "manual", {"item_name": "Boiler"}),
     )
     document = result.document
     assert document.status.value == "needs_attention"

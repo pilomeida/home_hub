@@ -17,7 +17,7 @@ _GUIDANCE = (
 )
 
 SPEC = CategorySpec(
-    domain=Category.HEALTH,
+    category=Category.HEALTH,
     label="Health",
     description=(
         "The family's medical papers: lab results, imaging reports, consultation and discharge letters, "

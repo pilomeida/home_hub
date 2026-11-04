@@ -48,7 +48,7 @@ class IncomingFile:
 
 @dataclass(frozen=True)
 class Classification:
-    domain: Category
+    category: Category
     paper_kind: Optional[str] = None
     fields: Mapping[str, Any] = field(default_factory=dict)
 
@@ -80,7 +80,7 @@ class RefileRefusedError(Exception):
 
 @dataclass(frozen=True)
 class RecordInput:
-    domain: Category
+    category: Category
     paper_kind: str
     fields: Mapping[str, Any] = field(default_factory=dict)
     entered_by: Optional[str] = None
@@ -101,7 +101,7 @@ def _target_kind(classification: Classification) -> Optional[SourceKind]:
     Returns None when the domain or category is unknown or missing; those
     cases are left for validate_classification to report as usual."""
     try:
-        spec = get_spec(classification.domain)
+        spec = get_spec(classification.category)
     except UnknownCategoryError:
         return None
     category = (classification.paper_kind or "").strip() or None
@@ -131,7 +131,7 @@ def mark_needs_attention(session: Session, document: Document, reason: str) -> D
     from app.problems import Problem, explain, record_problem
     try:
         link = None
-        if document.domain is not None:
+        if document.category is not None:
             from app.categories.registry import document_url
             link = document_url(document)
         problem = explain(f"{document.filename} wasn't processed.", reason)
@@ -168,23 +168,23 @@ def validate_classification(
     session: Session, classification: Classification, filename: Optional[str]
 ) -> ValidatedClassification:
     try:
-        spec = get_spec(classification.domain)
+        spec = get_spec(classification.category)
     except UnknownCategoryError:
-        raise InvalidClassification({"domain": "Choose a domain that exists"}) from None
+        raise InvalidClassification({"domain": "Choose a category that exists"}) from None
 
     category = (classification.paper_kind or "").strip() or None
     media_kind = media_kind_for(filename) if filename else None
     errors: dict[str, str] = {}
     if category is None:
         if not spec.infers_kind:
-            errors["category"] = "Choose a category"
+            errors["category"] = "Choose a kind of paper"
         elif media_kind is None:
             errors["file"] = "Choose a file to upload"
     else:
         try:
             category_spec = spec.kind(category)
         except UnknownKindError:
-            errors["category"] = f"Unknown {spec.label} category"
+            errors["category"] = f"Unknown {spec.label} kind of paper"
         else:
             if media_kind is None and category_spec.kind == SourceKind.DOCUMENT:
                 errors["file"] = "Choose a file to upload"
@@ -202,9 +202,9 @@ async def _file_under(session: Session, document: Document, validated: Validated
     # Everything below talks to AI on this document's behalf, so it runs inside the
     # document type's privacy scope: its level rides on every call, and a type with
     # no level is held (decision D12). A no-op while levels are not binding.
-    with privacy_scope(session, validated.spec.domain, validated.paper_kind):
+    with privacy_scope(session, validated.spec.category, validated.paper_kind):
         result = await _file_under_scoped(session, document, validated)
-    if result.status == DocumentStatus.PROCESSED and (result.domain is None or result.paper_kind is None):
+    if result.status == DocumentStatus.PROCESSED and (result.category is None or result.paper_kind is None):
         # Every filed paper has a kind (work-list B6): one the Hub could not give a kind to goes to a person.
         result = mark_needs_attention(session, result, NO_KIND_REASON)
     if result.status == DocumentStatus.PROCESSED:
@@ -214,14 +214,14 @@ async def _file_under(session: Session, document: Document, validated: Validated
 
 
 async def _file_under_scoped(session: Session, document: Document, validated: ValidatedClassification) -> Document:
-    document.domain = validated.spec.domain
+    document.category = validated.spec.category
     document.paper_kind = validated.paper_kind
-    document.sensitivity_tier = configured_tier(session, validated.spec.domain, validated.paper_kind)
+    document.sensitivity_tier = configured_tier(session, validated.spec.category, validated.paper_kind)
     document.failure_reason = None
     if _category_kind(validated) == SourceKind.RECORD:
         document.fields_json = "{}"
         document.status = DocumentStatus.PROCESSED
-        record = Record(domain=validated.spec.domain, paper_kind=validated.paper_kind,
+        record = Record(category=validated.spec.category, paper_kind=validated.paper_kind,
                         fields_json=dump_fields(validated.fields), document_id=document.id,
                         entered_by=document.uploaded_by)
         record.sensitivity_tier = document.sensitivity_tier
@@ -262,28 +262,28 @@ async def finalize_document(session: Session, document: Document, classification
 async def update_document_fields(
     session: Session, document: Document, raw_fields: Mapping[str, Any]
 ) -> Document:
-    if document.domain is None:
+    if document.category is None:
         raise NotFinalizedError(f"Document {document.id} has not been finalized")
     if record_for_document(session, document) is not None:
         raise RefileRefusedError("This file is attached to a hand-entered record; edit the record instead.")
-    spec = get_spec(document.domain)
+    spec = get_spec(document.category)
     previous = load_fields(document)
     fields = validate_fields(session, spec, document.paper_kind, media_kind_for(document.filename), raw_fields)
     document.fields_json = dump_fields(fields)
     session.add(document)
     session.commit()
     session.refresh(document)
-    with privacy_scope(session, document.domain, document.paper_kind):
+    with privacy_scope(session, document.category, document.paper_kind):
         await spec.handler.on_fields_changed(session, document, previous)
     session.refresh(document)
     return document
 
 
 async def create_record(session: Session, record_input: RecordInput) -> Record:
-    classification = Classification(record_input.domain, record_input.paper_kind, record_input.fields)
+    classification = Classification(record_input.category, record_input.paper_kind, record_input.fields)
     attachment = record_input.attachment
     if _target_kind(classification) == SourceKind.DOCUMENT:
-        raise _not_hand_entered_error(get_spec(record_input.domain), record_input.paper_kind)
+        raise _not_hand_entered_error(get_spec(record_input.category), record_input.paper_kind)
     validated = validate_classification(session, classification, attachment.filename if attachment else None)
     if _category_kind(validated) != SourceKind.RECORD:  # safety net: should already be caught above
         raise _not_hand_entered_error(validated.spec, validated.paper_kind)
@@ -293,16 +293,16 @@ async def create_record(session: Session, record_input: RecordInput) -> Record:
             existing = record_for_document(session, received.document)
             if existing is not None:
                 return existing
-            if received.document.domain is not None:
+            if received.document.category is not None:
                 raise InvalidClassification({"file": "This file is already filed elsewhere"})
         document = await _file_under(session, received.document, validated)
         return record_for_document(session, document)
-    record = Record(domain=validated.spec.domain, paper_kind=validated.paper_kind,
+    record = Record(category=validated.spec.category, paper_kind=validated.paper_kind,
                     fields_json=dump_fields(validated.fields), entered_by=record_input.entered_by)
     session.add(record)
     session.commit()
     session.refresh(record)
-    with privacy_scope(session, record.domain, record.paper_kind):
+    with privacy_scope(session, record.category, record.paper_kind):
         await validated.spec.handler.process_record(session, record)
     return record
 
@@ -310,15 +310,15 @@ async def create_record(session: Session, record_input: RecordInput) -> Record:
 async def attach_file(session: Session, record: Record, incoming: IncomingFile) -> Record:
     if record.document_id is not None:
         raise RefileRefusedError("This record already has a file attached.")
-    spec = get_spec(record.domain)
+    spec = get_spec(record.category)
     category_spec = spec.kind(record.paper_kind)
     if media_kind_for(incoming.filename) not in category_spec.accepted_media:
         raise InvalidClassification({"file": f"{category_spec.label} does not accept this file type"})
     received = receive_file(session, incoming)
     document = received.document
-    if received.duplicate and document.domain is not None:
+    if received.duplicate and document.category is not None:
         raise InvalidClassification({"file": "This file is already filed elsewhere"})
-    document.domain, document.paper_kind = record.domain, record.paper_kind
+    document.category, document.paper_kind = record.category, record.paper_kind
     document.fields_json, document.status = "{}", DocumentStatus.PROCESSED
     record.document_id = document.id
     record.updated_at = datetime.utcnow()
@@ -326,13 +326,13 @@ async def attach_file(session: Session, record: Record, incoming: IncomingFile) 
     session.add(record)
     session.commit()
     session.refresh(record)
-    with privacy_scope(session, record.domain, record.paper_kind):
+    with privacy_scope(session, record.category, record.paper_kind):
         await spec.handler.on_record_changed(session, record, load_fields(record))
     return record
 
 
 async def update_record_fields(session: Session, record: Record, raw_fields: Mapping[str, Any]) -> Record:
-    spec = get_spec(record.domain)
+    spec = get_spec(record.category)
     attachment = session.get(Document, record.document_id) if record.document_id else None
     previous = load_fields(record)
     fields = validate_fields(session, spec, record.paper_kind,
@@ -342,7 +342,7 @@ async def update_record_fields(session: Session, record: Record, raw_fields: Map
     session.add(record)
     session.commit()
     session.refresh(record)
-    with privacy_scope(session, record.domain, record.paper_kind):
+    with privacy_scope(session, record.category, record.paper_kind):
         await spec.handler.on_record_changed(session, record, previous)
     session.refresh(record)
     return record
@@ -363,15 +363,15 @@ def _describe(spec: CategorySpec, category: Optional[str]) -> str:
 
 
 async def refile_document(session: Session, document: Document, classification: Classification) -> Document:
-    if document.domain is None:
+    if document.category is None:
         raise NotFinalizedError(f"Document {document.id} has not been finalized")
     if record_for_document(session, document) is not None:
         raise RefileRefusedError("This file is attached to a hand-entered record; re-file the record instead.")
     validated = validate_classification(session, classification, document.filename)
-    if validated.spec.domain == document.domain and validated.paper_kind == document.paper_kind:
+    if validated.spec.category == document.category and validated.paper_kind == document.paper_kind:
         return await update_document_fields(session, document, classification.fields)
 
-    old_spec = get_spec(document.domain)
+    old_spec = get_spec(document.category)
     blocker = old_spec.handler.refile_blocker(session, document)
     if blocker:
         raise RefileRefusedError(blocker)
@@ -391,23 +391,23 @@ async def refile_record(session: Session, record: Record, classification: Classi
     if _target_kind(classification) == SourceKind.DOCUMENT and attachment is None:
         raise RefileRefusedError("A hand-entered record can only become a document if it has a file attached.")
     validated = validate_classification(session, classification, attachment.filename if attachment else None)
-    if validated.spec.domain == record.domain and validated.paper_kind == record.paper_kind:
+    if validated.spec.category == record.category and validated.paper_kind == record.paper_kind:
         return await update_record_fields(session, record, classification.fields)
     target_kind = _category_kind(validated)
     if target_kind == SourceKind.DOCUMENT and attachment is None:
         raise RefileRefusedError("A hand-entered record can only become a document if it has a file attached.")
 
-    old_spec = get_spec(record.domain)
+    old_spec = get_spec(record.category)
     description = f"{_describe(old_spec, record.paper_kind)} record #{record.id} re-filed → {_describe(validated.spec, validated.paper_kind)}"
     _drop_open_derived_todos(session, record_id=record.id)
     await withdraw_from_wiki(session, record, description=description)
 
     if target_kind == SourceKind.RECORD:
-        record.domain, record.paper_kind = validated.spec.domain, validated.paper_kind
+        record.category, record.paper_kind = validated.spec.category, validated.paper_kind
         record.fields_json = dump_fields(validated.fields)
         record.updated_at = datetime.utcnow()
         if attachment is not None:
-            attachment.domain, attachment.paper_kind = record.domain, record.paper_kind
+            attachment.category, attachment.paper_kind = record.category, record.paper_kind
             session.add(attachment)
         session.add(record)
         session.commit()
@@ -425,14 +425,14 @@ def file_for_later(session: Session, incoming: IncomingFile, classification: Cla
     """Store the file and file it under its domain at once (status PENDING), without reading it: the caller
     then runs finalize_document in the background, so a slow reading never holds up the person's page."""
     validated = validate_classification(session, classification, incoming.filename)
-    require_ready(session, classification.domain, validated.paper_kind)   # held types are not even stored
+    require_ready(session, classification.category, validated.paper_kind)   # held types are not even stored
     received = receive_file(session, incoming)
     if received.duplicate:
         return received
     document = received.document
-    document.domain = validated.spec.domain
+    document.category = validated.spec.category
     document.paper_kind = validated.paper_kind
-    document.sensitivity_tier = configured_tier(session, validated.spec.domain, validated.paper_kind)
+    document.sensitivity_tier = configured_tier(session, validated.spec.category, validated.paper_kind)
     document.fields_json = dump_fields(validated.fields)
     session.add(document)
     session.commit()
@@ -444,7 +444,7 @@ async def ingest(
     session: Session, incoming: IncomingFile, classification: Classification
 ) -> ReceiveResult:
     validated = validate_classification(session, classification, incoming.filename)
-    require_ready(session, classification.domain, validated.paper_kind)   # held types are not even stored
+    require_ready(session, classification.category, validated.paper_kind)   # held types are not even stored
     received = receive_file(session, incoming)
     if received.duplicate:
         return received

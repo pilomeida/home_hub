@@ -24,7 +24,7 @@ _spec.loader.exec_module(give_kind)
 
 def _doc(session, filename, status, domain=Category.FINANCIALS, category=None, account_id=None, source=DocumentSource.MANUAL):
     d = Document(filename=filename, file_path=f"/tmp/{filename}", content_hash=f"h-{filename}", source=source,
-                 status=status, domain=domain, paper_kind=category, account_id=account_id)
+                 status=status, category=domain, paper_kind=category, account_id=account_id)
     session.add(d); session.commit(); session.refresh(d)
     return d
 
@@ -87,10 +87,10 @@ async def test_a_paper_the_hub_cannot_give_a_kind_to_goes_to_a_person(session, m
             return await super().process(session, document)
 
     spec = make_fake_spec(handler=ForgetsTheKind())
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     incoming = ingestion.IncomingFile(filename="doc.pdf", content=b"pdf-bytes", source=DocumentSource.MANUAL,
                                       uploaded_by="pedro@example.com")
-    result = await ingestion.ingest(session, incoming, ingestion.Classification(spec.domain, "manual", {"item_name": "Boiler"}))
+    result = await ingestion.ingest(session, incoming, ingestion.Classification(spec.category, "manual", {"item_name": "Boiler"}))
     document = result.document
     assert document.status == DocumentStatus.NEEDS_ATTENTION and document.failure_reason == ingestion.NO_KIND_REASON
     problem = session.exec(select(ProblemEntry)).one()

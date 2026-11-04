@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column
+from sqlalchemy import Column, Enum as SAEnum
 from sqlmodel import Field, SQLModel
 from sqlmodel.sql.sqltypes import AutoString
 
@@ -44,7 +44,7 @@ class Document(RefusesUnknownFields, SQLModel, table=True):
     # (additive-only migrations; migration 3b7e9c1d2f40 copied it here).
     paper_kind: Optional[str] = Field(default=None, sa_column=Column("category", AutoString, index=True))
     fields_json: str = Field(default="{}")
-    domain: Optional[Category] = None
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))   # the model's category (column still `domain`)
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None

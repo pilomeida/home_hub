@@ -49,7 +49,7 @@ def test_generate_todo_for_transaction_sets_financials_domain(session):
 
     todo = generate_todo_for_transaction(session, transaction)
 
-    assert todo.domain == Category.FINANCIALS
+    assert todo.category == Category.FINANCIALS
 
 
 def test_upsert_document_todo_creates_then_updates_one_open_todo(session):
@@ -69,7 +69,7 @@ def test_upsert_document_todo_creates_then_updates_one_open_todo(session):
     second = upsert_document_todo(session, document, title="Renew Boiler warranty", due_date=date(2028, 2, 8), domain=Category.HOUSE)
 
     assert first.id == second.id
-    assert second.due_date == date(2028, 2, 8) and second.document_id == document.id and second.domain == Category.HOUSE
+    assert second.due_date == date(2028, 2, 8) and second.document_id == document.id and second.category == Category.HOUSE
     assert len(session.exec(select(Todo)).all()) == 1
 
 
@@ -78,7 +78,7 @@ def test_upsert_source_todo_links_records(session):
     from app.models.record import Record
     from app.services.todo_engine import upsert_source_todo
 
-    record = Record(domain=Category.HOUSE, paper_kind="maintenance_log")
+    record = Record(category=Category.HOUSE, paper_kind="maintenance_log")
     session.add(record)
     session.commit()
     session.refresh(record)

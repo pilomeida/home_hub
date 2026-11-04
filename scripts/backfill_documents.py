@@ -49,7 +49,7 @@ async def backfill(source_dir: Path) -> None:
                     filename=pdf_path.name, content=pdf_path.read_bytes(),
                     source=DocumentSource.MANUAL, uploaded_by="backfill-script",
                 ),
-                Classification(domain=Category.FINANCIALS),
+                Classification(category=Category.FINANCIALS),
             )
             document = result.document
             if result.duplicate:

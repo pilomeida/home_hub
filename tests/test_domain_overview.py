@@ -9,8 +9,8 @@ from tests.domain_fakes import make_fake_spec
 
 
 def test_one_card_per_domain_with_open_todo_count(session, fake_domain):
-    session.add(Todo(title="a", domain=Category.HOUSE))
-    session.add(Todo(title="b", domain=Category.HOUSE, done=True))
+    session.add(Todo(title="a", category=Category.HOUSE))
+    session.add(Todo(title="b", category=Category.HOUSE, done=True))
     session.commit()
 
     cards = build_domain_cards(session, date(2026, 9, 24))
@@ -24,7 +24,7 @@ def test_a_failing_card_does_not_break_the_overview(session, monkeypatch):
         raise RuntimeError("boom")
 
     spec = dataclasses.replace(make_fake_spec(), overview_card=broken)
-    monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
 
     cards = build_domain_cards(session, date(2026, 9, 24))
 

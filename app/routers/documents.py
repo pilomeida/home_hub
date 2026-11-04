@@ -53,7 +53,7 @@ def _form_values(form) -> tuple[Optional[Category], Optional[str], dict]:
 
 def _finalized_document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain is None:
+    if document is None or document.category is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return document
 
@@ -98,7 +98,7 @@ async def edit_document(request: Request, document_id: int, session: Session = D
         return RedirectResponse(f"/records/{attached.id}/edit", status_code=303)
     return templates.TemplateResponse(request, "documents/edit.html", _context(
         session, action=f"/documents/{document.id}/edit", title=document.filename, has_file=True,
-        filename=document.filename, domain=document.domain, category=document.paper_kind,
+        filename=document.filename, domain=document.category, category=document.paper_kind,
         values=load_fields(document), errors={},
     ))
 
@@ -111,7 +111,7 @@ async def refile_document_route(request: Request, document_id: int, session: Ses
                 filename=document.filename, domain=domain, category=category, values=values)
     if domain is None:
         return templates.TemplateResponse(request, "documents/edit.html",
-                                          _context(session, **base, errors={"domain": "Choose a domain"}), status_code=400)
+                                          _context(session, **base, errors={"domain": "Choose a category"}), status_code=400)
     try:
         result = await refile_document(session, document, Classification(domain, category, values))
     except InvalidClassification as exc:
@@ -129,7 +129,7 @@ async def edit_record(request: Request, record_id: int, session: Session = Depen
     attachment = session.get(Document, record.document_id) if record.document_id else None
     return templates.TemplateResponse(request, "documents/edit.html", _context(
         session, action=f"/records/{record.id}/edit", title=f"Record #{record.id}", has_file=attachment is not None,
-        filename=attachment.filename if attachment else None, domain=record.domain, category=record.paper_kind,
+        filename=attachment.filename if attachment else None, domain=record.category, category=record.paper_kind,
         values=load_fields(record), errors={},
     ))
 
@@ -143,7 +143,7 @@ async def refile_record_route(request: Request, record_id: int, session: Session
                 filename=attachment.filename if attachment else None, domain=domain, category=category, values=values)
     if domain is None:
         return templates.TemplateResponse(request, "documents/edit.html",
-                                          _context(session, **base, errors={"domain": "Choose a domain"}), status_code=400)
+                                          _context(session, **base, errors={"domain": "Choose a category"}), status_code=400)
     try:
         result = await refile_record(session, record, Classification(domain, category, values))
     except InvalidClassification as exc:

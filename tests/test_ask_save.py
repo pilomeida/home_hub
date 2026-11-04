@@ -20,7 +20,7 @@ def test_saves_one_turn_with_claims_links_and_query_log(session, fake_domain):
 
     page = save_answer_as_wiki_page(session, turn.id, "Boiler last service")
 
-    assert page.page_type == ANSWER_PAGE_TYPE and page.domain == Category.HOUSE and page.topic == "Boiler last service"
+    assert page.page_type == ANSWER_PAGE_TYPE and page.category == Category.HOUSE and page.topic == "Boiler last service"
     claims = {c.key: c.value for c in active_claims(session, page.id)}
     assert claims["answer"] == "On 2 March 2026 (Wiki: Boiler) (Fake document: service.pdf)."
     assert claims["question"] == turn.question and f"doc:{doc.id}" in claims["sources"]
@@ -50,7 +50,7 @@ def test_title_of_a_topic_page_gets_suffix_and_mixed_domains_are_general(session
     turn = make_turn(session, conv, "q", answer_text=f"x [[wiki:{fin.id}]] [[wiki:{house.id}]]", citations=[
         {"ref": f"wiki:{fin.id}", "label": "a", "url": "/a"}, {"ref": f"wiki:{house.id}", "label": "b", "url": "/b"}])
     page = save_answer_as_wiki_page(session, turn.id, "Boiler")
-    assert page.topic == "Boiler (answer)" and page.domain is None
+    assert page.topic == "Boiler (answer)" and page.category is None
 
 
 def test_failed_turn_cannot_be_saved(session):

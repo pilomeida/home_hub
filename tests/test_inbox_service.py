@@ -41,7 +41,7 @@ async def test_receive_creates_unfinalized_pending_review_document(session, two_
     doc = receipt.document
     assert not receipt.duplicate
     assert doc.status == DocumentStatus.PENDING_REVIEW
-    assert doc.domain is None and doc.paper_kind is None
+    assert doc.category is None and doc.paper_kind is None
     assert doc.source == DocumentSource.TELEGRAM and doc.uploaded_by == "Rute (Telegram)"
     item = receipt.inbox_item
     assert (item.suggested_domain, item.suggested_category, item.confidence) == ("house", "manual", 0.95)
@@ -102,7 +102,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_domain
         fields={"item_name": "Boiler"}, reviewed_by="pedro@example.com",
     )
 
-    assert doc.domain == Category.HOUSE and doc.paper_kind == "manual"
+    assert doc.category == Category.HOUSE and doc.paper_kind == "manual"
     assert load_fields(doc) == {"item_name": "Boiler"}
     assert doc.status == DocumentStatus.PROCESSED
     assert two_domains["house"].handler.processed == [doc.id]
@@ -123,7 +123,7 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
         fields={"item_name": "Boiler", "visit_date": "2026-03-01"}, reviewed_by="pedro@example.com",
     )
 
-    assert doc.domain == Category.HOUSE and doc.paper_kind == "visit" and doc.status == DocumentStatus.PROCESSED
+    assert doc.category == Category.HOUSE and doc.paper_kind == "visit" and doc.status == DocumentStatus.PROCESSED
     assert load_fields(doc) == {}                           # fields live on the Record
     record = record_for_document(session, doc)
     assert record is not None and load_fields(record)["visit_date"] == "2026-03-01"
@@ -136,7 +136,7 @@ async def test_approve_with_inferred_category(session, two_domains):
     receipt = await _receive(session, suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "x"))
     doc = await inbox_service.approve(session, receipt.document.id, domain_value="financials",
                                       category=None, fields={}, reviewed_by=None)
-    assert doc.domain == Category.FINANCIALS and doc.paper_kind is None
+    assert doc.category == Category.FINANCIALS and doc.paper_kind is None
     assert two_domains["money"].handler.processed == [doc.id]
 
 
@@ -157,7 +157,7 @@ async def test_approve_invalid_leaves_document_untouched(session, two_domains):
     assert "category" in bad_category.value.errors
 
     session.refresh(receipt.document)
-    assert receipt.document.status == DocumentStatus.PENDING_REVIEW and receipt.document.domain is None
+    assert receipt.document.status == DocumentStatus.PENDING_REVIEW and receipt.document.category is None
     assert two_domains["house"].handler.processed == []
     assert _review_logs(session) == []
     assert inbox_service.item_for(session, receipt.document.id).reviewed_at is None
@@ -178,7 +178,7 @@ async def test_discard_keeps_row_and_file_and_logs_review(session, two_domains):
     receipt = await _receive(session)
     doc = inbox_service.discard(session, receipt.document.id, reviewed_by="rute@example.com")
 
-    assert doc.status == DocumentStatus.DISCARDED and doc.domain is None
+    assert doc.status == DocumentStatus.DISCARDED and doc.category is None
     assert Path(doc.file_path).exists()
     assert two_domains["house"].handler.processed == []
     [log] = session.exec(select(WikiLogEntry)).all()

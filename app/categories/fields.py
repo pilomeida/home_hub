@@ -71,11 +71,11 @@ def distinct_field_values(session: Session, domain: Category, key: str) -> list[
         raise ValueError(f"Invalid field key: {key!r}")
     value = func.json_extract(Document.fields_json, f"$.{key}")
     rows = session.execute(
-        sa_select(value).where(Document.domain == domain, value.is_not(None)).order_by(Document.id)
+        sa_select(value).where(Document.category == domain, value.is_not(None)).order_by(Document.id)
     ).scalars().all()
     record_value = func.json_extract(Record.fields_json, f"$.{key}")
     record_rows = session.execute(
-        sa_select(record_value).where(Record.domain == domain, Record.retired_at.is_(None), record_value.is_not(None))
+        sa_select(record_value).where(Record.category == domain, Record.retired_at.is_(None), record_value.is_not(None))
         .order_by(Record.id)
     ).scalars().all()
     seen: dict[str, str] = {}
@@ -114,7 +114,7 @@ def validate_fields(
                 errors[field_spec.key] = f"Choose a valid {field_spec.label.lower()}"
         elif field_spec.kind == FieldKind.SUGGEST:
             collapsed = " ".join(text.split())
-            existing = {v.lower(): v for v in distinct_field_values(session, spec.domain, field_spec.key)}
+            existing = {v.lower(): v for v in distinct_field_values(session, spec.category, field_spec.key)}
             clean[field_spec.key] = existing.get(collapsed.lower(), collapsed)
         else:
             clean[field_spec.key] = text
@@ -147,8 +147,8 @@ class DocumentDescription:
 
 def describe_document(document: Document) -> DocumentDescription:
     fields = load_fields(document)
-    if is_implemented(document.domain):
-        spec = get_spec(document.domain)
+    if is_implemented(document.category):
+        spec = get_spec(document.category)
         labelled = [(f.label, fields[f.key]) for f in spec.fields if f.key in fields]
         domain_label = spec.label
         category_label = spec.kind_label(document.paper_kind) or None
@@ -190,7 +190,7 @@ def build_form_fields(
         if field_spec.kind == FieldKind.CHOICE:
             options = field_spec.options(session)
         elif field_spec.kind == FieldKind.SUGGEST:
-            options = [(v, v) for v in distinct_field_values(session, spec.domain, field_spec.key)]
+            options = [(v, v) for v in distinct_field_values(session, spec.category, field_spec.key)]
         else:
             options = []
         form_fields.append(FormField(

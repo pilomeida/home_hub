@@ -366,9 +366,9 @@ _NOTICE_PATTERNS: list[tuple[re.Pattern, callable]] = [
      lambda m: ("Not saved.", f"{m[1]} takes only {' or '.join(_KIND_NAMES.get(k.strip(), k.strip()) for k in m[2].split(','))} files, and this file is another kind.",
                 "Choose a file of one of those kinds, then try again.")),
     (re.compile(r"^(.+) does not accept this file type$"),
-     lambda m: ("Not attached.", f"{m[1]} does not accept this kind of file.", "Choose a file of a type this category takes (usually a PDF or a photo), then try again.")),
-    (re.compile(r"^Unknown (.+) category$"),
-     lambda m: ("Not saved.", f"The {m[1]} category you chose doesn't exist (the list may have changed since the page was opened).",
+     lambda m: ("Not attached.", f"{m[1]} does not accept this kind of file.", "Choose a file of a type this kind of paper takes (usually a PDF or a photo), then try again.")),
+    (re.compile(r"^Unknown (.+) kind of paper$"),
+     lambda m: ("Not saved.", f"The {m[1]} kind of paper you chose doesn't exist (the list may have changed since the page was opened).",
                 "Reload the page and choose again.")),
     (re.compile(r"^(.+) is filed from a document, not entered by hand$"),
      lambda m: ("Not saved.", f"{m[1]} is filled in from its document, so it can't be typed in by hand.", "Upload the document instead.")),
@@ -403,7 +403,7 @@ def notice(text: str, what: str = "Not saved.") -> str:
 
 def file_notices(errors: dict) -> dict:
     """The errors dict for a template with file refusals written out in three parts. A category hint is
-    rewritten only when it is a known refusal; instructions such as "Choose a category" stay as they are."""
+    rewritten only when it is a known refusal; instructions such as "Choose a kind of paper" stay as they are."""
     out = {}
     for key, value in errors.items():
         if isinstance(value, str) and (key == "file" or (key == "category" and _notice_row(value) is not None)):

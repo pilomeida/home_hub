@@ -117,11 +117,11 @@ async def assess_document_for_wiki(
     context: str,
     gateway=None,
 ) -> list[ClaimInput]:
-    spec = get_spec(document.domain)
+    spec = get_spec(document.category)
     if not spec.wiki.guidance:
         return []
     existing = session.exec(
-        select(WikiPage.topic).where(WikiPage.domain == document.domain, WikiPage.page_type == TOPIC_PAGE_TYPE)
+        select(WikiPage.topic).where(WikiPage.category == document.category, WikiPage.page_type == TOPIC_PAGE_TYPE)
         .order_by(WikiPage.topic)
     ).all()
     system = _SYSTEM_TEMPLATE.format(
@@ -154,7 +154,7 @@ async def ingest_into_wiki(
     """Always writes exactly one wiki_log entry (`operation`, INGEST by default), even when nothing
     changes; Plan C's lint relies on it to find never-ingested documents. Accepts either a Document
     or a Record (a hand-entered source); a re-ingest always reflects the source's current fields."""
-    spec = get_spec(document.domain)
+    spec = get_spec(document.category)
     is_record = isinstance(document, Record)
     claims = claims_from_fields(spec, document)
     if context is not None and spec.wiki.guidance and not is_record:
@@ -173,5 +173,5 @@ async def withdraw_from_wiki(session: Session, source: Document | Record, *, des
     is_record = isinstance(source, Record)
     return apply_claims(
         session, [], document=None if is_record else source, record=source if is_record else None,
-        domain=source.domain, operation=WikiOperation.EDIT, description=description, retract_missing=True,
+        domain=source.category, operation=WikiOperation.EDIT, description=description, retract_missing=True,
     )

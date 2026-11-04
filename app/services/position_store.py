@@ -430,7 +430,7 @@ async def process_positions_document(session: Session, document: Document, gatew
     if existing is not None:
         return existing
     try:
-        with privacy_scope(session, document.domain, document.paper_kind):    # also when re-run from the Loans page
+        with privacy_scope(session, document.category, document.paper_kind):    # also when re-run from the Loans page
             positions = await extract_statement_positions(document.file_path, gateway=gateway)
         problems = reconcile(positions)
         if problems:
@@ -451,7 +451,7 @@ async def process_loan_history_document(session: Session, document: Document, ga
     if existing is not None:
         return existing
     try:
-        with privacy_scope(session, document.domain, document.paper_kind):
+        with privacy_scope(session, document.category, document.paper_kind):
             history = await extract_loan_history(document.file_path, gateway=gateway)
         if not history.rows:
             return _fail(session, document, "no loan movements found in the document", mark_document)

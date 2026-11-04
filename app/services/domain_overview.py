@@ -19,9 +19,9 @@ def build_domain_cards(session: Session, today: date) -> list[CategoryCard]:
             # The Overview is the busiest page: one domain's summary failing
             # must degrade to a visible placeholder, not a 500 for everything.
             session.rollback()
-            print(f"overview card failed for {spec.domain.value}: {exc}")
+            print(f"overview card failed for {spec.category.value}: {exc}")
             card = CategoryCard(label=spec.label, url=spec.home_url,
                               lines=[CardLine("Summary unavailable right now", attention=True)])
-        card.open_todos = open_todo_count(session, spec.domain)
+        card.open_todos = open_todo_count(session, spec.category)
         cards.append(card)
     return cards

@@ -38,7 +38,7 @@ class HealthHandler(CategoryHandler):
                     "The Hub could not tell what kind of health paper this is (or whether it is one). "
                     "Choose the kind on the paper's page, or delete it.")
             document.paper_kind = extracted.paper_kind
-            document.sensitivity_tier = configured_tier(session, document.domain, document.paper_kind)
+            document.sensitivity_tier = configured_tier(session, document.category, document.paper_kind)
             session.add(document)
             session.commit()
         store.apply_extraction(session, document, extracted)

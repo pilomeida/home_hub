@@ -29,7 +29,7 @@ def citable_for_document(doc: Document) -> Citable:
 
 
 def citable_for_record(record: Record) -> Citable:
-    spec = get_spec(record.domain)
+    spec = get_spec(record.category)
     label = f"{spec.label} record: {spec.kind_label(record.paper_kind)} (entered {record.created_at:%Y-%m-%d})"
     return Citable(ref=f"rec:{record.id}", label=label, url=registry.record_url(record) or spec.home_url)
 
@@ -39,5 +39,5 @@ def citable_for_source(source: Source) -> Citable:
 
 
 def citable_for_todo(todo: Todo) -> Citable:
-    base = get_spec(todo.domain).home_url if is_implemented(todo.domain) else "/todos"
+    base = get_spec(todo.category).home_url if is_implemented(todo.category) else "/todos"
     return Citable(ref=f"todo:{todo.id}", label=f"To-do: {todo.title}", url=f"{base}#todo-{todo.id}")

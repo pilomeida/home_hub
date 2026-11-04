@@ -21,7 +21,7 @@ class DocumentTypeSetting(RefusesUnknownFields, SQLModel, table=True):
     __table_args__ = (UniqueConstraint("domain", "category", name="uq_document_type_settings_type"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    domain: str
+    category: str = Field(sa_column=Column("domain", AutoString, nullable=False))
     paper_kind: str = Field(sa_column=Column("category", AutoString, nullable=False))
     tier: Optional[str] = None            # house_low|house_mid|house_high; NULL = not set
     redact: bool = Field(default=False)
@@ -42,7 +42,7 @@ class TierChange(RefusesUnknownFields, SQLModel, table=True):
     __tablename__ = "tier_changes"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    domain: Optional[str] = None          # NULL for a global switch
+    category: Optional[str] = Field(default=None, sa_column=Column("domain", AutoString))   # NULL for a global switch
     paper_kind: Optional[str] = Field(default=None, sa_column=Column("category", AutoString))
     what: str                             # "tier" | "redact" | "enforce"
     old_value: Optional[str] = None
@@ -62,7 +62,7 @@ class DocumentFingerprint(RefusesUnknownFields, SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     kind: str
     pattern: str
-    domain: str
+    category: str = Field(sa_column=Column("domain", AutoString, nullable=False))
     paper_kind: str = Field(sa_column=Column("category", AutoString, nullable=False))
     note: Optional[str] = None            # where the rule came from, in plain words
     created_by: Optional[str] = None

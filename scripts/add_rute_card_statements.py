@@ -57,7 +57,7 @@ def main() -> None:
                 result = receive_file(session, IncomingFile(Path(path).name, Path(path).read_bytes(),
                                                             DocumentSource.MANUAL, "claude-rollout"))
                 doc = result.document
-                doc.status, doc.paper_kind, doc.domain, doc.account_id = (
+                doc.status, doc.paper_kind, doc.category, doc.account_id = (
                     DocumentStatus.PROCESSED, "statement", Category.FINANCIALS, CARD_ACCOUNT_ID)
                 doc.fields_json = json.dumps({"statement_number": st.number, "issued": str(st.issued),
                                               "opening_balance": st.opening, "closing_balance": st.closing})

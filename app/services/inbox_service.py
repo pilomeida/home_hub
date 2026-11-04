@@ -100,7 +100,7 @@ async def receive_document(
     document = received.document
     if received.duplicate:
         where = ("it is still waiting in the Inbox" if document.status == DocumentStatus.PENDING_REVIEW
-                 else f"it is already filed ({describe(document.domain, document.paper_kind) or 'in the Hub'})")
+                 else f"it is already filed ({describe(document.category, document.paper_kind) or 'in the Hub'})")
         record_skip(session, filename=incoming.filename, source=incoming.source.value, reason="duplicate",
                     detail=f"An exact copy of “{document.filename}”, which the Hub already holds: {where}. "
                            "Nothing was added; if you meant a different document, send that one.",
@@ -110,7 +110,7 @@ async def receive_document(
     # 1. Known, recurring documents are recognised by rules, with no AI (D13).
     recognised = recognise(session, filename=incoming.filename, content=incoming.content, context_text=context_text)
     if recognised is not None:
-        suggestion = CategorySuggestion(Category(recognised.domain), recognised.paper_kind, 1.0,
+        suggestion = CategorySuggestion(Category(recognised.category), recognised.paper_kind, 1.0,
                                       "Recognised from " + "; ".join(recognised.reasons))
     else:
         # 2. A paper no rule recognises is read ONCE, inside a High run, to decide what it is (decision D20):
@@ -133,7 +133,7 @@ async def receive_document(
 
     item = InboxItem(
         document_id=document.id, context_text=context_text, external_ref=external_ref,
-        suggested_domain=suggestion.domain.value if suggestion.domain is not None else None,
+        suggested_domain=suggestion.category.value if suggestion.category is not None else None,
         suggested_category=suggestion.paper_kind,
         confidence=suggestion.confidence, classifier_note=suggestion.note,
     )
@@ -227,8 +227,8 @@ async def approve(
     try:
         domain = Category(domain_value)
     except ValueError:
-        raise InvalidClassification({"domain": "Choose an area"}) from None
-    classification = Classification(domain=domain, paper_kind=category or None, fields=dict(fields))
+        raise InvalidClassification({"domain": "Choose a category"}) from None
+    classification = Classification(category=domain, paper_kind=category or None, fields=dict(fields))
     # Validate first so a rejected choice changes nothing (no review mark, no log).
     validated = validate_classification(session, classification, document.filename)
     require_ready(session, domain, validated.paper_kind)    # raises TierHeld before anything is marked or read
