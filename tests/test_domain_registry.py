@@ -1,11 +1,11 @@
 import pytest
 
-from app.domains import registry
-from app.domains.base import (
+from app.categories import registry
+from app.categories.base import (
     KindSpec, FieldKind, FieldSpec, MediaKind, UnknownKindError,
 )
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from tests.domain_fakes import make_fake_spec
 
 
@@ -39,18 +39,18 @@ def test_fields_for_filters_by_category_and_media():
 
 
 def test_get_spec_and_unknown_domain(fake_domain):
-    assert registry.get_spec(Domain.HOUSE) is fake_domain
-    assert registry.is_implemented(Domain.HOUSE)
-    assert not registry.is_implemented(Domain.FINANCIALS)
+    assert registry.get_spec(Category.HOUSE) is fake_domain
+    assert registry.is_implemented(Category.HOUSE)
+    assert not registry.is_implemented(Category.FINANCIALS)
     assert not registry.is_implemented(None)
-    with pytest.raises(registry.UnknownDomainError):
-        registry.get_spec(Domain.FINANCIALS)
+    with pytest.raises(registry.UnknownCategoryError):
+        registry.get_spec(Category.FINANCIALS)
 
 
 def test_document_url_is_none_until_finalized(fake_domain):
     unfinalized = Document(id=7, filename="a.pdf", file_path="/tmp/a.pdf", content_hash="h", source=DocumentSource.MANUAL)
     finalized = Document(id=8, filename="b.pdf", file_path="/tmp/b.pdf", content_hash="h2",
-                         source=DocumentSource.MANUAL, domain=Domain.HOUSE)
+                         source=DocumentSource.MANUAL, domain=Category.HOUSE)
     assert registry.document_url(unfinalized) is None
     assert registry.document_url(finalized) == "/fake/documents/8"
 

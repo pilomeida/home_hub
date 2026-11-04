@@ -1,6 +1,6 @@
 """Suggests which domain + category an incoming document belongs to.
 
-Registry-driven: the prompt is built from each registered DomainSpec's
+Registry-driven: the prompt is built from each registered CategorySpec's
 description and its categories' descriptions, so a new domain becomes
 classifiable the moment it registers -- nothing here names a domain. This
 only ever SUGGESTS; a human approves every document in the Inbox."""
@@ -11,8 +11,8 @@ import json
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from app.domains.registry import implemented_domains
-from app.models.domain import Domain
+from app.categories.registry import implemented_domains
+from app.models.category import Category
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
 from app.llm_gateway import VISION_CLASSIFICATION, get_gateway
@@ -20,13 +20,13 @@ from app.llm_gateway import VISION_CLASSIFICATION, get_gateway
 CONFIDENT_THRESHOLD = 0.8
 
 
-class DomainClassificationError(Exception):
+class CategoryClassificationError(Exception):
     pass
 
 
 @dataclass
-class DomainSuggestion:
-    domain: Optional[Domain]
+class CategorySuggestion:
+    domain: Optional[Category]
     paper_kind: Optional[str]
     confidence: float
     note: str
@@ -68,8 +68,8 @@ _DOMAIN_SCHEMA = {
 }
 
 
-def _empty(note: str) -> DomainSuggestion:
-    return DomainSuggestion(domain=None, paper_kind=None, confidence=0.0, note=note)
+def _empty(note: str) -> CategorySuggestion:
+    return CategorySuggestion(domain=None, paper_kind=None, confidence=0.0, note=note)
 
 
 async def suggest_domain_and_category(
@@ -78,7 +78,7 @@ async def suggest_domain_and_category(
     *,
     domains: Optional[Sequence] = None,
     gateway=None,
-) -> DomainSuggestion:
+) -> CategorySuggestion:
     specs = list(domains) if domains is not None else implemented_domains()
     if not is_model_readable(file_path):
         return _empty("This file type can't be read automatically — please choose where it goes.")
@@ -104,7 +104,7 @@ async def suggest_domain_and_category(
         confidence = min(max(float(data.get("confidence") or 0.0), 0.0), 1.0)
         reason = str(data.get("reason") or "")
     except (IndexError, AttributeError, json.JSONDecodeError, TypeError, ValueError) as exc:
-        raise DomainClassificationError(f"Could not parse classifier response: {exc}") from exc
+        raise CategoryClassificationError(f"Could not parse classifier response: {exc}") from exc
 
     if domain_value is None:
         return _empty(reason or "Didn't match any area.")
@@ -115,4 +115,4 @@ async def suggest_domain_and_category(
     )
     if not valid_category:
         return _empty(f"Suggestion '{domain_value}/{category_value}' isn't a known area — please choose.")
-    return DomainSuggestion(domain=spec.domain, paper_kind=category_value, confidence=confidence, note=reason)
+    return CategorySuggestion(domain=spec.domain, paper_kind=category_value, confidence=confidence, note=reason)

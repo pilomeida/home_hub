@@ -1,8 +1,8 @@
 from datetime import date
 
-from app.domains.financials.ask import FINANCIALS_ASK_TOOLS
-from app.domains.registry import get_spec
-from app.models.domain import Domain
+from app.categories.financials.ask import FINANCIALS_ASK_TOOLS
+from app.categories.registry import get_spec
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
 from tests.knowledge_factories import make_document
@@ -26,7 +26,7 @@ def _txn(session, doc, provider, leaf, amount, paid, ttype=TransactionType.DEBIT
 
 
 def test_spending_by_category_counts_spending_in_range_on_the_tree(session):
-    doc = make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
+    doc = make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
     _txn(session, doc, "EDP", "housing.utilities.electricity", 80.0, date(2025, 11, 3))
     _txn(session, doc, "EDP", "housing.utilities.electricity", 20.0, date(2025, 12, 1))
     _txn(session, doc, "Salary", "income.employment.salary", 3000.0, date(2025, 12, 1), TransactionType.CREDIT)
@@ -40,7 +40,7 @@ def test_spending_by_category_counts_spending_in_range_on_the_tree(session):
 
 def test_spending_counts_as_the_budget_does(session):
     """A refund under the same leaf takes off; a line not filed yet counts as Unsorted; a transfer never counts."""
-    doc = make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
+    doc = make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
     _txn(session, doc, "CONTINENTE", "food.groceries.supermarket", 100.0, date(2025, 11, 3))
     _txn(session, doc, "CONTINENTE", "food.groceries.supermarket", 30.0, date(2025, 11, 4), TransactionType.CREDIT)
     _txn(session, doc, "MYSTERY", None, 12.0, date(2025, 11, 5))
@@ -52,7 +52,7 @@ def test_spending_counts_as_the_budget_does(session):
 
 
 def test_spending_filters_by_a_group_or_category_of_the_tree(session):
-    doc = make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
+    doc = make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
     _txn(session, doc, "CONTINENTE", "food.groceries.supermarket", 40.0, date(2025, 11, 3))
     _txn(session, doc, "TASCA", "food.eat-out.restaurants", 25.0, date(2025, 11, 4))
     _txn(session, doc, "EDP", "housing.utilities.electricity", 60.0, date(2025, 11, 5))
@@ -73,7 +73,7 @@ def test_the_tool_offers_the_trees_spending_groups_and_categories():
 
 
 def test_find_transactions_by_provider(session):
-    doc = make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
+    doc = make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
     _txn(session, doc, "AT - IMI 2026 1a prestacao", "taxes-financial-costs.taxes.imi-property-tax", 150.0,
          date(2026, 5, 10))
     out = _tool("financials_find_transactions").run(session, {"query": "imi"})
@@ -82,4 +82,4 @@ def test_find_transactions_by_provider(session):
 
 
 def test_registered_on_financials_spec():
-    assert {t.name for t in get_spec(Domain.FINANCIALS).ask_tools} == {"financials_spending", "financials_find_transactions"}
+    assert {t.name for t in get_spec(Category.FINANCIALS).ask_tools} == {"financials_spending", "financials_find_transactions"}

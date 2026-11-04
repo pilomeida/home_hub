@@ -8,12 +8,12 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains.health import extraction as ex
-from app.domains.health import outlines, reading, store
-from app.domains.health.checks import compare_readings
-from app.domains.health.text import PATH_SEP
+from app.categories.health import extraction as ex
+from app.categories.health import outlines, reading, store
+from app.categories.health.checks import compare_readings
+from app.categories.health.text import PATH_SEP
 from app.llm_gateway import HEALTH_EXTRACTION, GatewayError
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthOutlineProfile
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.knowledge_factories import make_document
@@ -225,7 +225,7 @@ async def test_more_notes_than_fit_end_with_a_count_and_what_to_do(tmp_path):
 
 async def _entry(session, tmp_path, reply=REPORT):
     extracted = await _read(tmp_path, reply)
-    doc = make_document(session, domain=Domain.HEALTH, category=extracted.paper_kind, filename="r.pdf")
+    doc = make_document(session, domain=Category.HEALTH, category=extracted.paper_kind, filename="r.pdf")
     return store.apply_extraction(session, doc, extracted)
 
 

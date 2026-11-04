@@ -3,13 +3,13 @@ from pathlib import Path
 import pytest
 from sqlmodel import select
 
-from app.domains.fields import InvalidClassification, load_fields
+from app.categories.fields import InvalidClassification, load_fields
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.inbox_item import InboxItem
 from app.models.wiki import WikiClaim, WikiLogEntry, WikiOperation, WikiPage
 from app.services import inbox_service
-from app.services.domain_classifier import DomainSuggestion
+from app.services.domain_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 
 pytestmark = pytest.mark.usefixtures("two_domains", "inbox_documents_dir")
@@ -26,7 +26,7 @@ async def _receive(session, content=b"%PDF fake", suggestion=None, classify=None
         session,
         IncomingFile(filename=filename, content=content, source=DocumentSource.TELEGRAM, uploaded_by="Rute (Telegram)"),
         context_text="Telegram caption: boiler", external_ref="telegram:1:1",
-        classify=classify or _classifier(suggestion or DomainSuggestion(Domain.HOUSE, "manual", 0.95, "a manual")),
+        classify=classify or _classifier(suggestion or CategorySuggestion(Category.HOUSE, "manual", 0.95, "a manual")),
     )
 
 
@@ -76,8 +76,8 @@ async def test_classifier_failure_still_lands_in_inbox(session):
 @pytest.mark.asyncio
 async def test_pending_entries_confidence_and_labels(session):
     await _receive(session, content=b"a")
-    await _receive(session, content=b"b", suggestion=DomainSuggestion(Domain.HOUSE, "clip", 0.4, "?"))
-    await _receive(session, content=b"c", suggestion=DomainSuggestion(Domain.FINANCIALS, None, 0.9, "bill-ish"))
+    await _receive(session, content=b"b", suggestion=CategorySuggestion(Category.HOUSE, "clip", 0.4, "?"))
+    await _receive(session, content=b"c", suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "bill-ish"))
     entries = inbox_service.pending_entries(session)
     assert [e.confident for e in entries] == [True, False, True]
     assert [e.suggestion_label for e in entries] == ["Fake › Manual", "Fake › Clip", "Money"]
@@ -102,7 +102,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_domain
         fields={"item_name": "Boiler"}, reviewed_by="pedro@example.com",
     )
 
-    assert doc.domain == Domain.HOUSE and doc.paper_kind == "manual"
+    assert doc.domain == Category.HOUSE and doc.paper_kind == "manual"
     assert load_fields(doc) == {"item_name": "Boiler"}
     assert doc.status == DocumentStatus.PROCESSED
     assert two_domains["house"].handler.processed == [doc.id]
@@ -115,7 +115,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_domain
 
 @pytest.mark.asyncio
 async def test_approve_into_record_category_creates_record_with_file_attached(session, two_domains):
-    from app.domains.entries import record_for_document
+    from app.categories.entries import record_for_document
 
     receipt = await _receive(session, filename="service-invoice.pdf")
     doc = await inbox_service.approve(
@@ -123,7 +123,7 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
         fields={"item_name": "Boiler", "visit_date": "2026-03-01"}, reviewed_by="pedro@example.com",
     )
 
-    assert doc.domain == Domain.HOUSE and doc.paper_kind == "visit" and doc.status == DocumentStatus.PROCESSED
+    assert doc.domain == Category.HOUSE and doc.paper_kind == "visit" and doc.status == DocumentStatus.PROCESSED
     assert load_fields(doc) == {}                           # fields live on the Record
     record = record_for_document(session, doc)
     assert record is not None and load_fields(record)["visit_date"] == "2026-03-01"
@@ -133,10 +133,10 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
 
 @pytest.mark.asyncio
 async def test_approve_with_inferred_category(session, two_domains):
-    receipt = await _receive(session, suggestion=DomainSuggestion(Domain.FINANCIALS, None, 0.9, "x"))
+    receipt = await _receive(session, suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "x"))
     doc = await inbox_service.approve(session, receipt.document.id, domain_value="financials",
                                       category=None, fields={}, reviewed_by=None)
-    assert doc.domain == Domain.FINANCIALS and doc.paper_kind is None
+    assert doc.domain == Category.FINANCIALS and doc.paper_kind is None
     assert two_domains["money"].handler.processed == [doc.id]
 
 

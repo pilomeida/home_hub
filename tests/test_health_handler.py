@@ -6,10 +6,10 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains.health import store
+from app.categories.health import store
 from app.llm_gateway import set_gateway_provider
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthEntry, HealthMeasurement
 from app.models.wiki import WikiClaim
 from app.services.ingestion import Classification, IncomingFile, ingest
@@ -33,7 +33,7 @@ async def _file(session, wire, content=b"\x89PNG\r\n\x1a\nlab", name="lab.png", 
     wire.script = [gateway_text_result(json.dumps(reply)), gateway_text_result(json.dumps(reply)), gateway_text_result(json.dumps(WIKI_REPLY))]
     set_gateway_provider(lambda: wire.client())
     return await ingest(session, IncomingFile(name, content, DocumentSource.MANUAL, "test"),
-                        Classification(Domain.HEALTH, "lab_result", {}))
+                        Classification(Category.HEALTH, "lab_result", {}))
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_every_printed_data_point_is_kept_limits_words_history_and_the_oth
     assert ms[("Nitritos", 2024)].value_text == "Não detectável"
     assert not ms[("Microalbuminúria", 2024)].needs_check and not ms[("Nitritos", 2024)].needs_check
     assert ms[("Colesterol Total", 2021)].value == 222                      # the printed history is data too
-    from app.domains.fields import load_fields
+    from app.categories.fields import load_fields
     assert "NIF: 123456789" in load_fields(doc)["details"]
 
 
@@ -85,7 +85,7 @@ async def test_what_a_person_typed_is_not_overwritten_by_the_reading(session):
     wire.script = [gateway_text_result(json.dumps(REPLY))] * 2 + [gateway_text_result(json.dumps(WIKI_REPLY))]
     set_gateway_provider(lambda: wire.client())
     result = await ingest(session, IncomingFile("lab.png", b"\x89PNG\r\n\x1a\nlab2", DocumentSource.MANUAL, "test"),
-                          Classification(Domain.HEALTH, "lab_result", {"provider": "Dr. Costa"}))
+                          Classification(Category.HEALTH, "lab_result", {"provider": "Dr. Costa"}))
     assert store.entry_for(session, result.document.id).provider == "Dr. Costa"
 
 
@@ -95,7 +95,7 @@ async def test_a_failed_reading_leaves_the_paper_needing_attention_with_a_plain_
     wire.script = [gateway_text_result("not json")]
     set_gateway_provider(lambda: wire.client())
     result = await ingest(session, IncomingFile("lab.png", b"\x89PNG\r\n\x1a\nbad", DocumentSource.MANUAL, "test"),
-                          Classification(Domain.HEALTH, "lab_result", {}))
+                          Classification(Category.HEALTH, "lab_result", {}))
     assert result.document.status == DocumentStatus.NEEDS_ATTENTION
     assert "Health processing failed" in result.document.failure_reason
 

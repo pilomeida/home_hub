@@ -3,12 +3,12 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-import app.domains.house.handler as house_handler
-from app.domains import registry
-from app.domains.fields import InvalidClassification, load_fields
-from app.domains.house.warranty import WarrantyDates
+import app.categories.house.handler as house_handler
+from app.categories import registry
+from app.categories.fields import InvalidClassification, load_fields
+from app.categories.house.warranty import WarrantyDates
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.todo import Todo
 from app.models.wiki import ClaimStatus, WikiClaim, WikiLogEntry, WikiOperation, WikiPage
 from app.services.ingestion import Classification, IncomingFile, ingest, update_document_fields
@@ -36,7 +36,7 @@ def extraction(monkeypatch):
 
 async def _ingest(session, category, fields, filename="doc.pdf", content=b"bytes"):
     result = await ingest(
-        session, IncomingFile(filename, content, DocumentSource.MANUAL), Classification(Domain.HOUSE, category, fields),
+        session, IncomingFile(filename, content, DocumentSource.MANUAL), Classification(Category.HOUSE, category, fields),
     )
     return result.document
 
@@ -49,8 +49,8 @@ def _active(session, page_id):
 
 def test_registry_lists_financials_house_insurance_then_health():
     assert [s.domain for s in registry.implemented_domains()] == [
-        Domain.FINANCIALS, Domain.HOUSE, Domain.INSURANCE, Domain.HEALTH]
-    spec = registry.get_spec(Domain.HOUSE)
+        Category.FINANCIALS, Category.HOUSE, Category.INSURANCE, Category.HEALTH]
+    spec = registry.get_spec(Category.HOUSE)
     assert spec.home_url == "/house"
     assert [c.value for c in spec.kinds] == [
         "house_appliance", "outdoor_gear", "warranty_invoice", "maintenance_log", "floor_plan", "ownership_document",
@@ -63,7 +63,7 @@ async def test_appliance_manual_is_stored_tagged_and_builds_the_item_page(sessio
 
     assert document.status == DocumentStatus.PROCESSED and document.failure_reason is None
     page = session.exec(select(WikiPage).where(WikiPage.page_type == "house.item")).one()
-    assert page.topic == "Boiler" and page.domain == Domain.HOUSE
+    assert page.topic == "Boiler" and page.domain == Category.HOUSE
     assert _active(session, page.id) == {"type": "House appliance", "room": "Kitchen"}
     assert extraction[0] == []  # no LLM for a manual
 
@@ -78,7 +78,7 @@ async def test_warranty_expiry_is_extracted_reminded_and_recorded(session, extra
     assert len(calls) == 1
     assert load_fields(document)["warranty_expiry"] == "2030-03-01"
     todo = session.exec(select(Todo)).one()
-    assert todo.title == "Renew Boiler warranty" and todo.due_date == date(2030, 2, 8) and todo.domain == Domain.HOUSE
+    assert todo.title == "Renew Boiler warranty" and todo.due_date == date(2030, 2, 8) and todo.domain == Category.HOUSE
     page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
     assert _active(session, page.id)["warranty_expires"] == "2030-03-01"
 
@@ -205,10 +205,10 @@ async def test_purchase_date_only_assumes_the_legal_guarantee(session, extractio
 
 @pytest.mark.asyncio
 async def test_maintenance_by_hand_and_with_a_file_count_the_same(session, extraction):
-    from app.domains.house.items import build_item_cards
+    from app.categories.house.items import build_item_cards
     from app.services.ingestion import RecordInput, create_record
 
-    await create_record(session, RecordInput(Domain.HOUSE, "maintenance_log",
+    await create_record(session, RecordInput(Category.HOUSE, "maintenance_log",
                                              {"item_name": "Boiler", "service_date": "2026-06-01", "notes": "Annual service"}))
     await _ingest(session, "maintenance_log", {"item_name": "Boiler", "service_date": "2025-06-01"}, filename="invoice.pdf")
 

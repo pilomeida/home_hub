@@ -1,8 +1,8 @@
 import dataclasses
 from datetime import datetime
 
-from app.domains import registry
-from app.domains.base import LinkSpec
+from app.categories import registry
+from app.categories.base import LinkSpec
 from app.models.document import DocumentStatus
 from app.models.wiki import ANSWER_PAGE_TYPE
 from app.models.wiki_lint import LintFindingKind

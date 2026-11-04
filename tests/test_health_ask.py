@@ -3,11 +3,11 @@ from datetime import date
 
 import pytest
 
-from app.domains.health import areas
-from app.domains.health.ask import HEALTH_TOOLS
-from app.domains.health.extraction import ExtractedHealth, ExtractedMeasurement
-from app.domains.health.store import apply_extraction
-from app.models.domain import Domain
+from app.categories.health import areas
+from app.categories.health.ask import HEALTH_TOOLS
+from app.categories.health.extraction import ExtractedHealth, ExtractedMeasurement
+from app.categories.health.store import apply_extraction
+from app.models.category import Category
 from app.privacy.scope import reachable_scope
 from app.privacy.tiers import Tier
 from tests import privacy_world as pw
@@ -17,7 +17,7 @@ TOOLS = {t.name: t for t in HEALTH_TOOLS}
 
 
 def _paper(session, person, when, test_value, areas_=("Heart and circulation",), name="a.pdf"):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result", filename=name)
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename=name)
     ex = ExtractedHealth(person_name=person, document_date=when, provider="Lab Norte", record_kind="test",
                          areas=list(areas_), conditions=[], summary=f"{person} panel",
                          measurements=[ExtractedMeasurement("LDL cholesterol", test_value, None, "mg/dL", None, 100.0,
@@ -64,5 +64,5 @@ def test_measurements_come_back_oldest_first_with_range_flags(session, world):
 
 
 def test_the_tools_see_nothing_outside_health(session, world):
-    other = make_document(session, domain=Domain.HOUSE, category="house_appliance", fields={"item_name": "Boiler"})
+    other = make_document(session, domain=Category.HOUSE, category="house_appliance", fields={"item_name": "Boiler"})
     assert "Boiler" not in run(session, "health_find_records", query="boiler").text

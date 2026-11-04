@@ -6,12 +6,12 @@ import pytest
 from sqlmodel import select
 
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.inbox_item import InboxItem
 from app.models.privacy import DocumentFingerprint
 from app.privacy import settings as ps
 from app.services import inbox_service
-from app.services.domain_classifier import DomainSuggestion
+from app.services.domain_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 
 pytestmark = [pytest.mark.usefixtures("two_domains", "inbox_documents_dir"), pytest.mark.asyncio]
@@ -25,7 +25,7 @@ class SpyClassifier:
 
     async def __call__(self, path, context):
         self.calls += 1
-        return DomainSuggestion(Domain.HOUSE, "manual", 0.9, "ai guess")
+        return CategorySuggestion(Category.HOUSE, "manual", 0.9, "ai guess")
 
 
 async def _receive(session, name, spy, ctx=FROM_BILLER, content=None):
@@ -96,7 +96,7 @@ async def test_without_remember_no_rules_are_created(session):
 
 async def test_a_failed_filing_creates_no_rules(session):
     r = await _receive(session, "h.pdf", SpyClassifier())
-    from app.domains.fields import InvalidClassification
+    from app.categories.fields import InvalidClassification
     with pytest.raises(InvalidClassification):
         await inbox_service.approve(session, r.document.id, domain_value="house", category="manual", fields={},
                                     reviewed_by="p@x", remember_sender=True, remember_words="x")

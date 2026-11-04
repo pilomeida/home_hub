@@ -348,7 +348,7 @@ def _fk_txn(session, doc, amount, ttype=TransactionType.DEBIT, paid=date(2026, 1
 
 @pytest.mark.asyncio
 async def test_withdraw_keeps_the_ledger_entry_detached_and_the_balance(fk_session):
-    from app.domains.financials.handler import FinancialsHandler
+    from app.categories.financials.handler import FinancialsHandler
     s = fk_session
     doc = _fk_stmt_doc(s)
     debt = ledger.create_informal_debt(s, "Test Person", LENT)
@@ -368,7 +368,7 @@ async def test_withdraw_keeps_the_ledger_entry_detached_and_the_balance(fk_sessi
 
 @pytest.mark.asyncio
 async def test_withdraw_appends_to_an_existing_note(fk_session):
-    from app.domains.financials.handler import FinancialsHandler
+    from app.categories.financials.handler import FinancialsHandler
     s = fk_session
     doc = _fk_stmt_doc(s)
     debt = ledger.create_informal_debt(s, "Test Person", LENT)
@@ -414,7 +414,7 @@ def test_relink_does_not_reattach_a_different_amount_or_a_manual_entry(fk_sessio
 
 @pytest.mark.asyncio
 async def test_match_rule_auto_link_reattaches_after_a_reupload(fk_session):
-    from app.domains.financials.handler import FinancialsHandler
+    from app.categories.financials.handler import FinancialsHandler
     from app.models.merchant import Merchant
     from app.models.position import DebtMatchRule
     from app.models.transaction import Nature

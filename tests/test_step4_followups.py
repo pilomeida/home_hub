@@ -6,14 +6,14 @@ import pytest
 from sqlmodel import select
 
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services import document_reconcile, to_check
 
 
 def _doc(session, name, category):
     d = Document(filename=name, file_path=name, content_hash=name, source=DocumentSource.MANUAL,
-                 domain=Domain.FINANCIALS, paper_kind=category)
+                 domain=Category.FINANCIALS, paper_kind=category)
     session.add(d); session.commit(); session.refresh(d)
     return d
 

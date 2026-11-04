@@ -16,8 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlmodel import Session  # noqa: E402
 
 from app.db import engine  # noqa: E402
-from app.domains.health import benchmark  # noqa: E402
-from app.domains.health.reading import read_health_document  # noqa: E402
+from app.categories.health import benchmark  # noqa: E402
+from app.categories.health.reading import read_health_document  # noqa: E402
 
 
 async def _run(only):

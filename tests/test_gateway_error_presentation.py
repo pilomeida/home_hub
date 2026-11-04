@@ -63,7 +63,7 @@ def _reason_from_transport_failure() -> str:
 async def _stored_reason_via_ingestion(session, monkeypatch, exc) -> str:
     """Run a real finalize_document whose handler raises `exc`; return the
     failure_reason the ingestion boundary actually stored."""
-    from app.domains import registry
+    from app.categories import registry
 
     spec = make_fake_spec(handler=RecordingHandler(fail_with=exc))
     monkeypatch.setattr(registry, "_specs_cache", {spec.domain: spec})

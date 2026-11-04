@@ -23,14 +23,14 @@ def test_todo_domain_defaults_to_none(session):
 
 
 def test_todo_domain_can_be_set(session):
-    from app.models.domain import Domain
+    from app.models.category import Category
 
-    todo = Todo(title="Pay EDP", due_date=date(2026, 9, 5), domain=Domain.FINANCIALS)
+    todo = Todo(title="Pay EDP", due_date=date(2026, 9, 5), domain=Category.FINANCIALS)
     session.add(todo)
     session.commit()
     session.refresh(todo)
 
-    assert todo.domain == Domain.FINANCIALS
+    assert todo.domain == Category.FINANCIALS
 
 
 def test_todo_can_link_to_a_document(session):

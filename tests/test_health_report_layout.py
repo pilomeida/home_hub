@@ -6,12 +6,12 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains.health import extraction as ex
-from app.domains.health import outlines, reading, store
-from app.domains.health.text import PATH_SEP
+from app.categories.health import extraction as ex
+from app.categories.health import outlines, reading, store
+from app.categories.health.text import PATH_SEP
 from app.llm_gateway import set_gateway_provider
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthMeasurement, HealthOutlineProfile, HealthTopic
 from app.services.ingestion import Classification, IncomingFile, ingest
 from tests import privacy_world as pw
@@ -41,7 +41,7 @@ async def _read(tmp_path, reply, **kw):
 
 async def _file_report(session, tmp_path, reply=REPORT, name="r.pdf", category="imaging_report"):
     extracted = await _read(tmp_path, reply)
-    doc = make_document(session, domain=Domain.HEALTH, category=category, filename=name)
+    doc = make_document(session, domain=Category.HEALTH, category=category, filename=name)
     entry = store.apply_extraction(session, doc, extracted)
     return doc, entry
 
@@ -80,7 +80,7 @@ async def test_filing_a_report_attaches_each_row_to_its_deepest_topic(session, t
 
 @pytest.mark.asyncio
 async def test_a_sheet_gets_no_topics(session, tmp_path):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
     entry = store.apply_extraction(session, doc, await _read(tmp_path, SHEET))
     assert entry.layout == "sheet"
     assert [m.topic_id for m in _rows(session, entry)] == [None]
@@ -89,7 +89,7 @@ async def test_a_sheet_gets_no_topics(session, tmp_path):
 
 @pytest.mark.asyncio
 async def test_a_paper_without_a_layout_stores_none(session, tmp_path):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
     entry = store.apply_extraction(session, doc, await _read(tmp_path, {k: v for k, v in SHEET.items() if k != "layout"}))
     assert entry.layout is None
 
@@ -114,7 +114,7 @@ async def test_guidance_is_empty_then_names_approved_topics_and_confirmed_outlin
     assert outlines.guidance(session) == ""
     await _file_report(session, tmp_path)
     assert outlines.guidance(session) == ""                                             # unapproved topics are not baseline yet
-    from app.domains.health import topics as tp
+    from app.categories.health import topics as tp
     for t in _topics(session):
         tp.approve_topic(session, t.id)
     text = outlines.guidance(session)
@@ -151,7 +151,7 @@ def _gateway_reset(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_the_health_handler_sends_the_baseline_topics_with_the_first_request(session, tmp_path, _gateway_reset):
-    from app.domains.health import topics as tp
+    from app.categories.health import topics as tp
     await _file_report(session, tmp_path)
     for t in _topics(session):
         tp.approve_topic(session, t.id)
@@ -160,7 +160,7 @@ async def test_the_health_handler_sends_the_baseline_topics_with_the_first_reque
     wire.script = [gateway_text_result(json.dumps(REPORT))] * 2 + [gateway_text_result(json.dumps({"pages": []}))]     # a report is read twice
     set_gateway_provider(lambda: wire.client())
     result = await ingest(session, IncomingFile("r.png", b"\x89PNG\r\n\x1a\nreport", DocumentSource.MANUAL, "test"),
-                          Classification(Domain.HEALTH, "imaging_report", {}))
+                          Classification(Category.HEALTH, "imaging_report", {}))
     assert result.document.status == DocumentStatus.PROCESSED and not result.document.failure_reason     # no swallowed later failure
     assert all(f"Triplex carotídeo{PATH_SEP}Eixo Carotídeo direito" in b["system"] for b in wire.parsed()[:2])     # both readings
 

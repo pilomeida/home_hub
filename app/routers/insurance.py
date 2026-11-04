@@ -7,15 +7,15 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
 from app.db import get_session
-from app.domains.fields import (
+from app.categories.fields import (
     InvalidClassification, build_form_fields, describe_document, load_fields, media_kind_for,
 )
-from app.domains.financials.categories import FinancialsCategory
-from app.domains.insurance.categories import POLICY_PAGE_TYPE, PREMIUM_NOTICE
-from app.domains.insurance.policies import policy_sections
-from app.domains.registry import document_url, get_spec
+from app.categories.financials.kinds import FinancialsKind
+from app.categories.insurance.kinds import POLICY_PAGE_TYPE, PREMIUM_NOTICE
+from app.categories.insurance.policies import policy_sections
+from app.categories.registry import document_url, get_spec
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.problems import file_notices
 from app.services.ingestion import Classification, IncomingFile, ingest, update_document_fields
 from app.services.wiki_store import PageRef, find_page, normalize_entity_key
@@ -28,7 +28,7 @@ _NON_FIELD_KEYS = {"file", "category"}
 
 # A premium notice is first of all a bill (Pedro, 2026-11-04): chosen here, it is filed under Bills, with the policy
 # number that shows it on its policy's card.
-_PREMIUM_TARGET = (Domain.FINANCIALS, FinancialsCategory.BILL.value)
+_PREMIUM_TARGET = (Category.FINANCIALS, FinancialsKind.BILL.value)
 
 
 def _kind_choices(spec) -> list[tuple[str, str]]:
@@ -37,7 +37,7 @@ def _kind_choices(spec) -> list[tuple[str, str]]:
 
 
 def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.INSURANCE)
+    spec = get_spec(Category.INSURANCE)
     choices = _kind_choices(spec)
     known = category if category and any(value == category for value, _ in choices) else None
     if known == PREMIUM_NOTICE:
@@ -54,18 +54,18 @@ def _classification(category: Optional[str], values: dict) -> Classification:
             raise InvalidClassification({"policy_number": "Which policy this premium is for, so it shows on that policy"})
         target_domain, target_kind = _PREMIUM_TARGET
         return Classification(domain=target_domain, paper_kind=target_kind, fields=values)
-    return Classification(domain=Domain.INSURANCE, paper_kind=category, fields=values)
+    return Classification(domain=Category.INSURANCE, paper_kind=category, fields=values)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain != Domain.INSURANCE:
+    if document is None or document.domain != Category.INSURANCE:
         raise HTTPException(status_code=404, detail="Insurance document not found")
     return document
 
 
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.INSURANCE)
+    spec = get_spec(Category.INSURANCE)
     fields = load_fields(document)
     page = None
     if fields.get("policy_number"):

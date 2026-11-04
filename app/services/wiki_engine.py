@@ -17,9 +17,9 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.domains.base import DomainSpec
-from app.domains.fields import effective_fields, load_fields
-from app.domains.registry import get_spec
+from app.categories.base import CategorySpec
+from app.categories.fields import effective_fields, load_fields
+from app.categories.registry import get_spec
 from app.models.document import Document
 from app.models.record import Record
 from app.models.wiki import TOPIC_PAGE_TYPE, WikiOperation, WikiPage
@@ -65,12 +65,12 @@ class WikiAssessmentError(Exception):
     pass
 
 
-def _fact_fields(spec: DomainSpec, source: Document | Record) -> dict[str, str]:
+def _fact_fields(spec: CategorySpec, source: Document | Record) -> dict[str, str]:
     return {**effective_fields(spec, source.paper_kind, load_fields(source)),
             "category": spec.kind_label(source.paper_kind)}
 
 
-def claims_from_fields(spec: DomainSpec, document: Document | Record) -> list[ClaimInput]:
+def claims_from_fields(spec: CategorySpec, document: Document | Record) -> list[ClaimInput]:
     fields = _fact_fields(spec, document)
     claims: list[ClaimInput] = []
     for entity_type in spec.wiki.entity_types:
@@ -90,7 +90,7 @@ def claims_from_fields(spec: DomainSpec, document: Document | Record) -> list[Cl
     return claims
 
 
-def links_from_fields(spec: DomainSpec, document: Document | Record) -> list[LinkInput]:
+def links_from_fields(spec: CategorySpec, document: Document | Record) -> list[LinkInput]:
     fields = _fact_fields(spec, document)
     links: list[LinkInput] = []
     for entity_type in spec.wiki.entity_types:

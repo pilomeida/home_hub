@@ -7,7 +7,7 @@ from sqlmodel import SQLModel, select
 
 import app.models  # noqa: F401  (every table registered)
 from app.models.document import Document, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthEntry
 from app.services.paper_uses import HISTORY_TABLES, USE_TABLES, uses_of
 from app.services.todo_engine import upsert_source_todo
@@ -29,7 +29,7 @@ def _health_paper(session):
 
 def test_a_health_paper_with_an_open_to_do_is_not_deleted_and_the_page_lists_the_place(client, session):
     doc = _health_paper(session)
-    upsert_source_todo(session, doc, title="Book the follow-up", due_date=date(2026, 12, 1), domain=Domain.HEALTH)
+    upsert_source_todo(session, doc, title="Book the follow-up", due_date=date(2026, 12, 1), domain=Category.HEALTH)
 
     r = client.post(f"/health/documents/{doc.id}/delete", follow_redirects=False,
                     headers={"Accept": "text/html,application/xhtml+xml"})       # as the browser's form sends it
@@ -44,7 +44,7 @@ def test_a_health_paper_with_an_open_to_do_is_not_deleted_and_the_page_lists_the
 
 def test_once_nothing_else_uses_it_the_health_paper_is_deleted(client, session):
     doc = _health_paper(session)
-    todo = upsert_source_todo(session, doc, title="Book the follow-up", due_date=date(2026, 12, 1), domain=Domain.HEALTH)
+    todo = upsert_source_todo(session, doc, title="Book the follow-up", due_date=date(2026, 12, 1), domain=Category.HEALTH)
     todo.done = True
     session.add(todo); session.commit()
     # Its own Health record and wiki facts are what the delete takes back: they never block it.
@@ -61,7 +61,7 @@ def test_once_nothing_else_uses_it_the_health_paper_is_deleted(client, session):
 def test_a_waiting_paper_already_linked_elsewhere_is_not_discarded_and_the_banner_lists_it(client, session):
     from tests.test_inbox_router import _pending
     doc = _pending(session)
-    upsert_source_todo(session, doc, title="Look at the boiler manual", due_date=date(2026, 12, 1), domain=Domain.HOUSE)
+    upsert_source_todo(session, doc, title="Look at the boiler manual", due_date=date(2026, 12, 1), domain=Category.HOUSE)
 
     r = client.post(f"/inbox/{doc.id}/discard", headers={"HX-Request": "true"})
 

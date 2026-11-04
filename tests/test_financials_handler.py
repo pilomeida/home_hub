@@ -9,7 +9,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
-from app.domains.financials import handler as pipeline
+from app.categories.financials import handler as pipeline
 from app.services.classification_engine import classify_transaction as _real_classify_transaction
 from app.services.classification_engine import normalize_provider
 from app.services.extraction import ExtractedBill, ExtractedStatement, ExtractedTransaction, ExtractionError

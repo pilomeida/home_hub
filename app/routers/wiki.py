@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.domains.fields import file_url
-from app.domains.registry import document_url
+from app.categories.fields import file_url
+from app.categories.registry import document_url
 from app.models.wiki import WikiChange, WikiPage
 from app.routers.wiki_lint import open_finding_count
 from app.services.presentation import humanize_key

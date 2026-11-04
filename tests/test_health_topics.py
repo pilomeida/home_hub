@@ -3,11 +3,11 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-from app.domains.health import topics as t
-from app.domains.health.extraction import ExtractedHealth, ExtractedMeasurement
-from app.domains.health.store import apply_extraction, entry_for
-from app.domains.health.text import PATH_SEP
-from app.models.domain import Domain
+from app.categories.health import topics as t
+from app.categories.health.extraction import ExtractedHealth, ExtractedMeasurement
+from app.categories.health.store import apply_extraction, entry_for
+from app.categories.health.text import PATH_SEP
+from app.models.category import Category
 from app.models.health import HealthMeasurement, HealthTopic
 from tests.knowledge_factories import make_document
 
@@ -20,7 +20,7 @@ def _m(test, value, path, when, previous=False, unit="mm/s"):
 
 
 def _report(session, person, when, measurements, name="r.pdf"):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result", filename=name)
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename=name)
     ex = ExtractedHealth(person_name=person, document_date=when, provider="Clinic", record_kind="test", summary="s",
                          measurements=measurements)
     apply_extraction(session, doc, ex)
@@ -64,7 +64,7 @@ def test_the_same_chapter_on_a_later_paper_shares_a_topic_and_the_thread_joins_t
 
 
 def test_attach_topics_leaves_a_sheet_alone_and_gives_no_topic_to_an_empty_path(session):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result", filename="s.pdf")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename="s.pdf")
     apply_extraction(session, doc, ExtractedHealth(person_name="Ana Lima", document_date=date(2026, 1, 1), summary="s",
                                                    measurements=[_m("LDL", 1.0, "Lípidos", date(2026, 1, 1))]))
     entry = entry_for(session, doc.id)

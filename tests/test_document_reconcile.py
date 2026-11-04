@@ -158,7 +158,7 @@ def test_budget_and_overview_count_the_bank_row_once(session, bank, bill):
 
 
 def test_tags_ask_and_review_queues_ignore_the_settled_row(session, bank, bill):
-    from app.domains.financials.ask import _spending
+    from app.categories.financials.ask import _spending
     from app.services.classification_engine import unsorted_transactions_query
     from app.services.tag_service import ensure_tags, tag_totals
     b, d, node = _settled_pair(session, bank, bill, amount=75.0)
@@ -174,7 +174,7 @@ def test_tags_ask_and_review_queues_ignore_the_settled_row(session, bank, bill):
 
 @pytest.mark.asyncio
 async def test_withdrawing_the_bank_document_reopens_the_bill(session, bank, bill):
-    from app.domains.financials.handler import FinancialsHandler
+    from app.categories.financials.handler import FinancialsHandler
     b, d, _node = _settled_pair(session, bank, bill)
     await FinancialsHandler().withdraw(session, bank)
     session.refresh(b)
@@ -211,7 +211,7 @@ def test_the_window_starts_at_the_documents_issue_date(session, bank, bill):
 
 @pytest.mark.asyncio
 async def test_the_extracted_issue_date_is_stored_on_the_bill_row(session, monkeypatch, tmp_path):
-    import app.domains.financials.handler as handler
+    import app.categories.financials.handler as handler
     from app.services.extraction import ExtractedBill
     doc = _doc(session, None, name="fatura.pdf")
 

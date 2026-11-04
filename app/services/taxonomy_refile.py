@@ -94,9 +94,9 @@ async def reclassify_unsorted(
 ) -> ReclassifyReport:
     """`_reclassify_unsorted`, with every model call at the level of a bank-statement line (finding F7): the
     descriptions sent are statement and feed lines. The concurrent calls inherit the scope when they are created."""
-    from app.models.domain import Domain
+    from app.models.category import Category
     from app.privacy.scope import privacy_scope
-    with privacy_scope(session, Domain.FINANCIALS, "statement"):
+    with privacy_scope(session, Category.FINANCIALS, "statement"):
         return await _reclassify_unsorted(session, gateway=gateway, concurrency=concurrency, progress=progress,
                                           best_guess=best_guess, only_undecided=only_undecided)
 

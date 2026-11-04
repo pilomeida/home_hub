@@ -4,13 +4,13 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-from app.domains.house.categories import HouseCategory
-from app.domains.house.warranty import (
+from app.categories.house.kinds import HouseKind
+from app.categories.house.warranty import (
     LEGAL_GUARANTEE_YEARS, REMINDER_LEAD_DAYS, WarrantyDates, WarrantyExtractionError,
     effective_warranty_expiry, extract_warranty_dates, house_derived_fields, reminder_due_date, sync_warranty_todo,
 )
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.todo import Todo
 
 # These call readers directly; production calls them inside a privacy scope (tests/conftest.py).
@@ -83,8 +83,8 @@ def test_effective_expiry_prefers_stated_then_assumes_legal_guarantee():
 def _warranty_document(session, fields):
     document = Document(
         filename="w.pdf", file_path="/tmp/w.pdf", content_hash=f"h-{json.dumps(fields)}",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.HOUSE,
-        paper_kind=HouseCategory.WARRANTY_INVOICE.value, fields_json=json.dumps(fields),
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.HOUSE,
+        paper_kind=HouseKind.WARRANTY_INVOICE.value, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()
@@ -99,7 +99,7 @@ def test_sync_creates_the_renewal_todo(session):
 
     assert todo.title == "Renew Boiler warranty"
     assert todo.due_date == date(2027, 2, 8)
-    assert todo.domain == Domain.HOUSE and todo.document_id == document.id
+    assert todo.domain == Category.HOUSE and todo.document_id == document.id
 
 
 def test_sync_skips_missing_or_lapsed_expiry_and_other_categories(session):
@@ -107,7 +107,7 @@ def test_sync_skips_missing_or_lapsed_expiry_and_other_categories(session):
     lapsed = _warranty_document(session, {"item_name": "Oven", "warranty_expiry": "2026-01-01"})
     assert sync_warranty_todo(session, lapsed, today=date(2026, 9, 24)) is None
     manual = _warranty_document(session, {"item_name": "Fridge", "warranty_expiry": "2027-01-01"})
-    manual.paper_kind = HouseCategory.HOUSE_APPLIANCE.value
+    manual.paper_kind = HouseKind.HOUSE_APPLIANCE.value
     assert sync_warranty_todo(session, manual, today=date(2026, 9, 24)) is None
     assert session.exec(select(Todo)).all() == []
 

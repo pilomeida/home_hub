@@ -6,8 +6,8 @@ from typing import Optional
 
 from fastapi.templating import Jinja2Templates
 
-from app.domains.registry import get_spec, implemented_domains, is_implemented
-from app.models.domain import Domain
+from app.categories.registry import get_spec, implemented_domains, is_implemented
+from app.models.category import Category
 from app.privacy.notices import HEALTH_NOTICE, SCAN_NOTICE
 from app.services.presentation import (
     claim_label, display_date, display_datetime, friendly_reason, humanize_key, lisbon_datetime,
@@ -16,7 +16,7 @@ from app.services.presentation import (
 templates = Jinja2Templates(directory="app/templates")
 
 
-def domain_label(domain: Optional[Domain]) -> str:
+def domain_label(domain: Optional[Category]) -> str:
     if domain is None:
         return ""
     if is_implemented(domain):

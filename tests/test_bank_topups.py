@@ -2,7 +2,7 @@ from datetime import date
 
 from app.models.account import Account
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services.bankapi.sync import _provider
 from app.services.taxonomy import ensure_taxonomy, get_node
@@ -14,7 +14,7 @@ def _accounts(session):
     rev = Account(name="Revolut Current Account", institution="Revolut Bank UAB")
     session.add(san); session.add(rev); session.commit()
     doc = Document(filename="d", file_path="", content_hash="h", source=DocumentSource.API,
-                   status=DocumentStatus.PROCESSED, domain=Domain.FINANCIALS, paper_kind="statement")
+                   status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS, paper_kind="statement")
     session.add(doc); session.commit()
     return san, rev, doc
 

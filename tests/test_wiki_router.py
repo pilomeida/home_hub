@@ -57,7 +57,7 @@ def test_wiki_page_detail_404_for_missing_page(client):
 
 
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.wiki import WikiOperation
 from app.services import wiki_store
 from app.services.wiki_store import ClaimInput, PageRef
@@ -65,7 +65,7 @@ from app.services.wiki_store import ClaimInput, PageRef
 
 def _house_document(session, name="boiler-warranty.pdf", content_hash="hw1"):
     document = Document(filename=name, file_path=f"/srv/docs/{content_hash}.pdf", content_hash=content_hash,
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.HOUSE)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.HOUSE)
     session.add(document)
     session.commit()
     session.refresh(document)

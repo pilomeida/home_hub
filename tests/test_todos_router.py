@@ -31,7 +31,7 @@ def test_mark_done_404_for_missing_todo(client):
     assert response.status_code == 404
 
 
-from app.models.domain import Domain
+from app.models.category import Category
 
 
 def test_add_todo_returns_the_domain_backlog(client, session):
@@ -49,7 +49,7 @@ def test_add_todo_rejects_unknown_domain_and_bad_date(client):
 
 
 def test_mark_done_from_a_backlog_returns_the_backlog(client, session):
-    todo = Todo(title="Pay IMI", domain=Domain.FINANCIALS)
+    todo = Todo(title="Pay IMI", domain=Category.FINANCIALS)
     session.add(todo)
     session.commit()
     session.refresh(todo)
@@ -62,6 +62,6 @@ def test_mark_done_from_a_backlog_returns_the_backlog(client, session):
 
 
 def test_todos_page_shows_domain_badges(client, session):
-    session.add(Todo(title="Pay EDP", domain=Domain.FINANCIALS))
+    session.add(Todo(title="Pay EDP", domain=Category.FINANCIALS))
     session.commit()
     assert '<span class="badge">Financials</span>' in client.get("/todos").text

@@ -18,12 +18,12 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.domains.base import SourceKind
-from app.domains.entries import SourceEntry, domain_entries
-from app.domains.fields import effective_fields
-from app.domains.registry import get_spec, implemented_domains
+from app.categories.base import SourceKind
+from app.categories.entries import SourceEntry, domain_entries
+from app.categories.fields import effective_fields
+from app.categories.registry import get_spec, implemented_domains
 from app.models.document import Document, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
@@ -65,7 +65,7 @@ def is_settled_source(source: Optional[Source]) -> bool:
     return is_settled(source)
 
 
-def settled_entries(session: Session, domain: Optional[Domain] = None,
+def settled_entries(session: Session, domain: Optional[Category] = None,
                     reach: Optional[Reach] = None) -> list[SourceEntry]:
     """PROCESSED documents and non-retired records of implemented domains, newest first.
     With a binding `reach`, only those of types the AI may read (everything the AI is shown
@@ -97,8 +97,8 @@ def _opened(reach: Reach, sources, pages: int = 0) -> str:
     return " and ".join(parts)
 
 
-def _parse_domain(value) -> Optional[Domain]:
-    return Domain(value) if value else None  # ValueError -> tool error via engine
+def _parse_domain(value) -> Optional[Category]:
+    return Category(value) if value else None  # ValueError -> tool error via engine
 
 
 def _claim_line(claim, sources: list[Source]) -> str:

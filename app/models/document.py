@@ -8,7 +8,7 @@ from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
 from sqlmodel.sql.sqltypes import AutoString
 
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.strict import RefusesUnknownFields
 
 
@@ -44,7 +44,7 @@ class Document(RefusesUnknownFields, SQLModel, table=True):
     # (additive-only migrations; migration 3b7e9c1d2f40 copied it here).
     paper_kind: Optional[str] = Field(default=None, sa_column=Column("category", AutoString, index=True))
     fields_json: str = Field(default="{}")
-    domain: Optional[Domain] = None
+    domain: Optional[Category] = None
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None

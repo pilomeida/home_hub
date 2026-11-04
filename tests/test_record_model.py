@@ -2,13 +2,13 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.models.todo import Todo
 
 
 def test_record_defaults(session):
-    record = Record(domain=Domain.HOUSE, paper_kind="maintenance_log", fields_json='{"item_name": "Boiler"}', entered_by="pedro@example.com")
+    record = Record(domain=Category.HOUSE, paper_kind="maintenance_log", fields_json='{"item_name": "Boiler"}', entered_by="pedro@example.com")
     session.add(record)
     session.commit()
     session.refresh(record)
@@ -20,15 +20,15 @@ def test_a_document_attaches_to_at_most_one_record(session):
     session.add(document)
     session.commit()
     session.refresh(document)
-    session.add(Record(domain=Domain.HOUSE, paper_kind="maintenance_log", document_id=document.id))
+    session.add(Record(domain=Category.HOUSE, paper_kind="maintenance_log", document_id=document.id))
     session.commit()
-    session.add(Record(domain=Domain.HOUSE, paper_kind="maintenance_log", document_id=document.id))
+    session.add(Record(domain=Category.HOUSE, paper_kind="maintenance_log", document_id=document.id))
     with pytest.raises(IntegrityError):
         session.commit()
 
 
 def test_todo_can_link_to_a_record(session):
-    record = Record(domain=Domain.HOUSE, paper_kind="maintenance_log")
+    record = Record(domain=Category.HOUSE, paper_kind="maintenance_log")
     session.add(record)
     session.commit()
     session.refresh(record)

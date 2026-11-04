@@ -7,12 +7,12 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.domains.fields import InvalidClassification
-from app.domains.registry import document_url
+from app.categories.fields import InvalidClassification
+from app.categories.registry import document_url
 from app.models.account import Account
 from app.models.category_node import CategoryNode
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction
 from app.services.ingestion import Classification, IncomingFile, ingest
 from app.services.taxonomy import path_label
@@ -24,13 +24,13 @@ router = APIRouter(prefix="/financials/bills", tags=["bills"])
 @router.get("")
 async def list_bills(request: Request, session: Session = Depends(get_session)):
     documents = session.exec(
-        select(Document).where(Document.domain == Domain.FINANCIALS).order_by(Document.created_at.desc())
+        select(Document).where(Document.domain == Category.FINANCIALS).order_by(Document.created_at.desc())
     ).all()
     from app.routers.bank import bank_notices
     return templates.TemplateResponse(
         request, "bills/list.html",
         {"documents": documents, "notices": bank_notices(session),
-         **backlog_context(session, Domain.FINANCIALS)},
+         **backlog_context(session, Category.FINANCIALS)},
     )
 
 @router.get("/upload")
@@ -46,7 +46,7 @@ async def upload_bill(
 ):
     content = await file.read()
     classification = Classification(
-        domain=Domain.FINANCIALS, paper_kind=None,
+        domain=Category.FINANCIALS, paper_kind=None,
         fields={"account_id": account_id} if account_id else {},
     )
     try:

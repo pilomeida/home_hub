@@ -14,10 +14,10 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.domains.registry import document_url, record_url
+from app.categories.registry import document_url, record_url
 from app.models.debt import Debt
 from app.models.document import Document
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthEntry
 from app.models.position import (BalanceSnapshot, LoanAlert, LoanMovement, LoanSnapshot, PositionExtraction,
                                  SavingsSnapshot)
@@ -100,8 +100,8 @@ def uses_of(session: Session, document: Document) -> list[PaperUse]:
         page = session.get(WikiPage, page_id)
         uses.append(PaperUse(WIKI, f"{_n(count, 'fact', 'facts')} on the wiki page “{page.topic}”", f"/wiki/{page_id}"))
 
-    if document.domain == Domain.FINANCIALS:     # a premium notice is a bill shown on its policy's card
-        from app.domains.insurance.policies import build_policy_cards
+    if document.domain == Category.FINANCIALS:     # a premium notice is a bill shown on its policy's card
+        from app.categories.insurance.policies import build_policy_cards
         for card in build_policy_cards(session):
             if any(p.entry.document is not None and p.entry.document.id == doc_id for p in card.documents):
                 uses.append(PaperUse(INSURANCE, f"listed on the {card.insurer} policy {card.policy_number}, in Insurance",

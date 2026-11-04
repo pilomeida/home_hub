@@ -8,7 +8,7 @@ from app.privacy.tiers import TierBlocked
 from sqlmodel import select
 
 from app.llm_gateway import GatewayClient
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.privacy import DocumentFingerprint
 from app.privacy import recognise as rec
 from app.privacy import settings as ps
@@ -87,14 +87,14 @@ def test_remember_creates_each_rule_once(session):
 # --- the scope -----------------------------------------------------------------
 
 def test_scope_is_a_noop_while_levels_are_not_binding(session):
-    with privacy_scope(session, Domain.FINANCIALS, "statement") as s:
+    with privacy_scope(session, Category.FINANCIALS, "statement") as s:
         assert s is None and current_scope() is None
 
 
 def test_scope_carries_the_type_level_and_ends_cleanly(session):
     ps.set_enforcing(session, True, None)
     ps.save_type(session, "financials", "statement", "house_mid", False, None)
-    with privacy_scope(session, Domain.FINANCIALS, "statement"):
+    with privacy_scope(session, Category.FINANCIALS, "statement"):
         assert current_scope().tier.value == "house_mid" and current_scope().redaction is None
     assert current_scope() is None
 
@@ -102,7 +102,7 @@ def test_scope_carries_the_type_level_and_ends_cleanly(session):
 def test_scope_holds_an_unset_type(session):
     ps.set_enforcing(session, True, None)
     with pytest.raises(ps.TierHeld):
-        with privacy_scope(session, Domain.FINANCIALS, "statement"):
+        with privacy_scope(session, Category.FINANCIALS, "statement"):
             pass
 
 
@@ -111,17 +111,17 @@ def test_unknown_category_uses_the_strictest_level_of_the_domain_and_holds_if_an
     for cat, tier in (("bill", "house_low"), ("statement", "house_mid"), ("statement_positions", "house_low")):
         ps.save_type(session, "financials", cat, tier, False, None)
     with pytest.raises(ps.TierHeld):                                   # loan_history still unset
-        with privacy_scope(session, Domain.FINANCIALS, None):
+        with privacy_scope(session, Category.FINANCIALS, None):
             pass
     ps.save_type(session, "financials", "loan_history", "house_low", False, None)
-    with privacy_scope(session, Domain.FINANCIALS, None):
+    with privacy_scope(session, Category.FINANCIALS, None):
         assert current_scope().tier.value == "house_mid"
 
 
 def test_redaction_switch_puts_a_redactor_in_the_scope(session):
     ps.set_enforcing(session, True, None)
     ps.save_type(session, "financials", "bill", "house_mid", True, None)
-    with privacy_scope(session, Domain.FINANCIALS, "bill"):
+    with privacy_scope(session, Category.FINANCIALS, "bill"):
         assert current_scope().redaction is not None
 
 
@@ -140,7 +140,7 @@ async def test_gateway_calls_inside_a_scope_carry_the_level_and_an_explicit_valu
     await client.run("classification", "s", "u", sensitivity="house_low")   # outside any scope: only an explicit level
     with pytest.raises(TierBlocked):
         await client.run("classification", "s", "u")                   # outside any scope, no level: refused
-    with privacy_scope(session, Domain.FINANCIALS, "bill"):
+    with privacy_scope(session, Category.FINANCIALS, "bill"):
         await client.run("classification", "s", "u")
         await client.run("classification", "s", "u", sensitivity="house_low")
     assert [b.get("sensitivity") for b in bodies] == ["house_low", "house_mid", "house_low"]
@@ -157,7 +157,7 @@ async def test_scope_does_not_leak_into_a_concurrent_task(session):
         await asyncio.sleep(0)
         seen["other"] = current_scope()
 
-    with privacy_scope(session, Domain.FINANCIALS, "bill"):
+    with privacy_scope(session, Category.FINANCIALS, "bill"):
         task = asyncio.create_task(other())     # copies the context at creation: sees the scope, by design
         await task
     assert seen["other"] is not None            # tasks started INSIDE the scope belong to the document

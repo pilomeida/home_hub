@@ -6,14 +6,14 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-from app.domains.health import store
-from app.domains.health.ask import HEALTH_TOOLS
-from app.domains.health.categories import ALL_CATEGORIES, LEGACY_CATEGORIES
-from app.domains.health.extraction import _SCHEMA, _SYSTEM, extract_health_document
-from app.domains.registry import get_spec
+from app.categories.health import store
+from app.categories.health.ask import HEALTH_TOOLS
+from app.categories.health.kinds import ALL_KINDS, LEGACY_KINDS
+from app.categories.health.extraction import _SCHEMA, _SYSTEM, extract_health_document
+from app.categories.registry import get_spec
 from app.llm_gateway import set_gateway_provider
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthEntry, HealthMeasurement
 from app.models.schedule import ProblemEntry
 from app.models.transaction import Transaction
@@ -64,21 +64,21 @@ async def test_a_reply_with_an_amount_is_read_and_the_amount_is_dropped(tmp_path
     wire.script = [gateway_text_result(json.dumps(reply))] * 2 + [gateway_text_result(json.dumps({"pages": []}))]
     set_gateway_provider(lambda: wire.client())
     result = await ingest(session, IncomingFile("lab.png", b"\x89PNG\r\n\x1a\nlab", DocumentSource.MANUAL, "test"),
-                          Classification(Domain.HEALTH, "lab_result", {}))
+                          Classification(Category.HEALTH, "lab_result", {}))
     assert result.document.status == DocumentStatus.PROCESSED
     entry = store.entry_for(session, result.document.id)
     assert (entry.amount_billed, entry.amount_reimbursed, entry.amount_owed) == (None, None, None)
-    from app.domains.fields import load_fields
+    from app.categories.fields import load_fields
     assert not any(key in load_fields(result.document) for key in AMOUNT_KEYS)
 
 
 # (c) the spec no longer knows bills
 def test_the_spec_has_neither_bill_category_and_does_not_speak_of_bills():
-    spec = get_spec(Domain.HEALTH)
+    spec = get_spec(Category.HEALTH)
     values = {c.value for c in spec.kinds}
     assert not values & {"medical_bill", "claim_statement"}
-    assert not ALL_CATEGORIES & {"medical_bill", "claim_statement"}
-    assert LEGACY_CATEGORIES == {"medical_bill", "claim_statement"}
+    assert not ALL_KINDS & {"medical_bill", "claim_statement"}
+    assert LEGACY_KINDS == {"medical_bill", "claim_statement"}
     text = spec.description.lower()
     assert "bill" not in text and "reimburs" not in text and "invoice" not in text
     assert not {f.key for f in spec.fields} & set(AMOUNT_KEYS)
@@ -90,7 +90,7 @@ async def _ingest_a_bill(session):
     wire.script = [gateway_text_result(json.dumps({"category": "bill", "summary": "A clinic invoice."}))] * 2
     set_gateway_provider(lambda: wire.client())
     result = await ingest(session, IncomingFile("fatura.png", b"\x89PNG\r\n\x1a\nbill", DocumentSource.MANUAL, "test"),
-                          Classification(Domain.HEALTH, None, {}))
+                          Classification(Category.HEALTH, None, {}))
     return result.document, wire
 
 
@@ -119,12 +119,12 @@ async def test_a_bill_is_refused_with_the_three_part_message_and_nothing_is_file
 @pytest.mark.asyncio
 async def test_changing_a_refused_bill_to_financials_bill_files_it_as_a_bill(client, session, monkeypatch):
     """The "change" link works for the refused paper: the refile used by the edit route moves it into the Bills flow."""
-    import app.domains.financials.handler as financials
+    import app.categories.financials.handler as financials
     from app.services.extraction import ExtractedBill
     from app.services.ingestion import refile_document
 
     doc, _ = await _ingest_a_bill(session)
-    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.domain == Domain.HEALTH
+    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.domain == Category.HEALTH
     assert client.get(f"/documents/{doc.id}/edit").status_code == 200          # the "change" link opens
 
     async def fake_extract_bill(file_path, gateway=None):
@@ -145,8 +145,8 @@ async def test_changing_a_refused_bill_to_financials_bill_files_it_as_a_bill(cli
     monkeypatch.setattr(financials, "ingest_into_wiki", no_wiki)
     monkeypatch.setattr(financials, "classify_transaction", no_classify)
 
-    moved = await refile_document(session, doc, Classification(Domain.FINANCIALS, "bill", {}))
-    assert moved.domain == Domain.FINANCIALS and moved.paper_kind == "bill"
+    moved = await refile_document(session, doc, Classification(Category.FINANCIALS, "bill", {}))
+    assert moved.domain == Category.FINANCIALS and moved.paper_kind == "bill"
     assert moved.status == DocumentStatus.PROCESSED and moved.failure_reason is None
     txn = session.exec(select(Transaction).where(Transaction.document_id == doc.id)).one()
     assert txn.amount == 45.5
@@ -166,7 +166,7 @@ async def test_the_bill_reply_is_parsed_as_a_bill_with_no_category(tmp_path):
 # (e) the one paper already filed as a bill still opens
 @pytest.mark.parametrize("legacy", ["medical_bill", "claim_statement"])
 def test_a_paper_filed_under_a_removed_bill_category_still_opens_and_says_it_is_a_bill(client, session, legacy):
-    doc = make_document(session, domain=Domain.HEALTH, category=legacy, filename="old.pdf",
+    doc = make_document(session, domain=Category.HEALTH, category=legacy, filename="old.pdf",
                         fields={"provider": "Clínica Sul", "amount_billed": "45,5"})
     r = client.get(f"/health/documents/{doc.id}")
     assert r.status_code == 200
@@ -175,7 +175,7 @@ def test_a_paper_filed_under_a_removed_bill_category_still_opens_and_says_it_is_
 
 
 def test_a_normal_paper_page_has_no_bill_line(client, session):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result", filename="lab.pdf")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename="lab.pdf")
     r = client.get(f"/health/documents/{doc.id}")
     assert r.status_code == 200 and "This paper is a bill" not in r.text
 
@@ -183,8 +183,8 @@ def test_a_normal_paper_page_has_no_bill_line(client, session):
 # (f) no Ask tool shows an amount, even one a legacy row still holds in its unused column
 def test_no_ask_tool_shows_amounts(session):
     pw.set_levels(session, on=False)
-    from app.domains.health.extraction import ExtractedHealth, ExtractedMeasurement
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result", filename="a.pdf")
+    from app.categories.health.extraction import ExtractedHealth, ExtractedMeasurement
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename="a.pdf")
     store.apply_extraction(session, doc, ExtractedHealth(
         person_name="Maria Santos Almeida", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",
         areas=["Heart and circulation"], summary="Maria panel",
@@ -206,7 +206,7 @@ def test_no_ask_tool_shows_amounts(session):
 
 # (g) a paper filed under a removed bill category cannot be read again, and is not wiped by trying
 def _legacy_paper(session):
-    doc = make_document(session, domain=Domain.HEALTH, category="medical_bill", filename="old.pdf",
+    doc = make_document(session, domain=Category.HEALTH, category="medical_bill", filename="old.pdf",
                         fields={"provider": "Clínica Sul", "amount_billed": "45,5"})
     entry = HealthEntry(document_id=doc.id, entry_date=date(2025, 5, 2), provider="Clínica Sul", summary="Old bill",
                         amount_billed=45.5)
@@ -246,8 +246,8 @@ def test_a_legacy_paper_page_offers_no_read_again_and_says_what_to_do(client, se
 # (h) a bill is refused after ONE reading: no second reading, no second look
 @pytest.mark.asyncio
 async def test_a_bill_reply_makes_exactly_one_gateway_call(tmp_path, monkeypatch):
-    from app.domains.health import extraction as ex
-    from app.domains.health.reading import read_health_document
+    from app.categories.health import extraction as ex
+    from app.categories.health.reading import read_health_document
     monkeypatch.setattr(ex, "paper_text", lambda path: "Fatura\nTotal 45,50 EUR\n")      # a text layer, so the check would otherwise run
     fake = FakeGateway([gateway_text_result(json.dumps({"category": "bill", "summary": "Invoice."}))] * 3)
     got = await read_health_document(_png(tmp_path), None, gateway=fake)

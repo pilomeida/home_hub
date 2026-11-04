@@ -2,23 +2,23 @@ from datetime import date
 
 import pytest
 
-from app.domains import registry
-from app.domains.financials import handler as financials_handler
-from app.domains.financials.categories import FinancialsCategory
-from app.domains.financials.overview import financials_overview_card
+from app.categories import registry
+from app.categories.financials import handler as financials_handler
+from app.categories.financials.kinds import FinancialsKind
+from app.categories.financials.overview import financials_overview_card
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services.extraction import ExtractedStatement
 from app.services.ingestion import Classification, IncomingFile, ingest
 
 
 def test_financials_is_registered():
-    spec = registry.get_spec(Domain.FINANCIALS)
+    spec = registry.get_spec(Category.FINANCIALS)
     assert spec.label == "Financials"
-    assert [c.value for c in spec.kinds] == [c.value for c in FinancialsCategory]
-    explicit_only = {FinancialsCategory.POSITIONS.value, FinancialsCategory.LOAN_HISTORY.value}
+    assert [c.value for c in spec.kinds] == [c.value for c in FinancialsKind]
+    explicit_only = {FinancialsKind.POSITIONS.value, FinancialsKind.LOAN_HISTORY.value}
     assert {c.value for c in spec.kinds if not c.classifiable} == explicit_only
     assert all(c.classifiable for c in spec.kinds if c.value not in explicit_only)
     assert spec.infers_kind is True
@@ -32,15 +32,15 @@ def test_financials_is_registered():
 def test_account_field_offers_accounts(session):
     session.add(Account(name="Revolut", institution="Revolut", account_type=AccountType.WALLET))
     session.commit()
-    account_field = next(f for f in registry.get_spec(Domain.FINANCIALS).fields if f.key == "account_id")
+    account_field = next(f for f in registry.get_spec(Category.FINANCIALS).fields if f.key == "account_id")
     assert [label for _, label in account_field.options(session)] == ["Revolut"]
 
 
 def test_overview_card_reports_spend_and_attention(session):
     document = Document(filename="s.pdf", file_path="/tmp/s.pdf", content_hash="c1",
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.FINANCIALS)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS)
     broken = Document(filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="c2",
-                      source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, domain=Domain.FINANCIALS)
+                      source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, domain=Category.FINANCIALS)
     session.add(document)
     session.add(broken)
     session.commit()
@@ -76,7 +76,7 @@ async def test_handler_infers_category_and_moves_account_to_its_column(session, 
     result = await ingest(
         session,
         IncomingFile("statement.pdf", b"bytes", DocumentSource.MANUAL),
-        Classification(Domain.FINANCIALS, None, {"account_id": str(account.id)}),
+        Classification(Category.FINANCIALS, None, {"account_id": str(account.id)}),
     )
 
     document = result.document
@@ -100,6 +100,6 @@ async def test_handler_skips_llm_classification_when_category_is_given(session, 
     monkeypatch.setattr(financials_handler, "extract_statement_transactions", fake_extract)
 
     result = await ingest(
-        session, IncomingFile("s.pdf", b"b2", DocumentSource.MANUAL), Classification(Domain.FINANCIALS, "statement"),
+        session, IncomingFile("s.pdf", b"b2", DocumentSource.MANUAL), Classification(Category.FINANCIALS, "statement"),
     )
     assert result.document.status == DocumentStatus.PROCESSED

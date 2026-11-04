@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
-from app.models.domain import Domain
+from app.models.category import Category
 
 
 class Todo(SQLModel, table=True):
@@ -19,5 +19,5 @@ class Todo(SQLModel, table=True):
     transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id", index=True)
     record_id: Optional[int] = Field(default=None, foreign_key="records.id", index=True)
-    domain: Optional[Domain] = None
+    domain: Optional[Category] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

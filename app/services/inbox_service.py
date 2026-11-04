@@ -18,15 +18,15 @@ from typing import Mapping, Optional
 
 from sqlmodel import Session, select
 
-from app.domains.fields import InvalidClassification
-from app.domains.registry import get_spec, is_implemented
+from app.categories.fields import InvalidClassification
+from app.categories.registry import get_spec, is_implemented
 from app.models.document import Document, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.inbox_item import InboxItem, InboxSkip
 from app.models.wiki import WikiOperation
 from app.services.domain_classifier import (
     CONFIDENT_THRESHOLD,
-    DomainSuggestion,
+    CategorySuggestion,
     suggest_domain_and_category,
 )
 from app.services.ingestion import (
@@ -110,7 +110,7 @@ async def receive_document(
     # 1. Known, recurring documents are recognised by rules, with no AI (D13).
     recognised = recognise(session, filename=incoming.filename, content=incoming.content, context_text=context_text)
     if recognised is not None:
-        suggestion = DomainSuggestion(Domain(recognised.domain), recognised.paper_kind, 1.0,
+        suggestion = CategorySuggestion(Category(recognised.domain), recognised.paper_kind, 1.0,
                                       "Recognised from " + "; ".join(recognised.reasons))
     else:
         # 2. A paper no rule recognises is read ONCE, inside a High run, to decide what it is (decision D20):
@@ -123,7 +123,7 @@ async def receive_document(
             # document -- it arrives without a suggestion and a human chooses.
             problem = explain("Automatic sorting didn't work.", str(exc))
             note = problem.text + " Tell me what it is."
-            suggestion = DomainSuggestion(None, None, 0.0, note)
+            suggestion = CategorySuggestion(None, None, 0.0, note)
             try:    # nobody is watching this step: keep it on the Problems page too (a down private route shows there)
                 record_problem(session, area="Reading documents", ref=f"document:{document.id}",
                                problem=Problem(problem.what, problem.why, problem.next_step, "/inbox"),
@@ -143,16 +143,16 @@ async def receive_document(
     return InboxReceipt(document=document, inbox_item=item, duplicate=False)
 
 
-def suggested_domain(item: InboxItem) -> Optional[Domain]:
+def suggested_domain(item: InboxItem) -> Optional[Category]:
     """The suggestion as a registered Domain, or None if it no longer is one."""
     try:
-        domain = Domain(item.suggested_domain) if item.suggested_domain else None
+        domain = Category(item.suggested_domain) if item.suggested_domain else None
     except ValueError:
         return None
     return domain if is_implemented(domain) else None
 
 
-def describe(domain: Optional[Domain], category: Optional[str]) -> Optional[str]:
+def describe(domain: Optional[Category], category: Optional[str]) -> Optional[str]:
     if not is_implemented(domain):
         return None
     spec = get_spec(domain)
@@ -225,7 +225,7 @@ async def approve(
 ) -> Document:
     document, item = _pending(session, document_id)
     try:
-        domain = Domain(domain_value)
+        domain = Category(domain_value)
     except ValueError:
         raise InvalidClassification({"domain": "Choose an area"}) from None
     classification = Classification(domain=domain, paper_kind=category or None, fields=dict(fields))

@@ -6,10 +6,10 @@ from datetime import date
 
 import pytest
 
-from app.domains.health import extraction as ex
-from app.domains.health import store
-from app.domains.health.checks import check_reading, numbers_in, unresolved_notes
-from app.domains.health.reading import read_health_document
+from app.categories.health import extraction as ex
+from app.categories.health import store
+from app.categories.health.checks import check_reading, numbers_in, unresolved_notes
+from app.categories.health.reading import read_health_document
 from app.llm_gateway import GatewayError
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.test_health_extraction import _png
@@ -132,13 +132,13 @@ async def test_notes_are_kept_on_the_paper_count_as_to_check_and_clear_when_a_pe
                    gateway_text_result(json.dumps(wrong)), gateway_text_result(json.dumps(WIKI_REPLY))]   # second reading, wiki
     from app.llm_gateway import set_gateway_provider
     from app.models.document import DocumentSource
-    from app.models.domain import Domain
+    from app.models.category import Category
     from app.services.ingestion import Classification, IncomingFile, ingest
     monkeypatch.setattr("app.services.storage.settings.DOCUMENTS_DIR", tmp_path / "documents")
     set_gateway_provider(lambda: wire.client())
     try:
         doc = (await ingest(session, IncomingFile("lab.png", b"\x89PNG\r\n\x1a\nq", DocumentSource.MANUAL, "t"),
-                            Classification(Domain.HEALTH, "lab_result", {}))).document
+                            Classification(Category.HEALTH, "lab_result", {}))).document
     finally:
         set_gateway_provider(None)
     entry = store.entry_for(session, doc.id)
@@ -168,7 +168,7 @@ async def test_a_printed_price_or_co_payment_is_not_a_missing_line_and_asks_noth
 
 
 def test_both_prompts_tell_the_model_to_leave_out_prices_and_payments():
-    from app.domains.health.reading import _REPAIR_SYSTEM
+    from app.categories.health.reading import _REPAIR_SYSTEM
     sentence = ("Leave out prices, fees, co-payments (taxa moderadora), totals, payments and reimbursements: "
                 "billing is handled elsewhere.")
     assert sentence in ex._SYSTEM and sentence in _REPAIR_SYSTEM

@@ -23,11 +23,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlmodel import Session, func, select  # noqa: E402
 
 from app.db import engine  # noqa: E402
-from app.domains.base import UnknownKindError  # noqa: E402
-from app.domains.registry import get_spec  # noqa: E402
+from app.categories.base import UnknownKindError  # noqa: E402
+from app.categories.registry import get_spec  # noqa: E402
 from app.models.account import Account  # noqa: E402
 from app.models.document import Document, DocumentStatus  # noqa: E402
-from app.models.domain import Domain  # noqa: E402
+from app.models.category import Category  # noqa: E402
 from app.models.transaction import Transaction  # noqa: E402
 from app.privacy.settings import configured_tier  # noqa: E402
 
@@ -38,7 +38,7 @@ REVOLUT_STATEMENT = re.compile(r"^account-statement_.*\.pdf$", re.I)
 
 def decide(session: Session, document: Document) -> tuple[str, int | None] | None:
     """(kind, account to move it to or None), or None when no rule fits and a person must choose."""
-    if document.domain != Domain.FINANCIALS:
+    if document.domain != Category.FINANCIALS:
         return None
     if SANTANDER_STATEMENT.match(document.filename):
         return "statement", None

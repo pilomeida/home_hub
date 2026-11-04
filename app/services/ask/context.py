@@ -10,7 +10,7 @@ from typing import Optional
 
 from sqlmodel import Session, func, select
 
-from app.domains.registry import implemented_domains
+from app.categories.registry import implemented_domains
 from app.models.document import Document, DocumentStatus
 from app.models.inbox_item import InboxItem
 from app.privacy.reach import LeftOut, Reach, reach_for

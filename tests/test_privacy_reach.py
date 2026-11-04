@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from app.llm_gateway import GatewayClient
 from app.models.ask import AskStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.schedule import ProblemEntry
 from app.models.wiki import WikiClaimSource
 from app.privacy import settings as ps
@@ -275,9 +275,9 @@ async def test_a_type_set_later_brings_its_content_back(session, world):
 
 
 def test_a_record_follows_its_own_type_and_its_attached_file_is_checked_separately(session, inbox_documents_dir):
-    attachment = make_document(session, domain=Domain.HOUSE, category="ownership_document",
+    attachment = make_document(session, domain=Category.HOUSE, category="ownership_document",
                                filename=f"{pw.HIDES}-receipt.pdf", file_path=str(inbox_documents_dir / "r.pdf"))
-    record = make_record(session, domain=Domain.HOUSE, category="maintenance_log", document_id=attachment.id,
+    record = make_record(session, domain=Category.HOUSE, category="maintenance_log", document_id=attachment.id,
                          fields={"item_name": "Boiler", "notes": "serviced"})
     pw.set_levels(session, low=["house/maintenance_log"], hides=["house/ownership_document"])
     reach = compute_reach(session)
@@ -293,9 +293,9 @@ def test_a_record_follows_its_own_type_and_its_attached_file_is_checked_separate
     assert settled_entries(session, reach=reach.without_private()) == []                    # ... but not in the first call's view
 
     # A file of a readable type that is attached to a record of a left-out type is not readable either.
-    receipt = make_document(session, domain=Domain.HOUSE, category="house_appliance", filename="receipt.pdf",
+    receipt = make_document(session, domain=Category.HOUSE, category="house_appliance", filename="receipt.pdf",
                             file_path=str(inbox_documents_dir / "receipt.pdf"))
-    make_record(session, domain=Domain.HOUSE, category="maintenance_log", document_id=receipt.id)
+    make_record(session, domain=Category.HOUSE, category="maintenance_log", document_id=receipt.id)
     ps.save_type(session, "house", "house_appliance", "house_low", False, "pedro")
     reach = compute_reach(session).without_private()
     assert reach.includes_document(receipt) and not reach.includes_file_of(session, receipt)

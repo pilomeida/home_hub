@@ -8,23 +8,23 @@ from typing import Optional
 
 from sqlmodel import Session, func, select
 
-from app.domains.registry import get_spec
-from app.models.domain import Domain
+from app.categories.registry import get_spec
+from app.models.category import Category
 from app.models.todo import Todo
 
 
-def open_todos_for_domain(session: Session, domain: Domain) -> list[Todo]:
+def open_todos_for_domain(session: Session, domain: Category) -> list[Todo]:
     todos = session.exec(select(Todo).where(Todo.done == False, Todo.domain == domain)).all()  # noqa: E712
     return sorted(todos, key=lambda t: (t.due_date is None, t.due_date or date.max, t.created_at))
 
 
-def open_todo_count(session: Session, domain: Domain) -> int:
+def open_todo_count(session: Session, domain: Category) -> int:
     return session.exec(
         select(func.count()).select_from(Todo).where(Todo.done == False, Todo.domain == domain)  # noqa: E712
     ).one()
 
 
-def add_todo(session: Session, title: str, domain: Domain, due_date: Optional[date] = None) -> Todo:
+def add_todo(session: Session, title: str, domain: Category, due_date: Optional[date] = None) -> Todo:
     clean = title.strip()
     if not clean:
         raise ValueError("A to-do needs a title")
@@ -35,7 +35,7 @@ def add_todo(session: Session, title: str, domain: Domain, due_date: Optional[da
     return todo
 
 
-def backlog_context(session: Session, domain: Domain) -> dict:
+def backlog_context(session: Session, domain: Category) -> dict:
     return {
         "backlog_domain": domain,
         "backlog_label": get_spec(domain).label,

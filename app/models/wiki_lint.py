@@ -7,7 +7,7 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
-from app.models.domain import Domain
+from app.models.category import Category
 
 
 class LintRunStatus(str, Enum):
@@ -59,7 +59,7 @@ class LintFinding(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     fingerprint: str = Field(index=True)
     kind: LintFindingKind
-    domain: Optional[Domain] = None
+    domain: Optional[Category] = None
     summary: str
     suggested_action: Optional[str] = None
     wiki_page_ids_json: str = Field(default="[]")   # order kept (MISSING_LINK/STALE_LINK = [from, to])

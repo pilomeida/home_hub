@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from scripts.backfill_health import backfill
-from app.models.domain import Domain
-from app.services.domain_classifier import DomainSuggestion
+from app.models.category import Category
+from app.services.domain_classifier import CategorySuggestion
 
 
 @pytest.fixture(autouse=True)
@@ -23,8 +23,8 @@ async def test_papers_land_in_the_inbox_and_confident_health_ones_are_approved_o
     async def classify(path, context_text):
         # The stored copy has a uuid name (save_file), so tell the papers apart by their stored bytes.
         if Path(path).read_bytes().endswith(b" a"):
-            return DomainSuggestion(Domain.HEALTH, "lab_result", 0.95, "lab")
-        return DomainSuggestion(None, None, 0.0, "unsure")
+            return CategorySuggestion(Category.HEALTH, "lab_result", 0.95, "lab")
+        return CategorySuggestion(None, None, 0.0, "unsure")
 
     async def fake_approve(session, document_id, **kwargs):          # filing itself is covered by test_health_handler
         fake_approve.calls.append((document_id, kwargs["domain_value"], kwargs["category"]))

@@ -21,14 +21,14 @@ from typing import Any, Mapping, Optional
 
 from sqlmodel import Session, select
 
-from app.domains.base import DomainSpec, SourceKind, UnknownKindError
-from app.domains.entries import record_for_document
-from app.domains.fields import (
+from app.categories.base import CategorySpec, SourceKind, UnknownKindError
+from app.categories.entries import record_for_document
+from app.categories.fields import (
     InvalidClassification, dump_fields, load_fields, media_kind_for, validate_fields,
 )
-from app.domains.registry import UnknownDomainError, get_spec
+from app.categories.registry import UnknownCategoryError, get_spec
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.models.todo import Todo
 from app.services.dedup import find_existing_document_by_hash
@@ -48,7 +48,7 @@ class IncomingFile:
 
 @dataclass(frozen=True)
 class Classification:
-    domain: Domain
+    domain: Category
     paper_kind: Optional[str] = None
     fields: Mapping[str, Any] = field(default_factory=dict)
 
@@ -61,7 +61,7 @@ class ReceiveResult:
 
 @dataclass
 class ValidatedClassification:
-    spec: DomainSpec
+    spec: CategorySpec
     paper_kind: Optional[str]
     fields: dict[str, str]
 
@@ -80,7 +80,7 @@ class RefileRefusedError(Exception):
 
 @dataclass(frozen=True)
 class RecordInput:
-    domain: Domain
+    domain: Category
     paper_kind: str
     fields: Mapping[str, Any] = field(default_factory=dict)
     entered_by: Optional[str] = None
@@ -102,7 +102,7 @@ def _target_kind(classification: Classification) -> Optional[SourceKind]:
     cases are left for validate_classification to report as usual."""
     try:
         spec = get_spec(classification.domain)
-    except UnknownDomainError:
+    except UnknownCategoryError:
         return None
     category = (classification.paper_kind or "").strip() or None
     if category is None:
@@ -113,7 +113,7 @@ def _target_kind(classification: Classification) -> Optional[SourceKind]:
         return None
 
 
-def _not_hand_entered_error(spec: DomainSpec, category: Optional[str]) -> InvalidClassification:
+def _not_hand_entered_error(spec: CategorySpec, category: Optional[str]) -> InvalidClassification:
     label = spec.kind_label(category)
     return InvalidClassification({"category": f"{label} is filed from a document, not entered by hand"})
 
@@ -132,7 +132,7 @@ def mark_needs_attention(session: Session, document: Document, reason: str) -> D
     try:
         link = None
         if document.domain is not None:
-            from app.domains.registry import document_url
+            from app.categories.registry import document_url
             link = document_url(document)
         problem = explain(f"{document.filename} wasn't processed.", reason)
         record_problem(session, area="Reading documents",
@@ -169,7 +169,7 @@ def validate_classification(
 ) -> ValidatedClassification:
     try:
         spec = get_spec(classification.domain)
-    except UnknownDomainError:
+    except UnknownCategoryError:
         raise InvalidClassification({"domain": "Choose a domain that exists"}) from None
 
     category = (classification.paper_kind or "").strip() or None
@@ -358,7 +358,7 @@ def _drop_open_derived_todos(session: Session, *, document_id: Optional[int] = N
     session.commit()
 
 
-def _describe(spec: DomainSpec, category: Optional[str]) -> str:
+def _describe(spec: CategorySpec, category: Optional[str]) -> str:
     return f"{spec.label} / {spec.kind_label(category) or 'auto'}"
 
 

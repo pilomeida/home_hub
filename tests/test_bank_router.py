@@ -195,12 +195,12 @@ def test_bank_notices_on_error(session):
 
 def test_banner_shows_on_financials_pages_not_others(client, session):
     from app.models.document import Document, DocumentSource
-    from app.models.domain import Domain
+    from app.models.category import Category
     conn, link = _sync_now_seed(session)
     conn.valid_until = datetime.utcnow() + timedelta(days=5, hours=2)
     session.add(conn); session.commit()
     doc = Document(filename="s.pdf", file_path="/x", content_hash="b1",
-                   source=DocumentSource.API, domain=Domain.FINANCIALS)
+                   source=DocumentSource.API, domain=Category.FINANCIALS)
     session.add(doc); session.commit()
     assert "expires in 5 days" in client.get("/financials/bank/").text
     assert "expires in 5 days" in client.get("/financials/bills").text

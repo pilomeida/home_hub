@@ -13,11 +13,11 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-from app.domains.financials.ask import FINANCIALS_ASK_TOOLS
-from app.domains.financials.overview import financials_overview_card
+from app.categories.financials.ask import FINANCIALS_ASK_TOOLS
+from app.categories.financials.overview import financials_overview_card
 from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services.budget_service import get_budget_overview
 from app.services.overview_service import get_cash_kpi, get_category_comparison, get_overview_data
@@ -38,7 +38,7 @@ RIGHT = 11.0  # counting + confirmed
 
 @pytest.fixture()
 def doc(session):
-    return make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
+    return make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
 
 
 def five(session, doc, *, scale=1.0, post=None, **common):

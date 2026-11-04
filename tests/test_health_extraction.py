@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from app.domains.health.extraction import HealthExtractionError, extract_health_document
-from app.domains.health.store import measurement_needs_check
+from app.categories.health.extraction import HealthExtractionError, extract_health_document
+from app.categories.health.store import measurement_needs_check
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 
 REPLY = {
@@ -61,7 +61,7 @@ async def test_a_file_the_model_cannot_read_is_refused_before_any_call(tmp_path)
 
 
 def test_a_measurement_needs_checking_when_unsure_empty_or_a_bare_number():
-    from app.domains.health.extraction import ExtractedMeasurement as M
+    from app.categories.health.extraction import ExtractedMeasurement as M
     ok = M("LDL", 162.0, None, "mg/dL", None, 100.0, None, False, "")
     assert not measurement_needs_check(ok)
     assert measurement_needs_check(M("LDL", 162.0, None, "mg/dL", None, 100.0, None, True, ""))
@@ -74,7 +74,7 @@ def test_a_measurement_needs_checking_when_unsure_empty_or_a_bare_number():
 
 
 def test_the_prompt_asks_for_every_data_point_their_headings_references_and_the_papers_language():
-    from app.domains.health.extraction import _SYSTEM
+    from app.categories.health.extraction import _SYSTEM
     assert "language of the paper" in _SYSTEM and "não detectável" in _SYSTEM and '"< 3"' in _SYSTEM
     assert "previous" in _SYSTEM and "details" in _SYSTEM
     assert "path" in _SYSTEM and "headings" in _SYSTEM and "Risco elevado" in _SYSTEM and '"a - b"' in _SYSTEM

@@ -8,10 +8,10 @@ from types import SimpleNamespace
 
 from sqlmodel import select
 
-from app.domains.health import extraction as ex
-from app.domains.health import store
-from app.domains.health.text import PATH_SEP
-from app.models.domain import Domain
+from app.categories.health import extraction as ex
+from app.categories.health import store
+from app.categories.health.text import PATH_SEP
+from app.models.category import Category
 from app.models.health import HealthEntry, HealthTopic
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.knowledge_factories import make_document
@@ -42,7 +42,7 @@ def _file(session, tmp_path, reply, name="r.pdf", notes=()):
     got = asyncio.run(ex.extract_health_document(
         _png(tmp_path), None, gateway=FakeGateway([gateway_text_result(json.dumps(reply))])))
     got.check_notes = list(notes)
-    document = make_document(session, domain=Domain.HEALTH, category=reply["category"], filename=name)
+    document = make_document(session, domain=Category.HEALTH, category=reply["category"], filename=name)
     entry = store.apply_extraction(session, document, got)
     return document, entry
 
@@ -240,7 +240,7 @@ def test_confirming_an_outline_that_cannot_be_kept_gives_the_three_part_detail(c
     assert r.status_code == 409
     detail = r.json()["detail"]
     assert detail["what"] == "Outline not confirmed." and detail["why"] and detail["next_step"]
-    other = make_document(session, domain=Domain.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
     assert client.post(f"/health/documents/{other.id}/outline/ok").status_code == 404
 
 
@@ -264,7 +264,7 @@ def test_text_from_the_paper_is_escaped_on_the_paper_and_the_thread_pages(client
 
 
 def test_the_health_menu_links_to_the_topics_page():
-    from app.domains.health.spec import SPEC
+    from app.categories.health.spec import SPEC
     assert ("Topics", "/health/topics") in [(link.label, link.url) for link in SPEC.nav_links]
 
 

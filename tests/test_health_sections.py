@@ -6,9 +6,9 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains.health import extraction as ex
-from app.domains.health import store
-from app.domains.health.text import limits_from_reference, reference_for_display, spaced_intervals, split_method
+from app.categories.health import extraction as ex
+from app.categories.health import store
+from app.categories.health.text import limits_from_reference, reference_for_display, spaced_intervals, split_method
 from app.models.health import HealthMeasurement
 from tests import privacy_world as pw
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
@@ -206,7 +206,7 @@ async def test_a_result_outside_its_reference_has_a_visible_cue_on_the_paper_and
 
 @pytest.mark.asyncio
 async def test_ask_gets_the_whole_history_of_a_test_once_each_point_with_its_own_date(session):
-    from app.domains.health.ask import HEALTH_TOOLS
+    from app.categories.health.ask import HEALTH_TOOLS
     from app.privacy.scope import reachable_scope
     pw.set_levels(session, on=False)
 

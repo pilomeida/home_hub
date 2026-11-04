@@ -63,17 +63,17 @@ def test_document_domain_defaults_to_none(session):
 
 
 def test_document_domain_can_be_set(session):
-    from app.models.domain import Domain
+    from app.models.category import Category
 
     document = Document(
         filename="s.pdf", file_path="/tmp/s.pdf", content_hash="hash-domain-set",
-        source=DocumentSource.MANUAL, domain=Domain.FINANCIALS,
+        source=DocumentSource.MANUAL, domain=Category.FINANCIALS,
     )
     session.add(document)
     session.commit()
     session.refresh(document)
 
-    assert document.domain == Domain.FINANCIALS
+    assert document.domain == Category.FINANCIALS
 
 
 def test_document_category_and_fields_default(session):
@@ -90,18 +90,18 @@ def test_document_category_and_fields_default(session):
 
 
 def test_document_accepts_house_domain_category_and_fields(session):
-    from app.models.domain import Domain
+    from app.models.category import Category
 
     document = Document(
         filename="boiler-warranty.pdf", file_path="/tmp/boiler-warranty.pdf",
         content_hash="hash-house", source=DocumentSource.MANUAL,
-        domain=Domain.HOUSE, paper_kind="warranty_invoice",
+        domain=Category.HOUSE, paper_kind="warranty_invoice",
         fields_json='{"item_name": "Boiler"}',
     )
     session.add(document)
     session.commit()
     session.refresh(document)
 
-    assert document.domain == Domain.HOUSE
+    assert document.domain == Category.HOUSE
     assert document.paper_kind == "warranty_invoice"
     assert document.fields_json == '{"item_name": "Boiler"}'

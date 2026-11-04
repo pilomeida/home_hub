@@ -1,15 +1,15 @@
-"""A fake DomainSpec for testing shared code against the registry contract
+"""A fake CategorySpec for testing shared code against the registry contract
 without depending on any real domain."""
 
-from app.domains.base import (
-    CardLine, KindSpec, DomainCard, DomainHandler, DomainSpec, EntityTypeSpec,
+from app.categories.base import (
+    CardLine, KindSpec, CategoryCard, CategoryHandler, CategorySpec, EntityTypeSpec,
     FactPolicy, FactSpec, FieldKind, FieldSpec, MediaKind, NavLink, SourceKind, WikiSchema,
 )
 from app.models.document import DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 
 
-class RecordingHandler(DomainHandler):
+class RecordingHandler(CategoryHandler):
     def __init__(self, fail_with: Exception | None = None):
         self.processed: list[int] = []
         self.changed: list[tuple[int, dict]] = []
@@ -29,8 +29,8 @@ class RecordingHandler(DomainHandler):
         self.changed.append((document.id, previous_fields))
 
 
-def make_fake_spec(handler=None, domain=Domain.HOUSE, infers_kind=False, wiki_guidance=""):
-    return DomainSpec(
+def make_fake_spec(handler=None, domain=Category.HOUSE, infers_kind=False, wiki_guidance=""):
+    return CategorySpec(
         domain=domain,
         label="Fake",
         description="A fake domain used by tests.",
@@ -54,7 +54,7 @@ def make_fake_spec(handler=None, domain=Domain.HOUSE, infers_kind=False, wiki_gu
         ),
         handler=handler or RecordingHandler(),
         nav_links=(NavLink("Fake home", "/fake"),),
-        overview_card=lambda session, today: DomainCard(label="Fake", url="/fake", lines=[CardLine("fake line")]),
+        overview_card=lambda session, today: CategoryCard(label="Fake", url="/fake", lines=[CardLine("fake line")]),
         document_url=lambda document: f"/fake/documents/{document.id}",
         wiki=WikiSchema(
             guidance=wiki_guidance,

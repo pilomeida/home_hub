@@ -11,8 +11,8 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.domains.base import DomainSpec, SourceKind
-from app.domains.registry import implemented_domains
+from app.categories.base import CategorySpec, SourceKind
+from app.categories.registry import implemented_domains
 from app.models.wiki import ANSWER_PAGE_TYPE, WikiClaim, WikiPage
 from app.models.wiki_lint import LintFindingKind
 from app.privacy.ratchet import ratchet_scope
@@ -76,7 +76,7 @@ _FINDINGS_SCHEMA = {
 
 
 @dataclass
-class DomainPayload:
+class CategoryPayload:
     text: str
     page_ids: set[int]
     claims: dict[int, WikiClaim]
@@ -84,7 +84,7 @@ class DomainPayload:
     record_ids: set[int]
 
 
-def _schema_text(spec: DomainSpec) -> str:
+def _schema_text(spec: CategorySpec) -> str:
     lines = [spec.wiki.guidance or "(no free-form guidance)"]
     for et in spec.wiki.entity_types:
         facts = ", ".join(f.label for f in et.facts) or "none"
@@ -94,7 +94,7 @@ def _schema_text(spec: DomainSpec) -> str:
     return "\n".join(lines)
 
 
-def build_domain_payload(session: Session, spec: DomainSpec, reach: Optional[Reach] = None) -> DomainPayload:
+def build_domain_payload(session: Session, spec: CategorySpec, reach: Optional[Reach] = None) -> CategoryPayload:
     """What the AI audit is shown. While levels are binding (app/privacy/reach.py) that is only the pages,
     claims and sources of types the audit may read: a claim derived from any withheld source is left out,
     a page whose claims are all left out is left out, and the audit's ids can only name what it was shown.
@@ -127,10 +127,10 @@ def build_domain_payload(session: Session, spec: DomainSpec, reach: Optional[Rea
             ref = f"doc {e.document.id}"
         lines.append(f"{ref} | {e.paper_kind or '-'} | {e.title} | added {e.created_at:%Y-%m-%d} | "
                      f"{entry_fields_text(e) or 'no details'}")
-    return DomainPayload("\n".join(lines), {p.id for p in pages}, claims, doc_ids, rec_ids)
+    return CategoryPayload("\n".join(lines), {p.id for p in pages}, claims, doc_ids, rec_ids)
 
 
-async def check_domain(session: Session, spec: DomainSpec, gateway=None) -> list[FindingDraft]:
+async def check_domain(session: Session, spec: CategorySpec, gateway=None) -> list[FindingDraft]:
     reach = reach_for(session)
     private = reach.domain_has_private(spec.domain)
     # A domain that holds private records is audited as a whole at High; every other domain is audited

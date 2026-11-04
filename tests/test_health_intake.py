@@ -7,11 +7,11 @@ from sqlmodel import select
 from app.channels.telegram_bot import reply_for
 from app.models.document import DocumentSource
 from app.llm_gateway import GatewayError
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.schedule import ProblemEntry
 from app.privacy.ratchet import current_ratchet
 from app.privacy.tiers import Tier
-from app.services.domain_classifier import DomainSuggestion
+from app.services.domain_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 from app.services.inbox_service import receive_document
 from tests import privacy_world as pw
@@ -34,7 +34,7 @@ async def test_an_unrecognised_paper_is_classified_inside_a_high_run_whatever_th
 
     async def classify(path, context_text):
         seen.append(current_ratchet().tier if current_ratchet() else None)
-        return DomainSuggestion(Domain.HEALTH, "lab_result", 0.93, "looks like a lab result")
+        return CategorySuggestion(Category.HEALTH, "lab_result", 0.93, "looks like a lab result")
 
     receipt = await receive_document(session, _incoming(), context_text=None, external_ref="x", classify=classify)
     assert seen == [Tier.HIGH]
@@ -78,7 +78,7 @@ async def test_the_telegram_reply_for_a_private_type_does_not_name_it(session):
     pw.set_levels(session, on=False)
 
     async def classify(path, context_text):
-        return DomainSuggestion(Domain.HEALTH, "lab_result", 0.95, "x")
+        return CategorySuggestion(Category.HEALTH, "lab_result", 0.95, "x")
 
     receipt = await receive_document(session, _incoming(), context_text=None, external_ref="z", classify=classify)
     reply = reply_for(receipt, "https://hub.example", session)
@@ -91,7 +91,7 @@ async def test_the_telegram_reply_for_an_ordinary_type_still_names_it(session):
     pw.set_levels(session, on=False)
 
     async def classify(path, context_text):
-        return DomainSuggestion(Domain.HOUSE, "house_appliance", 0.95, "x")
+        return CategorySuggestion(Category.HOUSE, "house_appliance", 0.95, "x")
 
     receipt = await receive_document(session, _incoming("a.pdf", b"%PDF other"), context_text=None, external_ref="w", classify=classify)
     assert "Appliance" in reply_for(receipt, "https://hub.example", session) or \

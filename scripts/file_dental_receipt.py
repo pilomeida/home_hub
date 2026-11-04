@@ -13,9 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlmodel import Session, select  # noqa: E402
 
 from app.db import engine  # noqa: E402
-from app.domains.financials.categories import FinancialsCategory  # noqa: E402
+from app.categories.financials.kinds import FinancialsKind  # noqa: E402
 from app.models.document import Document  # noqa: E402
-from app.models.domain import Domain  # noqa: E402
+from app.models.category import Category  # noqa: E402
 from app.models.merchant import Merchant  # noqa: E402
 from app.models.transaction import Transaction  # noqa: E402
 from app.services.classification_engine import normalize_provider  # noqa: E402
@@ -47,9 +47,9 @@ async def main(document_id: int) -> int:
         if document is None:
             print(f"{document_id}: no such document")
             return 1
-        if document.domain != Domain.FINANCIALS:
+        if document.domain != Category.FINANCIALS:
             document = await refile_document(
-                session, document, Classification(domain=Domain.FINANCIALS, paper_kind=FinancialsCategory.BILL.value))
+                session, document, Classification(domain=Category.FINANCIALS, paper_kind=FinancialsKind.BILL.value))
         node = get_node(session, DENTAL_SLUG)
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document_id)).all()
         for txn in transactions:

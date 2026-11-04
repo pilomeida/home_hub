@@ -9,11 +9,11 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
 from app.db import get_session
-from app.domains.entries import record_for_document
-from app.domains.fields import InvalidClassification, build_form_fields, load_fields, media_kind_for
-from app.domains.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
+from app.categories.entries import record_for_document
+from app.categories.fields import InvalidClassification, build_form_fields, load_fields, media_kind_for
+from app.categories.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
 from app.models.document import Document
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.problems import file_notices, notice
 from app.services.ingestion import Classification, RefileRefusedError, refile_document, refile_record
@@ -24,16 +24,16 @@ router = APIRouter(tags=["documents"])
 _NON_FIELD_KEYS = {"domain", "category"}
 
 
-def _domain_or_none(value: Optional[str]) -> Optional[Domain]:
+def _domain_or_none(value: Optional[str]) -> Optional[Category]:
     try:
-        domain = Domain(value) if value else None
+        domain = Category(value) if value else None
     except ValueError:
         return None
     return domain if is_implemented(domain) else None
 
 
 def _context(session: Session, *, action: str, title: str, has_file: bool, filename: Optional[str],
-             domain: Optional[Domain], category: Optional[str], values: dict, errors: dict,
+             domain: Optional[Category], category: Optional[str], values: dict, errors: dict,
              refused: Optional[str] = None) -> dict:
     spec = get_spec(domain) if domain else None
     media_kind = media_kind_for(filename) if filename else None
@@ -46,7 +46,7 @@ def _context(session: Session, *, action: str, title: str, has_file: bool, filen
     }
 
 
-def _form_values(form) -> tuple[Optional[Domain], Optional[str], dict]:
+def _form_values(form) -> tuple[Optional[Category], Optional[str], dict]:
     values = {k: v for k, v in form.items() if k not in _NON_FIELD_KEYS and isinstance(v, str)}
     return _domain_or_none(form.get("domain")), (form.get("category") or "").strip() or None, values
 

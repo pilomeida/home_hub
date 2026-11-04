@@ -26,7 +26,7 @@ from sqlmodel import Session
 
 from app.db import engine
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.models.utility_reading import UtilityReading, UtilityType
 from app.services.dedup import find_existing_document_by_hash
@@ -162,7 +162,7 @@ def backfill() -> None:
                 status=DocumentStatus.PROCESSED,
                 paper_kind="bill",
                 uploaded_by="backfill-electricity-history-script",
-                domain=Domain.FINANCIALS,
+                domain=Category.FINANCIALS,
             )
             session.add(document)
             session.commit()

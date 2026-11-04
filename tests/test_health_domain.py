@@ -2,21 +2,21 @@
 
 import pytest
 
-from app.domains.registry import get_spec, implemented_domains, is_implemented
-from app.models.domain import Domain
+from app.categories.registry import get_spec, implemented_domains, is_implemented
+from app.models.category import Category
 from app.privacy import settings as ps
 from app.privacy.scope import current_scope, privacy_scope
 from app.privacy.tiers import Tier, TierBlocked
 from app.services.domain_classifier import build_system_prompt
 
-HEALTH_CATEGORIES = {"lab_result", "imaging_report", "medical_report", "prescription", "referral",
+HEALTH_KINDS = {"lab_result", "imaging_report", "medical_report", "prescription", "referral",
                      "vaccination", "appointment"}
 
 
 def test_health_is_a_registered_domain_with_the_agreed_categories():
-    assert Domain.HEALTH.value == "health" and is_implemented(Domain.HEALTH)
-    spec = get_spec(Domain.HEALTH)
-    assert {c.value for c in spec.kinds} == HEALTH_CATEGORIES
+    assert Category.HEALTH.value == "health" and is_implemented(Category.HEALTH)
+    spec = get_spec(Category.HEALTH)
+    assert {c.value for c in spec.kinds} == HEALTH_KINDS
     assert spec.home_url == "/health/records"
 
 
@@ -30,7 +30,7 @@ def test_the_classifier_no_longer_offers_bills_under_health():
 
 
 def test_health_fields_mark_what_must_never_leave_the_hub():
-    spec = get_spec(Domain.HEALTH)
+    spec = get_spec(Category.HEALTH)
     private = {f.key for f in spec.fields if f.private}
     admin = {f.key for f in spec.fields if not f.private}
     assert {"record_kind", "summary", "notes", "indication", "clinical_notes", "requested_by", "performed_by"} <= private
@@ -40,15 +40,15 @@ def test_health_fields_mark_what_must_never_leave_the_hub():
 
 def test_health_is_high_even_when_levels_are_not_binding(session):
     assert ps.enforcing(session) is False
-    res = ps.resolve(session, Domain.HEALTH, "lab_result")
+    res = ps.resolve(session, Category.HEALTH, "lab_result")
     assert (res.state, res.tier, res.redact) == ("ready", Tier.HIGH, False)
-    assert ps.configured_tier(session, Domain.HEALTH, "lab_result") == "house_high"
+    assert ps.configured_tier(session, Category.HEALTH, "lab_result") == "house_high"
     # other domains are unchanged
-    assert ps.resolve(session, Domain.HOUSE, "house_appliance").state == "off"
+    assert ps.resolve(session, Category.HOUSE, "house_appliance").state == "off"
 
 
 def test_the_privacy_scope_for_health_carries_high_and_never_holds(session):
-    with privacy_scope(session, Domain.HEALTH, "lab_result") as scope:
+    with privacy_scope(session, Category.HEALTH, "lab_result") as scope:
         assert scope.tier == Tier.HIGH and scope.redaction is None
         assert current_scope().tier == Tier.HIGH
 
@@ -74,9 +74,9 @@ def test_confirm_suggestions_never_touches_health(session):
 def test_a_whole_domain_lookup_for_health_is_high_too(session):
     from app.privacy.scope import resolve_strictest
     assert ps.enforcing(session) is False
-    res = resolve_strictest(session, Domain.HEALTH, None)
+    res = resolve_strictest(session, Category.HEALTH, None)
     assert (res.state, res.tier, res.redact) == ("ready", Tier.HIGH, False)
-    assert resolve_strictest(session, Domain.HOUSE, None).state == "off"
+    assert resolve_strictest(session, Category.HOUSE, None).state == "off"
 
 
 class _NoJobs:

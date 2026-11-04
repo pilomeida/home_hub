@@ -1,6 +1,6 @@
 """The contract between the Ask engine and anything that feeds it context.
 Core tools (wiki, documents, todos) and domain tools declared on a
-DomainSpec (spec.ask_tools) all implement AskTool, so a new domain plugs
+CategorySpec (spec.ask_tools) all implement AskTool, so a new domain plugs
 into Ask through its registry entry without editing Ask.
 
 PRIVACY: a tool that returns anything read from a document, record, wiki claim, transaction or to-do

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.wiki_lint import LintFindingKind
 from app.services.wiki_lint import llm_checks
 from tests.fakes.fake_gateway import FakeGateway
@@ -38,7 +38,7 @@ async def test_contradiction_parsed_and_unknown_ids_filtered(session, fake_domai
 
     assert len(drafts) == 1
     d = drafts[0]
-    assert d.kind == LintFindingKind.CONTRADICTION and d.wiki_page_ids == (boiler.id,) and d.domain == Domain.HOUSE
+    assert d.kind == LintFindingKind.CONTRADICTION and d.wiki_page_ids == (boiler.id,) and d.domain == Category.HOUSE
     assert d.record_ids == (visit.id,)
     call = client.requests[0]
     assert call["workload_type"] == "critique_review"

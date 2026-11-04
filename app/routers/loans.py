@@ -15,11 +15,11 @@ from sqlmodel import Session, select
 
 from app.baseline import BASELINE_DATE
 from app.db import get_session
-from app.domains.fields import InvalidClassification
+from app.categories.fields import InvalidClassification
 from app.models.category_node import CategoryNode
 from app.models.debt import Debt, DebtDirection
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.person import Person
 from app.models.position import DebtEntry, LoanAlert, LoanMovement, LoanSnapshot, PositionExtraction
 from app.models.transaction import Transaction, TransactionType
@@ -281,7 +281,7 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
         received = await ingest(
             session,
             IncomingFile(name, content, DocumentSource.MANUAL, getattr(request.state, "user_email", None)),
-            Classification(domain=Domain.FINANCIALS, paper_kind=slot["category"], fields={}),
+            Classification(domain=Category.FINANCIALS, paper_kind=slot["category"], fields={}),
         )
         document = received.document
         if not received.duplicate:

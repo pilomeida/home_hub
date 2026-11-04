@@ -5,11 +5,11 @@ from datetime import date
 
 import pytest
 
-from app.domains.fields import load_fields
-from app.domains.health import extraction as ex
-from app.domains.health import store
+from app.categories.fields import load_fields
+from app.categories.health import extraction as ex
+from app.categories.health import store
 from app.models.document import DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.knowledge_factories import make_document
 from tests.test_health_context import CONTEXT_REPLY
@@ -17,7 +17,7 @@ from tests.test_health_extraction import _png
 
 
 async def _filed(session, tmp_path, reply):
-    document = make_document(session, domain=Domain.HEALTH, category="imaging_report", filename="doppler.pdf")
+    document = make_document(session, domain=Category.HEALTH, category="imaging_report", filename="doppler.pdf")
     got = await ex.extract_health_document(_png(tmp_path), None, gateway=FakeGateway([gateway_text_result(json.dumps(reply))]))
     store.apply_extraction(session, document, got)
     return document
@@ -61,12 +61,12 @@ async def test_a_persons_own_reason_is_saved_and_shown(client, session, tmp_path
 
 
 def test_writing_a_reason_for_a_non_health_paper_is_a_404(client, session):
-    other = make_document(session, domain=Domain.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
     assert client.post(f"/health/documents/{other.id}/why", data={"indication": "x"}).status_code == 404
 
 
 def _paper_with_status(session, status):
-    document = make_document(session, domain=Domain.HEALTH, category="imaging_report", filename="doppler.pdf")
+    document = make_document(session, domain=Category.HEALTH, category="imaging_report", filename="doppler.pdf")
     document.status = status
     session.add(document)
     session.commit()

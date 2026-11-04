@@ -1,0 +1,235 @@
+"""Domain registry contracts.
+
+Every household domain (Financials, House, Health, Education, Vehicles,
+Legal & Identity) is declared once as a CategorySpec. Shared code -- the
+ingestion core, the nav, the '/' Overview, the to-do backlogs, the wiki
+Ingest operation, and (Plan B) the Inbox classifier / (Plan C) Ask --
+iterates the registry and never branches on a specific domain.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import date
+from enum import Enum
+from typing import Callable, Optional
+
+from sqlmodel import Session
+
+from app.models.document import Document
+from app.models.category import Category
+from app.models.record import Record
+
+
+class FieldKind(str, Enum):
+    TEXT = "text"          # one-line free text
+    LONGTEXT = "longtext"  # multi-line free text (notes, observations)
+    DATE = "date"          # stored as ISO YYYY-MM-DD
+    CHOICE = "choice"      # fixed options (static `choices` or a `choices_provider`)
+    SUGGEST = "suggest"    # free text, suggested from previously used values ("dropdown + add new")
+
+
+class MediaKind(str, Enum):
+    PDF = "pdf"
+    IMAGE = "image"
+    VIDEO = "video"
+    OTHER = "other"
+
+
+DEFAULT_MEDIA = frozenset({MediaKind.PDF, MediaKind.IMAGE})
+
+# "category" is a pseudo-field available to FactSpec.field (resolves to the
+# document's category label), so no real field may use that key.
+RESERVED_FIELD_KEYS = frozenset({"category"})
+
+
+class SourceKind(str, Enum):
+    DOCUMENT = "document"  # the entry IS an uploaded file (fields live on the Document)
+    RECORD = "record"      # the entry is typed in by hand (fields live on a Record); a file may be attached
+
+
+def _no_derived_fields(category: Optional[str], fields: dict[str, str]) -> dict[str, str]:
+    return {}
+
+
+@dataclass(frozen=True)
+class KindSpec:
+    """In the model's words: a PAPER KIND inside a category (glossary, docs/ARCHITECTURE.md)."""
+    value: str            # stored in Document.category, e.g. "warranty_invoice"
+    label: str            # human label, e.g. "Warranty / invoice"
+    description: str      # one sentence; also fed to Plan B's classifier prompt
+    accepted_media: frozenset[MediaKind] = DEFAULT_MEDIA
+    kind: SourceKind = SourceKind.DOCUMENT
+    classifiable: bool = True  # False: chosen explicitly (e.g. an upload page), never offered to the automatic classifier
+
+
+@dataclass(frozen=True)
+class FieldSpec:
+    key: str
+    label: str
+    kind: FieldKind
+    kinds: Optional[frozenset[str]] = None           # None = every kind of the domain
+    media: Optional[frozenset[MediaKind]] = None     # None = any file type
+    required: bool = False
+    choices: tuple[tuple[str, str], ...] = ()        # CHOICE: static (value, label) options
+    choices_provider: Optional[Callable[[Session], list[tuple[str, str]]]] = None  # CHOICE: dynamic options
+    help: str = ""
+    # True: a health-record field (what was wrong, what was done). It stays in the Hub: it is never put in
+    # a Telegram message, an email or a calendar entry (decision D21, app/privacy/channels.py).
+    private: bool = False
+
+    def applies_to(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> bool:
+        if self.kinds is not None and category not in self.kinds:
+            return False
+        if media_kind is not None and self.media is not None and media_kind not in self.media:
+            return False
+        return True
+
+    def options(self, session: Session) -> list[tuple[str, str]]:
+        if self.choices_provider is not None:
+            return list(self.choices_provider(session))
+        return list(self.choices)
+
+
+class FactPolicy(str, Enum):
+    REPLACE = "replace"  # a different value supersedes the current one
+    LATEST = "latest"    # keep the greatest value (ISO dates); an older value is recorded as already superseded
+
+
+@dataclass(frozen=True)
+class FactSpec:
+    key: str                                   # claim key on the wiki page, e.g. "warranty_expires"
+    label: str                                 # human label, e.g. "Warranty expires"
+    field: str                                 # document field key it comes from ("category" = category label)
+    kinds: Optional[frozenset[str]] = None
+    policy: FactPolicy = FactPolicy.REPLACE
+    note_field: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class LinkSpec:
+    field: str                                  # document field naming the target entity, e.g. "room"
+    target_page_type: str                       # e.g. "house.room"
+    kinds: Optional[frozenset[str]] = None
+    bidirectional: bool = True
+
+
+@dataclass(frozen=True)
+class EntityTypeSpec:
+    page_type: str                  # e.g. "house.item"; unique across all domains
+    label: str                      # index section heading, e.g. "Items"
+    key_field: str                  # document field naming the entity, e.g. "item_name"
+    kinds: frozenset[str]           # paper kinds that feed this entity
+    facts: tuple[FactSpec, ...]
+    links: tuple[LinkSpec, ...] = ()
+
+
+@dataclass(frozen=True)
+class WikiSchema:
+    guidance: str = ""  # LLM guidance for free-form topic pages; "" = no LLM assessment for this domain
+    entity_types: tuple[EntityTypeSpec, ...] = ()
+
+
+@dataclass(frozen=True)
+class NavLink:
+    label: str
+    url: str
+
+
+@dataclass
+class CardLine:
+    text: str
+    url: Optional[str] = None
+    attention: bool = False
+
+
+@dataclass
+class CategoryCard:
+    label: str
+    url: str
+    lines: list[CardLine] = field(default_factory=list)
+    open_todos: int = 0  # filled in by app.services.domain_overview, never by the domain
+
+
+class CategoryHandler:
+    """Domain-specific processing of a finalized Document. `process` runs
+    once, after the ingestion core has set domain/category/fields; it must
+    leave the Document PROCESSED or NEEDS_ATTENTION. `on_fields_changed`
+    runs after a human edits the document's fields."""
+
+    async def process(self, session: Session, document: Document) -> Document:
+        raise NotImplementedError
+
+    async def on_fields_changed(
+        self, session: Session, document: Document, previous_fields: dict[str, str]
+    ) -> None:
+        return None
+
+    async def process_record(self, session: Session, record: Record) -> None:
+        from app.services.wiki_engine import ingest_into_wiki  # lazy: wiki_engine imports the registry
+        await ingest_into_wiki(session, record)
+
+    async def on_record_changed(self, session: Session, record: Record, previous_fields: dict[str, str]) -> None:
+        from app.models.wiki import WikiOperation
+        from app.services.wiki_engine import ingest_into_wiki
+        await ingest_into_wiki(session, record, operation=WikiOperation.EDIT)
+
+    def refile_blocker(self, session: Session, document: Document) -> Optional[str]:
+        """Why this document cannot leave its current classification, or None."""
+        return None
+
+    async def withdraw(self, session: Session, document: Document) -> None:
+        """Reverse this domain's own derived data for a document being re-filed
+        away (the core already handles wiki claims and document-linked to-dos)."""
+        return None
+
+
+class UnknownKindError(KeyError):
+    pass
+
+
+@dataclass(frozen=True)
+class CategorySpec:
+    domain: Category
+    label: str
+    description: str                                  # one sentence; also fed to Plan B's classifier
+    home_url: str                                     # the domain tab's landing page
+    kinds: tuple[KindSpec, ...]
+    fields: tuple[FieldSpec, ...]
+    handler: CategoryHandler
+    nav_links: tuple[NavLink, ...]
+    overview_card: Callable[[Session, date], CategoryCard]
+    document_url: Callable[[Document], str]
+    wiki: WikiSchema = WikiSchema()
+    infers_kind: bool = False                         # True: handler may determine a missing kind itself
+    record_url: Optional[Callable[[Record], str]] = None
+    derive_fields: Callable[[Optional[str], dict[str, str]], dict[str, str]] = _no_derived_fields
+    ask_tools: tuple = ()                             # tuple[app.services.ask.contracts.AskTool, ...] (Plan C)
+
+    def __post_init__(self) -> None:
+        values = [c.value for c in self.kinds]
+        if len(values) != len(set(values)):
+            raise ValueError(f"{self.label}: duplicate category values")
+        keys = [f.key for f in self.fields]
+        if len(keys) != len(set(keys)):
+            raise ValueError(f"{self.label}: duplicate field keys")
+        reserved = RESERVED_FIELD_KEYS.intersection(keys)
+        if reserved:
+            raise ValueError(f"{self.label}: reserved field keys used: {sorted(reserved)}")
+
+    def kind(self, value: str) -> KindSpec:
+        for kind in self.kinds:
+            if kind.value == value:
+                return kind
+        raise UnknownKindError(value)
+
+    def kind_label(self, value: Optional[str]) -> str:
+        if value is None:
+            return ""
+        try:
+            return self.kind(value).label
+        except UnknownKindError:
+            return value
+
+    def fields_for(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> list[FieldSpec]:
+        return [f for f in self.fields if f.applies_to(category, media_kind)]

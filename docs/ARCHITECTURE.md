@@ -10,8 +10,8 @@ Use the model's word in anything a person reads (pages, messages, docs).
 
 | Model word | Means | Code name today |
 |---|---|---|
-| **category** | A subject area of household life: Money & Bills, Health, House Records, Insurance (planned: Identity & Legal, Education, Vehicles) | `Domain` (`app/models/domain.py`), `DomainSpec`, columns `domain` |
-| **paper kind** | A kind of paper or record inside a category: bill, statement, lab result, warranty, policy… It carries the privacy level, how it is read, how it is checked and what it is filed as | `KindSpec` (`app/domains/base.py`); the attribute is `paper_kind` on documents, records, privacy settings and every entry or classification (2026-11-04), stored in columns still named `category` (migrations only add). Those models refuse an unknown keyword (`app/models/strict.py`), so code still saying `category=` fails instead of making a paper with no kind. Insurance's kinds are Policy and Claim; what a policy covers is the field `covers` (2026-11-04). A premium notice is a Money bill carrying `policy_number` |
+| **category** | A subject area of household life: Money & Bills, Health, House Records, Insurance (planned: Identity & Legal, Education, Vehicles) | `Category` (`app/models/category.py`), `CategorySpec`, package `app/categories/` (2026-11-04); attribute and columns still `domain` (next step) |
+| **paper kind** | A kind of paper or record inside a category: bill, statement, lab result, warranty, policy… It carries the privacy level, how it is read, how it is checked and what it is filed as | `KindSpec` (`app/categories/base.py`); the attribute is `paper_kind` on documents, records, privacy settings and every entry or classification (2026-11-04), stored in columns still named `category` (migrations only add). Those models refuse an unknown keyword (`app/models/strict.py`), so code still saying `category=` fails instead of making a paper with no kind. Insurance's kinds are Policy and Claim; what a policy covers is the field `covers` (2026-11-04). A premium notice is a Money bill carrying `policy_number` |
 | **spending category** | A node of the 3-level spending tree a money line is filed under (Food › Groceries › Supermarket) | `CategoryNode`, table `category_nodes`, `Transaction.category_id` |
 | *(retired)* spending label | The old flat 16-value list (GROCERIES, OTHER_EXPENSE…), retired 2026-11-03 (work-list B3): the tree is the only record. Its columns stay in the tables, unread, filled with "OTHER" | `unused_old_category` on `Transaction`, `Merchant`, `Commitment` (columns `category`, `default_category`) |
 | **subject** | Who or what a paper is about: a person, account, counterparty, thing, policy, condition | today several unlinked stores (`people`, `health_people`, `merchants`, `accounts`, text fields); one registry planned (work-list B4) |
@@ -66,11 +66,11 @@ Ingestion core (app/services/ingestion.py — the ONLY way a file becomes a Docu
         ▼
   finalize_document (validate domain + category + fields against the registry
         │            → tag the Document → dispatch)
-        ├─ Financials → FinancialsHandler (app/domains/financials/handler.py):
+        ├─ Financials → FinancialsHandler (app/categories/financials/handler.py):
         │     classify (if no category) → bill: extract_bill → Transaction → classify_transaction
         │                                   → utility detail → todo → ingest_into_wiki
         │                               statement: extract_statement_transactions → Transactions
-        └─ House      → HouseHandler (app/domains/house/handler.py):
+        └─ House      → HouseHandler (app/categories/house/handler.py):
               warranty without a date → extract_warranty_expiry (Haiku, best effort)
               → renewal To-Do at expiry − 21 days → ingest_into_wiki (item page, no LLM)
 
@@ -168,16 +168,16 @@ Home & Family/
 │   │                           WikiClaim (+ note), WikiClaimSource (document OR record, +
 │   │                           withdrawn_at), WikiLogEntry (+ record_id), WikiLink, WikiChange (legacy)
 │   │
-│   ├── domains/                Domain registry — the ONLY extension point (see Design Decisions
+│   ├── categories/             Category registry — the ONLY extension point (see Design Decisions
 │   │   │                       and "Adding a domain"); shared code never names a domain
-│   │   ├── base.py             Domain enum, DomainSpec / DomainHandler / KindSpec / FieldSpec /
+│   │   ├── base.py             Domain enum, CategorySpec / CategoryHandler / KindSpec / FieldSpec /
 │   │   │                       WikiSchema dataclasses; SourceKind (DOCUMENT | RECORD, on KindSpec)
 │   │   ├── registry.py         get_spec / all_specs — loads SPEC from _SPEC_MODULES, validates
 │   │   │                       domain uniqueness; document_url / record_url
 │   │   ├── fields.py           FieldInput helpers shared by the domain field-inputs template
 │   │   ├── entries.py          domain_entries / SourceEntry / record_for_document — the uniform
 │   │   │                       document-or-record listing (see Documents vs Records)
-│   │   ├── financials/         categories.py, handler.py (FinancialsHandler — refile_blocker +
+│   │   ├── financials/         kinds.py, handler.py (FinancialsHandler — refile_blocker +
 │   │   │                       withdraw enforce the Financials re-filing rule), overview.py
 │   │   │                       (overview_card), spec.py (SPEC), ask.py (FINANCIALS_ASK_TOOLS —
 │   │   │                       spending + find_transactions, the domain's Ask plug-in)
@@ -254,7 +254,7 @@ Home & Family/
 │   │   ├── json_utils.py        strip_json_fences — strips a ```json fence if Claude adds one
 │   │   ├── storage.py           save_upload — writes to DOCUMENTS_DIR, returns (path, sha256 hash)
 │   │   ├── domain_classifier.py suggest_domain_and_category — registry-driven domain+category
-│   │   │                       suggestion (Haiku); the prompt is built from each DomainSpec's own
+│   │   │                       suggestion (Haiku); the prompt is built from each CategorySpec's own
 │   │   │                       description, so a new domain needs no classifier changes
 │   │   ├── inbox_service.py     receive_document / pending_entries / approve / discard — the only
 │   │   │                       entry point any ingestion channel calls; approve is the only place
@@ -349,7 +349,7 @@ Home & Family/
 │   │                           a fresh SQLite DB per test from SQLModel.metadata (NOT via Alembic —
 │   │                           migrations are verified separately, by hand, against scratch copies
 │   │                           of the real database during development)
-│   ├── domain_fakes.py          Stand-in DomainSpec/DomainHandler fakes shared by tests that
+│   ├── domain_fakes.py          Stand-in CategorySpec/CategoryHandler fakes shared by tests that
 │   │                           exercise the registry without touching the real domains
 │   └── test_*.py                One file per model/service/router, matching the app/ layout
 │
@@ -565,7 +565,7 @@ Standard Alembic bookkeeping, single row, current head at time of writing: see `
 
 ## Health
 
-The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the family's medical papers: lab results, imaging and medical reports, prescriptions, referrals, medical bills, health-insurance reimbursement statements, vaccinations and appointment letters. It is always High (D19, `app/privacy/settings.py::FORCED_TIERS`): extraction, the wiki assessment and every Ask tool go out at High only. The ratchet (below) governs what Ask may do with these papers.
+The Health domain (`Domain.HEALTH`, package `app/categories/health/`) holds the family's medical papers: lab results, imaging and medical reports, prescriptions, referrals, medical bills, health-insurance reimbursement statements, vaccinations and appointment letters. It is always High (D19, `app/privacy/settings.py::FORCED_TIERS`): extraction, the wiki assessment and every Ask tool go out at High only. The ratchet (below) governs what Ask may do with these papers.
 
 **Access:** everyone with Hub access sees all health papers. There is no per-person access control.
 
@@ -575,7 +575,7 @@ The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the fam
 |---|---|
 | Tab pages | `app/routers/health.py` under `/health/*`: `/health/records` is the landing list, plus `/upload`, `/documents/{id}`, `/areas`, `/people`. `/health` alone is the unauthenticated liveness endpoint (`app/routers/dashboard.py`) |
 | Templates | `app/templates/health/` (landing, document, areas, people, upload) |
-| Domain spec, categories | `app/domains/health/spec.py` (`SPEC`), `categories.py` (`HealthCategory`, `RECORD_KINDS`, `PERSON_PAGE_TYPE`) |
+| Domain spec, categories | `app/categories/health/spec.py` (`SPEC`), `kinds.py` (`HealthKind`, `RECORD_KINDS`, `PERSON_PAGE_TYPE`) |
 | Filing a paper | `handler.py` (`HealthHandler`, runs inside the High scope), `extraction.py` (`extract_health_document`, vision, High), `store.py` (`apply_extraction`, `purge_derived`, `discard_document`) |
 | People, areas, text | `people.py` (discovery, matching, merge), `areas.py` (resolve, approve, rename, merge, tags), `text.py` (`fold`, `match_key`) |
 | Browse, overview | `browse.py` (filters and facets for the tab), `overview.py` (Overview card) |
@@ -623,7 +623,7 @@ The Health domain (`Domain.HEALTH`, package `app/domains/health/`) holds the fam
 
 **Migrations are additive-only by policy**, not just by accident: every sub-project's plan explicitly forbids column removals or enum-value changes, and every new `Transaction`/`Document` column has shipped nullable specifically so historical rows never need a backfill *at the same time* as the schema change — backfilling is always a separate, later, explicitly-run step.
 
-**Domain registry is the only extension point.** Every per-domain behavior — categories, metadata fields, handlers, overview cards, wiki schema — is declared in a `DomainSpec` (`app/domains/<domain>/spec.py`) and reached through `app/domains/registry.py`; shared code (ingestion core, backlogs, overview cards, wiki engine, templating, base template) never names a domain, it looks everything up. A `DomainSpec` declares: the `Domain` member, its `KindSpec`s (label + which media kinds it applies to + option ordering), its `FieldSpec`s (per-category metadata fields with validation rules), a `WikiSchema` (which entity claims this domain's fields feed), its `DomainHandler` (the `process` / `on_fields_changed` hooks the ingestion core dispatches to), and its `overview_card`. The ingestion core is deliberately split into `receive_file` (dedup → store → UNCLASSIFIED Document with `domain=NULL`) and `finalize_document` (validate domain+category+fields against the registry → tag → dispatch to the handler) so that a reviewing channel — Plan B's Inbox — can hold a document between the two, letting a human classify instead of forcing an eager guess at upload time.
+**Domain registry is the only extension point.** Every per-domain behavior — categories, metadata fields, handlers, overview cards, wiki schema — is declared in a `CategorySpec` (`app/categories/<domain>/spec.py`) and reached through `app/categories/registry.py`; shared code (ingestion core, backlogs, overview cards, wiki engine, templating, base template) never names a domain, it looks everything up. A `CategorySpec` declares: the `Domain` member, its `KindSpec`s (label + which media kinds it applies to + option ordering), its `FieldSpec`s (per-category metadata fields with validation rules), a `WikiSchema` (which entity claims this domain's fields feed), its `CategoryHandler` (the `process` / `on_fields_changed` hooks the ingestion core dispatches to), and its `overview_card`. The ingestion core is deliberately split into `receive_file` (dedup → store → UNCLASSIFIED Document with `domain=NULL`) and `finalize_document` (validate domain+category+fields against the registry → tag → dispatch to the handler) so that a reviewing channel — Plan B's Inbox — can hold a document between the two, letting a human classify instead of forcing an eager guess at upload time.
 
 **Domain metadata is `fields_json` validated by `FieldSpec`s, not per-domain tables.** Each domain wants different metadata on its documents (a warranty has an expiry date; a bill has a provider and period), and per-domain tables would mean a new table + migration + query surface per domain forever. Instead every Document carries one generic `fields_json` blob of string values, and the registry's `FieldSpec`s are what make it meaningful — they define which fields exist per category, which are required, and how they validate, so `finalize_document` can refuse an invalid write and templates can render fields generically.
 
@@ -639,7 +639,7 @@ is a normal Document with `Record.document_id` pointing at it (unique — a Docu
 most one Record); the attachment's own `fields_json` stays `{}`, since the Record holds the fields.
 **The ingestion core is the only way into a RECORD category** — a file finalized into one, whether
 by upload, Plan B approval, or re-filing, becomes a Record's attachment, never a bare Document with
-fields. Both kinds are treated uniformly downstream: `app/domains/entries.py`'s `domain_entries()`
+fields. Both kinds are treated uniformly downstream: `app/categories/entries.py`'s `domain_entries()`
 returns documents and records in one shape (`SourceEntry`) for listings and cards; the wiki takes
 either as a claim source (`WikiClaimSource.record_id`, exactly one of document/record set); derived
 to-dos can link to either (`Todo.record_id`).
@@ -647,7 +647,7 @@ to-dos can link to either (`Todo.record_id`).
 **Derived fields and claim notes.** Some facts are computed, not stated — Portugal's 3-year legal
 guarantee is the first example: when a House warranty document states a purchase date but no
 explicit expiry, the app assumes the expiry is the purchase date plus 3 years, and marks it
-**assumed**, never as if it were a stated fact. `DomainSpec.derive_fields(category, fields)` is the
+**assumed**, never as if it were a stated fact. `CategorySpec.derive_fields(category, fields)` is the
 per-domain hook that computes such fields (House's `house_derived_fields` /
 `effective_warranty_expiry`) from whatever the user or extractor actually provided; it never writes
 to `fields_json` itself. The wiki carries the distinction via `WikiClaim.note` (e.g. "Assumed:
@@ -666,7 +666,7 @@ anywhere.
 - Open auto-generated to-dos linked to the source are derived data: `_drop_open_derived_todos`
   deletes them and the new handler re-derives what's still applicable. Done to-dos are history and
   are kept.
-- The old domain's handler reverses its own derived data via `DomainHandler.withdraw()`. It can
+- The old domain's handler reverses its own derived data via `CategoryHandler.withdraw()`. It can
   refuse via `refile_blocker()` when reversing would destroy a human decision — checked, and
   raising `RefileRefusedError`, *before* any mutation happens.
 - **Financials rule:** re-filing a Financials document deletes its derived Transactions,
@@ -707,7 +707,7 @@ and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy 
 **Ask is the knowledge layer's Query operation, as a chat.**
 - Each turn is wiki-first, agentic tool use over live tables (no embeddings or search index), with
   the last 6 answered turns replayed as plain text.
-- Domains extend it only via `DomainSpec.ask_tools`.
+- Domains extend it only via `CategorySpec.ask_tools`.
 - Only filed PROCESSED documents and non-retired records are visible (`settled_entries()`), and
   withdrawn source links never support a claim (`claim_sources()`).
 - Claim notes (e.g. an assumed warranty date) are shown to the model and must be stated in the answer.
@@ -728,19 +728,19 @@ and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy 
 **Adding a domain** (checklist for Health / Education / Vehicles / Legal):
 
 1. Add the `Domain` member. `documents`, `todos` and `wiki_pages` store `domain` as `VARCHAR(10)` with no CHECK constraint, so a member whose name fits in 10 characters (`INSURANCE` was added this way) needs **no** migration; a longer name, or a database that has gained a CHECK, needs one (copy `3b7e9c1d2f40`'s pattern).
-2. Create `app/domains/<domain>/` with `categories.py`, `handler.py` (a `DomainHandler`), `overview.py` (`overview_card`), and `spec.py` (`SPEC`, including its `fields` and `wiki` schema).
-3. Append `"app.domains.<domain>.spec"` to `_SPEC_MODULES` in `app/domains/registry.py`.
+2. Create `app/categories/<domain>/` with `kinds.py`, `handler.py` (a `CategoryHandler`), `overview.py` (`overview_card`), and `spec.py` (`SPEC`, including its `fields` and `wiki` schema).
+3. Append `"app.categories.<domain>.spec"` to `_SPEC_MODULES` in `app/categories/registry.py`.
 4. Create `app/routers/<domain>.py` (+ `app/templates/<domain>/`) using `app.templating.templates`, the ingestion core (`receive_file` / `finalize_document`) for uploads, `domains/_field_inputs.html` for metadata, and `todos/_backlog.html` for the backlog; include the router in `app/main.py`.
 5. For any category that's hand-entered rather than filed from a file (a mileage log, a doctor
-   visit), declare `kind=SourceKind.RECORD` on its `KindSpec` and set `DomainSpec.record_url`
+   visit), declare `kind=SourceKind.RECORD` on its `KindSpec` and set `CategorySpec.record_url`
    (where a Record of this domain is viewed — parallel to `document_url`). Optionally set
-   `DomainSpec.derive_fields` for any fact that should be computed rather than stated (see *Derived
+   `CategorySpec.derive_fields` for any fact that should be computed rather than stated (see *Derived
    fields and claim notes*).
 6. Nothing else changes: nav, Overview card row, backlogs, the wiki index, the generic
    `/documents/{id}/edit` and `/records/{id}/edit` re-filing screens, and (once they exist) Plan B's
    Inbox classifier and Plan C's Ask all pick the domain up from the registry.
 
-**Known follow-up:** Financials-only services still live in `app/services/` — `extraction.py`, `categorization.py`, `classification_engine.py`, and `find_duplicate_transaction` / `generate_todo_for_transaction` in their current files. They are not shared code; they are called only by the Financials handler and Financials routers. Moving them under `app/domains/financials/` is a pure relocation reserved for a later cleanup.
+**Known follow-up:** Financials-only services still live in `app/services/` — `extraction.py`, `categorization.py`, `classification_engine.py`, and `find_duplicate_transaction` / `generate_todo_for_transaction` in their current files. They are not shared code; they are called only by the Financials handler and Financials routers. Moving them under `app/categories/financials/` is a pure relocation reserved for a later cleanup.
 
 ---
 

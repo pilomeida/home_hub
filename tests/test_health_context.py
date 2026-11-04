@@ -5,11 +5,11 @@ import json
 
 import pytest
 
-from app.domains.fields import dump_fields, load_fields
-from app.domains.health import extraction as ex
-from app.domains.health import store
-from app.domains.health.checks import _strings_of, check_reading
-from app.models.domain import Domain
+from app.categories.fields import dump_fields, load_fields
+from app.categories.health import extraction as ex
+from app.categories.health import store
+from app.categories.health.checks import _strings_of, check_reading
+from app.models.category import Category
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.knowledge_factories import make_document
 from tests.test_health_extraction import _png
@@ -45,7 +45,7 @@ async def test_a_paper_without_context_gives_empty_strings(tmp_path):
 
 @pytest.mark.asyncio
 async def test_the_context_is_stored_as_fields_and_a_persons_own_words_win(session, tmp_path):
-    document = make_document(session, domain=Domain.HEALTH, category="imaging_report")
+    document = make_document(session, domain=Category.HEALTH, category="imaging_report")
     document.fields_json = dump_fields({"indication": "Controlo anual pedido pela neurologia"})   # typed by a person
     session.add(document)
     session.commit()

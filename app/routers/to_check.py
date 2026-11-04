@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from sqlmodel import Session
 
 from app.db import get_session
-from app.domains.fields import file_url, media_kind_for
+from app.categories.fields import file_url, media_kind_for
 from app.models.document import Document
 from app.models.transaction import Transaction
 from app.problems import render_html

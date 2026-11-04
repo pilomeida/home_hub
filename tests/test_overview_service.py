@@ -5,7 +5,7 @@ from app.models.account import Account, AccountType
 from app.models.commitment import Cadence, Commitment
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.services.budget_service import get_budget_overview
@@ -441,7 +441,7 @@ def test_needs_attention_combines_review_queue_upcoming_bill_anomaly_and_documen
     session.add(Document(
         filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="hbad",
         source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION, failure_reason="unreadable",
-        domain=Domain.FINANCIALS,
+        domain=Category.FINANCIALS,
     ))
     session.commit()
     session.refresh(commitment)
@@ -469,7 +469,7 @@ def test_needs_attention_document_text_shows_a_friendly_reason_not_the_raw_error
         filename="bad.pdf", file_path="/tmp/bad.pdf", content_hash="hbad2",
         source=DocumentSource.MANUAL, status=DocumentStatus.NEEDS_ATTENTION,
         failure_reason="Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error'}}",
-        domain=Domain.FINANCIALS,
+        domain=Category.FINANCIALS,
     ))
     session.commit()
 
@@ -524,7 +524,7 @@ def test_get_overview_data_end_to_end(session):
 
 def test_needs_attention_document_links_go_through_the_registry(session):
     house_doc = Document(filename="w.pdf", file_path="/tmp/w.pdf", content_hash="hn1", source=DocumentSource.MANUAL,
-                         status=DocumentStatus.NEEDS_ATTENTION, domain=Domain.HOUSE, failure_reason="x")
+                         status=DocumentStatus.NEEDS_ATTENTION, domain=Category.HOUSE, failure_reason="x")
     unfinalized = Document(filename="u.pdf", file_path="/tmp/u.pdf", content_hash="hn2", source=DocumentSource.MANUAL,
                            status=DocumentStatus.PENDING)
     session.add(house_doc)

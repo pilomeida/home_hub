@@ -44,7 +44,7 @@ from app.privacy.tiers import Tier, TierBlocked, parse_tier
 from app.problems import Problem
 
 if TYPE_CHECKING:
-    from app.domains.entries import SourceEntry
+    from app.categories.entries import SourceEntry
     from app.models.todo import Todo
 
 HIGH, UNSET, HIDES = "high", "unset", "hides"

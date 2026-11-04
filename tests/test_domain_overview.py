@@ -1,16 +1,16 @@
 import dataclasses
 from datetime import date
 
-from app.domains import registry
-from app.models.domain import Domain
+from app.categories import registry
+from app.models.category import Category
 from app.models.todo import Todo
 from app.services.domain_overview import build_domain_cards
 from tests.domain_fakes import make_fake_spec
 
 
 def test_one_card_per_domain_with_open_todo_count(session, fake_domain):
-    session.add(Todo(title="a", domain=Domain.HOUSE))
-    session.add(Todo(title="b", domain=Domain.HOUSE, done=True))
+    session.add(Todo(title="a", domain=Category.HOUSE))
+    session.add(Todo(title="b", domain=Category.HOUSE, done=True))
     session.commit()
 
     cards = build_domain_cards(session, date(2026, 9, 24))

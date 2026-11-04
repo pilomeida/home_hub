@@ -8,9 +8,9 @@ from collections import defaultdict
 
 from sqlmodel import Session, select
 
-from app.domains.base import SourceKind
-from app.domains.fields import effective_fields, load_fields
-from app.domains.registry import implemented_domains
+from app.categories.base import SourceKind
+from app.categories.fields import effective_fields, load_fields
+from app.categories.registry import implemented_domains
 from app.models.record import Record
 from app.models.wiki import ANSWER_PAGE_TYPE, ClaimStatus, WikiClaim, WikiLink, WikiLogEntry, WikiOperation, WikiPage
 from app.models.wiki_lint import LintFindingKind

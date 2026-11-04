@@ -11,10 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session
 
 from app.db import get_session
-from app.domains.fields import InvalidClassification, build_form_fields, file_url, media_kind_for
-from app.domains.entries import record_for_document
-from app.domains.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
-from app.models.domain import Domain
+from app.categories.fields import InvalidClassification, build_form_fields, file_url, media_kind_for
+from app.categories.entries import record_for_document
+from app.categories.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
+from app.models.category import Category
 from app.privacy.recognise import original_sender
 from app.privacy.settings import TierHeld
 from app.routers.to_check import section_html as to_check_section
@@ -29,7 +29,7 @@ _SELECTOR_KEYS = ("domain", "category", "remember", "remember_words")
 
 def _spec_for_value(domain_value: Optional[str]):
     try:
-        domain = Domain(domain_value) if domain_value else None
+        domain = Category(domain_value) if domain_value else None
     except ValueError:
         return None
     return get_spec(domain) if is_implemented(domain) else None

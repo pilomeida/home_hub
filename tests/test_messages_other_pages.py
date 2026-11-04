@@ -8,19 +8,19 @@ import io
 
 import pytest
 
-import app.domains.house.handler as house_handler
+import app.categories.house.handler as house_handler
 from app import problems as pr
-from app.domains.registry import get_spec
+from app.categories.registry import get_spec
 from app.models.debt import DebtDirection
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.models.transaction import Transaction, TransactionType
 from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus, LintRun
 from app.services.debt_ledger import create_informal_debt, link_transaction_as_entry
 from app.services.taxonomy import ensure_taxonomy
 from app.services.wiki_lint.runner import start_run
-from app.domains.house.warranty import WarrantyDates
+from app.categories.house.warranty import WarrantyDates
 
 HTML = {"accept": "text/html"}
 
@@ -120,7 +120,7 @@ def test_the_dependent_refusal_text_from_the_financials_handler_is_written_out(s
     second.linked_transaction_id = first.id
     session.add(second)
     session.commit()
-    blocker = get_spec(Domain.FINANCIALS).handler.refile_blocker(session, document)
+    blocker = get_spec(Category.FINANCIALS).handler.refile_blocker(session, document)
     assert blocker, "the financials handler should block re-filing a linked document"
     text = pr.notice(blocker, what="Not moved.")
     assert text.startswith("Not moved. ") and "linked to a commitment, debt or transfer" in text

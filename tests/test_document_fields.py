@@ -2,16 +2,16 @@ import json
 
 import pytest
 
-from app.domains.base import MediaKind
-from app.domains.fields import (
+from app.categories.base import MediaKind
+from app.categories.fields import (
     InvalidClassification, build_form_fields, describe_document, distinct_field_values,
     dump_fields, field_date, load_fields, media_kind_for, validate_fields,
 )
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 
 
-def _doc(session, fields, domain=Domain.HOUSE, content_hash="h", category="manual"):
+def _doc(session, fields, domain=Category.HOUSE, content_hash="h", category="manual"):
     document = Document(
         filename="x.pdf", file_path="/srv/app/static/documents/abc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
@@ -80,9 +80,9 @@ def test_distinct_field_values_dedupes_and_is_domain_scoped(session, fake_domain
     _doc(session, {"item_name": "Kitchen"}, content_hash="1")
     _doc(session, {"item_name": "kitchen"}, content_hash="2")
     _doc(session, {"item_name": "Attic"}, content_hash="3")
-    _doc(session, {"item_name": "Garage"}, domain=Domain.FINANCIALS, content_hash="4")
+    _doc(session, {"item_name": "Garage"}, domain=Category.FINANCIALS, content_hash="4")
     _doc(session, {}, content_hash="5")
-    assert distinct_field_values(session, Domain.HOUSE, "item_name") == ["Attic", "Kitchen"]
+    assert distinct_field_values(session, Category.HOUSE, "item_name") == ["Attic", "Kitchen"]
 
 
 def test_describe_document_uses_registry_labels(session, fake_domain):
@@ -108,6 +108,6 @@ def test_build_form_fields_carries_options_values_and_errors(session, fake_domai
 def test_suggestions_include_record_values(session, fake_domain):
     from app.models.record import Record
 
-    session.add(Record(domain=Domain.HOUSE, paper_kind="visit", fields_json='{"item_name": "Heat pump"}'))
+    session.add(Record(domain=Category.HOUSE, paper_kind="visit", fields_json='{"item_name": "Heat pump"}'))
     session.commit()
-    assert distinct_field_values(session, Domain.HOUSE, "item_name") == ["Heat pump"]
+    assert distinct_field_values(session, Category.HOUSE, "item_name") == ["Heat pump"]

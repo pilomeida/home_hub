@@ -85,8 +85,8 @@ def client(engine, tmp_path, monkeypatch):
 @pytest.fixture()
 def fake_domain(monkeypatch):
     """Replace the registry with a single fake domain (registered under
-    Domain.HOUSE) so shared code can be tested against the contract alone."""
-    from app.domains import registry
+    Category.HOUSE) so shared code can be tested against the contract alone."""
+    from app.categories import registry
     from tests.domain_fakes import make_fake_spec
 
     spec = make_fake_spec()
@@ -97,18 +97,18 @@ def fake_domain(monkeypatch):
 @pytest.fixture()
 def two_domains(monkeypatch):
     """Registry replaced by two fake domains, so Plan B code is tested against
-    the contract only: 'Money' (Domain.FINANCIALS, infers its category, no
-    fields) and Plan A's fake House-like spec (Domain.HOUSE)."""
+    the contract only: 'Money' (Category.FINANCIALS, infers its category, no
+    fields) and Plan A's fake House-like spec (Category.HOUSE)."""
     import dataclasses
 
-    from app.domains import registry
-    from app.domains.base import KindSpec, WikiSchema
-    from app.models.domain import Domain
+    from app.categories import registry
+    from app.categories.base import KindSpec, WikiSchema
+    from app.models.category import Category
     from tests.domain_fakes import make_fake_spec
 
     house = make_fake_spec()
     money = dataclasses.replace(
-        make_fake_spec(domain=Domain.FINANCIALS),
+        make_fake_spec(domain=Category.FINANCIALS),
         label="Money", description="Money documents.", home_url="/money",
         kinds=(KindSpec("bill", "Bill", "A single bill."),
                     KindSpec("statement", "Bank statement", "A list of transactions.")),

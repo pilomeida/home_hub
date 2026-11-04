@@ -6,9 +6,9 @@ import pytest
 from sqlmodel import select
 
 from app.baseline import BASELINE_DATE, baseline_note
-from app.domains.financials.ask import FINANCIALS_ASK_TOOLS
+from app.categories.financials.ask import FINANCIALS_ASK_TOOLS
 from app.models.account import Account, AccountType
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services.classification_engine import unsorted_transactions_query
 from app.services.overview_service import get_cash_kpi
@@ -17,7 +17,7 @@ from tests.knowledge_factories import make_document
 
 @pytest.fixture()
 def doc(session):
-    return make_document(session, domain=Domain.FINANCIALS, category="statement", filename="stmt.pdf")
+    return make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
 
 
 def _txn(session, doc, paid, amount=10.0, **kw):

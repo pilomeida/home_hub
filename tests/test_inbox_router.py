@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import select
 
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.inbox_item import InboxItem
 
 pytestmark = pytest.mark.usefixtures("two_domains")
@@ -66,7 +66,7 @@ def test_approve_finalizes_and_returns_result(client, session, two_domains):
     assert "Fake › Manual" in response.text and 'href="/fake/documents/' in response.text
     assert two_domains["house"].handler.processed == [document.id]
     session.expire_all()
-    assert session.get(Document, document.id).domain == Domain.HOUSE
+    assert session.get(Document, document.id).domain == Category.HOUSE
 
 
 def test_approve_into_record_category_links_to_the_record(client, session, two_domains):

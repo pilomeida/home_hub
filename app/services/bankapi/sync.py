@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 from app.models.account import Account, AccountType
 from app.models.bank import BankAccountLink, BankApiCall, BankConnection, BankConnectionStatus
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.privacy.scope import privacy_scope
 from app.problems import Problem, record_problem, resolve_for
@@ -60,7 +60,7 @@ def sync_document(session: Session, account_id: int, bank_name: str) -> Document
         doc = Document(
             filename=f"{bank_name} — automatic bank sync", file_path="", content_hash=key,
             source=DocumentSource.API, status=DocumentStatus.PROCESSED,
-            domain=Domain.FINANCIALS, paper_kind="statement", account_id=account_id,
+            domain=Category.FINANCIALS, paper_kind="statement", account_id=account_id,
         )
         session.add(doc)
         session.flush()

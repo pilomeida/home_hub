@@ -5,10 +5,10 @@ import httpx
 import pytest
 from sqlmodel import select
 
-from app.domains.health.appointments import appointment_event, remove_appointment, sync_appointment
-from app.domains.health.extraction import ExtractedHealth
-from app.domains.health.store import apply_extraction, entry_for
-from app.models.domain import Domain
+from app.categories.health.appointments import appointment_event, remove_appointment, sync_appointment
+from app.categories.health.extraction import ExtractedHealth
+from app.categories.health.store import apply_extraction, entry_for
+from app.models.category import Category
 from app.models.schedule import ProblemEntry
 from tests.knowledge_factories import make_document
 from tests.test_google_calendar import Google
@@ -21,11 +21,11 @@ TODAY = date(2026, 10, 16)
 def _fixed_today(monkeypatch):
     """The sample appointment is on 2026-11-03; paths that reach the calendar through update_document_fields
     read today from the module, so pin it (otherwise these tests would rot on 2026-11-04)."""
-    monkeypatch.setattr("app.domains.health.appointments._today", lambda: TODAY)
+    monkeypatch.setattr("app.categories.health.appointments._today", lambda: TODAY)
 
 
 def _appointment(session, with_time="10:30"):
-    doc = make_document(session, domain=Domain.HEALTH, category="appointment", filename="consulta.pdf")
+    doc = make_document(session, domain=Category.HEALTH, category="appointment", filename="consulta.pdf")
     apply_extraction(session, doc, ExtractedHealth(
         person_name="Maria Santos Almeida", document_date=date(2026, 10, 1), provider="Clínica Sul",
         provider_phone="+351 21 000 0000", provider_address="Av. Central 5, Lisboa", record_kind="follow_up",
@@ -52,7 +52,7 @@ def test_without_a_time_it_is_an_all_day_event(session):
 
 
 def test_only_appointments_with_a_date_get_an_event(session):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
     assert appointment_event(doc, "https://hub.example") is None
 
 
@@ -92,7 +92,7 @@ async def test_when_the_calendar_is_not_set_up_or_fails_the_paper_is_still_filed
 
 @pytest.mark.asyncio
 async def test_clearing_the_appointment_date_removes_the_calendar_entry_too(session, monkeypatch):
-    from app.domains.fields import load_fields
+    from app.categories.fields import load_fields
     from app.integrations.google_calendar import GoogleCalendar
     from app.services.ingestion import update_document_fields
     doc = _appointment(session)
@@ -121,7 +121,7 @@ class RefusingCalendar(Google):
 
 @pytest.mark.asyncio
 async def test_a_failed_delete_when_the_date_is_cleared_names_the_entry_by_the_date_it_had(session, monkeypatch):
-    from app.domains.fields import load_fields
+    from app.categories.fields import load_fields
     from app.integrations.google_calendar import GoogleCalendar
     from app.models.schedule import ProblemEntry
     from app.services.ingestion import update_document_fields

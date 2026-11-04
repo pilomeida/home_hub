@@ -6,7 +6,7 @@ happily default."""
 import pytest
 import jsonschema
 
-from app.domains.house import warranty
+from app.categories.house import warranty
 from app.services import classification_engine, domain_classifier, wiki_engine
 from app.services import extraction
 from app.services.wiki_lint import llm_checks

@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.domains.health import areas as areas_svc
+from app.categories.health import areas as areas_svc
 from app.models.health import HealthMeasurement
 import pytest
 from sqlmodel import select
@@ -27,9 +27,9 @@ def test_the_detail_page_shows_each_value_beside_the_original(client, session):
 
 
 def test_a_non_health_document_is_a_404(client, session):
-    from app.models.domain import Domain
+    from app.models.category import Category
     from tests.knowledge_factories import make_document
-    other = make_document(session, domain=Domain.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
     assert client.get(f"/health/documents/{other.id}").status_code == 404
 
 
@@ -70,14 +70,14 @@ def test_people_page_confirms_and_merges(client, session):
     ids = [p.id for p in session.exec(select(HealthPerson).order_by(HealthPerson.id)).all()]
     assert client.post(f"/health/people/{ids[0]}/confirm", follow_redirects=False).status_code == 303
     assert client.post(f"/health/people/{ids[1]}/merge", data={"into": str(ids[0])}, follow_redirects=False).status_code == 303
-    from app.domains.health import people as people_svc
+    from app.categories.health import people as people_svc
     assert [p.id for p in people_svc.all_people(session)] == [ids[0]]
     assert "Mariah Almeida" not in client.get("/health/people").text
 
 
 def test_a_merge_sticks_when_a_paper_is_edited_or_a_value_is_marked_right(client, session):
-    from app.domains.fields import load_fields
-    from app.domains.health import people as people_svc, store
+    from app.categories.fields import load_fields
+    from app.categories.health import people as people_svc, store
     from app.models.health import HealthPerson
     doc = _paper(session, "Pedro S. Almeida", date(2026, 3, 12), "test", [], doubtful=True, name="a.pdf")
     _paper(session, "Pedro Santos Almeida", date(2026, 3, 13), "test", [], name="b.pdf")
@@ -127,9 +127,9 @@ def test_health_stays_the_liveness_check_and_the_records_page_is_separate(client
 
 
 def test_tagging_a_paper_that_has_no_record_yet_is_a_409(client, session):
-    from app.models.domain import Domain
+    from app.models.category import Category
     from tests.knowledge_factories import make_document
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
     r = client.post(f"/health/documents/{doc.id}/tags", data={"areas": "Eyes"})
     assert r.status_code == 409
     assert r.json()["detail"]["what"] == "Not tagged."
@@ -145,9 +145,9 @@ def test_a_measurement_of_another_paper_is_a_404(client, session):
 
 
 def test_posting_to_a_non_health_document_is_a_404(client, session):
-    from app.models.domain import Domain
+    from app.models.category import Category
     from tests.knowledge_factories import make_document
-    other = make_document(session, domain=Domain.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
     assert client.post(f"/health/documents/{other.id}/tags", data={"areas": "Eyes"}).status_code == 404
     assert client.post(f"/health/documents/{other.id}/fields", data={}).status_code == 404
     assert client.post(f"/health/documents/{other.id}/measurements/1/ok").status_code == 404
@@ -269,9 +269,9 @@ def test_a_paper_the_reading_cannot_place_waits_for_a_person_to_choose_its_kind(
 
 def _stored_health_paper(session, status, reason=None):
     from app.models.document import DocumentStatus
-    from app.models.domain import Domain
+    from app.models.category import Category
     from tests.knowledge_factories import make_document
-    doc = make_document(session, domain=Domain.HEALTH, category=None)
+    doc = make_document(session, domain=Category.HEALTH, category=None)
     doc.status, doc.failure_reason = DocumentStatus(status), reason
     session.add(doc)
     session.commit()
@@ -321,7 +321,7 @@ def test_a_paper_that_failed_shows_why_and_can_be_read_again(client, session, tm
 @pytest.mark.asyncio
 async def test_a_paper_read_before_can_be_read_again_and_the_new_reading_replaces_the_old(client, session, tmp_path, monkeypatch):
     import json
-    from app.domains.health import store
+    from app.categories.health import store
     from app.llm_gateway import set_gateway_provider
     from app.models.document import Document, DocumentStatus
     from app.models.health import HealthEntry, HealthMeasurement
@@ -351,7 +351,7 @@ async def test_a_paper_read_before_can_be_read_again_and_the_new_reading_replace
 
 @pytest.mark.asyncio
 async def test_preparing_a_reread_takes_back_what_was_read_and_leaves_the_paper_pending(session):
-    from app.domains.health import store
+    from app.categories.health import store
     from app.models.document import DocumentStatus
     from app.routers.health import prepare_reread
     doc = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), "test", ["Eyes"], name="eye.pdf")

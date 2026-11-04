@@ -3,10 +3,10 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains import registry
-from app.domains.base import FactPolicy
+from app.categories import registry
+from app.categories.base import FactPolicy
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.wiki import WikiLogEntry, WikiOperation, WikiPage
 from app.services import wiki_store
 from app.services.wiki_engine import (
@@ -46,7 +46,7 @@ def _document(session, category="manual", fields=None, content_hash="h1"):
     document = Document(
         filename="doc.pdf", file_path="/tmp/doc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        domain=Domain.HOUSE, paper_kind=category, fields_json=json.dumps(fields or {}),
+        domain=Category.HOUSE, paper_kind=category, fields_json=json.dumps(fields or {}),
     )
     session.add(document)
     session.commit()
@@ -72,7 +72,7 @@ def test_claims_from_fields_skips_unnamed_or_unrelated_documents(session, fake_d
 
 @pytest.mark.asyncio
 async def test_assess_returns_topic_claims_and_offers_existing_titles(session, guided_domain):
-    session.add(WikiPage(topic="Electricity — provider & contract", domain=Domain.HOUSE))
+    session.add(WikiPage(topic="Electricity — provider & contract", domain=Category.HOUSE))
     session.commit()
     document = _document(session)
     client = _fake_gateway(json.dumps({"pages": [
@@ -114,7 +114,7 @@ async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_doma
 
     titles = {p.topic for p in session.exec(select(WikiPage)).all()}
     assert titles == {"Boiler", "Gas supply"}
-    assert all(p.domain == Domain.HOUSE for p in session.exec(select(WikiPage)).all())
+    assert all(p.domain == Category.HOUSE for p in session.exec(select(WikiPage)).all())
     entry = session.get(WikiLogEntry, report.log_entry_id)
     assert entry.operation == WikiOperation.INGEST and entry.document_id == document.id
 
@@ -149,7 +149,7 @@ async def test_ingest_logs_an_ingest_entry_even_when_nothing_changes(session, fa
 def test_links_from_fields_follow_the_schema(session, monkeypatch):
     import dataclasses
 
-    from app.domains.base import LinkSpec, WikiSchema
+    from app.categories.base import LinkSpec, WikiSchema
     from app.services.wiki_engine import links_from_fields
 
     base = make_fake_spec()
@@ -169,7 +169,7 @@ def test_links_from_fields_follow_the_schema(session, monkeypatch):
 async def test_records_are_ingested_like_documents(session, fake_domain):
     from app.models.record import Record
 
-    record = Record(domain=Domain.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
+    record = Record(domain=Category.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
     session.add(record)
     session.commit()
     session.refresh(record)

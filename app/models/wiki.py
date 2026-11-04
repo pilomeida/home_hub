@@ -21,7 +21,7 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
-from app.models.domain import Domain
+from app.models.category import Category
 
 TOPIC_PAGE_TYPE = "topic"
 ANSWER_PAGE_TYPE = "answer"  # Plan C's saved Ask answers (no source document)
@@ -34,7 +34,7 @@ class WikiPage(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     topic: str = Field(unique=True, index=True)
     facts_json: str = Field(default="{}")
-    domain: Optional[Domain] = None
+    domain: Optional[Category] = None
     page_type: str = Field(default=TOPIC_PAGE_TYPE, index=True)
     entity_key: Optional[str] = None
     summary: Optional[str] = None

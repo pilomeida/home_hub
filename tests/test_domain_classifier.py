@@ -5,10 +5,10 @@ import json
 
 import pytest
 
-from app.domains.registry import implemented_domains
-from app.models.domain import Domain
+from app.categories.registry import implemented_domains
+from app.models.category import Category
 from app.services.domain_classifier import (
-    DomainClassificationError, DomainSuggestion, build_system_prompt, suggest_domain_and_category,
+    CategoryClassificationError, CategorySuggestion, build_system_prompt, suggest_domain_and_category,
 )
 from tests.fakes.fake_gateway import FakeGateway
 
@@ -60,14 +60,14 @@ def test_prompt_is_built_from_the_registry(two_domains):
 async def test_valid_answer_and_wire_shape(pdf, two_domains):
     client = _answer(domain="house", category="manual", confidence=0.93, reason="a manual")
     result = await suggest_domain_and_category(pdf, "Email subject: boiler", gateway=client)
-    assert result == DomainSuggestion(Domain.HOUSE, "manual", 0.93, "a manual")
+    assert result == CategorySuggestion(Category.HOUSE, "manual", 0.93, "a manual")
     _assert_wire(client, expect_context=True)
 
 
 @pytest.mark.asyncio
 async def test_null_category_allowed_only_for_inferring_domains(pdf, two_domains):
     ok = await suggest_domain_and_category(pdf, gateway=_answer(domain="financials", category=None, confidence=0.9, reason="x"))
-    assert ok.domain == Domain.FINANCIALS and ok.paper_kind is None
+    assert ok.domain == Category.FINANCIALS and ok.paper_kind is None
     bad = await suggest_domain_and_category(pdf, gateway=_answer(domain="house", category=None, confidence=0.9, reason="x"))
     assert bad.domain is None
 
@@ -105,7 +105,7 @@ async def test_unreadable_file_skips_the_model(tmp_path, two_domains):
 @pytest.mark.asyncio
 async def test_garbage_response_raises(pdf, two_domains):
     garbage = FakeGateway([{"text": "not json", "stop_reason": "end_turn", "usage": {}}])
-    with pytest.raises(DomainClassificationError):
+    with pytest.raises(CategoryClassificationError):
         await suggest_domain_and_category(pdf, gateway=garbage)
 
 

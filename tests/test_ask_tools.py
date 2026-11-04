@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from app.domains import registry
+from app.categories import registry
 from app.models.document import DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.todo import Todo
 from app.services.ask import tools as ask_tools
 from app.services.ask.contracts import AskTool, ToolOutput
@@ -93,8 +93,8 @@ def test_read_document_file_video_is_a_soft_error(session, fake_domain, tmp_path
 
 
 def test_list_todos_open_only_and_links_to_domain_backlog(session, fake_domain):
-    session.add(Todo(title="Renew boiler warranty", domain=Domain.HOUSE))
-    session.add(Todo(title="Old", done=True, domain=Domain.HOUSE))
+    session.add(Todo(title="Renew boiler warranty", domain=Category.HOUSE))
+    session.add(Todo(title="Old", done=True, domain=Category.HOUSE))
     session.commit()
     out = _tool("list_todos").run(session, {})
     assert "Renew boiler warranty" in out.text and "Old" not in out.text

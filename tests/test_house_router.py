@@ -5,10 +5,10 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-import app.domains.house.handler as house_handler
-from app.domains.house.warranty import WarrantyDates
+import app.categories.house.handler as house_handler
+from app.categories.house.warranty import WarrantyDates
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.todo import Todo
 
 
@@ -43,11 +43,11 @@ def test_fields_partial_follows_the_category(client):
 def test_field_inputs_id_prefix_keeps_ids_unique(session):
     import re
 
-    from app.domains.fields import build_form_fields
-    from app.domains.registry import get_spec
+    from app.categories.fields import build_form_fields
+    from app.categories.registry import get_spec
     from app.templating import templates
 
-    spec = get_spec(Domain.HOUSE)
+    spec = get_spec(Category.HOUSE)
     form_fields = build_form_fields(session, spec, "house_appliance", {}, {})
     partial = templates.env.get_template("domains/_field_inputs.html")
     first = partial.render(form_fields=form_fields, id_prefix="doc-1-")
@@ -67,7 +67,7 @@ def test_upload_creates_a_house_document_and_redirects(client, session):
     document_id = int(response.headers["location"].rsplit("/", 1)[-1])
     document = session.get(Document, document_id)
     assert response.headers["location"] == f"/house/documents/{document_id}"
-    assert document.domain == Domain.HOUSE and document.paper_kind == "house_appliance"
+    assert document.domain == Category.HOUSE and document.paper_kind == "house_appliance"
     assert json.loads(document.fields_json) == {"item_name": "Boiler", "room": "Kitchen"}
 
 
@@ -144,7 +144,7 @@ def test_editing_with_invalid_fields_shows_errors(client):
 
 def test_non_house_documents_are_404(client, session):
     document = Document(filename="edp.pdf", file_path="/tmp/edp.pdf", content_hash="f1",
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.FINANCIALS)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.FINANCIALS)
     session.add(document)
     session.commit()
     session.refresh(document)

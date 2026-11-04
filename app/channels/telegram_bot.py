@@ -20,8 +20,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from app.config import settings
-from app.domains.base import MediaKind
-from app.domains.fields import media_kind_for
+from app.categories.base import MediaKind
+from app.categories.fields import media_kind_for
 from app.models.document import DocumentSource, DocumentStatus
 from app.privacy.channels import channel_label
 from app.privacy.notices import SCAN_NOTICE, is_image_name

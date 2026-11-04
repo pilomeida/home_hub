@@ -7,8 +7,8 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-from app.domains.financials import handler as pipeline
-from app.domains.financials.handler import FinancialsHandler
+from app.categories.financials import handler as pipeline
+from app.categories.financials.handler import FinancialsHandler
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.position import (
@@ -314,10 +314,10 @@ def test_detach_positions_helper_touches_only_that_document(session, tmp_path):
 
 
 def test_new_categories_registered_but_not_offered_to_the_classifier():
-    from app.domains.registry import get_spec
-    from app.models.domain import Domain
+    from app.categories.registry import get_spec
+    from app.models.category import Category
     from app.services.domain_classifier import build_system_prompt
-    spec = get_spec(Domain.FINANCIALS)
+    spec = get_spec(Category.FINANCIALS)
     assert {"statement_positions", "loan_history"} <= {c.value for c in spec.kinds}
     prompt = build_system_prompt([spec])
     assert "statement_positions" not in prompt and "loan_history" not in prompt

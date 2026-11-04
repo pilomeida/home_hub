@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from app.models.ask import AskConversation, AskStatus, AskTurn
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.models.wiki import (
     TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry, WikiOperation, WikiPage,
@@ -18,7 +18,7 @@ from app.models.wiki import (
 _seq = itertools.count(1)
 
 
-def make_document(session, *, domain: Optional[Domain] = Domain.HOUSE, status=DocumentStatus.PROCESSED,
+def make_document(session, *, domain: Optional[Category] = Category.HOUSE, status=DocumentStatus.PROCESSED,
                   category: Optional[str] = "manual", fields: Optional[dict] = None, filename="doc.pdf",
                   file_path="/tmp/doc.pdf", created_at: Optional[datetime] = None) -> Document:
     doc = Document(filename=filename, file_path=file_path, content_hash=f"h-{next(_seq)}",
@@ -32,7 +32,7 @@ def make_document(session, *, domain: Optional[Domain] = Domain.HOUSE, status=Do
     return doc
 
 
-def make_page(session, topic, *, domain: Optional[Domain] = Domain.HOUSE, page_type=TOPIC_PAGE_TYPE,
+def make_page(session, topic, *, domain: Optional[Category] = Category.HOUSE, page_type=TOPIC_PAGE_TYPE,
               summary: Optional[str] = None, entity_key: Optional[str] = None) -> WikiPage:
     page = WikiPage(topic=topic, domain=domain, page_type=page_type, summary=summary, entity_key=entity_key)
     session.add(page)
@@ -41,7 +41,7 @@ def make_page(session, topic, *, domain: Optional[Domain] = Domain.HOUSE, page_t
     return page
 
 
-def make_record(session, *, domain=Domain.HOUSE, category="visit", fields: Optional[dict] = None,
+def make_record(session, *, domain=Category.HOUSE, category="visit", fields: Optional[dict] = None,
                 document_id: Optional[int] = None, retired: bool = False,
                 created_at: Optional[datetime] = None) -> Record:
     record = Record(domain=domain, paper_kind=category, fields_json=json.dumps(fields or {}),

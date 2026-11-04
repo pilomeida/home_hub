@@ -17,7 +17,7 @@ from sqlmodel import Session, select  # noqa: E402
 
 from app.db import engine  # noqa: E402
 from app.models.document import Document, DocumentSource, DocumentStatus  # noqa: E402
-from app.models.domain import Domain  # noqa: E402
+from app.models.category import Category  # noqa: E402
 from app.services.card_figures import (  # noqa: E402
     CardLine, add_lines, presort_purchases, read_card_statement, reconcile, unfile_rute_card_payments,
 )
@@ -58,7 +58,7 @@ def main() -> None:
                                                             DocumentSource.MANUAL, "claude-rollout"))
                 doc = result.document
                 doc.status, doc.paper_kind, doc.domain, doc.account_id = (
-                    DocumentStatus.PROCESSED, "statement", Domain.FINANCIALS, CARD_ACCOUNT_ID)
+                    DocumentStatus.PROCESSED, "statement", Category.FINANCIALS, CARD_ACCOUNT_ID)
                 doc.fields_json = json.dumps({"statement_number": st.number, "issued": str(st.issued),
                                               "opening_balance": st.opening, "closing_balance": st.closing})
                 session.add(doc)

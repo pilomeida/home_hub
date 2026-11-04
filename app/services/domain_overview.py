@@ -5,12 +5,12 @@ from datetime import date
 
 from sqlmodel import Session
 
-from app.domains.base import CardLine, DomainCard
-from app.domains.registry import implemented_domains
+from app.categories.base import CardLine, CategoryCard
+from app.categories.registry import implemented_domains
 from app.services.todo_backlog import open_todo_count
 
 
-def build_domain_cards(session: Session, today: date) -> list[DomainCard]:
+def build_domain_cards(session: Session, today: date) -> list[CategoryCard]:
     cards = []
     for spec in implemented_domains():
         try:
@@ -20,7 +20,7 @@ def build_domain_cards(session: Session, today: date) -> list[DomainCard]:
             # must degrade to a visible placeholder, not a 500 for everything.
             session.rollback()
             print(f"overview card failed for {spec.domain.value}: {exc}")
-            card = DomainCard(label=spec.label, url=spec.home_url,
+            card = CategoryCard(label=spec.label, url=spec.home_url,
                               lines=[CardLine("Summary unavailable right now", attention=True)])
         card.open_todos = open_todo_count(session, spec.domain)
         cards.append(card)

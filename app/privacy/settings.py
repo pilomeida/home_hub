@@ -15,9 +15,9 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.domains.registry import implemented_domains
+from app.categories.registry import implemented_domains
 from app.models.document import Document
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.privacy import DocumentTypeSetting, PrivacySetting, TierChange
 from app.models.record import Record
 from app.privacy.tiers import Tier, TierBlocked, parse_tier
@@ -208,7 +208,7 @@ def retier(session: Session, domain: str, category: str, tier: Optional[str]) ->
     """Stamp every filed document and record of this type with the tier (NULL when unset)."""
     n = 0
     try:
-        dom = Domain(domain)
+        dom = Category(domain)
     except ValueError:
         return 0
     for model in (Document, Record):

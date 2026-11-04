@@ -7,7 +7,7 @@ def test_the_five_tables_exist():
 
 
 def test_topics_outline_profiles_and_the_new_columns_round_trip(session):
-    from app.models.domain import Domain
+    from app.models.category import Category
     from app.models.health import HealthEntry, HealthMeasurement, HealthOutlineProfile, HealthTopic
     from tests.knowledge_factories import make_document
 
@@ -18,7 +18,7 @@ def test_topics_outline_profiles_and_the_new_columns_round_trip(session):
     assert root.parent_id is None and child.parent_id == root.id
     assert root.approved is False and root.merged_into_id is None and root.similar_to_id is None
 
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
     entry = HealthEntry(document_id=doc.id, layout="report", outline_confirmed_by="Pedro")
     session.add(entry); session.commit(); session.refresh(entry)
     assert entry.layout == "report" and entry.outline_confirmed_by == "Pedro"

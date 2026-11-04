@@ -7,10 +7,10 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains.registry import get_spec
+from app.categories.registry import get_spec
 from app.jobs.registry import _run_wiki_lint
 from app.llm_gateway import set_gateway_provider
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.schedule import ProblemEntry
 from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus, LintRun, LintRunStatus
 from app.privacy import settings as ps
@@ -45,7 +45,7 @@ def level_of_each_audit(wire) -> dict:
 
 
 def health_audit_bodies(wire) -> list:
-    return [b for b in wire.parsed() if b["user"].startswith(audit_line(Domain.HEALTH))]
+    return [b for b in wire.parsed() if b["user"].startswith(audit_line(Category.HEALTH))]
 
 
 def assert_withheld_at_every_level_and_private_only_at_high(wire):
@@ -65,8 +65,8 @@ async def test_tripwire_nothing_from_an_excluded_type_reaches_the_audit(session,
 
     assert run.status == LintRunStatus.SUCCEEDED
     assert level_of_each_audit(wire) == {                          # Insurance, House and Health hold High records: their audits are High
-        audit_line(Domain.FINANCIALS): "house_mid", audit_line(Domain.HOUSE): "house_high",
-        audit_line(Domain.INSURANCE): "house_high", audit_line(Domain.HEALTH): "house_high"}
+        audit_line(Category.FINANCIALS): "house_mid", audit_line(Category.HOUSE): "house_high",
+        audit_line(Category.INSURANCE): "house_high", audit_line(Category.HEALTH): "house_high"}
     (health_audit,) = health_audit_bodies(wire)                    # the Health paper is audited, and only at High
     assert health_audit["sensitivity"] == "house_high" and pw.HEALTH_PAPER in health_audit["user"]
     assert_withheld_at_every_level_and_private_only_at_high(wire)
@@ -87,16 +87,16 @@ async def test_every_audit_call_carries_the_level_of_what_it_reads(session, worl
     pw.set_levels(session, **pw.STANDARD)
     wire = pw.Wire()
     await runner.execute_run(session, new_run(session).id, gateway=wire.client())
-    assert level_of_each_audit(wire) == {audit_line(Domain.FINANCIALS): "house_mid", audit_line(Domain.HOUSE): "house_high",
-                                         audit_line(Domain.INSURANCE): "house_high", audit_line(Domain.HEALTH): "house_high"}
+    assert level_of_each_audit(wire) == {audit_line(Category.FINANCIALS): "house_mid", audit_line(Category.HOUSE): "house_high",
+                                         audit_line(Category.INSURANCE): "house_high", audit_line(Category.HEALTH): "house_high"}
 
     for key in ("insurance/policy", "house/maintenance_log", "house/ownership_document", "financials/bill"):
         ps.save_type(session, *key.split("/"), None, False, "test")                  # clear the High and hidden types
     pw.set_levels(session, low=["house/house_appliance", "financials/bill"])        # only Low types readable
     wire2 = pw.Wire()
     await runner.execute_run(session, new_run(session).id, gateway=wire2.client())
-    assert level_of_each_audit(wire2) == {audit_line(Domain.FINANCIALS): "house_low", audit_line(Domain.HOUSE): "house_low",
-                                          audit_line(Domain.HEALTH): "house_high"}      # Health stays High whatever the levels
+    assert level_of_each_audit(wire2) == {audit_line(Category.FINANCIALS): "house_low", audit_line(Category.HOUSE): "house_low",
+                                          audit_line(Category.HEALTH): "house_high"}      # Health stays High whatever the levels
 
 
 @pytest.mark.asyncio
@@ -109,10 +109,10 @@ async def test_with_levels_off_the_audit_bodies_are_exactly_todays(session, worl
     assert run.left_out_json is None
     assert len(wire.bodies) == 4                                                    # + the Health audit
     expected = []
-    for spec in (get_spec(Domain.FINANCIALS), get_spec(Domain.HOUSE), get_spec(Domain.INSURANCE), get_spec(Domain.HEALTH)):
+    for spec in (get_spec(Category.FINANCIALS), get_spec(Category.HOUSE), get_spec(Category.INSURANCE), get_spec(Category.HEALTH)):
         body = {"workload_type": "critique_review", "system": llm_checks._SYSTEM_PROMPT, "max_tokens": 16000,
                 "response_schema": llm_checks._FINDINGS_SCHEMA, "user": llm_checks.build_domain_payload(session, spec).text}
-        if spec.domain == Domain.HEALTH:
+        if spec.domain == Category.HEALTH:
             body["sensitivity"] = "house_high"                                      # forced High: the one body that carries a level
         expected.append(body)
     assert sorted(wire.parsed(), key=lambda b: b["user"]) == sorted(expected, key=lambda b: b["user"])
@@ -128,7 +128,7 @@ async def test_findings_that_name_something_the_audit_was_not_shown_are_dropped(
     wire.lint_reply = {"findings": [
         {"kind": "gap", "summary": "Invented.", "wiki_page_ids": [world.page_high.id], "claim_ids": [world.claim_high.id]},
         {"kind": "gap", "summary": "Real.", "wiki_page_ids": [world.page_clean.id, world.page_high.id]}]}
-    drafts = await llm_checks.check_domain(session, get_spec(Domain.HOUSE), gateway=wire.client())
+    drafts = await llm_checks.check_domain(session, get_spec(Category.HOUSE), gateway=wire.client())
     assert [d.summary for d in drafts] == ["Real."] and drafts[0].wiki_page_ids == (world.page_clean.id,)
 
 
@@ -146,7 +146,7 @@ async def test_nothing_readable_but_health_means_only_the_health_audit_and_the_r
     wire = pw.Wire()
     run = await runner.execute_run(session, new_run(session).id, gateway=wire.client())
     assert run.status == LintRunStatus.SUCCEEDED
-    assert level_of_each_audit(wire) == {audit_line(Domain.HEALTH): "house_high"}   # no other AI call
+    assert level_of_each_audit(wire) == {audit_line(Category.HEALTH): "house_high"}   # no other AI call
     assert pw.HEALTH_PAPER in wire.bodies[0]
     assert LeftOut.from_json(run.left_out_json).count > 0
 
@@ -201,8 +201,8 @@ def test_the_wiki_check_page_shows_the_note_and_runs_the_audit_at_the_level_in_a
     assert r.status_code == 200
     assert "3 documents" in r.text and "available to this check" in r.text   # High is reachable, so only the 3 withheld documents
     assert "Change that on the Privacy page" in r.text and 'href="/privacy"' in r.text
-    assert level_of_each_audit(wire) == {audit_line(Domain.FINANCIALS): "house_mid", audit_line(Domain.HOUSE): "house_high",
-                                         audit_line(Domain.INSURANCE): "house_high", audit_line(Domain.HEALTH): "house_high"}
+    assert level_of_each_audit(wire) == {audit_line(Category.FINANCIALS): "house_mid", audit_line(Category.HOUSE): "house_high",
+                                         audit_line(Category.INSURANCE): "house_high", audit_line(Category.HEALTH): "house_high"}
     assert_withheld_at_every_level_and_private_only_at_high(wire)
 
     pw.set_levels(session, on=False)
@@ -219,7 +219,7 @@ def test_the_wiki_check_page_shows_the_note_and_runs_the_audit_at_the_level_in_a
 @pytest.mark.asyncio
 async def test_the_audit_of_a_private_domain_goes_out_high_and_other_audits_carry_none_of_it(session):
     import json
-    from app.models.domain import Domain
+    from app.models.category import Category
     from app.privacy.scope import reachable_scope
     from app.services.wiki_lint.llm_checks import run_llm_checks
     from tests import privacy_world as pw
@@ -227,11 +227,11 @@ async def test_the_audit_of_a_private_domain_goes_out_high_and_other_audits_carr
 
     SENT = "SENTINEL-LINT-HEALTH"
     pw.set_levels(session, low=["house/house_appliance"])
-    clean = make_document(session, domain=Domain.HOUSE, category="house_appliance", fields={"item_name": "Boiler"})
-    page_clean = make_page(session, "Boiler", domain=Domain.HOUSE)
+    clean = make_document(session, domain=Category.HOUSE, category="house_appliance", fields={"item_name": "Boiler"})
+    page_clean = make_page(session, "Boiler", domain=Category.HOUSE)
     make_claim(session, page_clean, "room", "Kitchen", doc_ids=[clean.id])
-    health = make_document(session, domain=Domain.HEALTH, category="lab_result", fields={"person": "Maria", "summary": SENT})
-    page_h = make_page(session, f"Maria {SENT}", domain=Domain.HEALTH)
+    health = make_document(session, domain=Category.HEALTH, category="lab_result", fields={"person": "Maria", "summary": SENT})
+    page_h = make_page(session, f"Maria {SENT}", domain=Category.HEALTH)
     make_claim(session, page_h, "cholesterol", SENT, doc_ids=[health.id])
 
     wire = pw.Wire()

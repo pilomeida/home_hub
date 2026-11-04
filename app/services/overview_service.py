@@ -15,7 +15,7 @@ from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentStatus
 from app.models.category_node import CategoryNode
 from app.models.transaction import Transaction, TransactionType
-from app.domains.registry import document_url
+from app.categories.registry import document_url
 from app.services.budget_service import spend_of
 from app.services.classification_engine import get_needs_review_queue
 from app.services.loan_alerts import unacknowledged_groups

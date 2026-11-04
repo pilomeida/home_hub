@@ -1,19 +1,19 @@
 import json
 from datetime import date
 
-from app.domains.house.items import (
+from app.categories.house.items import (
     build_item_cards, describe_age, group_item_cards, house_documents, reference_sections,
 )
-from app.domains.house.overview import house_overview_card
+from app.categories.house.overview import house_overview_card
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.services import wiki_store
 from app.services.wiki_store import ClaimInput, PageRef
 
 _counter = {"n": 0}
 
 
-def _doc(session, category, fields, status=DocumentStatus.PROCESSED, domain=Domain.HOUSE, filename=None):
+def _doc(session, category, fields, status=DocumentStatus.PROCESSED, domain=Category.HOUSE, filename=None):
     _counter["n"] += 1
     n = _counter["n"]
     document = Document(
@@ -46,7 +46,7 @@ def test_documents_about_one_item_share_a_card(session):
 def test_only_finalized_house_documents_count(session):
     _doc(session, "house_appliance", {"item_name": "Fridge"}, status=DocumentStatus.PENDING)
     _doc(session, "house_appliance", {"item_name": "Oven"}, status=DocumentStatus.NEEDS_ATTENTION)
-    _doc(session, "bill", {}, domain=Domain.FINANCIALS)
+    _doc(session, "bill", {}, domain=Category.FINANCIALS)
     assert [d.fields_json for d in house_documents(session)] == ['{"item_name": "Oven"}']
 
 
@@ -84,7 +84,7 @@ def test_item_card_links_its_wiki_page(session):
 
 
 def test_warranty_state_and_age():
-    from app.domains.house.items import ItemCard
+    from app.categories.house.items import ItemCard
 
     today = date(2026, 9, 24)
     assert ItemCard(key="a", name="a").warranty_state(today) is None

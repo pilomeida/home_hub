@@ -12,10 +12,10 @@ from app.channels.email_parsing import image_size, parse_email
 from app.channels.email_poller import FAILED_FOLDER, IGNORED_FOLDER, PROCESSED_FOLDER, PollReport, poll_once
 from app.jobs import runners
 from app.models.document import DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.inbox_item import InboxSkip
 from app.services import inbox_service
-from app.services.domain_classifier import DomainSuggestion
+from app.services.domain_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 from tests.test_email_poller import ALLOWED, FakeMailbox
 
@@ -105,7 +105,7 @@ async def test_the_poller_records_decorative_images_and_counts_them(engine):
 @pytest.mark.asyncio
 async def test_an_exact_copy_of_a_held_document_is_recorded_with_where_it_already_is(session):
     async def classify(file_path, context_text=None):
-        return DomainSuggestion(Domain.HOUSE, "manual", 0.95, "a manual")
+        return CategorySuggestion(Category.HOUSE, "manual", 0.95, "a manual")
 
     async def send(name):
         return await inbox_service.receive_document(

@@ -2,7 +2,7 @@ import pytest
 from sqlmodel import select
 
 from app.models.ask import AskStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.wiki import ANSWER_PAGE_TYPE, WikiLink, WikiLogEntry, WikiOperation
 from app.services.ask.save import AnswerNotSaveable, save_answer_as_wiki_page
 from app.services.wiki_store import active_claims
@@ -20,7 +20,7 @@ def test_saves_one_turn_with_claims_links_and_query_log(session, fake_domain):
 
     page = save_answer_as_wiki_page(session, turn.id, "Boiler last service")
 
-    assert page.page_type == ANSWER_PAGE_TYPE and page.domain == Domain.HOUSE and page.topic == "Boiler last service"
+    assert page.page_type == ANSWER_PAGE_TYPE and page.domain == Category.HOUSE and page.topic == "Boiler last service"
     claims = {c.key: c.value for c in active_claims(session, page.id)}
     assert claims["answer"] == "On 2 March 2026 (Wiki: Boiler) (Fake document: service.pdf)."
     assert claims["question"] == turn.question and f"doc:{doc.id}" in claims["sources"]
@@ -44,7 +44,7 @@ def test_follow_up_question_claim_carries_previous_question(session, fake_domain
 
 def test_title_of_a_topic_page_gets_suffix_and_mixed_domains_are_general(session, fake_domain):
     make_page(session, "Boiler")
-    fin = make_page(session, "Electricity", domain=Domain.FINANCIALS)
+    fin = make_page(session, "Electricity", domain=Category.FINANCIALS)
     house = make_page(session, "Boiler room")
     conv = make_conversation(session)
     turn = make_turn(session, conv, "q", answer_text=f"x [[wiki:{fin.id}]] [[wiki:{house.id}]]", citations=[

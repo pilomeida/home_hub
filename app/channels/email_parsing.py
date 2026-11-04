@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from email.utils import parseaddr
 from typing import Optional
 
-from app.domains.base import MediaKind
-from app.domains.fields import media_kind_for
+from app.categories.base import MediaKind
+from app.categories.fields import media_kind_for
 
 MIN_IMAGE_BYTES = 15_000            # smaller images are signature logos / tracking pixels
 # Decorative images (Pedro, 2026-10-17: logos, banners, signature images are dropped altogether). Decided without AI,

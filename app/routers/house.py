@@ -8,17 +8,17 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
 from app.db import get_session
-from app.domains.base import SourceKind
-from app.domains.entries import record_for_document
-from app.domains.fields import (
+from app.categories.base import SourceKind
+from app.categories.entries import record_for_document
+from app.categories.fields import (
     InvalidClassification, build_form_fields, describe_document, load_fields, media_kind_for,
 )
-from app.domains.house.categories import ITEM_PAGE_TYPE
-from app.domains.house.items import build_item_cards, group_item_cards, reference_sections
-from app.domains.house.warranty import REMINDER_LEAD_DAYS, house_derived_fields
-from app.domains.registry import document_url, get_spec, record_url
+from app.categories.house.kinds import ITEM_PAGE_TYPE
+from app.categories.house.items import build_item_cards, group_item_cards, reference_sections
+from app.categories.house.warranty import REMINDER_LEAD_DAYS, house_derived_fields
+from app.categories.registry import document_url, get_spec, record_url
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.problems import file_notices, notice_problem
 from app.services.ingestion import (
@@ -35,7 +35,7 @@ _NON_FIELD_KEYS = {"file", "category"}
 
 
 def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.HOUSE)
+    spec = get_spec(Category.HOUSE)
     known = category if category and any(c.value == category for c in spec.kinds) else None
     return {
         "categories": spec.kinds,
@@ -48,20 +48,20 @@ def _upload_context(session: Session, category: Optional[str], values: dict, err
 
 def _house_document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain != Domain.HOUSE:
+    if document is None or document.domain != Category.HOUSE:
         raise HTTPException(status_code=404, detail="House document not found")
     return document
 
 
 def _house_record_or_404(session: Session, record_id: int) -> Record:
     record = session.get(Record, record_id)
-    if record is None or record.domain != Domain.HOUSE or record.retired_at is not None:
+    if record is None or record.domain != Category.HOUSE or record.retired_at is not None:
         raise HTTPException(status_code=404, detail="House record not found")
     return record
 
 
 def _record_context(session: Session, record: Record, values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.HOUSE)
+    spec = get_spec(Category.HOUSE)
     attachment = session.get(Document, record.document_id) if record.document_id else None
     media_kind = media_kind_for(attachment.filename) if attachment else None
     return {
@@ -74,7 +74,7 @@ def _record_context(session: Session, record: Record, values: dict, errors: dict
 
 
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.HOUSE)
+    spec = get_spec(Category.HOUSE)
     fields = load_fields(document)
     item_page = None
     if fields.get("item_name"):
@@ -94,7 +94,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
 async def house_landing(request: Request, group_by: str = "type", session: Session = Depends(get_session)):
     if group_by not in ("type", "room"):
         group_by = "type"
-    spec = get_spec(Domain.HOUSE)
+    spec = get_spec(Category.HOUSE)
     return templates.TemplateResponse(request, "house/landing.html", {
         "group_by": group_by,
         "sections": group_item_cards(build_item_cards(session), group_by),
@@ -102,7 +102,7 @@ async def house_landing(request: Request, group_by: str = "type", session: Sessi
         "category_label": spec.kind_label,
         "today": date.today(),
         "reminder_days": REMINDER_LEAD_DAYS,
-        **backlog_context(session, Domain.HOUSE),
+        **backlog_context(session, Category.HOUSE),
     })
 
 
@@ -127,7 +127,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
     category = (form.get("category") or "").strip() or None
     values = {k: v for k, v in form.items() if k not in _NON_FIELD_KEYS and isinstance(v, str)}
     upload_file = form.get("file")
-    spec = get_spec(Domain.HOUSE)
+    spec = get_spec(Category.HOUSE)
     is_record = category is not None and any(c.value == category and c.kind == SourceKind.RECORD for c in spec.kinds)
     has_file = upload_file is not None and not isinstance(upload_file, str) and bool(upload_file.filename)
     if is_record:
@@ -136,7 +136,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
             attachment = IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
                                       getattr(request.state, "user_email", None))
         try:
-            record = await create_record(session, RecordInput(Domain.HOUSE, category, values,
+            record = await create_record(session, RecordInput(Category.HOUSE, category, values,
                                                               getattr(request.state, "user_email", None), attachment))
         except InvalidClassification as exc:
             return templates.TemplateResponse(request, "house/upload.html",
@@ -152,7 +152,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
         result = await ingest(
             session,
             IncomingFile(upload_file.filename, content, DocumentSource.MANUAL, getattr(request.state, "user_email", None)),
-            Classification(domain=Domain.HOUSE, paper_kind=category, fields=values),
+            Classification(domain=Category.HOUSE, paper_kind=category, fields=values),
         )
     except InvalidClassification as exc:
         return templates.TemplateResponse(

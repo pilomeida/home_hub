@@ -2,9 +2,9 @@ import json
 
 from sqlmodel import select
 
-from app.domains.base import FactPolicy
+from app.categories.base import FactPolicy
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.wiki import ClaimStatus, WikiClaim, WikiLogEntry, WikiOperation, WikiPage
 from app.services import wiki_store
 from app.services.wiki_store import ClaimInput, PageRef
@@ -14,7 +14,7 @@ BOILER = PageRef(page_type="fake.item", title="Boiler", entity_key="boiler")
 
 def _document(session, name="a.pdf", content_hash="h-a"):
     document = Document(filename=name, file_path=f"/tmp/{name}", content_hash=content_hash,
-                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.HOUSE)
+                        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Category.HOUSE)
     session.add(document)
     session.commit()
     session.refresh(document)
@@ -40,7 +40,7 @@ def test_new_claim_creates_entity_page_with_source_and_log(session):
     )
 
     page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
-    assert page.topic == "Boiler" and page.domain == Domain.HOUSE and page.page_type == "fake.item"
+    assert page.topic == "Boiler" and page.domain == Category.HOUSE and page.page_type == "fake.item"
     assert json.loads(page.facts_json) == {"room": "Kitchen"}
     assert page.summary == "Room: Kitchen"
     claim = _claims(session, page.id)[0]
@@ -137,7 +137,7 @@ def test_recent_log_is_newest_first(session):
 
 def test_build_wiki_index_groups_by_domain_and_page_type(session, fake_domain):
     wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen", label="Room")], document=_document(session))
-    session.add(WikiPage(topic="House insurance", domain=Domain.HOUSE, summary="Fidelidade policy"))
+    session.add(WikiPage(topic="House insurance", domain=Category.HOUSE, summary="Fidelidade policy"))
     session.add(WikiPage(topic="Legacy", facts_json='{"provider": "EDP"}'))
     session.commit()
 
@@ -156,8 +156,8 @@ KITCHEN = PageRef(page_type="fake.room", title="Kitchen", entity_key="kitchen")
 
 
 def test_add_link_is_idempotent_and_directional(session):
-    a = wiki_store.ensure_page(session, BOILER, Domain.HOUSE)
-    b = wiki_store.ensure_page(session, KITCHEN, Domain.HOUSE)
+    a = wiki_store.ensure_page(session, BOILER, Category.HOUSE)
+    b = wiki_store.ensure_page(session, KITCHEN, Category.HOUSE)
     session.commit()
 
     assert wiki_store.add_link(session, a.id, b.id) is True
@@ -176,7 +176,7 @@ def test_apply_claims_writes_bidirectional_links_and_logs_linked_pages(session):
     )
 
     boiler, kitchen = wiki_store.find_page(session, BOILER), wiki_store.find_page(session, KITCHEN)
-    assert kitchen is not None and kitchen.domain == Domain.HOUSE
+    assert kitchen is not None and kitchen.domain == Category.HOUSE
     assert [p.id for p in wiki_store.links_from(session, boiler.id)] == [kitchen.id]
     assert [p.id for p in wiki_store.links_from(session, kitchen.id)] == [boiler.id]
     assert report.links_added == 2
@@ -197,7 +197,7 @@ from app.models.record import Record
 
 
 def _record(session, fields=None):
-    record = Record(domain=Domain.HOUSE, paper_kind="visit", fields_json=json.dumps(fields or {}))
+    record = Record(domain=Category.HOUSE, paper_kind="visit", fields_json=json.dumps(fields or {}))
     session.add(record)
     session.commit()
     session.refresh(record)
@@ -211,7 +211,7 @@ def test_a_record_can_be_a_claim_source_and_is_logged(session):
     claim = wiki_store.active_claims(session, page.id)[0]
     assert wiki_store.claim_sources(session, [claim.id])[claim.id] == [record]
     entry = session.get(WikiLogEntry, report.log_entry_id)
-    assert entry.record_id == record.id and entry.document_id is None and page.domain == Domain.HOUSE
+    assert entry.record_id == record.id and entry.document_id is None and page.domain == Category.HOUSE
 
 
 def test_a_record_source_default_description_uses_the_category_label_not_the_raw_key(session, fake_domain):

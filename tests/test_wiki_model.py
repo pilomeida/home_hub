@@ -28,17 +28,17 @@ def test_wiki_page_domain_defaults_to_none(session):
 
 
 def test_wiki_page_domain_can_be_set(session):
-    from app.models.domain import Domain
+    from app.models.category import Category
 
     page = WikiPage(
         topic="Electricity — provider & contract", facts_json='{"provider": "EDP"}',
-        domain=Domain.FINANCIALS,
+        domain=Category.FINANCIALS,
     )
     session.add(page)
     session.commit()
     session.refresh(page)
 
-    assert page.domain == Domain.FINANCIALS
+    assert page.domain == Category.FINANCIALS
 
 
 import pytest
@@ -122,11 +122,11 @@ def test_review_operation_exists():
 
 
 def test_claim_source_needs_exactly_one_of_document_or_record(session):
-    from app.models.domain import Domain
+    from app.models.category import Category
     from app.models.record import Record
 
     page = WikiPage(topic="Heat pump")
-    record = Record(domain=Domain.HOUSE, paper_kind="maintenance_log")
+    record = Record(domain=Category.HOUSE, paper_kind="maintenance_log")
     session.add(page)
     session.add(record)
     session.commit()

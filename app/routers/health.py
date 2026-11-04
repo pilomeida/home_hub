@@ -8,18 +8,18 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 
 from app.db import get_session, get_session_factory
-from app.domains.fields import (
+from app.categories.fields import (
     InvalidClassification, build_form_fields, describe_document, dump_fields, load_fields, media_kind_for,
 )
-from app.domains.health import areas as areas_svc
-from app.domains.health.categories import LEGACY_CATEGORIES, LEGACY_LABELS
-from app.domains.health import browse, outlines, people as people_svc, store
-from app.domains.health import topics as topics_svc
-from app.domains.health.text import PATH_SEP, match_key, reference_for_display
-from app.domains.registry import document_url, get_spec
+from app.categories.health import areas as areas_svc
+from app.categories.health.kinds import LEGACY_KINDS, LEGACY_LABELS
+from app.categories.health import browse, outlines, people as people_svc, store
+from app.categories.health import topics as topics_svc
+from app.categories.health.text import PATH_SEP, match_key, reference_for_display
+from app.categories.registry import document_url, get_spec
 from app.services.wiki_engine import withdraw_from_wiki
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.health import HealthArea, HealthEntry, HealthMeasurement, HealthTopic
 from app.problems import HEALTH_BILL_NEXT_STEP, Problem, file_notices, is_health_bill_refusal, record_problem
 from app.services.ingestion import (
@@ -33,12 +33,12 @@ _NON_FIELD_KEYS = {"file", "category"}
 
 
 def spec_for_health():
-    return get_spec(Domain.HEALTH)
+    return get_spec(Category.HEALTH)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:
     document = session.get(Document, document_id)
-    if document is None or document.domain != Domain.HEALTH:
+    if document is None or document.domain != Category.HEALTH:
         raise HTTPException(status_code=404, detail={
             "what": "Paper not found.", "why": "No Health paper has that number; it may have been deleted, or it belongs to another tab.",
             "next_step": "Open the Health records list and choose the paper from there."})
@@ -121,7 +121,7 @@ def _outline_view(session: Session, entry: HealthEntry, view: list[dict]) -> lis
 
 
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
-    spec = get_spec(Domain.HEALTH)
+    spec = get_spec(Category.HEALTH)
     fields = load_fields(document)
     entry = store.entry_for(session, document.id)
     measurements = _measurement_view(list(session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
@@ -130,7 +130,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     is_report = bool(entry and entry.layout == "report")
     media_kind = media_kind_for(document.filename)
-    legacy_bill = document.paper_kind in LEGACY_CATEGORIES        # filed as a bill before bills left Health: it still opens
+    legacy_bill = document.paper_kind in LEGACY_KINDS        # filed as a bill before bills left Health: it still opens
     description = describe_document(document)
     if legacy_bill:
         description.category_label = LEGACY_LABELS[document.paper_kind]
@@ -153,7 +153,7 @@ async def _read_in_background(session_factory, document_id: int) -> None:
         if document is None or document.status == DocumentStatus.PROCESSED:
             return
         try:
-            await finalize_document(session, document, Classification(Domain.HEALTH, document.paper_kind, load_fields(document)))
+            await finalize_document(session, document, Classification(Category.HEALTH, document.paper_kind, load_fields(document)))
         except BaseException as exc:      # also a cancelled task: the paper must never be left looking unread
             session.rollback()
             session.refresh(document)
@@ -166,7 +166,7 @@ async def _read_in_background(session_factory, document_id: int) -> None:
 async def landing(request: Request, session: Session = Depends(get_session)):
     f = browse.parse_filters(request.query_params)
     waiting = list(session.exec(select(Document).where(
-        Document.domain == Domain.HEALTH,
+        Document.domain == Category.HEALTH,
         Document.status.in_([DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION])).order_by(Document.id)))
     return templates.TemplateResponse(request, "health/landing.html", {
         "rows": browse.rows(session, f), "f": f, "facets": browse.facets(session), "waiting": waiting})
@@ -190,7 +190,7 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
     try:
         result = file_for_later(session, IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
                                                       getattr(request.state, "user_email", None)),
-                                Classification(domain=Domain.HEALTH, paper_kind=category, fields=values))
+                                Classification(domain=Category.HEALTH, paper_kind=category, fields=values))
     except InvalidClassification as exc:
         return templates.TemplateResponse(request, "health/upload.html", _upload_context(exc.errors), status_code=400)
     if not result.duplicate:       # the reading takes minutes: the person lands on the paper's page, which shows its progress
@@ -201,7 +201,7 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
 async def prepare_reread(session: Session, document: Document) -> None:
     """The steps behind "Read again": take back everything read from a filed paper (calendar entry, wiki claims,
     results, tags), clear its fields so they start again from the new reading, and mark it pending."""
-    if document.paper_kind in LEGACY_CATEGORIES:       # checked first: nothing may be withdrawn from a paper that cannot be read
+    if document.paper_kind in LEGACY_KINDS:       # checked first: nothing may be withdrawn from a paper that cannot be read
         raise HTTPException(status_code=409, detail={
             "what": "Not read again.", "why": "Health no longer reads bills, so there is nothing to read it with.",
             "next_step": HEALTH_BILL_NEXT_STEP})

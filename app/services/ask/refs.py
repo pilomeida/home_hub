@@ -3,9 +3,9 @@ Sources are a Document ("doc:N") or a hand-entered Record ("rec:N")."""
 
 from typing import Union
 
-from app.domains import registry
-from app.domains.fields import describe_document, file_url
-from app.domains.registry import get_spec, is_implemented
+from app.categories import registry
+from app.categories.fields import describe_document, file_url
+from app.categories.registry import get_spec, is_implemented
 from app.models.document import Document
 from app.models.record import Record
 from app.models.todo import Todo

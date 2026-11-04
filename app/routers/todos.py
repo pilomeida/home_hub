@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.domains.registry import is_implemented
-from app.models.domain import Domain
+from app.categories.registry import is_implemented
+from app.models.category import Category
 from app.models.todo import Todo
 from app.services.todo_backlog import add_todo, backlog_context
 from app.templating import templates
@@ -26,9 +26,9 @@ def _todo_lists(session: Session):
     return open_todos, done_todos
 
 
-def _parse_domain(value: str) -> Domain:
+def _parse_domain(value: str) -> Category:
     try:
-        domain = Domain(value)
+        domain = Category(value)
     except ValueError:
         raise HTTPException(status_code=400, detail="Unknown domain") from None
     if not is_implemented(domain):

@@ -1,15 +1,15 @@
 import pytest
 
-from app.domains.health import areas, people
-from app.domains.health.text import fold, match_key
+from app.categories.health import areas, people
+from app.categories.health.text import fold, match_key
 from app.models.document import Document
 from app.models.health import HealthEntry, HealthEntryTag, HealthMeasurement
 from tests.knowledge_factories import make_document
-from app.models.domain import Domain
+from app.models.category import Category
 
 
 def _entry(session, person=None):
-    doc = make_document(session, domain=Domain.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
     e = HealthEntry(document_id=doc.id, person_id=person.id if person else None)
     session.add(e)
     session.commit()

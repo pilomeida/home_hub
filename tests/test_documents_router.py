@@ -2,10 +2,10 @@ import io
 
 import pytest
 
-import app.domains.house.handler as house_handler
-from app.domains.house.warranty import WarrantyDates
+import app.categories.house.handler as house_handler
+from app.categories.house.warranty import WarrantyDates
 from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 
 
 @pytest.fixture(autouse=True)

@@ -8,7 +8,7 @@ import pytest
 from sqlmodel import select
 
 import app.services.extraction as extraction
-from app.domains.financials import handler as pipeline
+from app.categories.financials import handler as pipeline
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.transaction import StatementCheck, Transaction
 from app.services.extraction import (

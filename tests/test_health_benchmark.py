@@ -5,9 +5,9 @@ from copy import deepcopy
 
 import pytest
 
-from app.domains.health import benchmark
-from app.domains.health import extraction as ex
-from app.domains.health.reading import read_health_document
+from app.categories.health import benchmark
+from app.categories.health import extraction as ex
+from app.categories.health.reading import read_health_document
 from tests import privacy_world as pw
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.test_health_checks import FULL

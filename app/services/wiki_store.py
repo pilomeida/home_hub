@@ -15,10 +15,10 @@ from typing import Iterable, Optional, Sequence
 
 from sqlmodel import Session, select
 
-from app.domains.base import FactPolicy
-from app.domains.registry import get_spec, is_implemented
+from app.categories.base import FactPolicy
+from app.categories.registry import get_spec, is_implemented
 from app.models.document import Document
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.record import Record
 from app.models.wiki import (
     ANSWER_PAGE_TYPE, TOPIC_PAGE_TYPE, ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry,
@@ -87,7 +87,7 @@ def find_page(session: Session, ref: PageRef) -> Optional[WikiPage]:
     ).first()
 
 
-def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Domain]) -> WikiPage:
+def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Category]) -> WikiPage:
     page = find_page(session, ref)
     if page is not None:
         return page
@@ -102,7 +102,7 @@ def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Domain]
     return page
 
 
-def ensure_page(session: Session, ref: PageRef, domain: Optional[Domain]) -> WikiPage:
+def ensure_page(session: Session, ref: PageRef, domain: Optional[Category]) -> WikiPage:
     return _get_or_create_page(session, ref, domain)
 
 
@@ -219,7 +219,7 @@ def claim_sources(session: Session, claim_ids: Sequence[int]) -> dict[int, list[
     return result
 
 
-def _record_source_label(domain: Optional[Domain], record: Record) -> str:
+def _record_source_label(domain: Optional[Category], record: Record) -> str:
     """A hand-entered Record's default log-description source, e.g.
     "Maintenance log (entered by hand) #1" -- the registry's category
     label, not the raw internal category key."""
@@ -272,7 +272,7 @@ def apply_claims(
     *,
     document: Optional[Document] = None,
     record: Optional[Record] = None,
-    domain: Optional[Domain] = None,
+    domain: Optional[Category] = None,
     operation: WikiOperation = WikiOperation.INGEST,
     description: Optional[str] = None,
     links: Sequence[LinkInput] = (),
@@ -415,7 +415,7 @@ def visible_summary(session: Session, page: WikiPage, view) -> Optional[str]:
 
 def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
     """`view` (app.privacy.reach.WikiView) hides the pages and claims Ask may not see; None = all."""
-    from app.domains.registry import implemented_domains
+    from app.categories.registry import implemented_domains
 
     specs = implemented_domains()
     domain_order = {spec.domain: i for i, spec in enumerate(specs)}
@@ -425,7 +425,7 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
         for entity_type in spec.wiki.entity_types:
             type_labels[entity_type.page_type] = entity_type.label
 
-    grouped: dict[tuple[Optional[Domain], str], list[IndexEntry]] = {}
+    grouped: dict[tuple[Optional[Category], str], list[IndexEntry]] = {}
     for page in session.exec(select(WikiPage)).all():
         if view is not None and not view.page_visible(page.id):
             continue
@@ -435,7 +435,7 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
             IndexEntry(page_id=page.id, title=page.topic, summary=summary, updated_at=page.updated_at)
         )
 
-    def sort_key(key: tuple[Optional[Domain], str]):
+    def sort_key(key: tuple[Optional[Category], str]):
         domain, page_type = key
         return (domain_order.get(domain, len(domain_order)), page_type == TOPIC_PAGE_TYPE,
                 type_labels.get(page_type, page_type))

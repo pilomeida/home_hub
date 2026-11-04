@@ -1,4 +1,4 @@
-from app.domains.registry import implemented_domains
+from app.categories.registry import implemented_domains
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 from tests.domain_fakes import make_fake_spec
 

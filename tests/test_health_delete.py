@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
-from app.domains.health import store
+from app.categories.health import store
 from app.models.document import DocumentStatus
 from app.models.health import HealthEntry, HealthMeasurement
 from app.models.wiki import ClaimStatus, WikiClaim, WikiClaimSource
@@ -15,7 +15,7 @@ from tests.fakes.fake_gateway import gateway_text_result
 
 @pytest.fixture(autouse=True)
 def _fixed_today(monkeypatch):
-    monkeypatch.setattr("app.domains.health.appointments._today", lambda: date(2026, 10, 16))
+    monkeypatch.setattr("app.categories.health.appointments._today", lambda: date(2026, 10, 16))
 
 
 @pytest.mark.asyncio
@@ -48,7 +48,7 @@ def test_the_delete_route_redirects_to_the_list(client, session):
 
 @pytest.mark.asyncio
 async def test_a_failed_calendar_delete_names_the_entry_and_the_paper_is_still_discarded(session):
-    from app.domains.health.appointments import appointment_event, sync_appointment
+    from app.categories.health.appointments import appointment_event, sync_appointment
     from app.models.schedule import ProblemEntry
     from tests.test_health_appointments import RefusingCalendar, _appointment
     doc = _appointment(session)
@@ -68,7 +68,7 @@ async def test_a_failed_calendar_delete_names_the_entry_and_the_paper_is_still_d
 
 @pytest.mark.asyncio
 async def test_discarding_an_appointment_also_removes_its_calendar_entry(session):
-    from app.domains.health.appointments import sync_appointment
+    from app.categories.health.appointments import sync_appointment
     from tests.test_google_calendar import Google
     from tests.test_health_appointments import _appointment
     doc = _appointment(session)
@@ -115,7 +115,7 @@ async def test_taking_back_a_reading_deletes_the_results_and_tags_before_their_e
     """The tables have no declared relationship, so the order is ours to keep: with foreign keys enforced, an entry
     deleted while results still point at it fails (it did, on the first real paper, 2026-10-16)."""
     from sqlalchemy import event
-    from app.domains.health import store
+    from app.categories.health import store
     from tests import privacy_world as pw
     from tests.test_health_handler import _file
     from tests.test_health_sections import SECTIONS_REPLY

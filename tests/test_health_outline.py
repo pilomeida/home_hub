@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from app.domains.health import extraction as ex
+from app.categories.health import extraction as ex
 from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
 from tests.test_health_extraction import _png
 

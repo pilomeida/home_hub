@@ -4,11 +4,11 @@ import json
 import pytest
 from sqlmodel import select
 
-from app.domains import registry
-from app.domains.fields import InvalidClassification, load_fields
-from app.domains.insurance.policies import build_policy_cards, policy_sections
+from app.categories import registry
+from app.categories.fields import InvalidClassification, load_fields
+from app.categories.insurance.policies import build_policy_cards, policy_sections
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.wiki import WikiPage
 from app.services.ingestion import Classification, IncomingFile, ingest, refile_document
 
@@ -24,7 +24,7 @@ _n = [0]
 async def _ingest(session, category, fields, filename=None):
     _n[0] += 1
     result = await ingest(session, IncomingFile(filename or f"doc{_n[0]}.pdf", f"bytes{_n[0]}".encode(), DocumentSource.MANUAL),
-                          Classification(Domain.INSURANCE, category, fields))
+                          Classification(Category.INSURANCE, category, fields))
     return result.document
 
 
@@ -34,7 +34,7 @@ ZURICH = {"insurer": "Zurich", "policy_number": "009886609", "insured": "Mafra h
 
 def test_the_registry_has_insurance_whose_kinds_are_papers():
     """Work-list B1b (Pedro, 2026-11-04): the kind is what the paper is; what the policy covers is a detail."""
-    spec = registry.get_spec(Domain.INSURANCE)
+    spec = registry.get_spec(Category.INSURANCE)
     assert spec.home_url == "/insurance"
     assert [c.value for c in spec.kinds] == ["policy", "claim"]
     covers = next(f for f in spec.fields if f.key == "covers")
@@ -44,9 +44,9 @@ def test_the_registry_has_insurance_whose_kinds_are_papers():
 @pytest.mark.asyncio
 async def test_a_policy_document_is_stored_tagged_and_gets_a_policy_page(session):
     document = await _ingest(session, "policy", {**ZURICH, "part": "general_conditions"})
-    assert document.status == DocumentStatus.PROCESSED and document.domain == Domain.INSURANCE
+    assert document.status == DocumentStatus.PROCESSED and document.domain == Category.INSURANCE
     page = session.exec(select(WikiPage).where(WikiPage.page_type == "insurance.policy")).one()
-    assert page.topic == "009886609" and page.domain == Domain.INSURANCE
+    assert page.topic == "009886609" and page.domain == Category.INSURANCE
     from app.models.wiki import WikiClaim
     types = [c.value for c in session.exec(select(WikiClaim).where(WikiClaim.page_id == page.id, WikiClaim.key == "type")).all()]
     assert types == ["Home insurance"]
@@ -84,10 +84,10 @@ async def test_documents_of_one_policy_share_a_card_in_reading_order(session):
 async def test_a_house_document_can_be_refiled_to_insurance(session):
     from app.models.document import DocumentSource as S
     result = await ingest(session, IncomingFile("manual.pdf", b"x", S.MANUAL),
-                          Classification(Domain.HOUSE, "ownership_document", {}))
+                          Classification(Category.HOUSE, "ownership_document", {}))
     moved = await refile_document(session, result.document, Classification(
-        Domain.INSURANCE, "policy", {**ZURICH, "part": "policy_schedule"}))
-    assert moved.domain == Domain.INSURANCE and load_fields(moved)["policy_number"] == "009886609"
+        Category.INSURANCE, "policy", {**ZURICH, "part": "policy_schedule"}))
+    assert moved.domain == Category.INSURANCE and load_fields(moved)["policy_number"] == "009886609"
 
 
 # --- router -------------------------------------------------------------------
@@ -115,7 +115,7 @@ def test_upload_shows_on_the_landing_with_a_detail_page_and_edit(client, session
     landing = client.get("/insurance").text
     assert "Health" in landing and "Real Vida Seguros" in landing and "condicoes.pdf" in landing and "91/038975" in landing
     from app.models.document import Document
-    document = session.exec(select(Document).where(Document.domain == Domain.INSURANCE)).one()
+    document = session.exec(select(Document).where(Document.domain == Category.INSURANCE)).one()
     detail = client.get(f"/insurance/documents/{document.id}")
     assert detail.status_code == 200 and "Pedro, Rute, Matias, Vicente" in detail.text
     edited = client.post(f"/insurance/documents/{document.id}/fields", data={**{k: v for k, v in data.items() if k != "category"},
@@ -146,19 +146,19 @@ def test_house_insurance_documents_move_to_the_insurance_domain_with_renamed_fie
     from app.models.document import Document
     from app.services.insurance_move import move_house_insurance_documents
     old = Document(filename="z.pdf", file_path="/tmp/z.pdf", content_hash="h-z", source=DocumentSource.MANUAL,
-                   domain=Domain.HOUSE, paper_kind="insurance_policy", status=DocumentStatus.PROCESSED,
+                   domain=Category.HOUSE, paper_kind="insurance_policy", status=DocumentStatus.PROCESSED,
                    fields_json=json.dumps({"insurer": "Zurich", "policy_number": "009886609", "document_kind": "policy_schedule",
                                            "property": "Mafra house", "insurance_notes": "n", "broker": "EXS"}))
     other = Document(filename="d.pdf", file_path="/tmp/d.pdf", content_hash="h-d", source=DocumentSource.MANUAL,
-                     domain=Domain.HOUSE, paper_kind="ownership_document", status=DocumentStatus.PROCESSED, fields_json="{}")
+                     domain=Category.HOUSE, paper_kind="ownership_document", status=DocumentStatus.PROCESSED, fields_json="{}")
     session.add(old); session.add(other); session.commit()
     assert move_house_insurance_documents(session) == 1
     session.expire_all()
     moved = session.get(Document, old.id)
-    assert (moved.domain, moved.paper_kind) == (Domain.INSURANCE, "home_insurance")
+    assert (moved.domain, moved.paper_kind) == (Category.INSURANCE, "home_insurance")
     assert json.loads(moved.fields_json) == {"insurer": "Zurich", "policy_number": "009886609", "document_kind": "policy_schedule",
                                              "insured": "Mafra house", "notes": "n", "broker": "EXS"}
-    assert (session.get(Document, other.id).domain, session.get(Document, other.id).paper_kind) == (Domain.HOUSE, "ownership_document")
+    assert (session.get(Document, other.id).domain, session.get(Document, other.id).paper_kind) == (Category.HOUSE, "ownership_document")
     assert move_house_insurance_documents(session) == 0  # idempotent
 
 
@@ -166,7 +166,7 @@ def test_house_insurance_documents_move_to_the_insurance_domain_with_renamed_fie
 
 def test_a_premium_notice_uploaded_in_insurance_is_a_bill_shown_on_its_policy(client, session, monkeypatch):
     """Filed once, under Bills, with its policy number; listed on the policy's card; not an Insurance paper."""
-    import app.domains.financials.handler as financials_handler
+    import app.categories.financials.handler as financials_handler
     from app.models.document import Document
 
     async def read_as_bill(session, document):           # the bill reader, without the model
@@ -180,7 +180,7 @@ def test_a_premium_notice_uploaded_in_insurance_is_a_bill_shown_on_its_policy(cl
     response = _upload(client, {"category": "premium_notice", "policy_number": "pt-123"}, "aviso.pdf")
     assert response.status_code == 303 and response.headers["location"].startswith("/financials/bills/")
     bill = session.exec(select(Document).where(Document.filename == "aviso.pdf")).one()
-    assert (bill.domain, bill.paper_kind) == (Domain.FINANCIALS, "bill")
+    assert (bill.domain, bill.paper_kind) == (Category.FINANCIALS, "bill")
     assert load_fields(bill)["policy_number"] == "pt-123"
     card = build_policy_cards(session)[0]
     assert [(p.entry.title, p.note) for p in card.documents] == [
@@ -202,7 +202,7 @@ def test_the_migration_turns_the_old_kinds_into_papers():
 async def test_the_move_script_files_the_old_premium_notices_as_bills(session, monkeypatch):
     """The six premium notices of 2026-11-04 go through the re-file path: off the policy page, onto Bills."""
     import importlib.util
-    import app.domains.financials.handler as financials_handler
+    import app.categories.financials.handler as financials_handler
     from app.models.document import Document
 
     async def read_as_bill(session, document):
@@ -224,6 +224,6 @@ async def test_the_move_script_files_the_old_premium_notices_as_bills(session, m
     await move.run(session, apply=True)
     session.expire_all()
     moved = session.get(Document, old.id)
-    assert (moved.domain, moved.paper_kind, load_fields(moved)) == (Domain.FINANCIALS, "bill", {"policy_number": "009886609"})
-    assert session.get(Document, policy.id).domain == Domain.INSURANCE
+    assert (moved.domain, moved.paper_kind, load_fields(moved)) == (Category.FINANCIALS, "bill", {"policy_number": "009886609"})
+    assert session.get(Document, policy.id).domain == Category.INSURANCE
     assert [p.note for p in build_policy_cards(session)[0].documents][-1] == "premium notice (in Bills)"

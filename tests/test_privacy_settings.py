@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import select
 
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.privacy import DocumentTypeSetting, TierChange
 from app.models.record import Record
 from app.privacy import settings as ps
@@ -38,21 +38,21 @@ def test_suggestions_cover_every_registry_type():
 
 def test_off_by_default_so_the_live_hub_is_unchanged(session):
     assert ps.enforcing(session) is False
-    assert ps.resolve(session, Domain.FINANCIALS, "statement").state == "off"
-    assert ps.require_ready(session, Domain.FINANCIALS, "statement").state == "off"   # does not raise
+    assert ps.resolve(session, Category.FINANCIALS, "statement").state == "off"
+    assert ps.require_ready(session, Category.FINANCIALS, "statement").state == "off"   # does not raise
 
 
 def test_when_on_an_unset_type_is_held_and_a_set_type_is_ready(session):
     ps.set_enforcing(session, True, "pedro@example.com")
     with pytest.raises(ps.TierHeld):
-        ps.require_ready(session, Domain.FINANCIALS, "statement")
+        ps.require_ready(session, Category.FINANCIALS, "statement")
     with pytest.raises(ps.TierHeld):
         ps.require_ready(session, None, None)                              # unknown type: held
     ps.save_type(session, "financials", "statement", "house_mid", False, "pedro@example.com")
-    res = ps.require_ready(session, Domain.FINANCIALS, "statement")
+    res = ps.require_ready(session, Category.FINANCIALS, "statement")
     assert (res.state, res.tier, res.redact) == ("ready", Tier.MID, False)
     with pytest.raises(ps.TierHeld):                                       # another type is still held
-        ps.require_ready(session, Domain.FINANCIALS, "bill")
+        ps.require_ready(session, Category.FINANCIALS, "bill")
 
 
 def test_unsetting_a_tier_holds_the_type_again(session):
@@ -60,7 +60,7 @@ def test_unsetting_a_tier_holds_the_type_again(session):
     ps.save_type(session, "financials", "bill", "house_low", False, None)
     ps.save_type(session, "financials", "bill", "", False, None)
     with pytest.raises(ps.TierHeld):
-        ps.require_ready(session, Domain.FINANCIALS, "bill")
+        ps.require_ready(session, Category.FINANCIALS, "bill")
 
 
 def test_confirming_suggestions_saves_each_unset_type_once(session):
@@ -78,9 +78,9 @@ def test_confirming_does_not_override_a_choice_already_made(session):
 
 
 def test_saving_retiers_documents_and_records_already_filed(session):
-    a = _doc(session, "a", Domain.FINANCIALS, "statement")
-    b = _doc(session, "b", Domain.FINANCIALS, "bill", tier="house_low")
-    r = Record(domain=Domain.FINANCIALS, paper_kind="statement"); session.add(r); session.commit()
+    a = _doc(session, "a", Category.FINANCIALS, "statement")
+    b = _doc(session, "b", Category.FINANCIALS, "bill", tier="house_low")
+    r = Record(domain=Category.FINANCIALS, paper_kind="statement"); session.add(r); session.commit()
     ps.save_type(session, "financials", "statement", "house_mid", False, None)
     session.refresh(a); session.refresh(b); session.refresh(r)
     assert (a.sensitivity_tier, r.sensitivity_tier, b.sensitivity_tier) == ("house_mid", "house_mid", "house_low")
@@ -93,7 +93,7 @@ def test_saving_retiers_documents_and_records_already_filed(session):
 
 
 def test_backfill_applies_saved_settings(session):
-    a = _doc(session, "a", Domain.INSURANCE, "policy")
+    a = _doc(session, "a", Category.INSURANCE, "policy")
     session.add(DocumentTypeSetting(domain="insurance", paper_kind="policy", tier="house_mid")); session.commit()
     assert backfill_tiers(session) == 1
     session.refresh(a)

@@ -22,7 +22,7 @@ from sqlmodel import Session, select
 
 from app.db import engine
 from app.models.document import DocumentSource, DocumentStatus
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction
 from app.services.ingestion import Classification, IncomingFile, ingest
 
@@ -49,7 +49,7 @@ async def backfill(source_dir: Path) -> None:
                     filename=pdf_path.name, content=pdf_path.read_bytes(),
                     source=DocumentSource.MANUAL, uploaded_by="backfill-script",
                 ),
-                Classification(domain=Domain.FINANCIALS),
+                Classification(domain=Category.FINANCIALS),
             )
             document = result.document
             if result.duplicate:

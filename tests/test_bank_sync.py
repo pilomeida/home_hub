@@ -6,7 +6,7 @@ import pytest
 from app.models.account import Account
 from app.models.bank import BankApiCall, BankAccountLink, BankConnection, BankConnectionStatus
 from app.models.document import Document, DocumentSource
-from app.models.domain import Domain
+from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType
 from app.services.bankapi.sync import DAILY_CALL_LIMIT, SCHEDULED_CALL_LIMIT, sync_link
 
@@ -311,7 +311,7 @@ def test_identical_coffees_match_one_to_one(session):
 
 def _doc(session):
     d = Document(filename="sync", file_path="", content_hash="bank-sync:seed",
-                 source=DocumentSource.API, domain=Domain.FINANCIALS)
+                 source=DocumentSource.API, domain=Category.FINANCIALS)
     session.add(d); session.commit(); session.refresh(d)
     return d
 
@@ -380,9 +380,9 @@ def test_first_sync_window_starts_from_the_last_statement_not_a_later_bill(sessi
     moved the start to Aug 11, hiding Aug 1-10."""
     link, account = make_link(session)
     statement = Document(filename="s.pdf", file_path="/x", content_hash="st-1",
-                         source=DocumentSource.MANUAL, paper_kind="statement", domain=Domain.FINANCIALS)
+                         source=DocumentSource.MANUAL, paper_kind="statement", domain=Category.FINANCIALS)
     bill = Document(filename="b.pdf", file_path="/y", content_hash="bl-1",
-                    source=DocumentSource.MANUAL, paper_kind=None, domain=Domain.FINANCIALS)
+                    source=DocumentSource.MANUAL, paper_kind=None, domain=Category.FINANCIALS)
     session.add(statement); session.add(bill); session.commit()
     session.refresh(statement); session.refresh(bill)
     session.add(Transaction(document_id=statement.id, description="stmt", amount=5.0,
