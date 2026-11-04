@@ -137,5 +137,5 @@ def sync_warranty_todo(session: Session, document: Document, today: Optional[dat
         return None
     return upsert_document_todo(
         session, document, title=f"Renew {item_name} warranty",
-        due_date=reminder_due_date(effective.date), domain=Category.HOUSE,
+        due_date=reminder_due_date(effective.date), category=Category.HOUSE,
     )

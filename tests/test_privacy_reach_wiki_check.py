@@ -35,8 +35,8 @@ def new_run(session) -> LintRun:
     return runner.start_run(session, "manual")
 
 
-def audit_line(domain) -> str:
-    return f"Domain: {get_spec(domain).label}"          # the first line of every audit body
+def audit_line(category) -> str:
+    return f"Domain: {get_spec(category).label}"          # the first line of every audit body
 
 
 def level_of_each_audit(wire) -> dict:
@@ -227,11 +227,11 @@ async def test_the_audit_of_a_private_domain_goes_out_high_and_other_audits_carr
 
     SENT = "SENTINEL-LINT-HEALTH"
     pw.set_levels(session, low=["house/house_appliance"])
-    clean = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance", fields={"item_name": "Boiler"})
-    page_clean = make_page(session, "Boiler", domain=Category.HOUSE)
+    clean = make_document(session, category=Category.HOUSE, paper_kind="house_appliance", fields={"item_name": "Boiler"})
+    page_clean = make_page(session, "Boiler", category=Category.HOUSE)
     make_claim(session, page_clean, "room", "Kitchen", doc_ids=[clean.id])
-    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", fields={"person": "Maria", "summary": SENT})
-    page_h = make_page(session, f"Maria {SENT}", domain=Category.HEALTH)
+    health = make_document(session, category=Category.HEALTH, paper_kind="lab_result", fields={"person": "Maria", "summary": SENT})
+    page_h = make_page(session, f"Maria {SENT}", category=Category.HEALTH)
     make_claim(session, page_h, "cholesterol", SENT, doc_ids=[health.id])
 
     wire = pw.Wire()

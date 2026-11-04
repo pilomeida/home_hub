@@ -11,7 +11,7 @@ pytestmark = pytest.mark.usefixtures("two_domains")
 
 
 def _pending(session, *, confident=True, content_hash="h1", filename="boiler.pdf",
-             domain="house", paper_kind="manual"):
+             category="house", paper_kind="manual"):
     document = Document(
         filename=filename, file_path=f"/tmp/{content_hash}.pdf", content_hash=content_hash,
         source=DocumentSource.TELEGRAM, status=DocumentStatus.PENDING_REVIEW, uploaded_by="Rute (Telegram)",
@@ -21,7 +21,7 @@ def _pending(session, *, confident=True, content_hash="h1", filename="boiler.pdf
     session.refresh(document)
     session.add(InboxItem(
         document_id=document.id, context_text="Telegram caption: new boiler",
-        suggested_domain=domain, suggested_category=paper_kind,
+        suggested_domain=category, suggested_category=paper_kind,
         confidence=0.95 if confident else 0.3, classifier_note="a manual",
     ))
     session.commit()

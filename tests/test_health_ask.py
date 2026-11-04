@@ -17,7 +17,7 @@ TOOLS = {t.name: t for t in HEALTH_TOOLS}
 
 
 def _paper(session, person, when, test_value, areas_=("Heart and circulation",), name="a.pdf"):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename=name)
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename=name)
     ex = ExtractedHealth(person_name=person, document_date=when, provider="Lab Norte", record_kind="test",
                          areas=list(areas_), conditions=[], summary=f"{person} panel",
                          measurements=[ExtractedMeasurement("LDL cholesterol", test_value, None, "mg/dL", None, 100.0,
@@ -64,5 +64,5 @@ def test_measurements_come_back_oldest_first_with_range_flags(session, world):
 
 
 def test_the_tools_see_nothing_outside_health(session, world):
-    other = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance", fields={"item_name": "Boiler"})
+    other = make_document(session, category=Category.HOUSE, paper_kind="house_appliance", fields={"item_name": "Boiler"})
     assert "Boiler" not in run(session, "health_find_records", query="boiler").text

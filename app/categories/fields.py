@@ -64,18 +64,18 @@ def field_date(fields: Mapping[str, str], key: str) -> Optional[date]:
         return None
 
 
-def distinct_field_values(session: Session, domain: Category, key: str) -> list[str]:
+def distinct_field_values(session: Session, category: Category, key: str) -> list[str]:
     """Previously used values of one field within a domain (case-insensitively
     de-duplicated, first spelling wins) -- the options behind SUGGEST fields."""
     if not key.isidentifier():
         raise ValueError(f"Invalid field key: {key!r}")
     value = func.json_extract(Document.fields_json, f"$.{key}")
     rows = session.execute(
-        sa_select(value).where(Document.category == domain, value.is_not(None)).order_by(Document.id)
+        sa_select(value).where(Document.category == category, value.is_not(None)).order_by(Document.id)
     ).scalars().all()
     record_value = func.json_extract(Record.fields_json, f"$.{key}")
     record_rows = session.execute(
-        sa_select(record_value).where(Record.category == domain, Record.retired_at.is_(None), record_value.is_not(None))
+        sa_select(record_value).where(Record.category == category, Record.retired_at.is_(None), record_value.is_not(None))
         .order_by(Record.id)
     ).scalars().all()
     seen: dict[str, str] = {}

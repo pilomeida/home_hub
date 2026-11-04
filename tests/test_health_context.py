@@ -45,7 +45,7 @@ async def test_a_paper_without_context_gives_empty_strings(tmp_path):
 
 @pytest.mark.asyncio
 async def test_the_context_is_stored_as_fields_and_a_persons_own_words_win(session, tmp_path):
-    document = make_document(session, domain=Category.HEALTH, paper_kind="imaging_report")
+    document = make_document(session, category=Category.HEALTH, paper_kind="imaging_report")
     document.fields_json = dump_fields({"indication": "Controlo anual pedido pela neurologia"})   # typed by a person
     session.add(document)
     session.commit()

@@ -9,7 +9,7 @@ from app.models.category import Category
 
 
 def _entry(session, person=None):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
     e = HealthEntry(document_id=doc.id, person_id=person.id if person else None)
     session.add(e)
     session.commit()

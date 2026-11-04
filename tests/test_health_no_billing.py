@@ -166,7 +166,7 @@ async def test_the_bill_reply_is_parsed_as_a_bill_with_no_category(tmp_path):
 # (e) the one paper already filed as a bill still opens
 @pytest.mark.parametrize("legacy", ["medical_bill", "claim_statement"])
 def test_a_paper_filed_under_a_removed_bill_category_still_opens_and_says_it_is_a_bill(client, session, legacy):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind=legacy, filename="old.pdf",
+    doc = make_document(session, category=Category.HEALTH, paper_kind=legacy, filename="old.pdf",
                         fields={"provider": "Clínica Sul", "amount_billed": "45,5"})
     r = client.get(f"/health/documents/{doc.id}")
     assert r.status_code == 200
@@ -175,7 +175,7 @@ def test_a_paper_filed_under_a_removed_bill_category_still_opens_and_says_it_is_
 
 
 def test_a_normal_paper_page_has_no_bill_line(client, session):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="lab.pdf")
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename="lab.pdf")
     r = client.get(f"/health/documents/{doc.id}")
     assert r.status_code == 200 and "This paper is a bill" not in r.text
 
@@ -184,7 +184,7 @@ def test_a_normal_paper_page_has_no_bill_line(client, session):
 def test_no_ask_tool_shows_amounts(session):
     pw.set_levels(session, on=False)
     from app.categories.health.extraction import ExtractedHealth, ExtractedMeasurement
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="a.pdf")
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename="a.pdf")
     store.apply_extraction(session, doc, ExtractedHealth(
         person_name="Maria Santos Almeida", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",
         areas=["Heart and circulation"], summary="Maria panel",
@@ -206,7 +206,7 @@ def test_no_ask_tool_shows_amounts(session):
 
 # (g) a paper filed under a removed bill category cannot be read again, and is not wiped by trying
 def _legacy_paper(session):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="medical_bill", filename="old.pdf",
+    doc = make_document(session, category=Category.HEALTH, paper_kind="medical_bill", filename="old.pdf",
                         fields={"provider": "Clínica Sul", "amount_billed": "45,5"})
     entry = HealthEntry(document_id=doc.id, entry_date=date(2025, 5, 2), provider="Clínica Sul", summary="Old bill",
                         amount_billed=45.5)

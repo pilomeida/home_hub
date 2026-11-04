@@ -65,12 +65,12 @@ def is_settled_source(source: Optional[Source]) -> bool:
     return is_settled(source)
 
 
-def settled_entries(session: Session, domain: Optional[Category] = None,
+def settled_entries(session: Session, category: Optional[Category] = None,
                     reach: Optional[Reach] = None) -> list[SourceEntry]:
     """PROCESSED documents and non-retired records of implemented domains, newest first.
     With a binding `reach`, only those of types the AI may read (everything the AI is shown
     about documents comes through here)."""
-    domains = [domain] if domain is not None else [s.category for s in implemented_domains()]
+    domains = [category] if category is not None else [s.category for s in implemented_domains()]
     entries = [e for d in domains for e in domain_entries(session, d)
                if e.kind == SourceKind.RECORD or is_settled(e.document)]
     if reach is not None:

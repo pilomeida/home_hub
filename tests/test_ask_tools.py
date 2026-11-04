@@ -19,7 +19,7 @@ def _tool(name):
 
 def test_settled_entries_are_processed_documents_and_live_records(session, fake_domain):
     ok = make_document(session, filename="manual.pdf")
-    make_document(session, filename="inbox.pdf", domain=None, paper_kind=None, status=DocumentStatus.PENDING_REVIEW)
+    make_document(session, filename="inbox.pdf", category=None, paper_kind=None, status=DocumentStatus.PENDING_REVIEW)
     make_document(session, filename="broken.pdf", status=DocumentStatus.NEEDS_ATTENTION)
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"})
     make_record(session, fields={"item_name": "Old"}, retired=True)
@@ -55,7 +55,7 @@ def test_find_sources_searches_documents_and_records_accent_insensitive(session,
     hit = make_document(session, filename="caldeira.pdf", fields={"item_name": "Caldeira Vaillant"})
     visit = make_record(session, fields={"item_name": "Caldeira Vaillant", "visit_date": "2026-03-02"})
     make_document(session, filename="lawnmower.pdf", fields={"item_name": "Lawnmower"})
-    make_document(session, filename="pending.pdf", domain=None, status=DocumentStatus.PENDING_REVIEW)
+    make_document(session, filename="pending.pdf", category=None, status=DocumentStatus.PENDING_REVIEW)
 
     out = _tool("find_sources").run(session, {"query": "caldéira"})
 
@@ -76,7 +76,7 @@ def test_read_document_file_refuses_unsettled_and_attaches_settled(session, fake
     pdf = tmp_path / "w.pdf"
     pdf.write_bytes(b"%PDF-1.4 fake")
     good = make_document(session, filename="w.pdf", file_path=str(pdf))
-    pending = make_document(session, filename="p.pdf", file_path=str(pdf), domain=None,
+    pending = make_document(session, filename="p.pdf", file_path=str(pdf), category=None,
                             status=DocumentStatus.PENDING_REVIEW)
     refused = _tool("read_document_file").run(session, {"document_id": pending.id})
     assert refused.is_error and refused.content_blocks == []

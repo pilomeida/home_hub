@@ -63,7 +63,7 @@ def save_answer_as_wiki_page(session: Session, turn_id: int, title: str) -> Wiki
         ClaimInput(page=ref, key="answer", value=plain_text(turn.answer_text, known), label="Answer"),
         ClaimInput(page=ref, key="sources", value="; ".join(f"{r} {known[r].label}" for r in refs) or "none",
                    label="Sources"),
-    ], document=None, domain=domain, operation=WikiOperation.QUERY, description=f"Saved Ask answer as “{title}”")
+    ], document=None, category=domain, operation=WikiOperation.QUERY, description=f"Saved Ask answer as “{title}”")
     page_id = report.page_ids[0]
     for wiki_id in wiki_ids:
         if wiki_id != page_id:

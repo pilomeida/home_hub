@@ -37,7 +37,7 @@ Data Operação  Descrição  Montante (EUR)
 @pytest.fixture()
 def card(session):
     ensure_taxonomy(session)
-    doc = make_document(session, domain=Category.FINANCIALS, paper_kind="statement", filename="card.pdf")
+    doc = make_document(session, category=Category.FINANCIALS, paper_kind="statement", filename="card.pdf")
     first = Transaction(document_id=doc.id, description="COMPRA ESTRANG 1835 AIR CAN", amount=587.17, account_id=3,
                         transaction_type=TransactionType.DEBIT, paid_date=date(2026, 9, 5))
     session.add(first)
@@ -144,7 +144,7 @@ def test_a_statement_whose_lines_do_not_add_up_is_refused_not_half_stored():
 
 def test_statement_lines_are_filed_charges_as_costs_payments_as_transfers_purchases_for_review(session, card):
     st = parse_card_statement(STATEMENT)
-    doc = make_document(session, domain=Category.FINANCIALS, paper_kind="statement", filename="s3.pdf")
+    doc = make_document(session, category=Category.FINANCIALS, paper_kind="statement", filename="s3.pdf")
     assert add_lines(session, 4, st.lines, document_id=doc.id) == 4
     rows = {(t.paid_date, round(t.amount, 2)): t for t in session.exec(select(Transaction).where(Transaction.account_id == 4)).all()}
     costs = get_node(session, "taxes-financial-costs.financial-costs.bank-card-fees")

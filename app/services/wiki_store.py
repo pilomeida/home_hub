@@ -87,7 +87,7 @@ def find_page(session: Session, ref: PageRef) -> Optional[WikiPage]:
     ).first()
 
 
-def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Category]) -> WikiPage:
+def _get_or_create_page(session: Session, ref: PageRef, category: Optional[Category]) -> WikiPage:
     page = find_page(session, ref)
     if page is not None:
         return page
@@ -96,14 +96,14 @@ def _get_or_create_page(session: Session, ref: PageRef, domain: Optional[Categor
     if title is None:
         raise ValueError(f"Wiki title collision for {ref.title!r} ({ref.page_type})")
     page = WikiPage(topic=title, page_type=ref.page_type, entity_key=ref.entity_key,
-                    summary=ref.summary, category=domain)
+                    summary=ref.summary, category=category)
     session.add(page)
     session.flush()
     return page
 
 
-def ensure_page(session: Session, ref: PageRef, domain: Optional[Category]) -> WikiPage:
-    return _get_or_create_page(session, ref, domain)
+def ensure_page(session: Session, ref: PageRef, category: Optional[Category]) -> WikiPage:
+    return _get_or_create_page(session, ref, category)
 
 
 def add_link(session: Session, from_page_id: int, to_page_id: int, *, commit: bool = True) -> bool:
@@ -219,13 +219,13 @@ def claim_sources(session: Session, claim_ids: Sequence[int]) -> dict[int, list[
     return result
 
 
-def _record_source_label(domain: Optional[Category], record: Record) -> str:
+def _record_source_label(category: Optional[Category], record: Record) -> str:
     """A hand-entered Record's default log-description source, e.g.
     "Maintenance log (entered by hand) #1" -- the registry's category
     label, not the raw internal category key."""
     category_label = record.paper_kind
-    if domain is not None and is_implemented(domain):
-        category_label = get_spec(domain).kind_label(record.paper_kind) or record.paper_kind
+    if category is not None and is_implemented(category):
+        category_label = get_spec(category).kind_label(record.paper_kind) or record.paper_kind
     return f"{category_label} (entered by hand) #{record.id}"
 
 
@@ -272,14 +272,14 @@ def apply_claims(
     *,
     document: Optional[Document] = None,
     record: Optional[Record] = None,
-    domain: Optional[Category] = None,
+    category: Optional[Category] = None,
     operation: WikiOperation = WikiOperation.INGEST,
     description: Optional[str] = None,
     links: Sequence[LinkInput] = (),
     retract_missing: bool = False,
 ) -> IngestReport:
     source_given = document is not None or record is not None
-    domain = domain if domain is not None else (
+    category = category if category is not None else (
         record.category if record is not None else (document.category if document is not None else None)
     )
     now = datetime.utcnow()
@@ -289,7 +289,7 @@ def apply_claims(
     asserted: set[tuple[int, str]] = set()
 
     for claim_input in claims:
-        page = _get_or_create_page(session, claim_input.page, domain)
+        page = _get_or_create_page(session, claim_input.page, category)
         touched[page.id] = page
         asserted.add((page.id, claim_input.key))
         if claim_input.page.summary and page.entity_key is None and page.summary != claim_input.page.summary:
@@ -328,8 +328,8 @@ def apply_claims(
         report.superseded += 1
 
     for link in links:
-        source_page = _get_or_create_page(session, link.from_page, domain)
-        target_page = _get_or_create_page(session, link.to_page, domain)
+        source_page = _get_or_create_page(session, link.from_page, category)
+        target_page = _get_or_create_page(session, link.to_page, category)
         touched[source_page.id] = source_page
         touched[target_page.id] = target_page
         report.links_added += add_link(session, source_page.id, target_page.id, commit=False)
@@ -368,7 +368,7 @@ def apply_claims(
 
     report.page_ids = list(touched)
     if description is None:
-        source = document.filename if document else (_record_source_label(domain, record) if record else "manual entry")
+        source = document.filename if document else (_record_source_label(category, record) if record else "manual entry")
         titles = ", ".join(p.topic for p in touched.values()) or "no wiki pages"
         description = f"{source} → {titles}"
     entry = append_log(

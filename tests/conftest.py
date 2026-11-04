@@ -108,7 +108,7 @@ def two_domains(monkeypatch):
 
     house = make_fake_spec()
     money = dataclasses.replace(
-        make_fake_spec(domain=Category.FINANCIALS),
+        make_fake_spec(category=Category.FINANCIALS),
         label="Money", description="Money documents.", home_url="/money",
         kinds=(KindSpec("bill", "Bill", "A single bill."),
                     KindSpec("statement", "Bank statement", "A list of transactions.")),

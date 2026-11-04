@@ -81,32 +81,32 @@ def known_terms(session: Session) -> dict[str, list[str]]:
     return terms
 
 
-def resolve_strictest(session: Session, domain: object, paper_kind: Optional[str]) -> ps.Resolution:
-    forced = ps.forced_tier(domain)          # a forced domain (Health) is High on every path, binding or not
+def resolve_strictest(session: Session, category: object, paper_kind: Optional[str]) -> ps.Resolution:
+    forced = ps.forced_tier(category)          # a forced domain (Health) is High on every path, binding or not
     if forced is not None:
         return ps.Resolution("ready", forced, False)
     if paper_kind is not None:
-        return ps.resolve(session, domain, paper_kind)
+        return ps.resolve(session, category, paper_kind)
     if not ps.enforcing(session):
         return ps.Resolution("off")
-    cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(domain)]
-    resolved = [ps.resolve(session, domain, c) for c in cats]
+    cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(category)]
+    resolved = [ps.resolve(session, category, c) for c in cats]
     if not resolved or any(r.state != "ready" for r in resolved):
         return ps.Resolution("held")
     top = max(resolved, key=lambda r: _ORDER[r.tier])
     return ps.Resolution("ready", top.tier, any(r.redact for r in resolved))
 
 
-def require_ready(session: Session, domain: object, paper_kind: Optional[str]) -> ps.Resolution:
-    res = resolve_strictest(session, domain, paper_kind)
+def require_ready(session: Session, category: object, paper_kind: Optional[str]) -> ps.Resolution:
+    res = resolve_strictest(session, category, paper_kind)
     if res.state == "held":
-        raise ps.TierHeld(domain, paper_kind)
+        raise ps.TierHeld(category, paper_kind)
     return res
 
 
 @contextmanager
-def privacy_scope(session: Session, domain: object, paper_kind: Optional[str]):
-    res = require_ready(session, domain, paper_kind)
+def privacy_scope(session: Session, category: object, paper_kind: Optional[str]):
+    res = require_ready(session, category, paper_kind)
     if res.state == "off":
         with _not_binding():
             yield None

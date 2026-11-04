@@ -44,7 +44,7 @@ def test_follow_up_question_claim_carries_previous_question(session, fake_domain
 
 def test_title_of_a_topic_page_gets_suffix_and_mixed_domains_are_general(session, fake_domain):
     make_page(session, "Boiler")
-    fin = make_page(session, "Electricity", domain=Category.FINANCIALS)
+    fin = make_page(session, "Electricity", category=Category.FINANCIALS)
     house = make_page(session, "Boiler room")
     conv = make_conversation(session)
     turn = make_turn(session, conv, "q", answer_text=f"x [[wiki:{fin.id}]] [[wiki:{house.id}]]", citations=[

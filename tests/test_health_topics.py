@@ -20,7 +20,7 @@ def _m(test, value, path, when, previous=False, unit="mm/s"):
 
 
 def _report(session, person, when, measurements, name="r.pdf"):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename=name)
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename=name)
     ex = ExtractedHealth(person_name=person, document_date=when, provider="Clinic", record_kind="test", summary="s",
                          measurements=measurements)
     apply_extraction(session, doc, ex)
@@ -64,7 +64,7 @@ def test_the_same_chapter_on_a_later_paper_shares_a_topic_and_the_thread_joins_t
 
 
 def test_attach_topics_leaves_a_sheet_alone_and_gives_no_topic_to_an_empty_path(session):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="s.pdf")
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename="s.pdf")
     apply_extraction(session, doc, ExtractedHealth(person_name="Ana Lima", document_date=date(2026, 1, 1), summary="s",
                                                    measurements=[_m("LDL", 1.0, "Lípidos", date(2026, 1, 1))]))
     entry = entry_for(session, doc.id)

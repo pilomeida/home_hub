@@ -15,9 +15,9 @@ from app.privacy.reach import reach_for
 PRIVATE_LABEL = "a private document"
 
 
-def channel_label(session: Session, domain: object, paper_kind: Optional[str], label: Optional[str]) -> Optional[str]:
+def channel_label(session: Session, category: object, paper_kind: Optional[str], label: Optional[str]) -> Optional[str]:
     """The type's label for a message that leaves the Hub, or 'a private document' when the type is private."""
-    if reach_for(session).is_private_type(domain, paper_kind):
+    if reach_for(session).is_private_type(category, paper_kind):
         return PRIVATE_LABEL
     return label
 

@@ -65,8 +65,8 @@ def test_upsert_document_todo_creates_then_updates_one_open_todo(session):
     session.commit()
     session.refresh(document)
 
-    first = upsert_document_todo(session, document, title="Renew Boiler warranty", due_date=date(2027, 2, 8), domain=Category.HOUSE)
-    second = upsert_document_todo(session, document, title="Renew Boiler warranty", due_date=date(2028, 2, 8), domain=Category.HOUSE)
+    first = upsert_document_todo(session, document, title="Renew Boiler warranty", due_date=date(2027, 2, 8), category=Category.HOUSE)
+    second = upsert_document_todo(session, document, title="Renew Boiler warranty", due_date=date(2028, 2, 8), category=Category.HOUSE)
 
     assert first.id == second.id
     assert second.due_date == date(2028, 2, 8) and second.document_id == document.id and second.category == Category.HOUSE
@@ -82,8 +82,8 @@ def test_upsert_source_todo_links_records(session):
     session.add(record)
     session.commit()
     session.refresh(record)
-    todo = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 1, 1), domain=Category.HOUSE)
-    again = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 2, 1), domain=Category.HOUSE)
+    todo = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 1, 1), category=Category.HOUSE)
+    again = upsert_source_todo(session, record, title="Next service", due_date=date(2027, 2, 1), category=Category.HOUSE)
     assert todo.id == again.id and again.record_id == record.id and again.document_id is None
 
 

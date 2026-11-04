@@ -29,9 +29,9 @@ class RecordingHandler(CategoryHandler):
         self.changed.append((document.id, previous_fields))
 
 
-def make_fake_spec(handler=None, domain=Category.HOUSE, infers_kind=False, wiki_guidance=""):
+def make_fake_spec(handler=None, category=Category.HOUSE, infers_kind=False, wiki_guidance=""):
     return CategorySpec(
-        category=domain,
+        category=category,
         label="Fake",
         description="A fake domain used by tests.",
         home_url="/fake",

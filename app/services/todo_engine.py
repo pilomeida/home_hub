@@ -39,14 +39,14 @@ def generate_todo_for_transaction(session: Session, transaction: Transaction) ->
     return todo
 
 
-def upsert_source_todo(session: Session, source: Document | Record, *, title: str, due_date: date, domain: Category) -> Todo:
+def upsert_source_todo(session: Session, source: Document | Record, *, title: str, due_date: date, category: Category) -> Todo:
     """Keep at most one OPEN todo per source (document or record; e.g. a
     warranty's renewal reminder), updating it when the source's facts change.
     A todo already marked done is left alone; a new one is created instead."""
     link = Todo.record_id == source.id if isinstance(source, Record) else Todo.document_id == source.id
     todo = session.exec(select(Todo).where(link, Todo.done == False)).first()  # noqa: E712
     if todo is None:
-        todo = Todo(title=title, due_date=due_date, category=domain,
+        todo = Todo(title=title, due_date=due_date, category=category,
                     record_id=source.id if isinstance(source, Record) else None,
                     document_id=None if isinstance(source, Record) else source.id)
     else:
@@ -59,9 +59,9 @@ def upsert_source_todo(session: Session, source: Document | Record, *, title: st
 
 
 def upsert_document_todo(
-    session: Session, document: Document, *, title: str, due_date: date, domain: Category
+    session: Session, document: Document, *, title: str, due_date: date, category: Category
 ) -> Todo:
     """Keep at most one OPEN todo per source document (e.g. a warranty's
     renewal reminder), updating it when the document's facts change. A todo
     already marked done is left alone; a new one is created instead."""
-    return upsert_source_todo(session, document, title=title, due_date=due_date, domain=domain)
+    return upsert_source_todo(session, document, title=title, due_date=due_date, category=category)

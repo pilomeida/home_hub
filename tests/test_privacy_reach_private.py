@@ -44,9 +44,9 @@ def test_health_is_private_when_levels_are_not_binding_and_everything_else_is_un
 
 def test_without_private_hides_private_documents_records_files_and_ids(session):
     pw.set_levels(session, mid=["financials/bill"])
-    clean = make_document(session, domain=Category.FINANCIALS, paper_kind="bill")
-    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
-    rec = make_record(session, domain=Category.HEALTH, paper_kind="appointment")
+    clean = make_document(session, category=Category.FINANCIALS, paper_kind="bill")
+    health = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
+    rec = make_record(session, category=Category.HEALTH, paper_kind="appointment")
     full = compute_reach(session)
     assert full.includes_document(health) and full.includes_record(rec)
     view = full.without_private()
@@ -58,8 +58,8 @@ def test_without_private_hides_private_documents_records_files_and_ids(session):
 
 def test_without_private_filters_even_when_levels_are_not_binding(session):
     pw.set_levels(session, on=False)
-    clean = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance")
-    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
+    clean = make_document(session, category=Category.HOUSE, paper_kind="house_appliance")
+    health = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
     view = compute_reach(session).without_private()
     assert view.filtering and view.included_document_ids(session) == {clean.id}
     assert not view.includes_document(health)
@@ -68,8 +68,8 @@ def test_without_private_filters_even_when_levels_are_not_binding(session):
 def test_private_tier_and_domain_helpers(session):
     pw.set_levels(session, mid=["financials/bill"])
     reach = compute_reach(session)
-    clean = make_document(session, domain=Category.FINANCIALS, paper_kind="bill")
-    health = make_document(session, domain=Category.HEALTH, paper_kind="medical_report")
+    clean = make_document(session, category=Category.FINANCIALS, paper_kind="bill")
+    health = make_document(session, category=Category.HEALTH, paper_kind="medical_report")
     assert reach.private_tier([clean]) is None
     assert reach.private_tier([clean, health]) == Tier.HIGH
     assert reach.tier_of_source(health) == Tier.HIGH and reach.tier_of_source(clean) == Tier.MID     # a non-private type reports its saved level
@@ -81,8 +81,8 @@ def test_private_tier_and_domain_helpers(session):
 def test_a_wiki_claim_from_a_private_document_is_hidden_in_the_first_call_view(session):
     from tests.knowledge_factories import make_claim, make_page
     pw.set_levels(session, mid=["financials/bill"])
-    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
-    page = make_page(session, "Maria: tests", domain=Category.HEALTH)
+    health = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
+    page = make_page(session, "Maria: tests", category=Category.HEALTH)
     claim = make_claim(session, page, "cholesterol", "210", doc_ids=[health.id])
     full = compute_reach(session)
     assert full.wiki_view(session).page_visible(page.id)
@@ -93,8 +93,8 @@ def test_a_wiki_claim_from_a_private_document_is_hidden_in_the_first_call_view(s
 def test_health_is_never_reported_as_left_out_or_as_having_no_level(session):
     from app.services.ask.tools import settled_entries  # noqa: F401  (left_out reads the settled entries)
     pw.set_levels(session, mid=["financials/bill"])
-    make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
-    make_record(session, domain=Category.HEALTH, paper_kind="appointment")
+    make_document(session, category=Category.HEALTH, paper_kind="lab_result")
+    make_record(session, category=Category.HEALTH, paper_kind="appointment")
     full = compute_reach(session)
     assert full.access[("health", "lab_result")].reason is None                 # never UNSET
     for reach in (full, full.without_private()):                                # the first-call view too

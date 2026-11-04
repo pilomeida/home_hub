@@ -13,12 +13,12 @@ from app.services.wiki_store import ClaimInput, PageRef
 _counter = {"n": 0}
 
 
-def _doc(session, paper_kind, fields, status=DocumentStatus.PROCESSED, domain=Category.HOUSE, filename=None):
+def _doc(session, paper_kind, fields, status=DocumentStatus.PROCESSED, category=Category.HOUSE, filename=None):
     _counter["n"] += 1
     n = _counter["n"]
     document = Document(
         filename=filename or f"doc{n}.pdf", file_path=f"/tmp/doc{n}.pdf", content_hash=f"hash-items-{n}",
-        source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=paper_kind, fields_json=json.dumps(fields),
+        source=DocumentSource.MANUAL, status=status, category=category, paper_kind=paper_kind, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()
@@ -46,7 +46,7 @@ def test_documents_about_one_item_share_a_card(session):
 def test_only_finalized_house_documents_count(session):
     _doc(session, "house_appliance", {"item_name": "Fridge"}, status=DocumentStatus.PENDING)
     _doc(session, "house_appliance", {"item_name": "Oven"}, status=DocumentStatus.NEEDS_ATTENTION)
-    _doc(session, "bill", {}, domain=Category.FINANCIALS)
+    _doc(session, "bill", {}, category=Category.FINANCIALS)
     assert [d.fields_json for d in house_documents(session)] == ['{"item_name": "Oven"}']
 
 

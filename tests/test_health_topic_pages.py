@@ -42,7 +42,7 @@ def _file(session, tmp_path, reply, name="r.pdf", notes=()):
     got = asyncio.run(ex.extract_health_document(
         _png(tmp_path), None, gateway=FakeGateway([gateway_text_result(json.dumps(reply))])))
     got.check_notes = list(notes)
-    document = make_document(session, domain=Category.HEALTH, paper_kind=reply["category"], filename=name)
+    document = make_document(session, category=Category.HEALTH, paper_kind=reply["category"], filename=name)
     entry = store.apply_extraction(session, document, got)
     return document, entry
 
@@ -240,7 +240,7 @@ def test_confirming_an_outline_that_cannot_be_kept_gives_the_three_part_detail(c
     assert r.status_code == 409
     detail = r.json()["detail"]
     assert detail["what"] == "Outline not confirmed." and detail["why"] and detail["next_step"]
-    other = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance")
+    other = make_document(session, category=Category.HOUSE, paper_kind="house_appliance")
     assert client.post(f"/health/documents/{other.id}/outline/ok").status_code == 404
 
 

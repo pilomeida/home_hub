@@ -41,7 +41,7 @@ async def _read(tmp_path, reply, **kw):
 
 async def _file_report(session, tmp_path, reply=REPORT, name="r.pdf", paper_kind="imaging_report"):
     extracted = await _read(tmp_path, reply)
-    doc = make_document(session, domain=Category.HEALTH, paper_kind=paper_kind, filename=name)
+    doc = make_document(session, category=Category.HEALTH, paper_kind=paper_kind, filename=name)
     entry = store.apply_extraction(session, doc, extracted)
     return doc, entry
 
@@ -80,7 +80,7 @@ async def test_filing_a_report_attaches_each_row_to_its_deepest_topic(session, t
 
 @pytest.mark.asyncio
 async def test_a_sheet_gets_no_topics(session, tmp_path):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
     entry = store.apply_extraction(session, doc, await _read(tmp_path, SHEET))
     assert entry.layout == "sheet"
     assert [m.topic_id for m in _rows(session, entry)] == [None]
@@ -89,7 +89,7 @@ async def test_a_sheet_gets_no_topics(session, tmp_path):
 
 @pytest.mark.asyncio
 async def test_a_paper_without_a_layout_stores_none(session, tmp_path):
-    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
+    doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
     entry = store.apply_extraction(session, doc, await _read(tmp_path, {k: v for k, v in SHEET.items() if k != "layout"}))
     assert entry.layout is None
 

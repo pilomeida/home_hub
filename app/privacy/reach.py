@@ -52,8 +52,8 @@ _ORDER = {Tier.LOW: 0, Tier.MID: 1}
 _REASON_ORDER = (HIGH, UNSET, HIDES)
 
 
-def type_key(domain: object, paper_kind: Optional[str]) -> str:
-    return f"{ps._s(domain)}/{paper_kind}"
+def type_key(category: object, paper_kind: Optional[str]) -> str:
+    return f"{ps._s(category)}/{paper_kind}"
 
 
 @dataclass(frozen=True)
@@ -194,28 +194,28 @@ class Reach:
         return frozenset(type_key(a.category, a.paper_kind) for a in self.access.values() if not a.included)
 
     # tiers
-    def type_tier(self, domain: object, paper_kind: Optional[str]) -> Optional[Tier]:
-        forced = ps.forced_tier(domain)
+    def type_tier(self, category: object, paper_kind: Optional[str]) -> Optional[Tier]:
+        forced = ps.forced_tier(category)
         if forced is not None:
             return forced
-        if not self.binding or domain is None or paper_kind is None:
+        if not self.binding or category is None or paper_kind is None:
             return None
-        a = self.access.get((ps._s(domain), paper_kind))
+        a = self.access.get((ps._s(category), paper_kind))
         return a.tier if a else None
 
-    def is_private_type(self, domain: object, paper_kind: Optional[str]) -> bool:
-        return self.type_tier(domain, paper_kind) == Tier.HIGH
+    def is_private_type(self, category: object, paper_kind: Optional[str]) -> bool:
+        return self.type_tier(category, paper_kind) == Tier.HIGH
 
     def has_private(self) -> bool:
         return any(a.private for a in self.access.values()) or any(
             i.category in ps.FORCED_TIERS for i in ps.known_types())
 
-    def domain_has_private(self, domain: object) -> bool:
-        return any(self.is_private_type(domain, i.paper_kind) for i in ps.known_types() if i.category == ps._s(domain))
+    def domain_has_private(self, category: object) -> bool:
+        return any(self.is_private_type(category, i.paper_kind) for i in ps.known_types() if i.category == ps._s(category))
 
-    def domain_is_private(self, domain: object) -> bool:
-        cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(domain)]
-        return bool(cats) and all(self.is_private_type(domain, c) for c in cats)
+    def domain_is_private(self, category: object) -> bool:
+        cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(category)]
+        return bool(cats) and all(self.is_private_type(category, c) for c in cats)
 
     def tier_of_source(self, source: object) -> Optional[Tier]:
         return None if source is None else self.type_tier(source.category, source.paper_kind)
@@ -248,14 +248,14 @@ class Reach:
         return self.without_private().wiki_view(session).hidden_claims - self.wiki_view(session).hidden_claims
 
     # types
-    def includes_type(self, domain: object, paper_kind: Optional[str]) -> bool:
-        if self.hide_private and self.is_private_type(domain, paper_kind):
+    def includes_type(self, category: object, paper_kind: Optional[str]) -> bool:
+        if self.hide_private and self.is_private_type(category, paper_kind):
             return False
         if not self.binding:
             return True
-        if domain is None or paper_kind is None:
+        if category is None or paper_kind is None:
             return False                                 # no type, no level: fail closed
-        a = self.access.get((ps._s(domain), paper_kind))
+        a = self.access.get((ps._s(category), paper_kind))
         return a is not None and a.included
 
     def includes_document(self, doc: Optional[Document]) -> bool:
@@ -350,10 +350,10 @@ class Reach:
 
         counts: dict[tuple, list] = {}
 
-        def bump(domain: object, paper_kind: Optional[str], is_record: bool) -> None:
-            if self.is_private_type(domain, paper_kind):
+        def bump(category: object, paper_kind: Optional[str], is_record: bool) -> None:
+            if self.is_private_type(category, paper_kind):
                 return              # private is reachable (hidden only from the first call): never "left out", never "no level"
-            c = counts.setdefault((ps._s(domain), paper_kind), [0, 0])
+            c = counts.setdefault((ps._s(category), paper_kind), [0, 0])
             c[1 if is_record else 0] += 1
 
         for e in settled_entries(session):

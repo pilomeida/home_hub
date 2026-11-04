@@ -45,15 +45,15 @@ def implemented_domains() -> list[CategorySpec]:
     return list(_specs().values())
 
 
-def is_implemented(domain: Optional[Category]) -> bool:
-    return domain is not None and domain in _specs()
+def is_implemented(category: Optional[Category]) -> bool:
+    return category is not None and category in _specs()
 
 
-def get_spec(domain: Optional[Category]) -> CategorySpec:
+def get_spec(category: Optional[Category]) -> CategorySpec:
     try:
-        return _specs()[domain]
+        return _specs()[category]
     except KeyError:
-        raise UnknownCategoryError(domain) from None
+        raise UnknownCategoryError(category) from None
 
 
 def document_url(document: Document) -> Optional[str]:

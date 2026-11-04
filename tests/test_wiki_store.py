@@ -119,7 +119,7 @@ def test_topic_pages_keep_the_given_summary(session):
 def test_claims_without_a_source_document(session):
     ref = PageRef(page_type="answer", title="Which warranties expire this year?")
     report = wiki_store.apply_claims(
-        session, [ClaimInput(ref, "answer", "Boiler (March)")], document=None, domain=None,
+        session, [ClaimInput(ref, "answer", "Boiler (March)")], document=None, category=None,
         operation=WikiOperation.QUERY, description="Saved answer",
     )
     page = wiki_store.find_page(session, ref)

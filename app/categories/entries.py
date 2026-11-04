@@ -43,9 +43,9 @@ def record_for_document(session: Session, document: Document) -> Optional[Record
     ).first()
 
 
-def domain_entries(session: Session, domain: Category) -> list[SourceEntry]:
+def domain_entries(session: Session, category: Category) -> list[SourceEntry]:
     records = list(session.exec(
-        select(Record).where(Record.category == domain, Record.retired_at.is_(None))
+        select(Record).where(Record.category == category, Record.retired_at.is_(None))
     ).all())
     attached_ids = {r.document_id for r in records if r.document_id is not None}
     attachments = {}
@@ -53,7 +53,7 @@ def domain_entries(session: Session, domain: Category) -> list[SourceEntry]:
         attachments = {d.id: d for d in session.exec(select(Document).where(Document.id.in_(attached_ids))).all()}
     documents = session.exec(
         select(Document).where(
-            Document.category == domain,
+            Document.category == category,
             Document.status.in_([DocumentStatus.PROCESSED, DocumentStatus.NEEDS_ATTENTION]),
         )
     ).all()

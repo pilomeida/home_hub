@@ -38,7 +38,7 @@ RIGHT = 11.0  # counting + confirmed
 
 @pytest.fixture()
 def doc(session):
-    return make_document(session, domain=Category.FINANCIALS, paper_kind="statement", filename="stmt.pdf")
+    return make_document(session, category=Category.FINANCIALS, paper_kind="statement", filename="stmt.pdf")
 
 
 def five(session, doc, *, scale=1.0, post=None, **common):

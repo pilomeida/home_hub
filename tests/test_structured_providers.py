@@ -119,7 +119,7 @@ def test_refile_by_entity_moves_a_mistaken_electricity_entry_and_spares_a_checke
     from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
     from tests.knowledge_factories import make_document
     ensure_taxonomy(session)
-    doc = make_document(session, domain=Category.FINANCIALS, paper_kind="statement", filename="s.pdf")
+    doc = make_document(session, category=Category.FINANCIALS, paper_kind="statement", filename="s.pdf")
     wrong, checked, other = (Transaction(document_id=doc.id, description=d, amount=a, transaction_type=TransactionType.DEBIT,
                                          paid_date=date(2026, 9, 1), checked_by=c)
                              for d, a, c in (("PAG SERVICOS 1835 21056-111111111", 100.0, None),

@@ -16,12 +16,12 @@ from app.services.presentation import (
 templates = Jinja2Templates(directory="app/templates")
 
 
-def domain_label(domain: Optional[Category]) -> str:
-    if domain is None:
+def domain_label(category: Optional[Category]) -> str:
+    if category is None:
         return ""
-    if is_implemented(domain):
-        return get_spec(domain).label
-    return domain.value.replace("_", " ").title()
+    if is_implemented(category):
+        return get_spec(category).label
+    return category.value.replace("_", " ").title()
 
 
 templates.env.globals["domain_nav"] = implemented_domains

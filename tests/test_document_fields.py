@@ -11,11 +11,11 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.category import Category
 
 
-def _doc(session, fields, domain=Category.HOUSE, content_hash="h", paper_kind="manual"):
+def _doc(session, fields, category=Category.HOUSE, content_hash="h", paper_kind="manual"):
     document = Document(
         filename="x.pdf", file_path="/srv/app/static/documents/abc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        category=domain, paper_kind=paper_kind, fields_json=json.dumps(fields),
+        category=category, paper_kind=paper_kind, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()
@@ -80,7 +80,7 @@ def test_distinct_field_values_dedupes_and_is_domain_scoped(session, fake_domain
     _doc(session, {"item_name": "Kitchen"}, content_hash="1")
     _doc(session, {"item_name": "kitchen"}, content_hash="2")
     _doc(session, {"item_name": "Attic"}, content_hash="3")
-    _doc(session, {"item_name": "Garage"}, domain=Category.FINANCIALS, content_hash="4")
+    _doc(session, {"item_name": "Garage"}, category=Category.FINANCIALS, content_hash="4")
     _doc(session, {}, content_hash="5")
     assert distinct_field_values(session, Category.HOUSE, "item_name") == ["Attic", "Kitchen"]
 

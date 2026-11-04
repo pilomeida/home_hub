@@ -22,9 +22,9 @@ give_kind = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(give_kind)
 
 
-def _doc(session, filename, status, domain=Category.FINANCIALS, paper_kind=None, account_id=None, source=DocumentSource.MANUAL):
+def _doc(session, filename, status, category=Category.FINANCIALS, paper_kind=None, account_id=None, source=DocumentSource.MANUAL):
     d = Document(filename=filename, file_path=f"/tmp/{filename}", content_hash=f"h-{filename}", source=source,
-                 status=status, category=domain, paper_kind=paper_kind, account_id=account_id)
+                 status=status, category=category, paper_kind=paper_kind, account_id=account_id)
     session.add(d); session.commit(); session.refresh(d)
     return d
 
@@ -39,10 +39,10 @@ def live_like(session):
         "revolut": _doc(session, "account-statement_2022-08-01_2026-08-18_en-us_e5ee4c.pdf", DocumentStatus.NEEDS_ATTENTION,
                         account_id=santander.id),
         "metlife": _doc(session, "metlife ago2026.pdf", DocumentStatus.PROCESSED, account_id=santander.id),
-        "inbox": _doc(session, "scan.jpg", DocumentStatus.PENDING_REVIEW, domain=None, source=DocumentSource.TELEGRAM),
-        "logo": _doc(session, "image001.png", DocumentStatus.DISCARDED, domain=None, source=DocumentSource.EMAIL),
+        "inbox": _doc(session, "scan.jpg", DocumentStatus.PENDING_REVIEW, category=None, source=DocumentSource.TELEGRAM),
+        "logo": _doc(session, "image001.png", DocumentStatus.DISCARDED, category=None, source=DocumentSource.EMAIL),
         "unclear": _doc(session, "something.pdf", DocumentStatus.NEEDS_ATTENTION),
-        "dental": _doc(session, "FR_3_B_0000059724.pdf", DocumentStatus.PROCESSED, domain=Category.HEALTH, paper_kind="medical_bill"),
+        "dental": _doc(session, "FR_3_B_0000059724.pdf", DocumentStatus.PROCESSED, category=Category.HEALTH, paper_kind="medical_bill"),
     }
     session.add(Transaction(document_id=docs["metlife"].id, description="MetLife", amount=109.64,
                             currency="EUR"))

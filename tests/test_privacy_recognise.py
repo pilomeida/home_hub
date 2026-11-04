@@ -30,8 +30,8 @@ def _pdf_with_text(text: str) -> bytes:
     return buf.getvalue()
 
 
-def _rule(session, kind, pattern, domain="financials", paper_kind="bill"):
-    session.add(DocumentFingerprint(kind=kind, pattern=pattern, category=domain, paper_kind=paper_kind)); session.commit()
+def _rule(session, kind, pattern, category="financials", paper_kind="bill"):
+    session.add(DocumentFingerprint(kind=kind, pattern=pattern, category=category, paper_kind=paper_kind)); session.commit()
 
 
 def test_pdf_text_layer_is_read_and_non_text_files_give_nothing():
@@ -78,8 +78,8 @@ def test_photos_are_recognised_only_by_caption_or_sender(session):
 
 
 def test_remember_creates_each_rule_once(session):
-    made = rec.remember(session, domain="financials", paper_kind="bill", by="p@x", sender="Billing@Exemplo.pt", words=" Exemplo SA ")
-    again = rec.remember(session, domain="financials", paper_kind="bill", by="p@x", sender="billing@exemplo.pt", words="exemplo sa")
+    made = rec.remember(session, category="financials", paper_kind="bill", by="p@x", sender="Billing@Exemplo.pt", words=" Exemplo SA ")
+    again = rec.remember(session, category="financials", paper_kind="bill", by="p@x", sender="billing@exemplo.pt", words="exemplo sa")
     assert len(made) == 2 and again == []
     assert {(r.kind, r.pattern) for r in session.exec(select(DocumentFingerprint))} == {("sender", "billing@exemplo.pt"), ("words", "exemplo sa")}
 

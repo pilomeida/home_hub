@@ -18,11 +18,11 @@ from app.models.wiki import (
 _seq = itertools.count(1)
 
 
-def make_document(session, *, domain: Optional[Category] = Category.HOUSE, status=DocumentStatus.PROCESSED,
+def make_document(session, *, category: Optional[Category] = Category.HOUSE, status=DocumentStatus.PROCESSED,
                   paper_kind: Optional[str] = "manual", fields: Optional[dict] = None, filename="doc.pdf",
                   file_path="/tmp/doc.pdf", created_at: Optional[datetime] = None) -> Document:
     doc = Document(filename=filename, file_path=file_path, content_hash=f"h-{next(_seq)}",
-                   source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=paper_kind,
+                   source=DocumentSource.MANUAL, status=status, category=category, paper_kind=paper_kind,
                    fields_json=json.dumps(fields or {}))
     if created_at:
         doc.created_at = created_at
@@ -32,19 +32,19 @@ def make_document(session, *, domain: Optional[Category] = Category.HOUSE, statu
     return doc
 
 
-def make_page(session, topic, *, domain: Optional[Category] = Category.HOUSE, page_type=TOPIC_PAGE_TYPE,
+def make_page(session, topic, *, category: Optional[Category] = Category.HOUSE, page_type=TOPIC_PAGE_TYPE,
               summary: Optional[str] = None, entity_key: Optional[str] = None) -> WikiPage:
-    page = WikiPage(topic=topic, category=domain, page_type=page_type, summary=summary, entity_key=entity_key)
+    page = WikiPage(topic=topic, category=category, page_type=page_type, summary=summary, entity_key=entity_key)
     session.add(page)
     session.commit()
     session.refresh(page)
     return page
 
 
-def make_record(session, *, domain=Category.HOUSE, paper_kind="visit", fields: Optional[dict] = None,
+def make_record(session, *, category=Category.HOUSE, paper_kind="visit", fields: Optional[dict] = None,
                 document_id: Optional[int] = None, retired: bool = False,
                 created_at: Optional[datetime] = None) -> Record:
-    record = Record(category=domain, paper_kind=paper_kind, fields_json=json.dumps(fields or {}),
+    record = Record(category=category, paper_kind=paper_kind, fields_json=json.dumps(fields or {}),
                     document_id=document_id, retired_at=datetime(2026, 1, 1) if retired else None)
     if created_at:
         record.created_at = created_at

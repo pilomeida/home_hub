@@ -173,5 +173,5 @@ async def withdraw_from_wiki(session: Session, source: Document | Record, *, des
     is_record = isinstance(source, Record)
     return apply_claims(
         session, [], document=None if is_record else source, record=source if is_record else None,
-        domain=source.category, operation=WikiOperation.EDIT, description=description, retract_missing=True,
+        category=source.category, operation=WikiOperation.EDIT, description=description, retract_missing=True,
     )

@@ -105,7 +105,7 @@ def test_uningested_sources_cover_documents_and_records(session, fake_domain):
     make_ingest_log(session, attachment)                      # A logs attachment-backed records by document_id
     missing_rec = make_record(session, fields={"item_name": "Dishwasher", "visit_date": "2026-05-02"})
     make_record(session, fields={"item_name": "Old"}, retired=True)
-    make_document(session, filename="c.pdf", domain=None, status=DocumentStatus.PENDING_REVIEW)
+    make_document(session, filename="c.pdf", category=None, status=DocumentStatus.PENDING_REVIEW)
     make_document(session, filename="d.pdf", status=DocumentStatus.NEEDS_ATTENTION)
 
     found = checks.find_uningested_sources(session)

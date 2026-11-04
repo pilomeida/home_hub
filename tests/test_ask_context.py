@@ -7,9 +7,9 @@ from tests.knowledge_factories import make_document, make_page
 
 def test_prompt_has_rules_date_domains_index_and_pending_note(session, fake_domain):
     boiler = make_page(session, "Boiler", summary="Vaillant boiler, utility room")
-    make_page(session, "Who does what", domain=None, summary="Chores")
+    make_page(session, "Who does what", category=None, summary="Chores")
     make_document(session, filename="a.pdf", paper_kind="manual")
-    make_document(session, filename="b.pdf", domain=None, paper_kind=None, status=DocumentStatus.PENDING_REVIEW)
+    make_document(session, filename="b.pdf", category=None, paper_kind=None, status=DocumentStatus.PENDING_REVIEW)
 
     prompt, citables = build_system_prompt(session, date(2026, 9, 24))
 

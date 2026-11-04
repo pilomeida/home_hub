@@ -152,10 +152,10 @@ def suggested_domain(item: InboxItem) -> Optional[Category]:
     return domain if is_implemented(domain) else None
 
 
-def describe(domain: Optional[Category], paper_kind: Optional[str]) -> Optional[str]:
-    if not is_implemented(domain):
+def describe(category: Optional[Category], paper_kind: Optional[str]) -> Optional[str]:
+    if not is_implemented(category):
         return None
-    spec = get_spec(domain)
+    spec = get_spec(category)
     return f"{spec.label} › {spec.kind_label(paper_kind)}" if paper_kind else spec.label
 
 
@@ -246,7 +246,7 @@ async def approve(
 
     filed = await finalize_document(session, document, classification)
     if remember_sender or remember_words.strip():
-        remember(session, domain=domain.value, paper_kind=validated.paper_kind or "", by=reviewed_by,
+        remember(session, category=domain.value, paper_kind=validated.paper_kind or "", by=reviewed_by,
                  sender=original_sender(item.context_text) if remember_sender else "",
                  words=remember_words, note=f"Remembered when {document.filename} was filed")
     return filed
