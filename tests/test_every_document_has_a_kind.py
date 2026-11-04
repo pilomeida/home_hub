@@ -22,9 +22,9 @@ give_kind = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(give_kind)
 
 
-def _doc(session, filename, status, domain=Category.FINANCIALS, category=None, account_id=None, source=DocumentSource.MANUAL):
+def _doc(session, filename, status, domain=Category.FINANCIALS, paper_kind=None, account_id=None, source=DocumentSource.MANUAL):
     d = Document(filename=filename, file_path=f"/tmp/{filename}", content_hash=f"h-{filename}", source=source,
-                 status=status, category=domain, paper_kind=category, account_id=account_id)
+                 status=status, category=domain, paper_kind=paper_kind, account_id=account_id)
     session.add(d); session.commit(); session.refresh(d)
     return d
 
@@ -42,7 +42,7 @@ def live_like(session):
         "inbox": _doc(session, "scan.jpg", DocumentStatus.PENDING_REVIEW, domain=None, source=DocumentSource.TELEGRAM),
         "logo": _doc(session, "image001.png", DocumentStatus.DISCARDED, domain=None, source=DocumentSource.EMAIL),
         "unclear": _doc(session, "something.pdf", DocumentStatus.NEEDS_ATTENTION),
-        "dental": _doc(session, "FR_3_B_0000059724.pdf", DocumentStatus.PROCESSED, domain=Category.HEALTH, category="medical_bill"),
+        "dental": _doc(session, "FR_3_B_0000059724.pdf", DocumentStatus.PROCESSED, domain=Category.HEALTH, paper_kind="medical_bill"),
     }
     session.add(Transaction(document_id=docs["metlife"].id, description="MetLife", amount=109.64,
                             currency="EUR"))

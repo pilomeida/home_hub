@@ -41,11 +41,11 @@ def _printouts_are_complete(monkeypatch):
     monkeypatch.setattr(_ps, "extract_loan_history", complete)
 
 
-def _doc(session, tmp_path, name="d.pdf", category="statement_positions", h=None):
+def _doc(session, tmp_path, name="d.pdf", paper_kind="statement_positions", h=None):
     path = tmp_path / name
     path.write_bytes(b"%PDF-1.4 fake")
     d = Document(filename=name, file_path=str(path), content_hash=h or name, source=DocumentSource.MANUAL,
-                 status=DocumentStatus.PENDING, paper_kind=category)
+                 status=DocumentStatus.PENDING, paper_kind=paper_kind)
     session.add(d)
     session.commit()
     session.refresh(d)
@@ -204,7 +204,7 @@ def _hist_rows(numbers, capital=100.0, interest=20.0, start=1000.0, first=35):
 
 
 async def _history(session, tmp_path, name, numbers):
-    doc = _doc(session, tmp_path, name, category="loan_history")
+    doc = _doc(session, tmp_path, name, paper_kind="loan_history")
     return doc, await process_loan_history_document(session, doc, gateway=FakeGateway([_reply(_hist_rows(numbers))]))
 
 
@@ -258,7 +258,7 @@ async def test_single_overlap_is_not_a_match(session, tmp_path):
 # (j)
 def test_conflicting_duplicate_is_kept_and_reported(session, tmp_path):
     debt = create_loan_from_assignment(session, "900100201", "L", "personal")
-    doc = _doc(session, tmp_path, category="loan_history")
+    doc = _doc(session, tmp_path, paper_kind="loan_history")
     apply_loan_history(session, doc, debt, [Instalment(37, date(2026, 3, 1), 100.0, 20.0, 0.0, 700.0)])
     counts = apply_loan_history(session, doc, debt, [Instalment(37, date(2026, 3, 1), 150.0, 20.0, 0.0, 650.0)])
     assert counts["conflicts"] == 1 and counts["movements"] == 0
@@ -269,7 +269,7 @@ def test_conflicting_duplicate_is_kept_and_reported(session, tmp_path):
 def test_printout_and_statement_merge_into_one_row(session, tmp_path):
     loan = _loan()
     debt = create_loan_from_assignment(session, "900100200", "L", "mortgage")
-    doc = _doc(session, tmp_path, category="loan_history")
+    doc = _doc(session, tmp_path, paper_kind="loan_history")
     apply_loan_history(session, doc, debt, [Instalment(37, date(2026, 7, 2), 296.40, 79.45, 0.0, None)])
     rows = loan.rows + [_row(date(2026, 7, 2), 37, "insurance_life", 5.5)]
     stmt = _doc(session, tmp_path, "s.pdf")
@@ -437,11 +437,11 @@ def test_reattach_never_steals_rows_of_another_document(session, tmp_path):
 def test_reattach_disagreeing_instalment_stays_detached(session, tmp_path):
     from app.services.position_store import detach_positions
     debt = create_loan_from_assignment(session, "900100200", "L", "mortgage")
-    doc = _doc(session, tmp_path, category="loan_history")
+    doc = _doc(session, tmp_path, paper_kind="loan_history")
     apply_loan_history(session, doc, debt, [Instalment(37, date(2026, 7, 2), 100.0, 20.0, 0.0, 700.0)])
     detach_positions(session, doc.id)
     session.commit()
-    other = _doc(session, tmp_path, "o.pdf", category="loan_history")
+    other = _doc(session, tmp_path, "o.pdf", paper_kind="loan_history")
     counts = apply_loan_history(session, other, debt, [Instalment(37, date(2026, 7, 2), 150.0, 20.0, 0.0, 650.0)])
     assert counts["conflicts"] == 1
     assert session.exec(select(LoanMovement)).one().document_id is None
@@ -450,7 +450,7 @@ def test_reattach_disagreeing_instalment_stays_detached(session, tmp_path):
 # I2: interest-only history never sets a balance; then amortising ones do
 def test_interest_only_history_leaves_balance_unknown(session, tmp_path):
     debt = create_loan_from_assignment(session, "900100201", "L", "personal")
-    doc = _doc(session, tmp_path, category="loan_history")
+    doc = _doc(session, tmp_path, paper_kind="loan_history")
     only = [Instalment(1, date(2026, 1, 1), 0.0, 20.0, 0.0, None), Instalment(2, date(2026, 2, 1), 0.0, 20.0, 0.0, None)]
     counts = apply_loan_history(session, doc, debt, only)
     assert counts["movements"] == 2
@@ -468,7 +468,7 @@ def test_interest_only_history_leaves_balance_unknown(session, tmp_path):
 @pytest.mark.asyncio
 async def test_disagreement_blocks_both_the_match_and_the_assignment(session, tmp_path):
     debt = create_loan_from_assignment(session, "900100201", "L", "personal")
-    base = _doc(session, tmp_path, "b.pdf", category="loan_history")
+    base = _doc(session, tmp_path, "b.pdf", paper_kind="loan_history")
     apply_loan_history(session, base, debt, [Instalment(36, date(2026, 1, 2), 150.0, 20.0, 0.0, 800.0)])
     doc, ext = await _history(session, tmp_path, "p.pdf", [35, 36, 37])
     assert ext.status == "needs_loan"  # a disagreement blocks the match
@@ -501,7 +501,7 @@ def test_older_printout_leaves_balance(session, tmp_path):
     apply_positions(session, _doc(session, tmp_path), _positions())
     debt = session.exec(select(Debt)).one()
     old = [Instalment(20, date(2025, 1, 2), 100.0, 20.0, 0.0, 1500.0), Instalment(21, date(2025, 2, 2), 100.0, 20.0, 0.0, 1400.0)]
-    apply_loan_history(session, _doc(session, tmp_path, "o.pdf", category="loan_history"), debt, old)
+    apply_loan_history(session, _doc(session, tmp_path, "o.pdf", paper_kind="loan_history"), debt, old)
     session.refresh(debt)
     assert float(debt.current_balance) == 703.60 and debt.interest_rate == 2.5
 
@@ -512,7 +512,7 @@ async def test_two_matching_loans_need_assignment(session, tmp_path):
     insts = [Instalment(35, date(2026, 1, 1), 100.0, 20.0, 0.0, 900.0), Instalment(36, date(2026, 1, 2), 100.0, 20.0, 0.0, 800.0)]
     for number in ("900100201", "900100202"):
         d = create_loan_from_assignment(session, number, "L", "personal")
-        apply_loan_history(session, _doc(session, tmp_path, f"b{number}.pdf", category="loan_history"), d, insts)
+        apply_loan_history(session, _doc(session, tmp_path, f"b{number}.pdf", paper_kind="loan_history"), d, insts)
     _, ext = await _history(session, tmp_path, "p.pdf", [35, 36, 37])
     assert ext.status == "needs_loan"
 
@@ -521,7 +521,7 @@ async def test_two_matching_loans_need_assignment(session, tmp_path):
 def test_disagreement_blocks_match(session, tmp_path):
     d = create_loan_from_assignment(session, "900100201", "L", "personal")
     base = [Instalment(n, date(2026, 1, n), 100.0, 20.0, 0.0, 1000.0 - 100 * n) for n in (1, 2, 3)]
-    apply_loan_history(session, _doc(session, tmp_path, category="loan_history"), d, base)
+    apply_loan_history(session, _doc(session, tmp_path, paper_kind="loan_history"), d, base)
     assert match_loan_for_history(session, base) is d or match_loan_for_history(session, base).id == d.id
     changed = base[:2] + [Instalment(3, date(2026, 1, 3), 140.0, 20.0, 0.0, 660.0)]
     assert match_loan_for_history(session, changed) is None
@@ -551,7 +551,7 @@ async def test_unmatched_history_through_pipeline_ends_processed(session, tmp_pa
     async def no_wiki(session, document, context=None, **kw):
         return None
     monkeypatch.setattr(pipeline, "ingest_into_wiki", no_wiki)
-    doc = _doc(session, tmp_path, "h.pdf", category="loan_history")
+    doc = _doc(session, tmp_path, "h.pdf", paper_kind="loan_history")
     result = await pipeline.process_financials_document(session, doc)
     assert result.status == DocumentStatus.PROCESSED
     assert session.exec(select(PositionExtraction)).one().status == "needs_loan"
@@ -649,7 +649,7 @@ async def test_short_loan_number_fails_the_extraction_with_a_reason(session, tmp
 
 def test_history_ending_at_zero_balance_closes_the_loan(session, tmp_path):
     debt = create_loan_from_assignment(session, "900100201", "L", "personal")
-    doc = _doc(session, tmp_path, "z.pdf", category="loan_history")
+    doc = _doc(session, tmp_path, "z.pdf", paper_kind="loan_history")
     apply_loan_history(session, doc, debt, [
         Instalment(11, date(2026, 8, 2), 100.0, 5.0, 0.0, 100.0),
         Instalment(12, date(2026, 9, 2), 100.0, 3.0, 0.0, 0.0),
@@ -663,7 +663,7 @@ def test_history_ending_at_zero_balance_closes_the_loan(session, tmp_path):
 
 def test_apply_history_stores_both_insurance_parts(session, tmp_path):
     debt = create_loan_from_assignment(session, "900100200", "L", "mortgage")
-    doc = _doc(session, tmp_path, category="loan_history")
+    doc = _doc(session, tmp_path, paper_kind="loan_history")
     apply_loan_history(session, doc, debt, [
         Instalment(37, date(2026, 7, 2), 296.4, 79.45, 6.75, 703.6, insurance_life=5.5, insurance_building=1.25)])
     mv = session.exec(select(LoanMovement)).one()
@@ -672,7 +672,7 @@ def test_apply_history_stores_both_insurance_parts(session, tmp_path):
 
 def test_upsert_fills_insurance_parts_only_when_empty_never_overwrites(session, tmp_path):
     debt = create_loan_from_assignment(session, "900100200", "L", "mortgage")
-    doc = _doc(session, tmp_path, category="loan_history")
+    doc = _doc(session, tmp_path, paper_kind="loan_history")
     apply_loan_history(session, doc, debt, [Instalment(37, date(2026, 7, 2), 296.4, 79.45, 0.0, None)])
     apply_loan_history(session, doc, debt, [
         Instalment(37, date(2026, 7, 2), 296.4, 79.45, 6.75, None, insurance_life=5.5, insurance_building=1.25)])

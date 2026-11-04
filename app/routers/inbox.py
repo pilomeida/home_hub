@@ -35,36 +35,36 @@ def _spec_for_value(domain_value: Optional[str]):
     return get_spec(domain) if is_implemented(domain) else None
 
 
-def _fields_context(session: Session, entry, domain_value: Optional[str], category: Optional[str],
+def _fields_context(session: Session, entry, domain_value: Optional[str], paper_kind: Optional[str],
                     values: dict, errors: dict) -> dict:
     spec = _spec_for_value(domain_value)
-    if spec is None or category not in {c.value for c in spec.kinds}:
-        category = None   # changing the area resets the type
+    if spec is None or paper_kind not in {c.value for c in spec.kinds}:
+        paper_kind = None   # changing the area resets the type
     form_fields = (
-        build_form_fields(session, spec, category, values, errors,
+        build_form_fields(session, spec, paper_kind, values, errors,
                           media_kind=media_kind_for(entry.document.filename))
-        if spec is not None and (category or spec.infers_kind) else []
+        if spec is not None and (paper_kind or spec.infers_kind) else []
     )
     return {
         "entry": entry,
         "domains": implemented_domains(),
         "selected_spec": spec,
         "selected_domain": spec.category.value if spec else "",
-        "selected_category": category or "",
+        "selected_category": paper_kind or "",
         "form_fields": form_fields,
         "errors": errors,
     }
 
 
-def _card_context(session: Session, entry, *, domain_value=None, category=None,
+def _card_context(session: Session, entry, *, domain_value=None, paper_kind=None,
                   values=None, errors=None) -> dict:
     if domain_value is None and entry.confident:  # confident => pre-filled
         domain_value = entry.item.suggested_domain
-        category = entry.item.suggested_category
+        paper_kind = entry.item.suggested_category
     return {
         "file_href": file_url(entry.document),
         "original_sender": original_sender(entry.item.context_text),
-        **_fields_context(session, entry, domain_value, category, values or {}, errors or {}),
+        **_fields_context(session, entry, domain_value, paper_kind, values or {}, errors or {}),
     }
 
 
@@ -108,18 +108,18 @@ async def approve(request: Request, document_id: int, session: Session = Depends
     fields = {k: v for k, v in form.items() if k not in _SELECTOR_KEYS}
     try:
         document = await inbox_service.approve(
-            session, document_id, domain_value=domain_value, category=category, fields=fields,
+            session, document_id, domain_value=domain_value, paper_kind=category, fields=fields,
             reviewed_by=getattr(request.state, "user_email", None),
             remember_sender=form.get("remember") == "1" and bool(original_sender(entry.item.context_text)),
             remember_words=form.get("remember_words", "") if form.get("remember") == "1" else "",
         )
     except TierHeld:
-        ctx = _card_context(session, entry, domain_value=domain_value, category=category, values=fields, errors={})
+        ctx = _card_context(session, entry, domain_value=domain_value, paper_kind=category, values=fields, errors={})
         return templates.TemplateResponse(request, "inbox/_entry.html", {**ctx, "held": True}, status_code=409)
     except inbox_service.InboxError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except InvalidClassification as exc:
-        ctx = _card_context(session, entry, domain_value=domain_value, category=category,
+        ctx = _card_context(session, entry, domain_value=domain_value, paper_kind=category,
                             values=fields, errors=exc.errors)
         return templates.TemplateResponse(request, "inbox/_entry.html", ctx, status_code=422)
 

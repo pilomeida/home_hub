@@ -285,7 +285,7 @@ def paper_text(file_path: str) -> Optional[str]:
 
 
 async def extract_health_document(
-    file_path: str, category: Optional[str], *, existing_areas: Sequence[str] = (),
+    file_path: str, paper_kind: Optional[str], *, existing_areas: Sequence[str] = (),
     existing_conditions: Sequence[str] = (), gateway=None, guidance: str = "",
 ) -> ExtractedHealth:
     if not is_model_readable(file_path):
@@ -299,7 +299,7 @@ async def extract_health_document(
     if guidance:
         system += "\n\n" + guidance
     gw = gateway or get_gateway()
-    user = f"Paper type: {category or 'not known yet: work it out'}. Read it as JSON."
+    user = f"Paper type: {paper_kind or 'not known yet: work it out'}. Read it as JSON."
     if text:
         user += "\n\nThe paper's exact text, taken from its PDF (the order of lines may be scrambled):\n\n" + text
     # Always High, stated here and not left to the caller's privacy scope: a health paper must never be routable

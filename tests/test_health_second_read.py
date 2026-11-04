@@ -225,7 +225,7 @@ async def test_more_notes_than_fit_end_with_a_count_and_what_to_do(tmp_path):
 
 async def _entry(session, tmp_path, reply=REPORT):
     extracted = await _read(tmp_path, reply)
-    doc = make_document(session, domain=Category.HEALTH, category=extracted.paper_kind, filename="r.pdf")
+    doc = make_document(session, domain=Category.HEALTH, paper_kind=extracted.paper_kind, filename="r.pdf")
     return store.apply_extraction(session, doc, extracted)
 
 

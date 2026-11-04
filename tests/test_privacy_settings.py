@@ -12,9 +12,9 @@ from app.privacy.backfill import backfill_tiers
 from app.privacy.tiers import Tier, TierBlocked
 
 
-def _doc(session, name, domain, category, tier=None):
+def _doc(session, name, domain, paper_kind, tier=None):
     d = Document(filename=name, file_path=name, content_hash=name, source=DocumentSource.MANUAL,
-                 category=domain, paper_kind=category, sensitivity_tier=tier)
+                 category=domain, paper_kind=paper_kind, sensitivity_tier=tier)
     session.add(d); session.commit(); session.refresh(d)
     return d
 

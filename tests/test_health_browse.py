@@ -11,7 +11,7 @@ from tests.knowledge_factories import make_document
 
 
 def _paper(session, person, when, kind, area_names, conditions=(), doubtful=False, name="x.pdf"):
-    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename=name)
+    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename=name)
     ex = ExtractedHealth(person_name=person, document_date=when, provider="Lab", record_kind=kind,
                          areas=list(area_names), conditions=list(conditions), summary="s",
                          measurements=[ExtractedMeasurement("LDL", 1.0, None, None if doubtful else "mg/dL", None, None,
@@ -65,7 +65,7 @@ def test_free_text_search_looks_at_the_provider_summary_and_file_name(session, w
 
 def test_a_paper_that_could_not_be_read_is_still_listed(session):
     from app.models.document import DocumentStatus
-    make_document(session, domain=Category.HEALTH, category="lab_result", status=DocumentStatus.NEEDS_ATTENTION, filename="bad.pdf")
+    make_document(session, domain=Category.HEALTH, paper_kind="lab_result", status=DocumentStatus.NEEDS_ATTENTION, filename="bad.pdf")
     r = rows(session, Filters())
     assert len(r) == 1 and r[0].entry is None
 

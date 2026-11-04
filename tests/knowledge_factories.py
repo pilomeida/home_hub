@@ -19,10 +19,10 @@ _seq = itertools.count(1)
 
 
 def make_document(session, *, domain: Optional[Category] = Category.HOUSE, status=DocumentStatus.PROCESSED,
-                  category: Optional[str] = "manual", fields: Optional[dict] = None, filename="doc.pdf",
+                  paper_kind: Optional[str] = "manual", fields: Optional[dict] = None, filename="doc.pdf",
                   file_path="/tmp/doc.pdf", created_at: Optional[datetime] = None) -> Document:
     doc = Document(filename=filename, file_path=file_path, content_hash=f"h-{next(_seq)}",
-                   source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=category,
+                   source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=paper_kind,
                    fields_json=json.dumps(fields or {}))
     if created_at:
         doc.created_at = created_at
@@ -41,10 +41,10 @@ def make_page(session, topic, *, domain: Optional[Category] = Category.HOUSE, pa
     return page
 
 
-def make_record(session, *, domain=Category.HOUSE, category="visit", fields: Optional[dict] = None,
+def make_record(session, *, domain=Category.HOUSE, paper_kind="visit", fields: Optional[dict] = None,
                 document_id: Optional[int] = None, retired: bool = False,
                 created_at: Optional[datetime] = None) -> Record:
-    record = Record(category=domain, paper_kind=category, fields_json=json.dumps(fields or {}),
+    record = Record(category=domain, paper_kind=paper_kind, fields_json=json.dumps(fields or {}),
                     document_id=document_id, retired_at=datetime(2026, 1, 1) if retired else None)
     if created_at:
         record.created_at = created_at

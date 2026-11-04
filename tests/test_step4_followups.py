@@ -11,9 +11,9 @@ from app.models.transaction import Transaction, TransactionType
 from app.services import document_reconcile, to_check
 
 
-def _doc(session, name, category):
+def _doc(session, name, paper_kind):
     d = Document(filename=name, file_path=name, content_hash=name, source=DocumentSource.MANUAL,
-                 category=Category.FINANCIALS, paper_kind=category)
+                 category=Category.FINANCIALS, paper_kind=paper_kind)
     session.add(d); session.commit(); session.refresh(d)
     return d
 

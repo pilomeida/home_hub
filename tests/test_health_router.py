@@ -29,7 +29,7 @@ def test_the_detail_page_shows_each_value_beside_the_original(client, session):
 def test_a_non_health_document_is_a_404(client, session):
     from app.models.category import Category
     from tests.knowledge_factories import make_document
-    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance")
     assert client.get(f"/health/documents/{other.id}").status_code == 404
 
 
@@ -129,7 +129,7 @@ def test_health_stays_the_liveness_check_and_the_records_page_is_separate(client
 def test_tagging_a_paper_that_has_no_record_yet_is_a_409(client, session):
     from app.models.category import Category
     from tests.knowledge_factories import make_document
-    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
     r = client.post(f"/health/documents/{doc.id}/tags", data={"areas": "Eyes"})
     assert r.status_code == 409
     assert r.json()["detail"]["what"] == "Not tagged."
@@ -147,7 +147,7 @@ def test_a_measurement_of_another_paper_is_a_404(client, session):
 def test_posting_to_a_non_health_document_is_a_404(client, session):
     from app.models.category import Category
     from tests.knowledge_factories import make_document
-    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance")
     assert client.post(f"/health/documents/{other.id}/tags", data={"areas": "Eyes"}).status_code == 404
     assert client.post(f"/health/documents/{other.id}/fields", data={}).status_code == 404
     assert client.post(f"/health/documents/{other.id}/measurements/1/ok").status_code == 404
@@ -271,7 +271,7 @@ def _stored_health_paper(session, status, reason=None):
     from app.models.document import DocumentStatus
     from app.models.category import Category
     from tests.knowledge_factories import make_document
-    doc = make_document(session, domain=Category.HEALTH, category=None)
+    doc = make_document(session, domain=Category.HEALTH, paper_kind=None)
     doc.status, doc.failure_reason = DocumentStatus(status), reason
     session.add(doc)
     session.commit()

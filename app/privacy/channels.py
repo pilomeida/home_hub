@@ -15,16 +15,16 @@ from app.privacy.reach import reach_for
 PRIVATE_LABEL = "a private document"
 
 
-def channel_label(session: Session, domain: object, category: Optional[str], label: Optional[str]) -> Optional[str]:
+def channel_label(session: Session, domain: object, paper_kind: Optional[str], label: Optional[str]) -> Optional[str]:
     """The type's label for a message that leaves the Hub, or 'a private document' when the type is private."""
-    if reach_for(session).is_private_type(domain, category):
+    if reach_for(session).is_private_type(domain, paper_kind):
         return PRIVATE_LABEL
     return label
 
 
-def channel_fields(spec: CategorySpec, category: Optional[str], fields: Mapping[str, str]) -> dict[str, str]:
+def channel_fields(spec: CategorySpec, paper_kind: Optional[str], fields: Mapping[str, str]) -> dict[str, str]:
     """The fields that may leave the Hub (Telegram, email, the calendar): an ALLOWLIST. Only keys the domain
     declares for this category and does not mark `private` pass; an unknown key, and anything marked private
     (what was wrong, what was done), never does (decision D21)."""
-    allowed = {f.key for f in spec.fields_for(category) if not f.private}
+    allowed = {f.key for f in spec.fields_for(paper_kind) if not f.private}
     return {k: v for k, v in fields.items() if k in allowed}

@@ -20,8 +20,8 @@ from tests.test_health_extraction import _png
 EIXO = ["Conclusões", "Triplex carotídeo", "Eixo Carotídeo direito"]
 
 
-def _reply(person, when, sections, provider="Hospital de Santa Maria", layout="report", category="imaging_report"):
-    return {"category": category, "person_name": person, "document_date": when, "provider": provider,
+def _reply(person, when, sections, provider="Hospital de Santa Maria", layout="report", paper_kind="imaging_report"):
+    return {"category": paper_kind, "person_name": person, "document_date": when, "provider": provider,
             "record_kind": "test", "summary": "s", "layout": layout, "sections": sections}
 
 
@@ -42,7 +42,7 @@ def _file(session, tmp_path, reply, name="r.pdf", notes=()):
     got = asyncio.run(ex.extract_health_document(
         _png(tmp_path), None, gateway=FakeGateway([gateway_text_result(json.dumps(reply))])))
     got.check_notes = list(notes)
-    document = make_document(session, domain=Category.HEALTH, category=reply["category"], filename=name)
+    document = make_document(session, domain=Category.HEALTH, paper_kind=reply["category"], filename=name)
     entry = store.apply_extraction(session, document, got)
     return document, entry
 
@@ -240,14 +240,14 @@ def test_confirming_an_outline_that_cannot_be_kept_gives_the_three_part_detail(c
     assert r.status_code == 409
     detail = r.json()["detail"]
     assert detail["what"] == "Outline not confirmed." and detail["why"] and detail["next_step"]
-    other = make_document(session, domain=Category.HOUSE, category="house_appliance")
+    other = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance")
     assert client.post(f"/health/documents/{other.id}/outline/ok").status_code == 404
 
 
 def test_a_sheet_still_shows_its_results_table_and_no_report_line(client, session, tmp_path):
     doc, _ = _file(session, tmp_path, _reply("Maria Santos Almeida", "2026-03-12", [
         _section(["Bioquímica"], {"test": "Glucose", "value": 90, "unit": "mg/dL", "reference": "70 - 99"})],
-        layout="sheet", category="lab_result"))
+        layout="sheet", paper_kind="lab_result"))
     html = client.get(f"/health/documents/{doc.id}").text
     assert "Written report" not in html and "The outline looks right" not in html
     assert "<th>Test</th>" in html and "Glucose" in html and "90 mg/dL" in html and "Bioquímica" in html

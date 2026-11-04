@@ -88,13 +88,13 @@ def distinct_field_values(session: Session, domain: Category, key: str) -> list[
 def validate_fields(
     session: Session,
     spec: CategorySpec,
-    category: Optional[str],
+    paper_kind: Optional[str],
     media_kind: Optional[MediaKind],
     raw: Mapping[str, Any],
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
     clean: dict[str, str] = {}
-    for field_spec in spec.fields_for(category, media_kind):
+    for field_spec in spec.fields_for(paper_kind, media_kind):
         value = raw.get(field_spec.key)
         text = "" if value is None else str(value).strip()
         if not text:
@@ -123,9 +123,9 @@ def validate_fields(
     return clean
 
 
-def effective_fields(spec: CategorySpec, category: Optional[str], fields: Mapping[str, str]) -> dict[str, str]:
+def effective_fields(spec: CategorySpec, paper_kind: Optional[str], fields: Mapping[str, str]) -> dict[str, str]:
     """Stored fields plus the domain's derived fields (never stored)."""
-    return {**fields, **spec.derive_fields(category, dict(fields))}
+    return {**fields, **spec.derive_fields(paper_kind, dict(fields))}
 
 
 def file_url(document: Document) -> str:
@@ -180,13 +180,13 @@ class FormField:
 def build_form_fields(
     session: Session,
     spec: CategorySpec,
-    category: Optional[str],
+    paper_kind: Optional[str],
     values: Mapping[str, Any],
     errors: Mapping[str, str],
     media_kind: Optional[MediaKind] = None,
 ) -> list[FormField]:
     form_fields = []
-    for field_spec in spec.fields_for(category, media_kind):
+    for field_spec in spec.fields_for(paper_kind, media_kind):
         if field_spec.kind == FieldKind.CHOICE:
             options = field_spec.options(session)
         elif field_spec.kind == FieldKind.SUGGEST:

@@ -108,21 +108,21 @@ def build_world(session, docs_dir) -> SimpleNamespace:
         return str(path)
 
     w = SimpleNamespace()
-    w.a = make_document(session, domain=Category.HOUSE, category="house_appliance",
+    w.a = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance",
                         fields={"item_name": "Boiler", "room": CLEAN_ROOM}, filename="boiler-manual.png",
                         file_path=file("boiler-manual.png", PNG))
-    w.b = make_document(session, domain=Category.FINANCIALS, category="bill", filename="electricity-bill.pdf",
+    w.b = make_document(session, domain=Category.FINANCIALS, paper_kind="bill", filename="electricity-bill.pdf",
                         file_path=file("electricity-bill.pdf", b"%PDF-1.4 clean"))
-    w.c = make_document(session, domain=Category.INSURANCE, category="policy", filename=f"{HIGH}-file.png",
+    w.c = make_document(session, domain=Category.INSURANCE, paper_kind="policy", filename=f"{HIGH}-file.png",
                         fields={"insurer": f"{HIGH}-insurer", "policy_number": f"{HIGH}-policy", "notes": f"{HIGH}-notes"},
                         file_path=file(f"{HIGH}-file.png", b"\x89PNG\r\n\x1a\n" + FILE_BYTES.encode()))
-    w.d = make_document(session, domain=Category.FINANCIALS, category="statement", filename=f"{UNSET}-statement.pdf",
+    w.d = make_document(session, domain=Category.FINANCIALS, paper_kind="statement", filename=f"{UNSET}-statement.pdf",
                         file_path=file("statement.pdf", b"%PDF " + UNSET.encode()))
-    w.e = make_document(session, domain=Category.HOUSE, category="ownership_document", filename=f"{HIDES}-deed.pdf",
+    w.e = make_document(session, domain=Category.HOUSE, paper_kind="ownership_document", filename=f"{HIDES}-deed.pdf",
                         fields={"item_name": f"{HIDES}-item"}, file_path=file("deed.pdf", b"%PDF " + HIDES.encode()))
-    w.unk = make_document(session, domain=Category.HOUSE, category="legacy_kind", filename=f"{UNKNOWN}.pdf",
+    w.unk = make_document(session, domain=Category.HOUSE, paper_kind="legacy_kind", filename=f"{UNKNOWN}.pdf",
                           fields={"item_name": f"{UNKNOWN}-item"}, file_path=file("unknown.pdf", b"%PDF"))
-    w.rec = make_record(session, domain=Category.HOUSE, category="maintenance_log",
+    w.rec = make_record(session, domain=Category.HOUSE, paper_kind="maintenance_log",
                         fields={"item_name": "Boiler", "notes": f"{REC}-notes"})
 
     # Wiki. page_clean: all claims from an included document. page_high: only excluded sources.
@@ -160,7 +160,7 @@ def build_world(session, docs_dir) -> SimpleNamespace:
     session.commit()
 
     # Health: always High. One filed paper, read into Health's tables (its summary carries HEALTH_PAPER).
-    health = make_document(session, domain=Category.HEALTH, category="lab_result", filename="health-lab.pdf",
+    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="health-lab.pdf",
                            file_path=file("health-lab.pdf", b"%PDF-1.4 " + HEALTH_PAPER.encode()))
     apply_extraction(session, health, ExtractedHealth(
         person_name="Maria Santos Almeida", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",

@@ -56,11 +56,11 @@ async def _second_look(x: ex.ExtractedHealth, lines: Sequence[str], gateway) -> 
 
 
 async def read_health_document(
-    file_path: str, category: Optional[str], *, existing_areas: Sequence[str] = (),
+    file_path: str, paper_kind: Optional[str], *, existing_areas: Sequence[str] = (),
     existing_conditions: Sequence[str] = (), gateway=None, guidance: str = "", second_read: bool = True,
 ) -> ex.ExtractedHealth:
     gw = gateway or get_gateway()
-    x = await ex.extract_health_document(file_path, category, existing_areas=existing_areas,
+    x = await ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
                                          existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
     if x.is_bill:                                             # refused by the caller: nothing to check or compare, no more reads
         return x
@@ -77,7 +77,7 @@ async def read_health_document(
     notes += unresolved_notes(report)
     if second_read:                                           # every paper is read twice, independently
         try:
-            y = await ex.extract_health_document(file_path, category, existing_areas=existing_areas,
+            y = await ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
                                                  existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
             notes += compare_readings(x, y)
         except Exception as exc:                              # the first reading stands; say it was not cross-checked

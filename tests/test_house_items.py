@@ -13,12 +13,12 @@ from app.services.wiki_store import ClaimInput, PageRef
 _counter = {"n": 0}
 
 
-def _doc(session, category, fields, status=DocumentStatus.PROCESSED, domain=Category.HOUSE, filename=None):
+def _doc(session, paper_kind, fields, status=DocumentStatus.PROCESSED, domain=Category.HOUSE, filename=None):
     _counter["n"] += 1
     n = _counter["n"]
     document = Document(
         filename=filename or f"doc{n}.pdf", file_path=f"/tmp/doc{n}.pdf", content_hash=f"hash-items-{n}",
-        source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=category, fields_json=json.dumps(fields),
+        source=DocumentSource.MANUAL, status=status, category=domain, paper_kind=paper_kind, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()

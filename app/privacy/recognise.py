@@ -94,7 +94,7 @@ def recognise(session: Session, *, filename: str, content: bytes, context_text: 
                        tuple(f"{KINDS[r.kind].split(' (')[0].lower()}: “{r.pattern}”" for r in hits))
 
 
-def remember(session: Session, *, domain: str, category: str, by: Optional[str], sender: str = "",
+def remember(session: Session, *, domain: str, paper_kind: str, by: Optional[str], sender: str = "",
              words: str = "", note: str = "") -> list[DocumentFingerprint]:
     """Create the rules a human asked to remember. Existing identical rules are not duplicated."""
     made = []
@@ -103,9 +103,9 @@ def remember(session: Session, *, domain: str, category: str, by: Optional[str],
             continue
         exists = session.exec(select(DocumentFingerprint).where(
             DocumentFingerprint.kind == kind, DocumentFingerprint.pattern == pattern,
-            DocumentFingerprint.category == domain, DocumentFingerprint.paper_kind == category)).first()
+            DocumentFingerprint.category == domain, DocumentFingerprint.paper_kind == paper_kind)).first()
         if exists is None:
-            rule = DocumentFingerprint(kind=kind, pattern=pattern, category=domain, paper_kind=category,
+            rule = DocumentFingerprint(kind=kind, pattern=pattern, category=domain, paper_kind=paper_kind,
                                        note=note or "Remembered when filing a document", created_by=by)
             session.add(rule)
             made.append(rule)

@@ -36,10 +36,10 @@ def _kind_choices(spec) -> list[tuple[str, str]]:
     return [policy, (PREMIUM_NOTICE, "Premium notice or receipt (filed with the Bills)"), *others]
 
 
-def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
+def _upload_context(session: Session, paper_kind: Optional[str], values: dict, errors: dict) -> dict:
     spec = get_spec(Category.INSURANCE)
     choices = _kind_choices(spec)
-    known = category if category and any(value == category for value, _ in choices) else None
+    known = paper_kind if paper_kind and any(value == paper_kind for value, _ in choices) else None
     if known == PREMIUM_NOTICE:
         target_domain, target_kind = _PREMIUM_TARGET
         form_fields = build_form_fields(session, get_spec(target_domain), target_kind, values, errors)
@@ -48,13 +48,13 @@ def _upload_context(session: Session, category: Optional[str], values: dict, err
     return {"choices": choices, "category": known, "errors": file_notices(errors), "form_fields": form_fields}
 
 
-def _classification(category: Optional[str], values: dict) -> Classification:
-    if category == PREMIUM_NOTICE:
+def _classification(paper_kind: Optional[str], values: dict) -> Classification:
+    if paper_kind == PREMIUM_NOTICE:
         if not (values.get("policy_number") or "").strip():
             raise InvalidClassification({"policy_number": "Which policy this premium is for, so it shows on that policy"})
         target_domain, target_kind = _PREMIUM_TARGET
         return Classification(category=target_domain, paper_kind=target_kind, fields=values)
-    return Classification(category=Category.INSURANCE, paper_kind=category, fields=values)
+    return Classification(category=Category.INSURANCE, paper_kind=paper_kind, fields=values)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:

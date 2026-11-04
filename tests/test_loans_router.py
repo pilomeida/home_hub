@@ -495,10 +495,10 @@ def test_no_capital_repaid_line_without_granted_or_balance(client, session):
 # ---- I1: duplicate uploads never corrupt the document status ---------------
 
 
-def _dup_doc(session, name, category, status):
+def _dup_doc(session, name, paper_kind, status):
     content = PDF + name.encode()
     doc = Document(filename=name, file_path=save_file(name, content), content_hash=content_hash(content),
-                   source=DocumentSource.MANUAL, status=status, category="financials", paper_kind=category)
+                   source=DocumentSource.MANUAL, status=status, category="financials", paper_kind=paper_kind)
     session.add(doc)
     session.commit()
     return doc, content

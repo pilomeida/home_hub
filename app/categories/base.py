@@ -48,7 +48,7 @@ class SourceKind(str, Enum):
     RECORD = "record"      # the entry is typed in by hand (fields live on a Record); a file may be attached
 
 
-def _no_derived_fields(category: Optional[str], fields: dict[str, str]) -> dict[str, str]:
+def _no_derived_fields(paper_kind: Optional[str], fields: dict[str, str]) -> dict[str, str]:
     return {}
 
 
@@ -78,8 +78,8 @@ class FieldSpec:
     # a Telegram message, an email or a calendar entry (decision D21, app/privacy/channels.py).
     private: bool = False
 
-    def applies_to(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> bool:
-        if self.kinds is not None and category not in self.kinds:
+    def applies_to(self, paper_kind: Optional[str], media_kind: Optional[MediaKind] = None) -> bool:
+        if self.kinds is not None and paper_kind not in self.kinds:
             return False
         if media_kind is not None and self.media is not None and media_kind not in self.media:
             return False
@@ -231,5 +231,5 @@ class CategorySpec:
         except UnknownKindError:
             return value
 
-    def fields_for(self, category: Optional[str], media_kind: Optional[MediaKind] = None) -> list[FieldSpec]:
-        return [f for f in self.fields if f.applies_to(category, media_kind)]
+    def fields_for(self, paper_kind: Optional[str], media_kind: Optional[MediaKind] = None) -> list[FieldSpec]:
+        return [f for f in self.fields if f.applies_to(paper_kind, media_kind)]

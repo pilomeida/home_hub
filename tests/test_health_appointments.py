@@ -25,7 +25,7 @@ def _fixed_today(monkeypatch):
 
 
 def _appointment(session, with_time="10:30"):
-    doc = make_document(session, domain=Category.HEALTH, category="appointment", filename="consulta.pdf")
+    doc = make_document(session, domain=Category.HEALTH, paper_kind="appointment", filename="consulta.pdf")
     apply_extraction(session, doc, ExtractedHealth(
         person_name="Maria Santos Almeida", document_date=date(2026, 10, 1), provider="Clínica Sul",
         provider_phone="+351 21 000 0000", provider_address="Av. Central 5, Lisboa", record_kind="follow_up",
@@ -52,7 +52,7 @@ def test_without_a_time_it_is_an_all_day_event(session):
 
 
 def test_only_appointments_with_a_date_get_an_event(session):
-    doc = make_document(session, domain=Category.HEALTH, category="lab_result")
+    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result")
     assert appointment_event(doc, "https://hub.example") is None
 
 

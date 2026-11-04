@@ -113,8 +113,8 @@ def _target_kind(classification: Classification) -> Optional[SourceKind]:
         return None
 
 
-def _not_hand_entered_error(spec: CategorySpec, category: Optional[str]) -> InvalidClassification:
-    label = spec.kind_label(category)
+def _not_hand_entered_error(spec: CategorySpec, paper_kind: Optional[str]) -> InvalidClassification:
+    label = spec.kind_label(paper_kind)
     return InvalidClassification({"category": f"{label} is filed from a document, not entered by hand"})
 
 
@@ -358,8 +358,8 @@ def _drop_open_derived_todos(session: Session, *, document_id: Optional[int] = N
     session.commit()
 
 
-def _describe(spec: CategorySpec, category: Optional[str]) -> str:
-    return f"{spec.label} / {spec.kind_label(category) or 'auto'}"
+def _describe(spec: CategorySpec, paper_kind: Optional[str]) -> str:
+    return f"{spec.label} / {spec.kind_label(paper_kind) or 'auto'}"
 
 
 async def refile_document(session: Session, document: Document, classification: Classification) -> Document:

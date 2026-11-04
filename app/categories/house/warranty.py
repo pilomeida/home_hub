@@ -110,8 +110,8 @@ def assumed_note(expiry: WarrantyExpiry) -> str:
             f"({expiry.purchase_date.strftime('%Y-%m-%d')})")
 
 
-def house_derived_fields(category, fields) -> dict[str, str]:
-    if category != HouseKind.WARRANTY_INVOICE.value:
+def house_derived_fields(paper_kind, fields) -> dict[str, str]:
+    if paper_kind != HouseKind.WARRANTY_INVOICE.value:
         return {}
     expiry = effective_warranty_expiry(fields)
     if expiry is None:

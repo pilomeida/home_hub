@@ -33,15 +33,15 @@ def _domain_or_none(value: Optional[str]) -> Optional[Category]:
 
 
 def _context(session: Session, *, action: str, title: str, has_file: bool, filename: Optional[str],
-             domain: Optional[Category], category: Optional[str], values: dict, errors: dict,
+             domain: Optional[Category], paper_kind: Optional[str], values: dict, errors: dict,
              refused: Optional[str] = None) -> dict:
     spec = get_spec(domain) if domain else None
     media_kind = media_kind_for(filename) if filename else None
     return {
         "action": action, "title": title, "has_file": has_file,
-        "domains": implemented_domains(), "domain": domain, "category": category,
+        "domains": implemented_domains(), "domain": domain, "category": paper_kind,
         "categories": spec.kinds if spec else (),
-        "form_fields": build_form_fields(session, spec, category, values, errors, media_kind=media_kind) if spec and category else [],
+        "form_fields": build_form_fields(session, spec, paper_kind, values, errors, media_kind=media_kind) if spec and paper_kind else [],
         "errors": file_notices(errors), "refused": notice(refused) if refused else None,
     }
 
@@ -98,7 +98,7 @@ async def edit_document(request: Request, document_id: int, session: Session = D
         return RedirectResponse(f"/records/{attached.id}/edit", status_code=303)
     return templates.TemplateResponse(request, "documents/edit.html", _context(
         session, action=f"/documents/{document.id}/edit", title=document.filename, has_file=True,
-        filename=document.filename, domain=document.category, category=document.paper_kind,
+        filename=document.filename, domain=document.category, paper_kind=document.paper_kind,
         values=load_fields(document), errors={},
     ))
 
@@ -108,7 +108,7 @@ async def refile_document_route(request: Request, document_id: int, session: Ses
     document = _finalized_document_or_404(session, document_id)
     domain, category, values = _form_values(await request.form())
     base = dict(action=f"/documents/{document.id}/edit", title=document.filename, has_file=True,
-                filename=document.filename, domain=domain, category=category, values=values)
+                filename=document.filename, domain=domain, paper_kind=category, values=values)
     if domain is None:
         return templates.TemplateResponse(request, "documents/edit.html",
                                           _context(session, **base, errors={"domain": "Choose a category"}), status_code=400)
@@ -129,7 +129,7 @@ async def edit_record(request: Request, record_id: int, session: Session = Depen
     attachment = session.get(Document, record.document_id) if record.document_id else None
     return templates.TemplateResponse(request, "documents/edit.html", _context(
         session, action=f"/records/{record.id}/edit", title=f"Record #{record.id}", has_file=attachment is not None,
-        filename=attachment.filename if attachment else None, domain=record.category, category=record.paper_kind,
+        filename=attachment.filename if attachment else None, domain=record.category, paper_kind=record.paper_kind,
         values=load_fields(record), errors={},
     ))
 
@@ -140,7 +140,7 @@ async def refile_record_route(request: Request, record_id: int, session: Session
     attachment = session.get(Document, record.document_id) if record.document_id else None
     domain, category, values = _form_values(await request.form())
     base = dict(action=f"/records/{record.id}/edit", title=f"Record #{record.id}", has_file=attachment is not None,
-                filename=attachment.filename if attachment else None, domain=domain, category=category, values=values)
+                filename=attachment.filename if attachment else None, domain=domain, paper_kind=category, values=values)
     if domain is None:
         return templates.TemplateResponse(request, "documents/edit.html",
                                           _context(session, **base, errors={"domain": "Choose a category"}), status_code=400)

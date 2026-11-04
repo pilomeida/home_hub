@@ -27,7 +27,7 @@ async def test_papers_land_in_the_inbox_and_confident_health_ones_are_approved_o
         return CategorySuggestion(None, None, 0.0, "unsure")
 
     async def fake_approve(session, document_id, **kwargs):          # filing itself is covered by test_health_handler
-        fake_approve.calls.append((document_id, kwargs["domain_value"], kwargs["category"]))
+        fake_approve.calls.append((document_id, kwargs["domain_value"], kwargs["paper_kind"]))
     fake_approve.calls = []
 
     counts = await backfill(session, folder, auto_approve=True, classify=classify, approve=fake_approve)

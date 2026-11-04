@@ -11,11 +11,11 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.category import Category
 
 
-def _doc(session, fields, domain=Category.HOUSE, content_hash="h", category="manual"):
+def _doc(session, fields, domain=Category.HOUSE, content_hash="h", paper_kind="manual"):
     document = Document(
         filename="x.pdf", file_path="/srv/app/static/documents/abc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        category=domain, paper_kind=category, fields_json=json.dumps(fields),
+        category=domain, paper_kind=paper_kind, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()

@@ -21,10 +21,10 @@ def documents_dir(tmp_path, monkeypatch):
 _n = [0]
 
 
-async def _ingest(session, category, fields, filename=None):
+async def _ingest(session, paper_kind, fields, filename=None):
     _n[0] += 1
     result = await ingest(session, IncomingFile(filename or f"doc{_n[0]}.pdf", f"bytes{_n[0]}".encode(), DocumentSource.MANUAL),
-                          Classification(Category.INSURANCE, category, fields))
+                          Classification(Category.INSURANCE, paper_kind, fields))
     return result.document
 
 

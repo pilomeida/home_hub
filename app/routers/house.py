@@ -34,9 +34,9 @@ router = APIRouter(prefix="/house", tags=["house"])
 _NON_FIELD_KEYS = {"file", "category"}
 
 
-def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
+def _upload_context(session: Session, paper_kind: Optional[str], values: dict, errors: dict) -> dict:
     spec = get_spec(Category.HOUSE)
-    known = category if category and any(c.value == category for c in spec.kinds) else None
+    known = paper_kind if paper_kind and any(c.value == paper_kind for c in spec.kinds) else None
     return {
         "categories": spec.kinds,
         "category": known,

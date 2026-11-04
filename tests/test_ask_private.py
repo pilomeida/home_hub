@@ -37,9 +37,9 @@ HEALTH = "SENTINEL-HEALTHREC"
 @pytest.fixture()
 def home(session):
     pw.set_levels(session, low=["house/house_appliance"])
-    clean = make_document(session, domain=Category.HOUSE, category="house_appliance",
+    clean = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance",
                           fields={"item_name": "Boiler", "room": "Kitchen"}, filename="boiler.png")
-    health = make_document(session, domain=Category.HEALTH, category="lab_result", filename="lab.pdf",
+    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="lab.pdf",
                            fields={"person": "Maria", "provider": "Lab Norte", "summary": f"{HEALTH}-summary"})
     page = make_page(session, f"Maria: tests {HEALTH}", domain=Category.HEALTH, summary=f"{HEALTH}-page")
     make_claim(session, page, "cholesterol", f"{HEALTH}-210", doc_ids=[health.id])
@@ -157,7 +157,7 @@ def _health_paper(session, docs_dir) -> Document:
     docs_dir.mkdir(parents=True, exist_ok=True)
     path = docs_dir / "maria-lab.png"
     path.write_bytes(pw.PNG)
-    doc = make_document(session, domain=Category.HEALTH, category="lab_result", filename="maria-lab.png",
+    doc = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="maria-lab.png",
                         file_path=str(path))
     apply_extraction(session, doc, ExtractedHealth(
         person_name=f"Maria {HEALTH}", document_date=date(2026, 3, 12), provider="Lab Norte", record_kind="test",
@@ -266,9 +266,9 @@ async def test_reading_only_a_clean_page_that_links_a_private_page_raises_the_ru
 
 def test_a_record_with_a_private_attached_file_is_private_in_find_sources(session, inbox_documents_dir):
     pw.set_levels(session, low=["house/maintenance_log"], high=["insurance/policy"])
-    doc = make_document(session, domain=Category.INSURANCE, category="policy", filename="policy.pdf",
+    doc = make_document(session, domain=Category.INSURANCE, paper_kind="policy", filename="policy.pdf",
                         file_path=str(inbox_documents_dir / "policy.pdf"), fields={"insurer": "Acme"})
-    make_record(session, domain=Category.HOUSE, category="maintenance_log", document_id=doc.id,
+    make_record(session, domain=Category.HOUSE, paper_kind="maintenance_log", document_id=doc.id,
                 fields={"item_name": "Boiler", "notes": "serviced"})
     with reachable_scope(session):
         out = next(t for t in available_tools() if t.name == "find_sources").run(session, {"query": "boiler"})
@@ -406,10 +406,10 @@ def test_a_citation_record_of_an_unexpected_shape_reads_as_private(session, home
 def test_find_sources_goes_out_high_when_a_private_match_is_below_the_cut(session):
     """The header says "N matching (showing M)": N counts every match, so one private match below the limit
     still makes the output High, or the count would leak at a lower level."""
-    make_document(session, domain=Category.HEALTH, category="lab_result", filename="lab.pdf",
+    make_document(session, domain=Category.HEALTH, paper_kind="lab_result", filename="lab.pdf",
                   fields={"person": "Maria", "summary": "a lab"}, created_at=datetime(2026, 1, 1))
     for n in range(3):
-        make_document(session, domain=Category.HOUSE, category="house_appliance", filename=f"h{n}.png",
+        make_document(session, domain=Category.HOUSE, paper_kind="house_appliance", filename=f"h{n}.png",
                       fields={"item_name": f"Boiler {n}"}, created_at=datetime(2026, 5, 1 + n))
     find = next(t for t in available_tools() if t.name == "find_sources")
     with reachable_scope(session):

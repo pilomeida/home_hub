@@ -227,10 +227,10 @@ async def test_the_audit_of_a_private_domain_goes_out_high_and_other_audits_carr
 
     SENT = "SENTINEL-LINT-HEALTH"
     pw.set_levels(session, low=["house/house_appliance"])
-    clean = make_document(session, domain=Category.HOUSE, category="house_appliance", fields={"item_name": "Boiler"})
+    clean = make_document(session, domain=Category.HOUSE, paper_kind="house_appliance", fields={"item_name": "Boiler"})
     page_clean = make_page(session, "Boiler", domain=Category.HOUSE)
     make_claim(session, page_clean, "room", "Kitchen", doc_ids=[clean.id])
-    health = make_document(session, domain=Category.HEALTH, category="lab_result", fields={"person": "Maria", "summary": SENT})
+    health = make_document(session, domain=Category.HEALTH, paper_kind="lab_result", fields={"person": "Maria", "summary": SENT})
     page_h = make_page(session, f"Maria {SENT}", domain=Category.HEALTH)
     make_claim(session, page_h, "cholesterol", SENT, doc_ids=[health.id])
 

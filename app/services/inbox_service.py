@@ -152,11 +152,11 @@ def suggested_domain(item: InboxItem) -> Optional[Category]:
     return domain if is_implemented(domain) else None
 
 
-def describe(domain: Optional[Category], category: Optional[str]) -> Optional[str]:
+def describe(domain: Optional[Category], paper_kind: Optional[str]) -> Optional[str]:
     if not is_implemented(domain):
         return None
     spec = get_spec(domain)
-    return f"{spec.label} › {spec.kind_label(category)}" if category else spec.label
+    return f"{spec.label} › {spec.kind_label(paper_kind)}" if paper_kind else spec.label
 
 
 def is_confident(item: InboxItem) -> bool:
@@ -217,7 +217,7 @@ async def approve(
     document_id: int,
     *,
     domain_value: str,
-    category: Optional[str],
+    paper_kind: Optional[str],
     fields: Mapping[str, str],
     reviewed_by: Optional[str],
     remember_sender: bool = False,
@@ -228,7 +228,7 @@ async def approve(
         domain = Category(domain_value)
     except ValueError:
         raise InvalidClassification({"domain": "Choose a category"}) from None
-    classification = Classification(category=domain, paper_kind=category or None, fields=dict(fields))
+    classification = Classification(category=domain, paper_kind=paper_kind or None, fields=dict(fields))
     # Validate first so a rejected choice changes nothing (no review mark, no log).
     validated = validate_classification(session, classification, document.filename)
     require_ready(session, domain, validated.paper_kind)    # raises TierHeld before anything is marked or read
@@ -246,7 +246,7 @@ async def approve(
 
     filed = await finalize_document(session, document, classification)
     if remember_sender or remember_words.strip():
-        remember(session, domain=domain.value, category=validated.paper_kind or "", by=reviewed_by,
+        remember(session, domain=domain.value, paper_kind=validated.paper_kind or "", by=reviewed_by,
                  sender=original_sender(item.context_text) if remember_sender else "",
                  words=remember_words, note=f"Remembered when {document.filename} was filed")
     return filed

@@ -110,11 +110,11 @@ async def test_garbage_response_raises(pdf, two_domains):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("category", ["statement_positions", "loan_history"])
-async def test_non_classifiable_category_from_the_model_is_treated_as_unknown(pdf, category):
+@pytest.mark.parametrize("paper_kind", ["statement_positions", "loan_history"])
+async def test_non_classifiable_category_from_the_model_is_treated_as_unknown(pdf, paper_kind):
     # real registry: these two categories are chosen on the loans upload page, never by the classifier
     prompt = build_system_prompt(implemented_domains())
-    assert f'"{category}"' not in prompt
+    assert f'"{paper_kind}"' not in prompt
     result = await suggest_domain_and_category(
-        pdf, gateway=_answer(domain="financials", category=category, confidence=0.99, reason="x"))
+        pdf, gateway=_answer(domain="financials", category=paper_kind, confidence=0.99, reason="x"))
     assert result.category is None and result.confidence == 0.0

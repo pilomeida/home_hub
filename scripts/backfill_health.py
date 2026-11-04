@@ -44,7 +44,7 @@ async def backfill(session: Session, folder: Path, auto_approve: bool,
         item = receipt.inbox_item
         if auto_approve and item is not None and is_confident(item) and item.suggested_domain == "health":
             try:
-                await approve(session, receipt.document.id, domain_value="health", category=item.suggested_category,
+                await approve(session, receipt.document.id, domain_value="health", paper_kind=item.suggested_category,
                               fields={}, reviewed_by="backfill")
                 counts["approved"] += 1
                 continue

@@ -34,9 +34,9 @@ def extraction(monkeypatch):
     return calls, result
 
 
-async def _ingest(session, category, fields, filename="doc.pdf", content=b"bytes"):
+async def _ingest(session, paper_kind, fields, filename="doc.pdf", content=b"bytes"):
     result = await ingest(
-        session, IncomingFile(filename, content, DocumentSource.MANUAL), Classification(Category.HOUSE, category, fields),
+        session, IncomingFile(filename, content, DocumentSource.MANUAL), Classification(Category.HOUSE, paper_kind, fields),
     )
     return result.document
 

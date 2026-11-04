@@ -99,7 +99,7 @@ def test_uningested_sources_cover_documents_and_records(session, fake_domain):
     missing_doc = make_document(session, filename="b.pdf")
     done_rec = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"})
     make_ingest_log(session, done_rec)
-    attachment = make_document(session, filename="inv.pdf", category="visit")
+    attachment = make_document(session, filename="inv.pdf", paper_kind="visit")
     attached_rec = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-04-02"},
                                document_id=attachment.id)
     make_ingest_log(session, attachment)                      # A logs attachment-backed records by document_id

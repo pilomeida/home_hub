@@ -17,7 +17,7 @@ from tests.knowledge_factories import make_document
 
 @pytest.fixture()
 def doc(session):
-    return make_document(session, domain=Category.FINANCIALS, category="statement", filename="stmt.pdf")
+    return make_document(session, domain=Category.FINANCIALS, paper_kind="statement", filename="stmt.pdf")
 
 
 def _txn(session, doc, paid, amount=10.0, **kw):

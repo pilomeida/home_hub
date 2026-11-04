@@ -19,7 +19,7 @@ def _tool(name):
 
 def test_settled_entries_are_processed_documents_and_live_records(session, fake_domain):
     ok = make_document(session, filename="manual.pdf")
-    make_document(session, filename="inbox.pdf", domain=None, category=None, status=DocumentStatus.PENDING_REVIEW)
+    make_document(session, filename="inbox.pdf", domain=None, paper_kind=None, status=DocumentStatus.PENDING_REVIEW)
     make_document(session, filename="broken.pdf", status=DocumentStatus.NEEDS_ATTENTION)
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"})
     make_record(session, fields={"item_name": "Old"}, retired=True)
@@ -66,7 +66,7 @@ def test_find_sources_searches_documents_and_records_accent_insensitive(session,
 
 
 def test_find_sources_shows_a_records_attachment_for_reading(session, fake_domain):
-    pdf = make_document(session, filename="invoice.pdf", category="visit")
+    pdf = make_document(session, filename="invoice.pdf", paper_kind="visit")
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"}, document_id=pdf.id)
     out = _tool("find_sources").run(session, {"query": "boiler"})
     assert f"rec:{visit.id}" in out.text and f"attachment doc:{pdf.id}" in out.text
@@ -87,7 +87,7 @@ def test_read_document_file_refuses_unsettled_and_attaches_settled(session, fake
 def test_read_document_file_video_is_a_soft_error(session, fake_domain, tmp_path):
     vid = tmp_path / "pipes.mp4"
     vid.write_bytes(b"0000")
-    doc = make_document(session, filename="pipes.mp4", file_path=str(vid), category="clip")
+    doc = make_document(session, filename="pipes.mp4", file_path=str(vid), paper_kind="clip")
     out = _tool("read_document_file").run(session, {"document_id": doc.id})
     assert out.is_error and "details" in out.text
 

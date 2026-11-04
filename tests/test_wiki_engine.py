@@ -42,11 +42,11 @@ def guided_domain(monkeypatch):
     return spec
 
 
-def _document(session, category="manual", fields=None, content_hash="h1"):
+def _document(session, paper_kind="manual", fields=None, content_hash="h1"):
     document = Document(
         filename="doc.pdf", file_path="/tmp/doc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        category=Category.HOUSE, paper_kind=category, fields_json=json.dumps(fields or {}),
+        category=Category.HOUSE, paper_kind=paper_kind, fields_json=json.dumps(fields or {}),
     )
     session.add(document)
     session.commit()
@@ -67,7 +67,7 @@ def test_claims_from_fields_builds_entity_claims(session, fake_domain):
 
 def test_claims_from_fields_skips_unnamed_or_unrelated_documents(session, fake_domain):
     assert claims_from_fields(fake_domain, _document(session, fields={"seen_on": "2026-03-01"})) == []
-    assert claims_from_fields(fake_domain, _document(session, category="clip", fields={"side": "in"}, content_hash="h2")) == []
+    assert claims_from_fields(fake_domain, _document(session, paper_kind="clip", fields={"side": "in"}, content_hash="h2")) == []
 
 
 @pytest.mark.asyncio
@@ -128,7 +128,7 @@ async def test_ingest_without_context_never_calls_the_llm(session, guided_domain
 
 @pytest.mark.asyncio
 async def test_ingest_records_a_log_entry_even_with_nothing_to_record(session, fake_domain):
-    document = _document(session, category="clip", fields={"side": "in"})
+    document = _document(session, paper_kind="clip", fields={"side": "in"})
     report = await ingest_into_wiki(session, document, operation=WikiOperation.EDIT)
     assert report.page_ids == []
     assert session.get(WikiLogEntry, report.log_entry_id).operation == WikiOperation.EDIT
@@ -137,7 +137,7 @@ async def test_ingest_records_a_log_entry_even_with_nothing_to_record(session, f
 
 @pytest.mark.asyncio
 async def test_ingest_logs_an_ingest_entry_even_when_nothing_changes(session, fake_domain):
-    document = _document(session, category="clip", fields={"side": "in"})
+    document = _document(session, paper_kind="clip", fields={"side": "in"})
 
     await ingest_into_wiki(session, document)
     await ingest_into_wiki(session, document)
