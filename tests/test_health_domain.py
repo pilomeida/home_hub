@@ -24,8 +24,9 @@ def test_the_classifier_no_longer_offers_bills_under_health():
     prompt = build_system_prompt(implemented_domains())
     assert 'domain "health"' in prompt and 'category "claim_statement"' not in prompt
     assert 'category "medical_bill"' not in prompt
-    insurance_line = next(l for l in prompt.splitlines() if 'category "health_insurance"' in l)
-    assert "reimburse" in insurance_line.lower() and "bills" in insurance_line.lower()   # points claims to Bills
+    insurance_line = next(l for l in prompt.splitlines() if 'category "policy"' in l)
+    assert "reimbursed" in insurance_line.lower() and "bills" in insurance_line.lower()  # points reimbursements to Bills
+    assert "premium notice" in insurance_line.lower()                                    # and premium notices too
 
 
 def test_health_fields_mark_what_must_never_leave_the_hub():

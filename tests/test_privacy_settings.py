@@ -22,7 +22,7 @@ def _doc(session, name, domain, category, tier=None):
 def test_every_registry_type_is_listed_with_a_suggestion_and_none_is_saved_yet(session):
     rows = ps.type_rows(session)
     keys = {(r.info.domain, r.info.category) for r in rows}
-    assert ("financials", "statement") in keys and ("insurance", "home_insurance") in keys
+    assert ("financials", "statement") in keys and ("insurance", "policy") in keys
     open_rows = [r for r in rows if not r.locked]
     assert all(r.tier is None and not r.is_saved for r in open_rows)
     assert {r.shown_tier for r in open_rows} <= {Tier.LOW, Tier.MID}     # never suggests house_high
@@ -93,8 +93,8 @@ def test_saving_retiers_documents_and_records_already_filed(session):
 
 
 def test_backfill_applies_saved_settings(session):
-    a = _doc(session, "a", Domain.INSURANCE, "home_insurance")
-    session.add(DocumentTypeSetting(domain="insurance", category="home_insurance", tier="house_mid")); session.commit()
+    a = _doc(session, "a", Domain.INSURANCE, "policy")
+    session.add(DocumentTypeSetting(domain="insurance", category="policy", tier="house_mid")); session.commit()
     assert backfill_tiers(session) == 1
     session.refresh(a)
     assert a.sensitivity_tier == "house_mid" and backfill_tiers(session) == 0
@@ -124,9 +124,9 @@ def test_every_change_is_logged_with_who_and_old_and_new(session):
 def test_screen_lists_types_with_suggestions_and_explains_the_state(client, pairings):
     r = client.get("/privacy")
     assert r.status_code == 200
-    assert "Bank statement" in r.text and "Home insurance" in r.text
+    assert "Bank statement" in r.text and "Policy" in r.text and "Claim" in r.text
     assert "Suggested, not set yet" in r.text and "not binding yet" in r.text
-    assert "Confirm all 14 suggestions" in r.text
+    assert "Confirm all 12 suggestions" in r.text
 
 
 def test_screen_flow_confirm_then_switch_on_then_edit(client, session, pairings):

@@ -265,8 +265,8 @@ async def test_reading_only_a_clean_page_that_links_a_private_page_raises_the_ru
 
 
 def test_a_record_with_a_private_attached_file_is_private_in_find_sources(session, inbox_documents_dir):
-    pw.set_levels(session, low=["house/maintenance_log"], high=["insurance/home_insurance"])
-    doc = make_document(session, domain=Domain.INSURANCE, category="home_insurance", filename="policy.pdf",
+    pw.set_levels(session, low=["house/maintenance_log"], high=["insurance/policy"])
+    doc = make_document(session, domain=Domain.INSURANCE, category="policy", filename="policy.pdf",
                         file_path=str(inbox_documents_dir / "policy.pdf"), fields={"insurer": "Acme"})
     make_record(session, domain=Domain.HOUSE, category="maintenance_log", document_id=doc.id,
                 fields={"item_name": "Boiler", "notes": "serviced"})

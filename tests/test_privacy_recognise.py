@@ -47,20 +47,20 @@ def test_original_sender_comes_from_the_forwarded_mail_header_only():
 
 def test_recognises_by_sender_words_in_pdf_and_filename(session):
     _rule(session, "sender", "billing@exemplo.pt")
-    _rule(session, "words", "contrato 4455", "insurance", "home_insurance")
+    _rule(session, "words", "contrato 4455", "insurance", "policy")
     _rule(session, "filename", "extrato", "financials", "statement")
     a = rec.recognise(session, filename="x.pdf", content=b"", context_text="Originally from: Billing@Exemplo.pt\nEmail subject: fatura")
     b = rec.recognise(session, filename="y.pdf", content=_pdf_with_text("Apolice Contrato 4455 casa"), context_text=None)
     c = rec.recognise(session, filename="Extrato_marco.pdf", content=b"", context_text=None)
     assert (a.domain, a.category) == ("financials", "bill") and "billing@exemplo.pt" in a.reasons[0]
-    assert (b.domain, b.category) == ("insurance", "home_insurance")
+    assert (b.domain, b.category) == ("insurance", "policy")
     assert (c.domain, c.category) == ("financials", "statement")
     assert [r.hits for r in session.exec(select(DocumentFingerprint).order_by(DocumentFingerprint.id))] == [1, 1, 1]
 
 
 def test_disagreeing_or_no_rules_means_not_recognised(session):
     _rule(session, "words", "exemplo", "financials", "bill")
-    _rule(session, "filename", "apolice", "insurance", "home_insurance")
+    _rule(session, "filename", "apolice", "insurance", "policy")
     assert rec.recognise(session, filename="apolice.pdf", content=_pdf_with_text("Exemplo"), context_text=None) is None   # conflict
     assert rec.recognise(session, filename="unknown.pdf", content=b"", context_text="nothing relevant") is None
     assert all(r.hits == 0 for r in session.exec(select(DocumentFingerprint)))       # a non-match counts nothing

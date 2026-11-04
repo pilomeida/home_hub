@@ -10,7 +10,8 @@ from app.db import get_session
 from app.domains.fields import (
     InvalidClassification, build_form_fields, describe_document, load_fields, media_kind_for,
 )
-from app.domains.insurance.categories import POLICY_PAGE_TYPE
+from app.domains.financials.categories import FinancialsCategory
+from app.domains.insurance.categories import POLICY_PAGE_TYPE, PREMIUM_NOTICE
 from app.domains.insurance.policies import policy_sections
 from app.domains.registry import document_url, get_spec
 from app.models.document import Document, DocumentSource
@@ -25,13 +26,35 @@ router = APIRouter(prefix="/insurance", tags=["insurance"])
 _NON_FIELD_KEYS = {"file", "category"}
 
 
+# A premium notice is first of all a bill (Pedro, 2026-11-04): chosen here, it is filed under Bills, with the policy
+# number that shows it on its policy's card.
+_PREMIUM_TARGET = (Domain.FINANCIALS, FinancialsCategory.BILL.value)
+
+
+def _kind_choices(spec) -> list[tuple[str, str]]:
+    policy, *others = [(c.value, c.label) for c in spec.categories]
+    return [policy, (PREMIUM_NOTICE, "Premium notice or receipt (filed with the Bills)"), *others]
+
+
 def _upload_context(session: Session, category: Optional[str], values: dict, errors: dict) -> dict:
     spec = get_spec(Domain.INSURANCE)
-    known = category if category and any(c.value == category for c in spec.categories) else None
-    return {
-        "categories": spec.categories, "category": known, "errors": file_notices(errors),
-        "form_fields": build_form_fields(session, spec, known, values, errors) if known else [],
-    }
+    choices = _kind_choices(spec)
+    known = category if category and any(value == category for value, _ in choices) else None
+    if known == PREMIUM_NOTICE:
+        target_domain, target_kind = _PREMIUM_TARGET
+        form_fields = build_form_fields(session, get_spec(target_domain), target_kind, values, errors)
+    else:
+        form_fields = build_form_fields(session, spec, known, values, errors) if known else []
+    return {"choices": choices, "category": known, "errors": file_notices(errors), "form_fields": form_fields}
+
+
+def _classification(category: Optional[str], values: dict) -> Classification:
+    if category == PREMIUM_NOTICE:
+        if not (values.get("policy_number") or "").strip():
+            raise InvalidClassification({"policy_number": "Which policy this premium is for, so it shows on that policy"})
+        target_domain, target_kind = _PREMIUM_TARGET
+        return Classification(domain=target_domain, category=target_kind, fields=values)
+    return Classification(domain=Domain.INSURANCE, category=category, fields=values)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:
@@ -81,11 +104,12 @@ async def upload(request: Request, session: Session = Depends(get_session)):
             request, "insurance/upload.html",
             _upload_context(session, category, values, {"file": "No file was chosen to upload"}), status_code=400)
     try:
+        classification = _classification(category, values)
         result = await ingest(
             session,
             IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
                          getattr(request.state, "user_email", None)),
-            Classification(domain=Domain.INSURANCE, category=category, fields=values))
+            classification)
     except InvalidClassification as exc:
         return templates.TemplateResponse(
             request, "insurance/upload.html", _upload_context(session, category, values, exc.errors), status_code=400)

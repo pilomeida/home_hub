@@ -10,18 +10,18 @@ from tests.knowledge_factories import make_document, make_record
 
 
 def test_a_high_type_is_reachable_but_private(session):
-    pw.set_levels(session, mid=["financials/bill"], high=["insurance/home_insurance"])
+    pw.set_levels(session, mid=["financials/bill"], high=["insurance/policy"])
     reach = compute_reach(session)
-    a = reach.access[("insurance", "home_insurance")]
+    a = reach.access[("insurance", "policy")]
     assert a.included and a.private and a.reason is None and a.tier == Tier.HIGH
-    assert reach.is_private_type("insurance", "home_insurance")
+    assert reach.is_private_type("insurance", "policy")
     assert not reach.is_private_type("financials", "bill")
 
 
 def test_the_starting_level_ignores_private_types(session):
-    pw.set_levels(session, low=["house/house_appliance"], mid=["financials/bill"], high=["insurance/home_insurance"])
+    pw.set_levels(session, low=["house/house_appliance"], mid=["financials/bill"], high=["insurance/policy"])
     assert compute_reach(session).tier == Tier.MID
-    pw.set_levels(session, high=["insurance/home_insurance"])
+    pw.set_levels(session, high=["insurance/policy"])
     assert compute_reach(session).tier == Tier.MID          # nothing else included: the Mid floor
 
 

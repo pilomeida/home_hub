@@ -5,11 +5,11 @@
 <h1>Add an insurance document</h1>
 <form action="/insurance/upload" method="post" enctype="multipart/form-data">
   <div class="field">
-    <label for="f-category">What it insures *</label>
+    <label for="f-category">What kind of paper *</label>
     <select id="f-category" name="category" hx-get="/insurance/upload/fields" hx-target="#insurance-fields" hx-trigger="change">
       <option value="">— choose —</option>
-      {% for c in categories %}
-      <option value="{{ c.value }}"{% if c.value == category %} selected{% endif %}>{{ c.label }}</option>
+      {% for value, label in choices %}
+      <option value="{{ value }}"{% if value == category %} selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
     {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}

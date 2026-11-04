@@ -14,7 +14,7 @@ def test_private_fields_never_pass_the_channel_guard():
 def test_a_domain_with_no_private_fields_passes_everything():
     spec = get_spec(Domain.INSURANCE)
     fields = {"insurer": "Zurich", "policy_number": "AP-1"}
-    assert channel_fields(spec, "home_insurance", fields) == fields
+    assert channel_fields(spec, "policy", fields) == fields
 
 
 def test_an_unknown_key_is_dropped_like_a_private_one():

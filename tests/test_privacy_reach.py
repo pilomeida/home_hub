@@ -69,12 +69,12 @@ def assert_private_only_at_high(wire, private=PRIVATE_DERIVED):
 
 def test_a_type_is_excluded_if_unset_or_hides_personal_details(session):
     pw.set_levels(session, low=["house/house_appliance"], mid=["financials/bill"],
-                  high=["insurance/home_insurance"], hides=["house/ownership_document"])
+                  high=["insurance/policy"], hides=["house/ownership_document"])
     reach = compute_reach(session)
     got = {k: (a.included, a.reason) for k, a in reach.access.items()}
     assert got[("house", "house_appliance")] == (True, None)
     assert got[("financials", "bill")] == (True, None)
-    assert got[("insurance", "home_insurance")] == (True, None)             # High: reachable (but private)
+    assert got[("insurance", "policy")] == (True, None)             # High: reachable (but private)
     assert got[("house", "ownership_document")] == (False, R_HIDES)         # Mid, but hiding cannot work with look-ups
     assert got[("financials", "statement")] == (False, R_UNSET)
     assert reach.includes_type("house", "no_such_type") is False            # not a registered type: no level
@@ -84,8 +84,8 @@ def test_a_type_is_excluded_if_unset_or_hides_personal_details(session):
 @pytest.mark.parametrize("levels,expected", [
     (dict(low=["house/house_appliance"]), Tier.LOW),
     (dict(low=["house/house_appliance"], mid=["financials/bill"]), Tier.MID),      # strictest included
-    (dict(mid=["financials/bill"], high=["insurance/home_insurance"]), Tier.MID),  # High is private, not part of the starting level
-    (dict(high=["insurance/home_insurance"]), Tier.MID),                           # nothing included: Mid floor
+    (dict(mid=["financials/bill"], high=["insurance/policy"]), Tier.MID),  # High is private, not part of the starting level
+    (dict(high=["insurance/policy"]), Tier.MID),                           # nothing included: Mid floor
     (dict(), Tier.MID),
 ])
 def test_the_call_level_is_the_strictest_included_level(session, levels, expected):
@@ -94,9 +94,9 @@ def test_the_call_level_is_the_strictest_included_level(session, levels, expecte
 
 
 def test_when_levels_are_not_binding_nothing_is_excluded_and_no_scope_is_set(session):
-    pw.set_levels(session, on=False, high=["insurance/home_insurance"])
+    pw.set_levels(session, on=False, high=["insurance/policy"])
     reach = compute_reach(session)
-    assert reach.binding is False and reach.tier is None and reach.includes_type("insurance", "home_insurance")
+    assert reach.binding is False and reach.tier is None and reach.includes_type("insurance", "policy")
     with reachable_scope(session) as r:
         assert r.binding is False and current_scope() is None              # the gateway adds no sensitivity
 
@@ -190,7 +190,7 @@ async def test_the_system_prompt_counts_wiki_index_and_pending_note_cover_only_w
     assert "Private records:" in system                                     # ... but says that private records exist
     assert "withheld from you" in system                                    # the model is told the records are incomplete
     assert "[bill: 1]" in domains and "[house_appliance: 1]" in domains
-    for hidden in ("statement:", "home_insurance:", "ownership_document:", "maintenance_log:", "legacy_kind:"):
+    for hidden in ("statement:", "policy:", "ownership_document:", "maintenance_log:", "legacy_kind:"):
         assert hidden not in domains, hidden
     assert f"wiki:{world.page_clean.id} Boiler" in system and f"wiki:{world.page_mixed.id} Water supply" in system
     assert f"wiki:{world.page_high.id}" not in system and f"wiki:{world.page_neighbour.id}" not in system

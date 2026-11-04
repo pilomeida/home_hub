@@ -38,10 +38,8 @@ SUGGESTED_TIERS: dict[tuple[str, str], Tier] = {
     ("house", "maintenance_log"): Tier.LOW,
     ("house", "floor_plan"): Tier.LOW,
     ("house", "ownership_document"): Tier.MID,
-    ("insurance", "home_insurance"): Tier.MID,
-    ("insurance", "car_insurance"): Tier.MID,
-    ("insurance", "health_insurance"): Tier.MID,
-    ("insurance", "life_insurance"): Tier.MID,
+    ("insurance", "policy"): Tier.MID,
+    ("insurance", "claim"): Tier.MID,
 }
 FALLBACK_SUGGESTION = Tier.MID      # a type added later: cautious middle until Pedro decides
 

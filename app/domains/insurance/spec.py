@@ -3,7 +3,9 @@
 from app.domains.base import (
     CategorySpec, DomainSpec, EntityTypeSpec, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
 )
-from app.domains.insurance.categories import ALL_CATEGORIES, DOCUMENT_KINDS, POLICY_PAGE_TYPE, InsuranceCategory
+from app.domains.insurance.categories import (
+    ALL_KINDS, COVERS, POLICY_PAGE_TYPE, POLICY_PARTS, InsuranceKind, insurance_derived_fields,
+)
 from app.domains.insurance.handler import InsuranceHandler
 from app.domains.insurance.overview import insurance_overview_card
 from app.models.domain import Domain
@@ -12,26 +14,26 @@ SPEC = DomainSpec(
     domain=Domain.INSURANCE,
     label="Insurance",
     description=(
-        "The household's insurance policies: conditions booklets, policy schedules and summaries, premium "
-        "notices, payment plans and green cards, for the home, the cars, health and life."
+        "The household's insurance policies, for the home, the cars, health and life: the policy's own papers "
+        "(conditions booklets, schedules, summaries, payment plans, green cards) and claims. A premium notice asks "
+        "for money: it is a bill, filed under Bills and shown on its policy."
     ),
     home_url="/insurance",
     categories=(
-        CategorySpec(InsuranceCategory.HOME.value, "Home insurance",
-                     "A policy for the house or its contents: conditions, schedule, summary, premium notice or payment plan."),
-        CategorySpec(InsuranceCategory.CAR.value, "Car insurance",
-                     "A car policy: conditions, schedule, premium notice, payment plan or green card."),
-        CategorySpec(InsuranceCategory.HEALTH.value, "Health insurance",
-                     "A health insurance policy for one or more people: conditions, schedule, premium notice or "
-                     "renewal letter. A statement of what the insurer reimbursed for medical expenses is NOT this: "
-                     "it is a bill-type paper, dealt with under Bills."),
-        CategorySpec(InsuranceCategory.LIFE.value, "Life insurance",
-                     "A life insurance policy: conditions, schedule or premium notice."),
+        CategorySpec(InsuranceKind.POLICY.value, "Policy",
+                     "A policy's own paper: general or particular conditions, schedule, summary, payment plan or "
+                     "green card, for the house, a car, health or life. A premium notice or receipt is NOT this: "
+                     "it is a bill, dealt with under Bills. A statement of what a health insurer reimbursed is "
+                     "a bill-type paper too."),
+        CategorySpec(InsuranceKind.CLAIM.value, "Claim",
+                     "A claim made on a policy, or the insurer's answer to one."),
     ),
     fields=(
         FieldSpec("insurer", "Insurer", FieldKind.SUGGEST, required=True),
         FieldSpec("policy_number", "Policy number", FieldKind.TEXT, required=True),
-        FieldSpec("document_kind", "What this document is", FieldKind.CHOICE, required=True, choices=DOCUMENT_KINDS),
+        FieldSpec("covers", "What the policy is for", FieldKind.CHOICE, required=True, choices=COVERS),
+        FieldSpec("part", "Which part of the policy", FieldKind.CHOICE,
+                  categories=frozenset({InsuranceKind.POLICY.value}), required=True, choices=POLICY_PARTS),
         FieldSpec("insured", "What or whom it covers", FieldKind.SUGGEST,
                   help="e.g. Mafra house, Toyota Avensis 82-CL-65, the family."),
         FieldSpec("product", "Product", FieldKind.TEXT, help="e.g. Zurich Lar Seguro."),
@@ -41,6 +43,7 @@ SPEC = DomainSpec(
         FieldSpec("notes", "Notes", FieldKind.LONGTEXT,
                   help="Premium, what it covers, which loan it belongs to, anything to remember."),
     ),
+    derive_fields=insurance_derived_fields,
     handler=InsuranceHandler(),
     nav_links=(NavLink("Policies", "/insurance"),),
     overview_card=insurance_overview_card,
@@ -49,9 +52,9 @@ SPEC = DomainSpec(
         entity_types=(
             EntityTypeSpec(
                 page_type=POLICY_PAGE_TYPE, label="Policies", key_field="policy_number",
-                categories=ALL_CATEGORIES,
+                categories=ALL_KINDS,
                 facts=(
-                    FactSpec("type", "Type", "category"),
+                    FactSpec("type", "Type", "covers_label"),
                     FactSpec("insurer", "Insurer", "insurer"),
                     FactSpec("product", "Product", "product"),
                     FactSpec("covers", "Covers", "insured"),

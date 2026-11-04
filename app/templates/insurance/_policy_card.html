@@ -2,8 +2,8 @@
   <h3>{{ card.insurer }}{% if card.product %} — {{ card.product }}{% endif %}</h3>
   <p>Policy {{ card.policy_number }}{% if card.insured %} · {{ card.insured }}{% endif %}</p>
   <ul>
-    {% for d in card.documents %}
-    <li><a href="{{ d.url }}">{{ d.title }}</a>{% if d.fields.get("document_kind") %} <small>— {{ d.fields["document_kind"].replace("_", " ") }}{% if d.fields.get("edition") %}, {{ d.fields["edition"] }}{% endif %}</small>{% endif %}</li>
+    {% for p in card.documents %}
+    <li><a href="{{ p.entry.url }}">{{ p.entry.title }}</a> <small>— {{ p.note }}{% if p.entry.fields.get("edition") %}, {{ p.entry.fields["edition"] }}{% endif %}</small></li>
     {% endfor %}
   </ul>
 </article>

@@ -90,7 +90,7 @@ async def test_every_audit_call_carries_the_level_of_what_it_reads(session, worl
     assert level_of_each_audit(wire) == {audit_line(Domain.FINANCIALS): "house_mid", audit_line(Domain.HOUSE): "house_high",
                                          audit_line(Domain.INSURANCE): "house_high", audit_line(Domain.HEALTH): "house_high"}
 
-    for key in ("insurance/home_insurance", "house/maintenance_log", "house/ownership_document", "financials/bill"):
+    for key in ("insurance/policy", "house/maintenance_log", "house/ownership_document", "financials/bill"):
         ps.save_type(session, *key.split("/"), None, False, "test")                  # clear the High and hidden types
     pw.set_levels(session, low=["house/house_appliance", "financials/bill"])        # only Low types readable
     wire2 = pw.Wire()

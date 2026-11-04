@@ -30,7 +30,7 @@ from tests.fakes.fake_gateway import gateway_text_result, gateway_tool_result
 from tests.knowledge_factories import make_claim, make_document, make_link, make_page, make_record
 
 # Sentinels: ASCII only, unique, and never part of any clean text.
-HIGH = "SENTINEL-HIGH"           # insurance/home_insurance, level High
+HIGH = "SENTINEL-HIGH"           # insurance/policy, level High
 UNSET = "SENTINEL-UNSET"         # financials/statement, no level
 HIDES = "SENTINEL-HIDES"         # house/ownership_document, Mid with "hide personal details" on
 REC = "SENTINEL-RECORD"          # house/maintenance_log record, level High
@@ -95,7 +95,7 @@ def set_levels(session, *, on: bool = True, low=(), mid=(), high=(), hides=()) -
     ps.set_enforcing(session, on, "test")
 
 
-STANDARD = dict(low=["house/house_appliance"], mid=["financials/bill"], high=["insurance/home_insurance", "house/maintenance_log"],
+STANDARD = dict(low=["house/house_appliance"], mid=["financials/bill"], high=["insurance/policy", "house/maintenance_log"],
                 hides=["house/ownership_document"])           # financials/statement and the rest: no level
 
 
@@ -113,7 +113,7 @@ def build_world(session, docs_dir) -> SimpleNamespace:
                         file_path=file("boiler-manual.png", PNG))
     w.b = make_document(session, domain=Domain.FINANCIALS, category="bill", filename="electricity-bill.pdf",
                         file_path=file("electricity-bill.pdf", b"%PDF-1.4 clean"))
-    w.c = make_document(session, domain=Domain.INSURANCE, category="home_insurance", filename=f"{HIGH}-file.png",
+    w.c = make_document(session, domain=Domain.INSURANCE, category="policy", filename=f"{HIGH}-file.png",
                         fields={"insurer": f"{HIGH}-insurer", "policy_number": f"{HIGH}-policy", "notes": f"{HIGH}-notes"},
                         file_path=file(f"{HIGH}-file.png", b"\x89PNG\r\n\x1a\n" + FILE_BYTES.encode()))
     w.d = make_document(session, domain=Domain.FINANCIALS, category="statement", filename=f"{UNSET}-statement.pdf",
@@ -170,7 +170,7 @@ def build_world(session, docs_dir) -> SimpleNamespace:
     w.health_paper = health
 
     # Waiting in the Inbox: one suggested as an excluded type, one as an included type.
-    for suggested in ("insurance/home_insurance", "financials/bill"):
+    for suggested in ("insurance/policy", "financials/bill"):
         d = Document(filename=f"pending-{suggested.split('/')[1]}.pdf", file_path="/nonexistent", content_hash=suggested,
                      source=DocumentSource.EMAIL, status=DocumentStatus.PENDING_REVIEW)
         session.add(d)

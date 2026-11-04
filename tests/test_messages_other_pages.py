@@ -144,7 +144,7 @@ def test_house_upload_of_a_kind_the_category_does_not_take(client, session):
 
 
 def test_insurance_upload_without_a_file_says_what_why_and_next(client):
-    r = client.post("/insurance/upload", data={"category": "car_insurance"})
+    r = client.post("/insurance/upload", data={"category": "policy"})
     assert r.status_code == 400
     assert_three_parts(r.text, "Nothing was uploaded.", "No file was chosen", "Choose a file, then press Upload again.")
 

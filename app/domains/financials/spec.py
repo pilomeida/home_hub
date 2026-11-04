@@ -48,6 +48,11 @@ SPEC = DomainSpec(
             "account_id", "Account", FieldKind.CHOICE, choices_provider=_account_choices,
             help="Which bank account a statement belongs to (optional).",
         ),
+        FieldSpec(
+            "policy_number", "Insurance policy number", FieldKind.TEXT,
+            categories=frozenset({FinancialsCategory.BILL.value}),
+            help="For an insurance premium: the policy it pays. The bill is then shown on that policy in Insurance.",
+        ),
     ),
     handler=FinancialsHandler(),
     nav_links=(
