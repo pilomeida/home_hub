@@ -63,7 +63,7 @@ class TierHeld(Exception):
 @dataclass(frozen=True)
 class TypeInfo:
     category: str
-    domain_label: str
+    category_label: str
     paper_kind: str
     label: str
     description: str

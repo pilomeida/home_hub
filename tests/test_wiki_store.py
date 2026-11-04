@@ -143,7 +143,7 @@ def test_build_wiki_index_groups_by_domain_and_page_type(session, fake_category)
 
     sections = wiki_store.build_wiki_index(session)
 
-    assert [(s.domain_label, s.section_label) for s in sections] == [
+    assert [(s.category_label, s.section_label) for s in sections] == [
         ("Fake", "Items"), ("Fake", "Topics"), ("General", "Topics"),
     ]
     assert sections[0].entries[0].title == "Boiler" and sections[0].entries[0].summary == "Room: Kitchen"
@@ -190,7 +190,7 @@ def test_answer_pages_are_indexed_as_saved_answers(session):
     ref = PageRef(page_type="answer", title="Which warranties expire this year?")
     wiki_store.apply_claims(session, [ClaimInput(ref, "answer", "Boiler (March)")], document=None,
                             operation=WikiOperation.QUERY, description="Saved answer")
-    assert [(s.domain_label, s.section_label) for s in wiki_store.build_wiki_index(session)] == [("General", "Saved answers")]
+    assert [(s.category_label, s.section_label) for s in wiki_store.build_wiki_index(session)] == [("General", "Saved answers")]
 
 
 from app.models.record import Record

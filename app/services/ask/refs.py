@@ -24,7 +24,7 @@ def citable_for_wiki_page(page_id: int, title: str) -> Citable:
 
 def citable_for_document(doc: Document) -> Citable:
     desc = describe_document(doc)
-    return Citable(ref=f"doc:{doc.id}", label=f"{desc.domain_label or 'Household'} document: {doc.filename}",
+    return Citable(ref=f"doc:{doc.id}", label=f"{desc.category_label or 'Household'} document: {doc.filename}",
                    url=desc.url or file_url(doc))
 
 

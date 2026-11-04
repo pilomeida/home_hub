@@ -44,7 +44,7 @@ async def test_known_document_is_prefilled_by_a_rule_and_no_ai_is_called(session
     r = await _receive(session, "a.pdf", spy)
     assert spy.calls == 0
     item = r.inbox_item
-    assert (item.suggested_domain, item.suggested_paper_kind, item.confidence) == ("house", "manual", 1.0)
+    assert (item.suggested_category, item.suggested_paper_kind, item.confidence) == ("house", "manual", 1.0)
     assert item.classifier_note.startswith("Recognised from") and inbox_service.is_confident(item)
     assert r.document.status == DocumentStatus.PENDING_REVIEW          # a human still approves it
 
@@ -60,7 +60,7 @@ async def test_unrecognised_document_is_classified_in_a_high_run_once_levels_are
     spy = SpyClassifier()
     r = await _receive(session, "c.pdf", spy)
     assert spy.calls == 1
-    assert (r.inbox_item.suggested_domain, r.inbox_item.suggested_paper_kind) == ("house", "manual")
+    assert (r.inbox_item.suggested_category, r.inbox_item.suggested_paper_kind) == ("house", "manual")
     assert r.inbox_item.classifier_note == "ai guess"
     assert inbox_service.is_confident(r.inbox_item)
 
@@ -76,7 +76,7 @@ async def test_a_recognised_document_needs_no_ai_even_when_levels_are_binding(se
 async def test_approving_with_remember_creates_rules_then_the_next_one_is_recognised(session):
     spy = SpyClassifier()
     r = await _receive(session, "e.pdf", spy)
-    doc = await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual",
+    doc = await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual",
                                       fields={"item_name": "Boiler"}, reviewed_by="p@x",
                                       remember_sender=True, remember_words="Exemplo SA")
     assert doc.status == DocumentStatus.PROCESSED
@@ -89,7 +89,7 @@ async def test_approving_with_remember_creates_rules_then_the_next_one_is_recogn
 
 async def test_without_remember_no_rules_are_created(session):
     r = await _receive(session, "g.pdf", SpyClassifier())
-    await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual",
+    await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual",
                                 fields={"item_name": "Boiler"}, reviewed_by="p@x")
     assert session.exec(select(DocumentFingerprint)).all() == []
 
@@ -98,7 +98,7 @@ async def test_a_failed_filing_creates_no_rules(session):
     r = await _receive(session, "h.pdf", SpyClassifier())
     from app.categories.fields import InvalidClassification
     with pytest.raises(InvalidClassification):
-        await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual", fields={},
+        await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual", fields={},
                                     reviewed_by="p@x", remember_sender=True, remember_words="x")
     assert session.exec(select(DocumentFingerprint)).all() == []
 
@@ -107,7 +107,7 @@ async def test_approving_into_a_held_type_marks_nothing_and_reads_nothing(sessio
     r = await _receive(session, "i.pdf", SpyClassifier())
     ps.set_enforcing(session, True, None)
     with pytest.raises(ps.TierHeld):
-        await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual",
+        await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual",
                                     fields={"item_name": "Boiler"}, reviewed_by="p@x")
     assert session.exec(select(InboxItem)).one().reviewed_at is None
     assert session.get(Document, r.document.id).status == DocumentStatus.PENDING_REVIEW
@@ -118,7 +118,7 @@ async def test_once_the_type_has_a_level_the_same_document_files_normally(sessio
     r = await _receive(session, "j.pdf", SpyClassifier())
     ps.set_enforcing(session, True, None)
     ps.save_type(session, "house", "manual", "house_low", False, None)
-    doc = await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual",
+    doc = await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual",
                                       fields={"item_name": "Boiler"}, reviewed_by="p@x")
     assert doc.status == DocumentStatus.PROCESSED and doc.sensitivity_tier == "house_low"   # stamped at filing
 
@@ -126,13 +126,13 @@ async def test_once_the_type_has_a_level_the_same_document_files_normally(sessio
 async def test_filing_stamps_the_level_even_while_levels_are_not_binding(session):
     ps.save_type(session, "house", "manual", "house_mid", False, None)
     r = await _receive(session, "k.pdf", SpyClassifier())
-    doc = await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual",
+    doc = await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual",
                                       fields={"item_name": "Boiler"}, reviewed_by="p@x")
     assert doc.sensitivity_tier == "house_mid" and ps.enforcing(session) is False
 
 
 async def test_a_type_with_no_level_is_stamped_with_nothing(session):
     r = await _receive(session, "l.pdf", SpyClassifier())
-    doc = await inbox_service.approve(session, r.document.id, domain_value="house", paper_kind="manual",
+    doc = await inbox_service.approve(session, r.document.id, category_value="house", paper_kind="manual",
                                       fields={"item_name": "Boiler"}, reviewed_by="p@x")
     assert doc.sensitivity_tier is None

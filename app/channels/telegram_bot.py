@@ -25,7 +25,7 @@ from app.categories.fields import media_kind_for
 from app.models.document import DocumentSource, DocumentStatus
 from app.privacy.channels import channel_label
 from app.privacy.notices import SCAN_NOTICE, is_image_name
-from app.services.inbox_service import InboxReceipt, describe, is_confident, receive_document, suggested_domain
+from app.services.inbox_service import InboxReceipt, describe, is_confident, receive_document, suggested_category
 from app.services.ingestion import IncomingFile
 
 logger = logging.getLogger("home_hub.telegram_bot")
@@ -86,7 +86,7 @@ def reply_for(receipt: InboxReceipt, base_url: str, session: Session) -> str:
         return "I already have this one — nothing to do."
     item = receipt.inbox_item
     if item is not None and is_confident(item):
-        domain = suggested_domain(item)
+        domain = suggested_category(item)
         label = describe(domain, item.suggested_paper_kind)
         label = channel_label(session, domain, item.suggested_paper_kind, label)
         return f"Got it — looks like {label}. Approve it in the Inbox: {inbox_url}"

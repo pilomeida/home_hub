@@ -16,7 +16,7 @@ from app.services.presentation import (
 templates = Jinja2Templates(directory="app/templates")
 
 
-def domain_label(category: Optional[Category]) -> str:
+def category_label(category: Optional[Category]) -> str:
     if category is None:
         return ""
     if is_implemented(category):
@@ -24,8 +24,8 @@ def domain_label(category: Optional[Category]) -> str:
     return category.value.replace("_", " ").title()
 
 
-templates.env.globals["domain_nav"] = implemented_categories
-templates.env.globals["domain_label"] = domain_label
+templates.env.globals["category_nav"] = implemented_categories
+templates.env.globals["category_label"] = category_label
 templates.env.globals["scan_notice"] = SCAN_NOTICE
 templates.env.globals["health_notice"] = HEALTH_NOTICE
 from app.problems import open_count as _open_problem_count  # noqa: E402

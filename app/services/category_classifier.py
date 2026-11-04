@@ -99,20 +99,20 @@ async def suggest_category_and_kind(
 
     try:
         data = json.loads(strip_json_fences(result.text))
-        domain_value = data.get("domain")
-        category_value = data.get("category") or None
+        category_value = data.get("domain")
+        kind_value = data.get("category") or None
         confidence = min(max(float(data.get("confidence") or 0.0), 0.0), 1.0)
         reason = str(data.get("reason") or "")
     except (IndexError, AttributeError, json.JSONDecodeError, TypeError, ValueError) as exc:
         raise CategoryClassificationError(f"Could not parse classifier response: {exc}") from exc
 
-    if domain_value is None:
+    if category_value is None:
         return _empty(reason or "Didn't match any area.")
-    spec = next((s for s in specs if s.category.value == domain_value), None)
+    spec = next((s for s in specs if s.category.value == category_value), None)
     valid_category = spec is not None and (
-        category_value in {c.value for c in spec.kinds if c.classifiable}
-        or (category_value is None and spec.infers_kind)
+        kind_value in {c.value for c in spec.kinds if c.classifiable}
+        or (kind_value is None and spec.infers_kind)
     )
     if not valid_category:
-        return _empty(f"Suggestion '{domain_value}/{category_value}' isn't a known area — please choose.")
-    return CategorySuggestion(category=spec.category, paper_kind=category_value, confidence=confidence, note=reason)
+        return _empty(f"Suggestion '{category_value}/{kind_value}' isn't a known area — please choose.")
+    return CategorySuggestion(category=spec.category, paper_kind=kind_value, confidence=confidence, note=reason)

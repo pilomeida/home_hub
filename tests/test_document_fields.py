@@ -88,7 +88,7 @@ def test_distinct_field_values_dedupes_and_is_domain_scoped(session, fake_catego
 def test_describe_document_uses_registry_labels(session, fake_category):
     document = _doc(session, {"item_name": "Boiler", "seen_on": "2026-01-02"})
     description = describe_document(document)
-    assert description.domain_label == "Fake"
+    assert description.category_label == "Fake"
     assert description.kind_label == "Manual"
     assert description.fields == [("Item", "Boiler"), ("Seen on", "2026-01-02")]
     assert description.url == f"/fake/documents/{document.id}"

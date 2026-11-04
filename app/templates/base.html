@@ -291,7 +291,7 @@
     <a href="/ask">Ask</a>
     <a href="/inbox">Inbox</a>
     {% set n_check = to_check_count() %}{% if n_check %}<a href="/to-check">To check ({{ n_check }})</a>{% endif %}
-    {% for spec in domain_nav() %}
+    {% for spec in category_nav() %}
     <div class="nav-group">
       <span class="nav-group-label">{{ spec.label }}</span>
       {% for link in spec.nav_links %}

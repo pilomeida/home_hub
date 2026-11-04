@@ -6,7 +6,7 @@
 {% if lint_open_count %}<p><a href="/wiki/lint">{{ lint_open_count }} wiki issue{{ "s" if lint_open_count != 1 }} to review →</a></p>{% endif %}
 {% for section in sections %}
 <section>
-  <h2>{{ section.domain_label }} — {{ section.section_label }}</h2>
+  <h2>{{ section.category_label }} — {{ section.section_label }}</h2>
   <ul>
     {% for entry in section.entries %}
     <li class="{{ 'recently-changed' if entry.page_id in recently_changed_ids else '' }}">

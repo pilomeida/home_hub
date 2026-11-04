@@ -44,7 +44,7 @@ async def test_receive_creates_unfinalized_pending_review_document(session, two_
     assert doc.category is None and doc.paper_kind is None
     assert doc.source == DocumentSource.TELEGRAM and doc.uploaded_by == "Rute (Telegram)"
     item = receipt.inbox_item
-    assert (item.suggested_domain, item.suggested_paper_kind, item.confidence) == ("house", "manual", 0.95)
+    assert (item.suggested_category, item.suggested_paper_kind, item.confidence) == ("house", "manual", 0.95)
     # Nothing finalized, nothing in the wiki (not even a log line), before approval.
     assert two_categories["house"].handler.processed == []
     assert session.exec(select(WikiPage)).all() == []
@@ -68,7 +68,7 @@ async def test_classifier_failure_still_lands_in_inbox(session):
 
     receipt = await _receive(session, classify=boom)
     assert receipt.document.status == DocumentStatus.PENDING_REVIEW
-    assert receipt.inbox_item.suggested_domain is None
+    assert receipt.inbox_item.suggested_category is None
     note = receipt.inbox_item.classifier_note
     assert note.startswith("Automatic sorting didn't work.") and "run out of credit" in note and "Tell me what it is" in note
 
@@ -86,7 +86,7 @@ async def test_pending_entries_confidence_and_labels(session):
 @pytest.mark.asyncio
 async def test_stale_suggested_domain_is_ignored(session):
     receipt = await _receive(session)
-    receipt.inbox_item.suggested_domain = "not_a_registered_domain"
+    receipt.inbox_item.suggested_category = "not_a_registered_domain"
     session.add(receipt.inbox_item)
     session.commit()
     entry = inbox_service.pending_entries(session)[0]
@@ -98,7 +98,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_catego
     receipt = await _receive(session)
 
     doc = await inbox_service.approve(
-        session, receipt.document.id, domain_value="house", paper_kind="manual",
+        session, receipt.document.id, category_value="house", paper_kind="manual",
         fields={"item_name": "Boiler"}, reviewed_by="pedro@example.com",
     )
 
@@ -119,7 +119,7 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
 
     receipt = await _receive(session, filename="service-invoice.pdf")
     doc = await inbox_service.approve(
-        session, receipt.document.id, domain_value="house", paper_kind="visit",
+        session, receipt.document.id, category_value="house", paper_kind="visit",
         fields={"item_name": "Boiler", "visit_date": "2026-03-01"}, reviewed_by="pedro@example.com",
     )
 
@@ -134,7 +134,7 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
 @pytest.mark.asyncio
 async def test_approve_with_inferred_category(session, two_categories):
     receipt = await _receive(session, suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "x"))
-    doc = await inbox_service.approve(session, receipt.document.id, domain_value="financials",
+    doc = await inbox_service.approve(session, receipt.document.id, category_value="financials",
                                       paper_kind=None, fields={}, reviewed_by=None)
     assert doc.category == Category.FINANCIALS and doc.paper_kind is None
     assert two_categories["money"].handler.processed == [doc.id]
@@ -144,15 +144,15 @@ async def test_approve_with_inferred_category(session, two_categories):
 async def test_approve_invalid_leaves_document_untouched(session, two_categories):
     receipt = await _receive(session)
     with pytest.raises(InvalidClassification) as missing_field:
-        await inbox_service.approve(session, receipt.document.id, domain_value="house",
+        await inbox_service.approve(session, receipt.document.id, category_value="house",
                                     paper_kind="manual", fields={}, reviewed_by=None)
     assert "item_name" in missing_field.value.errors
     with pytest.raises(InvalidClassification) as bad_domain:
-        await inbox_service.approve(session, receipt.document.id, domain_value="health",
+        await inbox_service.approve(session, receipt.document.id, category_value="health",
                                     paper_kind="x", fields={}, reviewed_by=None)
     assert "domain" in bad_domain.value.errors
     with pytest.raises(InvalidClassification) as bad_category:
-        await inbox_service.approve(session, receipt.document.id, domain_value="house",
+        await inbox_service.approve(session, receipt.document.id, category_value="house",
                                     paper_kind="bill", fields={}, reviewed_by=None)
     assert "category" in bad_category.value.errors
 
@@ -166,10 +166,10 @@ async def test_approve_invalid_leaves_document_untouched(session, two_categories
 @pytest.mark.asyncio
 async def test_approve_twice_is_refused(session):
     receipt = await _receive(session)
-    await inbox_service.approve(session, receipt.document.id, domain_value="house", paper_kind="manual",
+    await inbox_service.approve(session, receipt.document.id, category_value="house", paper_kind="manual",
                                 fields={"item_name": "Boiler"}, reviewed_by=None)
     with pytest.raises(inbox_service.InboxError):
-        await inbox_service.approve(session, receipt.document.id, domain_value="house", paper_kind="manual",
+        await inbox_service.approve(session, receipt.document.id, category_value="house", paper_kind="manual",
                                     fields={"item_name": "Boiler"}, reviewed_by=None)
 
 

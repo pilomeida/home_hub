@@ -28,14 +28,14 @@ def test_inbox_item_round_trip(session):
     document = _document(session)
     item = InboxItem(
         document_id=document.id, context_text="Telegram caption: boiler warranty",
-        external_ref="telegram:1:2", suggested_domain="some_future_domain",
+        external_ref="telegram:1:2", suggested_category="some_future_domain",
         suggested_paper_kind="anything", confidence=0.91, classifier_note="looks like it",
     )
     session.add(item)
     session.commit()
     session.refresh(item)
 
-    assert item.suggested_domain == "some_future_domain"   # plain string, no DB enum
+    assert item.suggested_category == "some_future_domain"   # plain string, no DB enum
     assert isinstance(item.received_at, datetime)
     assert item.reviewed_by is None and item.reviewed_at is None
 

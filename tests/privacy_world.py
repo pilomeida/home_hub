@@ -177,7 +177,7 @@ def build_world(session, docs_dir) -> SimpleNamespace:
         session.commit()
         session.refresh(d)
         domain, category = suggested.split("/")
-        session.add(InboxItem(document_id=d.id, suggested_domain=domain, suggested_paper_kind=category))
+        session.add(InboxItem(document_id=d.id, suggested_category=domain, suggested_paper_kind=category))
     session.commit()
     return w
 

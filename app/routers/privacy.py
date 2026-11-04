@@ -45,10 +45,10 @@ def _back() -> RedirectResponse:
 async def settings_page(request: Request, session: Session = Depends(get_session),
                         gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = "", refused: str = ""):
     rows = ps.type_rows(session)
-    type_names = {(r.info.category, r.info.paper_kind): f"{r.info.domain_label} › {r.info.label}" for r in rows}
+    type_names = {(r.info.category, r.info.paper_kind): f"{r.info.category_label} › {r.info.label}" for r in rows}
     groups: dict[str, list] = {}
     for r in rows:
-        groups.setdefault(r.info.domain_label, []).append(r)
+        groups.setdefault(r.info.category_label, []).append(r)
     jobs, jobs_error = [], ""
     try:
         for p in await gateway.pairings():
@@ -66,7 +66,7 @@ async def settings_page(request: Request, session: Session = Depends(get_session
         "privacy_labels": PRIVACY_LABELS, "quality_labels": QUALITY_LABELS,
         "rules": [(r, type_names.get((r.category, r.paper_kind), f"{r.category}/{r.paper_kind}"))
                   for r in session.exec(select(DocumentFingerprint).order_by(DocumentFingerprint.id))],
-        "kinds": KINDS, "type_choices": [(f"{i.category}/{i.paper_kind}", f"{i.domain_label} › {i.label}") for i in ps.known_types()],
+        "kinds": KINDS, "type_choices": [(f"{i.category}/{i.paper_kind}", f"{i.category_label} › {i.label}") for i in ps.known_types()],
     })
 
 

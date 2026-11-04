@@ -398,7 +398,7 @@ class IndexEntry:
 
 @dataclass
 class IndexSection:
-    domain_label: str
+    category_label: str
     section_label: str
     entries: list[IndexEntry]
 
@@ -443,11 +443,11 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
     sections = []
     for (domain, page_type), entries in sorted(grouped.items(), key=lambda item: sort_key(item[0])):
         if domain is None:
-            domain_label = "General"
+            category_label = "General"
         else:
-            domain_label = category_labels.get(domain, domain.value.replace("_", " ").title())
+            category_label = category_labels.get(domain, domain.value.replace("_", " ").title())
         sections.append(IndexSection(
-            domain_label=domain_label,
+            category_label=category_label,
             section_label=type_labels.get(page_type, page_type.replace("_", " ").title()),
             entries=sorted(entries, key=lambda e: e.title.lower()),
         ))

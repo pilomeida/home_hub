@@ -133,7 +133,7 @@ async def receive_document(
 
     item = InboxItem(
         document_id=document.id, context_text=context_text, external_ref=external_ref,
-        suggested_domain=suggestion.category.value if suggestion.category is not None else None,
+        suggested_category=suggestion.category.value if suggestion.category is not None else None,
         suggested_paper_kind=suggestion.paper_kind,
         confidence=suggestion.confidence, classifier_note=suggestion.note,
     )
@@ -143,10 +143,10 @@ async def receive_document(
     return InboxReceipt(document=document, inbox_item=item, duplicate=False)
 
 
-def suggested_domain(item: InboxItem) -> Optional[Category]:
+def suggested_category(item: InboxItem) -> Optional[Category]:
     """The suggestion as a registered Domain, or None if it no longer is one."""
     try:
-        domain = Category(item.suggested_domain) if item.suggested_domain else None
+        domain = Category(item.suggested_category) if item.suggested_category else None
     except ValueError:
         return None
     return domain if is_implemented(domain) else None
@@ -160,7 +160,7 @@ def describe(category: Optional[Category], paper_kind: Optional[str]) -> Optiona
 
 
 def is_confident(item: InboxItem) -> bool:
-    domain = suggested_domain(item)
+    domain = suggested_category(item)
     if domain is None or (item.confidence or 0.0) < CONFIDENT_THRESHOLD:
         return False
     spec = get_spec(domain)
@@ -172,7 +172,7 @@ def is_confident(item: InboxItem) -> bool:
 def _entry(item: InboxItem, document: Document) -> InboxEntry:
     return InboxEntry(
         item=item, document=document, confident=is_confident(item),
-        suggestion_label=describe(suggested_domain(item), item.suggested_paper_kind),
+        suggestion_label=describe(suggested_category(item), item.suggested_paper_kind),
     )
 
 
@@ -216,7 +216,7 @@ async def approve(
     session: Session,
     document_id: int,
     *,
-    domain_value: str,
+    category_value: str,
     paper_kind: Optional[str],
     fields: Mapping[str, str],
     reviewed_by: Optional[str],
@@ -225,7 +225,7 @@ async def approve(
 ) -> Document:
     document, item = _pending(session, document_id)
     try:
-        domain = Category(domain_value)
+        domain = Category(category_value)
     except ValueError:
         raise InvalidClassification({"domain": "Choose a category"}) from None
     classification = Classification(category=domain, paper_kind=paper_kind or None, fields=dict(fields))

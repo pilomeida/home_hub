@@ -138,7 +138,7 @@ class DocumentDescription:
     filename: str
     file_url: str
     url: Optional[str]
-    domain_label: Optional[str]
+    category_label: Optional[str]
     kind_label: Optional[str]
     status: str
     created_at: datetime
@@ -150,18 +150,18 @@ def describe_document(document: Document) -> DocumentDescription:
     if is_implemented(document.category):
         spec = get_spec(document.category)
         labelled = [(f.label, fields[f.key]) for f in spec.fields if f.key in fields]
-        domain_label = spec.label
+        category_label = spec.label
         kind_label = spec.kind_label(document.paper_kind) or None
     else:
         labelled = sorted(fields.items())
-        domain_label = None
+        category_label = None
         kind_label = document.paper_kind
     return DocumentDescription(
         document_id=document.id,
         filename=document.filename,
         file_url=file_url(document),
         url=document_url(document),
-        domain_label=domain_label,
+        category_label=category_label,
         kind_label=kind_label,
         status=document.status.value,
         created_at=document.created_at,

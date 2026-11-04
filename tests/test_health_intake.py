@@ -38,7 +38,7 @@ async def test_an_unrecognised_paper_is_classified_inside_a_high_run_whatever_th
 
     receipt = await receive_document(session, _incoming(), context_text=None, external_ref="x", classify=classify)
     assert seen == [Tier.HIGH]
-    assert receipt.inbox_item.suggested_domain == "health" and receipt.inbox_item.suggested_paper_kind == "lab_result"
+    assert receipt.inbox_item.suggested_category == "health" and receipt.inbox_item.suggested_paper_kind == "lab_result"
 
 
 @pytest.mark.asyncio
@@ -51,7 +51,7 @@ async def test_a_failed_private_read_leaves_a_three_part_note_and_the_document_i
 
     receipt = await receive_document(session, _incoming(), context_text=None, external_ref="y", classify=classify)
     note = receipt.inbox_item.classifier_note
-    assert receipt.inbox_item.suggested_domain is None
+    assert receipt.inbox_item.suggested_category is None
     assert note.startswith("Automatic sorting didn't work.") and "Tell me what it is" in note
     assert "confidential AI service" in note                                          # what classify_reason says for it
     assert "house_high" not in note                                                   # no bare technical text shown

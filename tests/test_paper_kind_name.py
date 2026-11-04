@@ -39,3 +39,10 @@ def test_a_paper_made_with_an_old_name_is_refused_not_dropped(old):
     made = Document(filename="a.pdf", file_path="/x", content_hash="h", source=DocumentSource.MANUAL,
                     category=Category.FINANCIALS, paper_kind="bill")
     assert (made.category, made.paper_kind) == (Category.FINANCIALS, "bill")
+
+
+def test_no_template_calls_a_helper_by_its_old_name():
+    """Calling an undefined helper fails on the page, but only when the page is opened: catch it here."""
+    old = re.compile(r"\b(?:domain_label|domain_nav|category_label\(item\.paper_kind)\b")
+    found = [f"{p}: {m.group(0)}" for p in Path("app/templates").rglob("*.html") for m in old.finditer(p.read_text())]
+    assert not found, f"use category_label / category_nav (and kind_label for a kind): {found}"

@@ -46,7 +46,7 @@ def _pending_count(session: Session, reach: Reach) -> int:
     if not reach.binding:
         return session.exec(select(func.count()).select_from(Document)
                             .where(Document.status == DocumentStatus.PENDING_REVIEW)).one()
-    rows = session.exec(select(InboxItem.suggested_domain, InboxItem.suggested_paper_kind)
+    rows = session.exec(select(InboxItem.suggested_category, InboxItem.suggested_paper_kind)
                         .join(Document, Document.id == InboxItem.document_id)
                         .where(Document.status == DocumentStatus.PENDING_REVIEW)).all()
     return sum(1 for domain, category in rows if reach.includes_type(domain, category))
@@ -93,7 +93,7 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
     index_lines = ["Wiki index:"]
     citables: list[Citable] = []
     for section in build_wiki_index(session, view=reach.wiki_view(session)):
-        index_lines.append(f"{section.domain_label} — {section.section_label}:")
+        index_lines.append(f"{section.category_label} — {section.section_label}:")
         for entry in section.entries:
             index_lines.append(f"- wiki:{entry.page_id} {entry.title} — {entry.summary or '(no summary)'}")
             citables.append(citable_for_wiki_page(entry.page_id, entry.title))

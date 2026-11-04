@@ -21,7 +21,7 @@ def _pending(session, *, confident=True, content_hash="h1", filename="boiler.pdf
     session.refresh(document)
     session.add(InboxItem(
         document_id=document.id, context_text="Telegram caption: new boiler",
-        suggested_domain=category, suggested_paper_kind=paper_kind,
+        suggested_category=category, suggested_paper_kind=paper_kind,
         confidence=0.95 if confident else 0.3, classifier_note="a manual",
     ))
     session.commit()

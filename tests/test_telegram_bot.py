@@ -42,7 +42,7 @@ def test_pick_file_largest_photo_and_video():
 def _receipt(confident=True, duplicate=False, status=DocumentStatus.PENDING_REVIEW):
     doc = Document(id=1, filename="x.pdf", file_path="/x", content_hash="h",
                    source=DocumentSource.TELEGRAM, status=status)
-    item = InboxItem(document_id=1, suggested_domain="house", suggested_paper_kind="manual",
+    item = InboxItem(document_id=1, suggested_category="house", suggested_paper_kind="manual",
                      confidence=0.95 if confident else 0.2)
     return InboxReceipt(document=doc, inbox_item=item, duplicate=duplicate)
 
