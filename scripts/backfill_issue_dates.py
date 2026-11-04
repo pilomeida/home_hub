@@ -26,12 +26,12 @@ async def main() -> None:
         rows = session.exec(
             select(Transaction, Document).join(Document, Document.id == Transaction.document_id)
             .where(Transaction.issue_date.is_(None), Transaction.settled_by_id.is_(None))
-            .where((Document.category.is_(None)) | (Document.category == "bill"))
+            .where((Document.paper_kind.is_(None)) | (Document.paper_kind == "bill"))
         ).all()
         done = 0
         for txn, document in rows:
             try:
-                with privacy_scope(session, document.domain, document.category or "bill"):   # the production level
+                with privacy_scope(session, document.domain, document.paper_kind or "bill"):   # the production level
                     extracted = await extract_bill(document.file_path)
             except Exception as exc:  # noqa: BLE001
                 print(f"  document {document.id} {document.filename}: failed ({exc})")

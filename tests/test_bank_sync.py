@@ -112,7 +112,7 @@ def test_falls_back_to_hash_when_no_reference(session):
 async def test_statement_overlap_is_not_double_counted(session):
     link, account = make_link(session)
     statement_doc = Document(filename="s.pdf", file_path="/x", content_hash="s1",
-                             source=DocumentSource.MANUAL, category="statement")
+                             source=DocumentSource.MANUAL, paper_kind="statement")
     session.add(statement_doc); session.commit(); session.refresh(statement_doc)
     session.add(Transaction(document_id=statement_doc.id, description="CONTINENTE", amount=23.40,
                             account_id=account.id, transaction_type=TransactionType.DEBIT,
@@ -291,7 +291,7 @@ def test_unexpected_row_error_stops_cleanly(session, monkeypatch):
 def test_identical_coffees_match_one_to_one(session):
     link, account = make_link(session)
     statement_doc = Document(filename="s.pdf", file_path="/x", content_hash="s2",
-                             source=DocumentSource.MANUAL, category="statement")
+                             source=DocumentSource.MANUAL, paper_kind="statement")
     session.add(statement_doc); session.commit(); session.refresh(statement_doc)
     session.add(Transaction(document_id=statement_doc.id, description="CAFE", amount=1.50,
                             account_id=account.id, transaction_type=TransactionType.DEBIT,
@@ -380,9 +380,9 @@ def test_first_sync_window_starts_from_the_last_statement_not_a_later_bill(sessi
     moved the start to Aug 11, hiding Aug 1-10."""
     link, account = make_link(session)
     statement = Document(filename="s.pdf", file_path="/x", content_hash="st-1",
-                         source=DocumentSource.MANUAL, category="statement", domain=Domain.FINANCIALS)
+                         source=DocumentSource.MANUAL, paper_kind="statement", domain=Domain.FINANCIALS)
     bill = Document(filename="b.pdf", file_path="/y", content_hash="bl-1",
-                    source=DocumentSource.MANUAL, category=None, domain=Domain.FINANCIALS)
+                    source=DocumentSource.MANUAL, paper_kind=None, domain=Domain.FINANCIALS)
     session.add(statement); session.add(bill); session.commit()
     session.refresh(statement); session.refresh(bill)
     session.add(Transaction(document_id=statement.id, description="stmt", amount=5.0,

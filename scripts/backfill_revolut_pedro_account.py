@@ -125,7 +125,7 @@ async def backfill() -> None:
                 document = Document(
                     filename=filename, file_path=file_path, content_hash=content_hash,
                     source=DocumentSource.MANUAL, status=DocumentStatus.PENDING,
-                    category="statement", account_id=account.id,
+                    paper_kind="statement", account_id=account.id,
                     uploaded_by="revolut-chunked-backfill",
                     domain=Domain.FINANCIALS,
                 )
@@ -134,7 +134,7 @@ async def backfill() -> None:
                 session.refresh(document)
                 created_documents += 1
 
-                with privacy_scope(session, document.domain, document.category):   # the production level
+                with privacy_scope(session, document.domain, document.paper_kind):   # the production level
                     extracted = await extract_statement_transactions(file_path)
                 month_start = date(year, month, 1)
                 month_end = date(year + (month == 12), (month % 12) + 1, 1)

@@ -98,7 +98,7 @@ async def edit_document(request: Request, document_id: int, session: Session = D
         return RedirectResponse(f"/records/{attached.id}/edit", status_code=303)
     return templates.TemplateResponse(request, "documents/edit.html", _context(
         session, action=f"/documents/{document.id}/edit", title=document.filename, has_file=True,
-        filename=document.filename, domain=document.domain, category=document.category,
+        filename=document.filename, domain=document.domain, category=document.paper_kind,
         values=load_fields(document), errors={},
     ))
 
@@ -129,7 +129,7 @@ async def edit_record(request: Request, record_id: int, session: Session = Depen
     attachment = session.get(Document, record.document_id) if record.document_id else None
     return templates.TemplateResponse(request, "documents/edit.html", _context(
         session, action=f"/records/{record.id}/edit", title=f"Record #{record.id}", has_file=attachment is not None,
-        filename=attachment.filename if attachment else None, domain=record.domain, category=record.category,
+        filename=attachment.filename if attachment else None, domain=record.domain, category=record.paper_kind,
         values=load_fields(record), errors={},
     ))
 

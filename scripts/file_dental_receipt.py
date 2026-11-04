@@ -49,7 +49,7 @@ async def main(document_id: int) -> int:
             return 1
         if document.domain != Domain.FINANCIALS:
             document = await refile_document(
-                session, document, Classification(domain=Domain.FINANCIALS, category=FinancialsCategory.BILL.value))
+                session, document, Classification(domain=Domain.FINANCIALS, paper_kind=FinancialsCategory.BILL.value))
         node = get_node(session, DENTAL_SLUG)
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document_id)).all()
         for txn in transactions:

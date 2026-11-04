@@ -7,17 +7,20 @@ entries are Records declare `kind=SourceKind.RECORD` in the registry."""
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+from sqlmodel.sql.sqltypes import AutoString
 
 from app.models.domain import Domain
+from app.models.strict import RefusesUnknownFields
 
 
-class Record(SQLModel, table=True):
+class Record(RefusesUnknownFields, SQLModel, table=True):
     __tablename__ = "records"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     domain: Domain = Field(index=True)
-    category: str = Field(index=True)
+    paper_kind: str = Field(sa_column=Column("category", AutoString, nullable=False, index=True))   # the paper kind
     fields_json: str = Field(default="{}")
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id", unique=True, index=True)
     entered_by: Optional[str] = None

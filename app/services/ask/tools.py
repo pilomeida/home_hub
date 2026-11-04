@@ -84,7 +84,7 @@ def _entry_source(entry: SourceEntry) -> Source:
 
 def entry_fields_text(entry: SourceEntry) -> str:
     spec = get_spec(_entry_source(entry).domain)
-    fields = effective_fields(spec, entry.category, entry.fields)
+    fields = effective_fields(spec, entry.paper_kind, entry.fields)
     labels = {f.key: f.label for f in spec.fields}
     return "; ".join(f"{labels.get(k, k.replace('_', ' '))}: {v}" for k, v in fields.items() if v not in (None, ""))
 
@@ -157,12 +157,12 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
     scored = []
     reach = reach_for(session)
     for entry in settled_entries(session, domain, reach=reach):
-        if category and entry.category != category:
+        if category and entry.paper_kind != category:
             continue
         source = _entry_source(entry)
         spec = get_spec(source.domain)
         fields_text = entry_fields_text(entry)
-        haystack = " ".join([entry.title, entry.category or "", spec.kind_label(entry.category), spec.label, fields_text])
+        haystack = " ".join([entry.title, entry.paper_kind or "", spec.kind_label(entry.paper_kind), spec.label, fields_text])
         score = len(query_tokens & tokens(haystack)) if query_tokens else 1
         if score > 0:
             scored.append((score, entry, source, spec, fields_text))
@@ -172,7 +172,7 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
     for _, entry, source, spec, fields_text in shown:
         attachment = (f" | attachment doc:{entry.document.id}"
                       if entry.kind == SourceKind.RECORD and entry.document is not None else "")
-        lines.append(f"{source_ref(source)} | {spec.label} | {spec.kind_label(entry.category) or '-'} | "
+        lines.append(f"{source_ref(source)} | {spec.label} | {spec.kind_label(entry.paper_kind) or '-'} | "
                      f"{entry.title} | added {entry.created_at:%Y-%m-%d} | {fields_text or 'no details'}{attachment}")
     # The header counts every match, so the level is judged on every match, not only the ones shown.
     touched = [s for _, e, src, _, _ in scored for s in (src, e.document if e.document is not src else None)

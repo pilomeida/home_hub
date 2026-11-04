@@ -151,11 +151,11 @@ def describe_document(document: Document) -> DocumentDescription:
         spec = get_spec(document.domain)
         labelled = [(f.label, fields[f.key]) for f in spec.fields if f.key in fields]
         domain_label = spec.label
-        category_label = spec.kind_label(document.category) or None
+        category_label = spec.kind_label(document.paper_kind) or None
     else:
         labelled = sorted(fields.items())
         domain_label = None
-        category_label = document.category
+        category_label = document.paper_kind
     return DocumentDescription(
         document_id=document.id,
         filename=document.filename,

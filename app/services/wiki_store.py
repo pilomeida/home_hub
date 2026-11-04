@@ -223,9 +223,9 @@ def _record_source_label(domain: Optional[Domain], record: Record) -> str:
     """A hand-entered Record's default log-description source, e.g.
     "Maintenance log (entered by hand) #1" -- the registry's category
     label, not the raw internal category key."""
-    category_label = record.category
+    category_label = record.paper_kind
     if domain is not None and is_implemented(domain):
-        category_label = get_spec(domain).kind_label(record.category) or record.category
+        category_label = get_spec(domain).kind_label(record.paper_kind) or record.paper_kind
     return f"{category_label} (entered by hand) #{record.id}"
 
 

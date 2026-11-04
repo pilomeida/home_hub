@@ -82,17 +82,17 @@ async def process_financials_document(session: Session, document: Document) -> D
         document.account_id = int(account_id)
         document.fields_json = dump_fields(fields)
 
-    if document.category is None:
+    if document.paper_kind is None:
         try:
-            document.category = await classify_document(document.file_path)
+            document.paper_kind = await classify_document(document.file_path)
         except Exception as exc:
             # Broad by design: any classification failure must land the
             # Document on needs_attention with a reason, never propagate.
             return mark_needs_attention(session, document, str(exc))
 
-    if document.category == FinancialsCategory.STATEMENT.value:
+    if document.paper_kind == FinancialsCategory.STATEMENT.value:
         return await _ingest_statement(session, document)
-    if document.category in (FinancialsCategory.POSITIONS.value, FinancialsCategory.LOAN_HISTORY.value):
+    if document.paper_kind in (FinancialsCategory.POSITIONS.value, FinancialsCategory.LOAN_HISTORY.value):
         return await _ingest_positions(session, document)
     return await _ingest_bill(session, document)
 
@@ -280,7 +280,7 @@ async def _ingest_positions(session: Session, document: Document) -> Document:
     (including a history awaiting a loan assignment) ends PROCESSED."""
     processor = (
         process_positions_document
-        if document.category == FinancialsCategory.POSITIONS.value
+        if document.paper_kind == FinancialsCategory.POSITIONS.value
         else process_loan_history_document
     )
     try:

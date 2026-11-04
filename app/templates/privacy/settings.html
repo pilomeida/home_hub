@@ -32,11 +32,11 @@
   <thead><tr><th>Type of document</th><th>Level</th><th>Hide personal details first</th><th></th></tr></thead>
   <tbody>
   {% for r in rows %}
-  {% set fid = "f-" ~ r.info.domain ~ "-" ~ r.info.category %}
+  {% set fid = "f-" ~ r.info.domain ~ "-" ~ r.info.paper_kind %}
   <tr>
     <td>{{ r.info.label }}<div style="font-size:12px;color:#666;">{{ r.info.description }}</div>
       <form id="{{ fid }}" method="post" action="/privacy/types">
-        <input type="hidden" name="domain" value="{{ r.info.domain }}"><input type="hidden" name="category" value="{{ r.info.category }}">
+        <input type="hidden" name="domain" value="{{ r.info.domain }}"><input type="hidden" name="category" value="{{ r.info.paper_kind }}">
       </form></td>
     <td>
       {% if r.locked %}
@@ -122,7 +122,7 @@
   <tbody>
   {% for c in changes %}
   <tr><td>{{ c.changed_at | display_datetime }}</td>
-      <td>{% if c.what == "enforce" %}Levels binding{% else %}{{ c.category }} — {{ c.what }}{% endif %}</td>
+      <td>{% if c.what == "enforce" %}Levels binding{% else %}{{ c.paper_kind }} — {{ c.what }}{% endif %}</td>
       <td>{{ c.old_value or "not set" }} → {{ c.new_value or "not set" }}</td><td>{{ c.changed_by or "—" }}</td></tr>
   {% endfor %}
   </tbody>

@@ -52,7 +52,7 @@ def test_find_duplicate_transaction_ignores_statement_derived_transactions(sessi
     duplicate — only bill-derived transactions count."""
     statement_document = Document(
         filename="statement.pdf", file_path="/tmp/statement.pdf", content_hash="hash-stmt",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category="statement",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, paper_kind="statement",
     )
     session.add(statement_document)
     session.commit()
@@ -73,7 +73,7 @@ def test_find_duplicate_transaction_matches_bill_derived_transaction(session):
     provider/period must still be detected as a duplicate."""
     bill_document = Document(
         filename="bill.pdf", file_path="/tmp/bill.pdf", content_hash="hash-bill-typed",
-        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, category="bill",
+        source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, paper_kind="bill",
     )
     session.add(bill_document)
     session.commit()
@@ -99,7 +99,7 @@ def test_find_duplicate_transaction_matches_when_category_is_null(session):
         filename="legacy-bill.pdf", file_path="/tmp/legacy-bill.pdf", content_hash="hash-legacy-typed",
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
     )
-    assert legacy_document.category is None
+    assert legacy_document.paper_kind is None
     session.add(legacy_document)
     session.commit()
     session.refresh(legacy_document)

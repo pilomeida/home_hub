@@ -31,7 +31,7 @@ def _pdf_with_text(text: str) -> bytes:
 
 
 def _rule(session, kind, pattern, domain="financials", category="bill"):
-    session.add(DocumentFingerprint(kind=kind, pattern=pattern, domain=domain, category=category)); session.commit()
+    session.add(DocumentFingerprint(kind=kind, pattern=pattern, domain=domain, paper_kind=category)); session.commit()
 
 
 def test_pdf_text_layer_is_read_and_non_text_files_give_nothing():
@@ -52,9 +52,9 @@ def test_recognises_by_sender_words_in_pdf_and_filename(session):
     a = rec.recognise(session, filename="x.pdf", content=b"", context_text="Originally from: Billing@Exemplo.pt\nEmail subject: fatura")
     b = rec.recognise(session, filename="y.pdf", content=_pdf_with_text("Apolice Contrato 4455 casa"), context_text=None)
     c = rec.recognise(session, filename="Extrato_marco.pdf", content=b"", context_text=None)
-    assert (a.domain, a.category) == ("financials", "bill") and "billing@exemplo.pt" in a.reasons[0]
-    assert (b.domain, b.category) == ("insurance", "policy")
-    assert (c.domain, c.category) == ("financials", "statement")
+    assert (a.domain, a.paper_kind) == ("financials", "bill") and "billing@exemplo.pt" in a.reasons[0]
+    assert (b.domain, b.paper_kind) == ("insurance", "policy")
+    assert (c.domain, c.paper_kind) == ("financials", "statement")
     assert [r.hits for r in session.exec(select(DocumentFingerprint).order_by(DocumentFingerprint.id))] == [1, 1, 1]
 
 

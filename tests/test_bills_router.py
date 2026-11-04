@@ -102,7 +102,7 @@ def test_upload_bill_sets_financials_domain_and_account(client, monkeypatch, ses
     document_id = int(response.headers["location"].rsplit("/", 1)[-1])
     document = session.get(Document, document_id)
     assert document.domain == Domain.FINANCIALS
-    assert document.category is None  # the handler infers it; the fake handler did not
+    assert document.paper_kind is None  # the handler infers it; the fake handler did not
 
 
 def test_bill_detail_shows_a_friendly_message_for_a_raw_failure_reason(client, session):

@@ -53,8 +53,8 @@ def _classification(category: Optional[str], values: dict) -> Classification:
         if not (values.get("policy_number") or "").strip():
             raise InvalidClassification({"policy_number": "Which policy this premium is for, so it shows on that policy"})
         target_domain, target_kind = _PREMIUM_TARGET
-        return Classification(domain=target_domain, category=target_kind, fields=values)
-    return Classification(domain=Domain.INSURANCE, category=category, fields=values)
+        return Classification(domain=target_domain, paper_kind=target_kind, fields=values)
+    return Classification(domain=Domain.INSURANCE, paper_kind=category, fields=values)
 
 
 def _document_or_404(session: Session, document_id: int) -> Document:
@@ -73,7 +73,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     media_kind = media_kind_for(document.filename)
     return {
         "document": document, "description": describe_document(document), "media_kind": media_kind.value,
-        "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind),
+        "form_fields": build_form_fields(session, spec, document.paper_kind, values, errors, media_kind=media_kind),
         "policy_page": page,
     }
 

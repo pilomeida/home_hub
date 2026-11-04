@@ -78,7 +78,7 @@ def test_upsert_source_todo_links_records(session):
     from app.models.record import Record
     from app.services.todo_engine import upsert_source_todo
 
-    record = Record(domain=Domain.HOUSE, category="maintenance_log")
+    record = Record(domain=Domain.HOUSE, paper_kind="maintenance_log")
     session.add(record)
     session.commit()
     session.refresh(record)

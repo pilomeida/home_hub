@@ -60,7 +60,7 @@ def sync_document(session: Session, account_id: int, bank_name: str) -> Document
         doc = Document(
             filename=f"{bank_name} — automatic bank sync", file_path="", content_hash=key,
             source=DocumentSource.API, status=DocumentStatus.PROCESSED,
-            domain=Domain.FINANCIALS, category="statement", account_id=account_id,
+            domain=Domain.FINANCIALS, paper_kind="statement", account_id=account_id,
         )
         session.add(doc)
         session.flush()
@@ -89,7 +89,7 @@ def _window_start(session: Session, link: BankAccountLink, today: date) -> date:
         select(Transaction.paid_date)
         .join(Document, Transaction.document_id == Document.id)
         .where(Transaction.account_id == link.account_id, Transaction.paid_date.is_not(None),
-               Transaction.external_id.is_(None), Document.category == "statement")  # type: ignore[attr-defined]
+               Transaction.external_id.is_(None), Document.paper_kind == "statement")  # type: ignore[attr-defined]
         .order_by(Transaction.paid_date.desc())  # type: ignore[attr-defined]
     ).first()
     if latest is None:
@@ -339,7 +339,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
             try:
                 # The merchant classifier may ask the AI: at the level of the line's paper kind (a feed line is a
                 # statement line), refused while that level is held (finding F7).
-                with privacy_scope(session, document.domain, document.category):
+                with privacy_scope(session, document.domain, document.paper_kind):
                     await classify(session, txn)
                 session.add(txn)  # classify filed it under the merchant's tree node, if the merchant has one
             except Exception:

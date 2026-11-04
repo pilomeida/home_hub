@@ -35,7 +35,7 @@ _MAX_TEXT_CHARS = 20_000
 @dataclass(frozen=True)
 class Recognition:
     domain: str
-    category: str
+    paper_kind: str
     reasons: tuple[str, ...]          # plain-language, shown on the card
 
 
@@ -75,14 +75,14 @@ def _matches(rule: DocumentFingerprint, *, sender: str, haystack: str, filename:
 
 
 def recognise(session: Session, *, filename: str, content: bytes, context_text: Optional[str]) -> Optional[Recognition]:
-    valid = {(i.domain, i.category) for i in known_types()}
-    rules = [r for r in session.exec(select(DocumentFingerprint)) if (r.domain, r.category) in valid]
+    valid = {(i.domain, i.paper_kind) for i in known_types()}
+    rules = [r for r in session.exec(select(DocumentFingerprint)) if (r.domain, r.paper_kind) in valid]
     if not rules:
         return None
     sender = original_sender(context_text)
     haystack = ((context_text or "") + "\n" + pdf_text(content, filename)).lower()
     hits = [r for r in rules if _matches(r, sender=sender, haystack=haystack, filename=filename.lower())]
-    if not hits or len({(r.domain, r.category) for r in hits}) != 1:
+    if not hits or len({(r.domain, r.paper_kind) for r in hits}) != 1:
         return None
     now = datetime.utcnow()
     for r in hits:
@@ -90,7 +90,7 @@ def recognise(session: Session, *, filename: str, content: bytes, context_text: 
         r.last_hit_at = now
         session.add(r)
     session.commit()
-    return Recognition(hits[0].domain, hits[0].category,
+    return Recognition(hits[0].domain, hits[0].paper_kind,
                        tuple(f"{KINDS[r.kind].split(' (')[0].lower()}: “{r.pattern}”" for r in hits))
 
 
@@ -103,9 +103,9 @@ def remember(session: Session, *, domain: str, category: str, by: Optional[str],
             continue
         exists = session.exec(select(DocumentFingerprint).where(
             DocumentFingerprint.kind == kind, DocumentFingerprint.pattern == pattern,
-            DocumentFingerprint.domain == domain, DocumentFingerprint.category == category)).first()
+            DocumentFingerprint.domain == domain, DocumentFingerprint.paper_kind == category)).first()
         if exists is None:
-            rule = DocumentFingerprint(kind=kind, pattern=pattern, domain=domain, category=category,
+            rule = DocumentFingerprint(kind=kind, pattern=pattern, domain=domain, paper_kind=category,
                                        note=note or "Remembered when filing a document", created_by=by)
             session.add(rule)
             made.append(rule)

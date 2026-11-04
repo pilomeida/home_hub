@@ -4,9 +4,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+from sqlmodel.sql.sqltypes import AutoString
 
 from app.models.domain import Domain
+from app.models.strict import RefusesUnknownFields
 
 
 class DocumentSource(str, Enum):
@@ -27,7 +30,7 @@ class DocumentStatus(str, Enum):
     DISCARDED = "discarded"
 
 
-class Document(SQLModel, table=True):
+class Document(RefusesUnknownFields, SQLModel, table=True):
     __tablename__ = "documents"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -39,7 +42,7 @@ class Document(SQLModel, table=True):
     # The paper KIND (glossary, docs/ARCHITECTURE.md). Set on every filed document (work-list B6); empty only while
     # it waits in the Inbox or after it was discarded. The old `doc_type` column stays in the table, unused
     # (additive-only migrations; migration 3b7e9c1d2f40 copied it here).
-    category: Optional[str] = Field(default=None, index=True)
+    paper_kind: Optional[str] = Field(default=None, sa_column=Column("category", AutoString, index=True))
     fields_json: str = Field(default="{}")
     domain: Optional[Domain] = None
     password_protected: bool = Field(default=False)

@@ -21,7 +21,7 @@
 
 <h2>Details</h2>
 {% set derived = description.fields %}
-{% if document.category == "warranty_invoice" and warranty_note %}<p><em>{{ warranty_note }}</em></p>{% endif %}
+{% if document.paper_kind == "warranty_invoice" and warranty_note %}<p><em>{{ warranty_note }}</em></p>{% endif %}
 <form action="/house/documents/{{ document.id }}/fields" method="post">
   {% include "domains/_field_inputs.html" %}
   <button type="submit">Save</button>

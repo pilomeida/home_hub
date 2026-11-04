@@ -67,7 +67,7 @@ async def test_valid_answer_and_wire_shape(pdf, two_domains):
 @pytest.mark.asyncio
 async def test_null_category_allowed_only_for_inferring_domains(pdf, two_domains):
     ok = await suggest_domain_and_category(pdf, gateway=_answer(domain="financials", category=None, confidence=0.9, reason="x"))
-    assert ok.domain == Domain.FINANCIALS and ok.category is None
+    assert ok.domain == Domain.FINANCIALS and ok.paper_kind is None
     bad = await suggest_domain_and_category(pdf, gateway=_answer(domain="house", category=None, confidence=0.9, reason="x"))
     assert bad.domain is None
 

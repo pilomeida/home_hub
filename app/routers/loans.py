@@ -281,13 +281,13 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
         received = await ingest(
             session,
             IncomingFile(name, content, DocumentSource.MANUAL, getattr(request.state, "user_email", None)),
-            Classification(domain=Domain.FINANCIALS, category=slot["category"], fields={}),
+            Classification(domain=Domain.FINANCIALS, paper_kind=slot["category"], fields={}),
         )
         document = received.document
         if not received.duplicate:
             return _from_extraction(session, name, label, _extraction_for(session, document), document, already=False)
-        if document.category not in slot["compatible"]:
-            shown = document.category or "an unfiled document"
+        if document.paper_kind not in slot["compatible"]:
+            shown = document.paper_kind or "an unfiled document"
             return FileResult(name, label, "other", problem=Problem(
                 "Not read again.",
                 f"This exact file was already uploaded as {shown}, so it isn't read again as a {label}.",
@@ -297,7 +297,7 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
             return _from_extraction(session, name, label, previous, document, already=True)
         # An ordinary `statement` that was already filed keeps its status whatever
         # the positions read does; only positions/history documents carry it.
-        own = document.category in ("statement_positions", "loan_history")
+        own = document.paper_kind in ("statement_positions", "loan_history")
         extraction = await slot["process"](session, document, mark_document=own)
         return _from_extraction(session, name, label, extraction, document, already=False)
     except InvalidClassification as exc:

@@ -35,7 +35,7 @@ async def _receive(session, name, spy, ctx=FROM_BILLER, content=None):
 
 
 def _rule(session, kind, pattern):
-    session.add(DocumentFingerprint(kind=kind, pattern=pattern, domain="house", category="manual")); session.commit()
+    session.add(DocumentFingerprint(kind=kind, pattern=pattern, domain="house", paper_kind="manual")); session.commit()
 
 
 async def test_known_document_is_prefilled_by_a_rule_and_no_ai_is_called(session):
@@ -80,7 +80,7 @@ async def test_approving_with_remember_creates_rules_then_the_next_one_is_recogn
                                       fields={"item_name": "Boiler"}, reviewed_by="p@x",
                                       remember_sender=True, remember_words="Exemplo SA")
     assert doc.status == DocumentStatus.PROCESSED
-    assert {(x.kind, x.pattern, x.category) for x in session.exec(select(DocumentFingerprint))} == {
+    assert {(x.kind, x.pattern, x.paper_kind) for x in session.exec(select(DocumentFingerprint))} == {
         ("sender", "billing@exemplo.pt", "manual"), ("words", "exemplo sa", "manual")}
     spy2 = SpyClassifier()
     again = await _receive(session, "f.pdf", spy2)

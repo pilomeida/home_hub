@@ -81,7 +81,7 @@ async def test_handler_infers_category_and_moves_account_to_its_column(session, 
 
     document = result.document
     assert document.status == DocumentStatus.PROCESSED
-    assert document.category == "statement"
+    assert document.paper_kind == "statement"
     assert document.account_id == account.id
     assert document.fields_json == "{}"
 

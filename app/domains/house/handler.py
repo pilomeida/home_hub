@@ -21,7 +21,7 @@ MISSING_EXPIRY_NOTE = "No warranty expiry or purchase date found — enter one o
 
 def _is_warranty_without_expiry(document: Document) -> bool:
     return (
-        document.category == HouseCategory.WARRANTY_INVOICE.value
+        document.paper_kind == HouseCategory.WARRANTY_INVOICE.value
         and effective_warranty_expiry(load_fields(document)) is None
     )
 
@@ -30,7 +30,7 @@ class HouseHandler(DomainHandler):
     async def process(self, session: Session, document: Document) -> Document:
         note: Optional[str] = None
         fields = load_fields(document)
-        if document.category == HouseCategory.WARRANTY_INVOICE.value and field_date(fields, "warranty_expiry") is None:
+        if document.paper_kind == HouseCategory.WARRANTY_INVOICE.value and field_date(fields, "warranty_expiry") is None:
             try:
                 dates = await extract_warranty_dates(document.file_path)
             except Exception as exc:
@@ -59,7 +59,7 @@ class HouseHandler(DomainHandler):
 
     async def on_fields_changed(self, session: Session, document: Document, previous_fields: dict[str, str]) -> None:
         await self._sync_derived(session, document, WikiOperation.EDIT)
-        if document.category == HouseCategory.WARRANTY_INVOICE.value and not _is_warranty_without_expiry(document):
+        if document.paper_kind == HouseCategory.WARRANTY_INVOICE.value and not _is_warranty_without_expiry(document):
             document.failure_reason = None
             session.add(document)
             session.commit()

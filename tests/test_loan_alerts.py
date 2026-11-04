@@ -18,7 +18,7 @@ from app.services.position_store import apply_loan_history, apply_positions, cre
 
 def _doc(session, n=1):
     d = Document(filename=f"a{n}.pdf", file_path=f"/tmp/a{n}.pdf", content_hash=f"alerts-{n}",
-                 source=DocumentSource.MANUAL, status=DocumentStatus.PENDING, category="statement_positions")
+                 source=DocumentSource.MANUAL, status=DocumentStatus.PENDING, paper_kind="statement_positions")
     session.add(d)
     session.commit()
     session.refresh(d)
@@ -232,7 +232,7 @@ async def test_failing_detector_does_not_fail_the_document(session, tmp_path, mo
     path = tmp_path / "h.pdf"
     path.write_bytes(b"%PDF-1.4 fake")
     doc = Document(filename="h.pdf", file_path=str(path), content_hash="h-fail", source=DocumentSource.MANUAL,
-                   status=DocumentStatus.PENDING, category="loan_history")
+                   status=DocumentStatus.PENDING, paper_kind="loan_history")
     session.add(doc)
     session.commit()
     debt = _history_debt(session)

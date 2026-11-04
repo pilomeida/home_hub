@@ -146,19 +146,19 @@ def test_house_insurance_documents_move_to_the_insurance_domain_with_renamed_fie
     from app.models.document import Document
     from app.services.insurance_move import move_house_insurance_documents
     old = Document(filename="z.pdf", file_path="/tmp/z.pdf", content_hash="h-z", source=DocumentSource.MANUAL,
-                   domain=Domain.HOUSE, category="insurance_policy", status=DocumentStatus.PROCESSED,
+                   domain=Domain.HOUSE, paper_kind="insurance_policy", status=DocumentStatus.PROCESSED,
                    fields_json=json.dumps({"insurer": "Zurich", "policy_number": "009886609", "document_kind": "policy_schedule",
                                            "property": "Mafra house", "insurance_notes": "n", "broker": "EXS"}))
     other = Document(filename="d.pdf", file_path="/tmp/d.pdf", content_hash="h-d", source=DocumentSource.MANUAL,
-                     domain=Domain.HOUSE, category="ownership_document", status=DocumentStatus.PROCESSED, fields_json="{}")
+                     domain=Domain.HOUSE, paper_kind="ownership_document", status=DocumentStatus.PROCESSED, fields_json="{}")
     session.add(old); session.add(other); session.commit()
     assert move_house_insurance_documents(session) == 1
     session.expire_all()
     moved = session.get(Document, old.id)
-    assert (moved.domain, moved.category) == (Domain.INSURANCE, "home_insurance")
+    assert (moved.domain, moved.paper_kind) == (Domain.INSURANCE, "home_insurance")
     assert json.loads(moved.fields_json) == {"insurer": "Zurich", "policy_number": "009886609", "document_kind": "policy_schedule",
                                              "insured": "Mafra house", "notes": "n", "broker": "EXS"}
-    assert (session.get(Document, other.id).domain, session.get(Document, other.id).category) == (Domain.HOUSE, "ownership_document")
+    assert (session.get(Document, other.id).domain, session.get(Document, other.id).paper_kind) == (Domain.HOUSE, "ownership_document")
     assert move_house_insurance_documents(session) == 0  # idempotent
 
 
@@ -180,7 +180,7 @@ def test_a_premium_notice_uploaded_in_insurance_is_a_bill_shown_on_its_policy(cl
     response = _upload(client, {"category": "premium_notice", "policy_number": "pt-123"}, "aviso.pdf")
     assert response.status_code == 303 and response.headers["location"].startswith("/financials/bills/")
     bill = session.exec(select(Document).where(Document.filename == "aviso.pdf")).one()
-    assert (bill.domain, bill.category) == (Domain.FINANCIALS, "bill")
+    assert (bill.domain, bill.paper_kind) == (Domain.FINANCIALS, "bill")
     assert load_fields(bill)["policy_number"] == "pt-123"
     card = build_policy_cards(session)[0]
     assert [(p.entry.title, p.note) for p in card.documents] == [
@@ -213,7 +213,7 @@ async def test_the_move_script_files_the_old_premium_notices_as_bills(session, m
     monkeypatch.setattr(financials_handler, "process_financials_document", read_as_bill)
     policy = await _ingest(session, "policy", {**ZURICH, "part": "policy_schedule"}, "schedule.pdf")
     old = await _ingest(session, "policy", {**ZURICH, "part": "other"}, "aviso.pdf")
-    old.category = "home_insurance"                                         # as the migration leaves it
+    old.paper_kind = "home_insurance"                                         # as the migration leaves it
     old.fields_json = json.dumps({**{k: v for k, v in ZURICH.items() if k != "covers"}, "document_kind": "premium_notice"})
     session.add(old); session.commit()
 
@@ -224,6 +224,6 @@ async def test_the_move_script_files_the_old_premium_notices_as_bills(session, m
     await move.run(session, apply=True)
     session.expire_all()
     moved = session.get(Document, old.id)
-    assert (moved.domain, moved.category, load_fields(moved)) == (Domain.FINANCIALS, "bill", {"policy_number": "009886609"})
+    assert (moved.domain, moved.paper_kind, load_fields(moved)) == (Domain.FINANCIALS, "bill", {"policy_number": "009886609"})
     assert session.get(Document, policy.id).domain == Domain.INSURANCE
     assert [p.note for p in build_policy_cards(session)[0].documents][-1] == "premium notice (in Bills)"

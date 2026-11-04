@@ -84,7 +84,7 @@ def _warranty_document(session, fields):
     document = Document(
         filename="w.pdf", file_path="/tmp/w.pdf", content_hash=f"h-{json.dumps(fields)}",
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain=Domain.HOUSE,
-        category=HouseCategory.WARRANTY_INVOICE.value, fields_json=json.dumps(fields),
+        paper_kind=HouseCategory.WARRANTY_INVOICE.value, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()
@@ -107,7 +107,7 @@ def test_sync_skips_missing_or_lapsed_expiry_and_other_categories(session):
     lapsed = _warranty_document(session, {"item_name": "Oven", "warranty_expiry": "2026-01-01"})
     assert sync_warranty_todo(session, lapsed, today=date(2026, 9, 24)) is None
     manual = _warranty_document(session, {"item_name": "Fridge", "warranty_expiry": "2027-01-01"})
-    manual.category = HouseCategory.HOUSE_APPLIANCE.value
+    manual.paper_kind = HouseCategory.HOUSE_APPLIANCE.value
     assert sync_warranty_todo(session, manual, today=date(2026, 9, 24)) is None
     assert session.exec(select(Todo)).all() == []
 

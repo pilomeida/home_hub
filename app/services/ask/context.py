@@ -82,7 +82,7 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
                                 f"{spec.domain.value}_* tools if the question needs it (this makes the answer private).")
             continue
         public = [c for c in spec.kinds if not reach.is_private_type(spec.domain, c.value)]
-        counts = Counter(e.category or "uncategorised" for e in settled_entries(session, spec.domain, reach=reach))
+        counts = Counter(e.paper_kind or "uncategorised" for e in settled_entries(session, spec.domain, reach=reach))
         categories = ", ".join(f"{c.value} ({c.label})" for c in public)
         fields = ", ".join(f.label for f in spec.fields) or "none"
         on_file = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"

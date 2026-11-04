@@ -14,7 +14,7 @@ from app.services.ingestion import Classification, RefileRefusedError, refile_do
 def _bill(session):
     document = Document(filename="boiler-invoice.pdf", file_path="/tmp/b.pdf", content_hash="rf1",
                         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-                        domain=Domain.FINANCIALS, category="bill", account_id=None)
+                        domain=Domain.FINANCIALS, paper_kind="bill", account_id=None)
     session.add(document)
     session.commit()
     session.refresh(document)

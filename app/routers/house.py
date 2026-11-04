@@ -65,10 +65,10 @@ def _record_context(session: Session, record: Record, values: dict, errors: dict
     attachment = session.get(Document, record.document_id) if record.document_id else None
     media_kind = media_kind_for(attachment.filename) if attachment else None
     return {
-        "record": record, "category_label": spec.kind_label(record.category),
+        "record": record, "category_label": spec.kind_label(record.paper_kind),
         "attachment": attachment, "attachment_description": describe_document(attachment) if attachment else None,
         "media_kind": media_kind.value if media_kind else None,
-        "form_fields": build_form_fields(session, spec, record.category, values, errors, media_kind=media_kind),
+        "form_fields": build_form_fields(session, spec, record.paper_kind, values, errors, media_kind=media_kind),
         "errors": file_notices(errors),
     }
 
@@ -84,9 +84,9 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
         "document": document,
         "description": describe_document(document),
         "media_kind": media_kind.value,
-        "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind),
+        "form_fields": build_form_fields(session, spec, document.paper_kind, values, errors, media_kind=media_kind),
         "item_page": item_page,
-        "warranty_note": house_derived_fields(document.category, load_fields(document)).get("warranty_expiry_note"),
+        "warranty_note": house_derived_fields(document.paper_kind, load_fields(document)).get("warranty_expiry_note"),
     }
 
 
@@ -152,7 +152,7 @@ async def upload(request: Request, session: Session = Depends(get_session)):
         result = await ingest(
             session,
             IncomingFile(upload_file.filename, content, DocumentSource.MANUAL, getattr(request.state, "user_email", None)),
-            Classification(domain=Domain.HOUSE, category=category, fields=values),
+            Classification(domain=Domain.HOUSE, paper_kind=category, fields=values),
         )
     except InvalidClassification as exc:
         return templates.TemplateResponse(

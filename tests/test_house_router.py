@@ -67,7 +67,7 @@ def test_upload_creates_a_house_document_and_redirects(client, session):
     document_id = int(response.headers["location"].rsplit("/", 1)[-1])
     document = session.get(Document, document_id)
     assert response.headers["location"] == f"/house/documents/{document_id}"
-    assert document.domain == Domain.HOUSE and document.category == "house_appliance"
+    assert document.domain == Domain.HOUSE and document.paper_kind == "house_appliance"
     assert json.loads(document.fields_json) == {"item_name": "Boiler", "room": "Kitchen"}
 
 

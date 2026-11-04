@@ -197,7 +197,7 @@ from app.models.record import Record
 
 
 def _record(session, fields=None):
-    record = Record(domain=Domain.HOUSE, category="visit", fields_json=json.dumps(fields or {}))
+    record = Record(domain=Domain.HOUSE, paper_kind="visit", fields_json=json.dumps(fields or {}))
     session.add(record)
     session.commit()
     session.refresh(record)

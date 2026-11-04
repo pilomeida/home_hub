@@ -248,7 +248,7 @@ def test_the_reading_proposes_the_kind_of_paper_and_it_is_filed_at_high(client, 
     assert r.status_code == 303
     session.expire_all()
     doc = session.exec(select(Document)).one()
-    assert doc.category == "lab_result" and doc.sensitivity_tier == "house_high"
+    assert doc.paper_kind == "lab_result" and doc.sensitivity_tier == "house_high"
     assert doc.status == DocumentStatus.PROCESSED
     assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 3
 
@@ -260,7 +260,7 @@ def test_a_paper_the_reading_cannot_place_waits_for_a_person_to_choose_its_kind(
     assert r.status_code == 303
     session.expire_all()
     doc = session.exec(select(Document)).one()
-    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.category is None
+    assert doc.status == DocumentStatus.NEEDS_ATTENTION and doc.paper_kind is None
     assert "what kind of health paper" in doc.failure_reason
     assert [b["sensitivity"] for b in wire.parsed()] == ["house_high"] * 2        # two readings, nothing went out below High
     page = client.get(r.headers["location"]).text
@@ -315,7 +315,7 @@ def test_a_paper_that_failed_shows_why_and_can_be_read_again(client, session, tm
     assert r.status_code == 303
     session.expire_all()
     doc = session.get(Document, doc.id)
-    assert doc.status == DocumentStatus.PROCESSED and doc.category == "lab_result" and doc.failure_reason is None
+    assert doc.status == DocumentStatus.PROCESSED and doc.paper_kind == "lab_result" and doc.failure_reason is None
 
 
 @pytest.mark.asyncio

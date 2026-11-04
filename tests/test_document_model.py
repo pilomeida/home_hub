@@ -85,7 +85,7 @@ def test_document_category_and_fields_default(session):
     session.commit()
     session.refresh(document)
 
-    assert document.category is None
+    assert document.paper_kind is None
     assert document.fields_json == "{}"
 
 
@@ -95,7 +95,7 @@ def test_document_accepts_house_domain_category_and_fields(session):
     document = Document(
         filename="boiler-warranty.pdf", file_path="/tmp/boiler-warranty.pdf",
         content_hash="hash-house", source=DocumentSource.MANUAL,
-        domain=Domain.HOUSE, category="warranty_invoice",
+        domain=Domain.HOUSE, paper_kind="warranty_invoice",
         fields_json='{"item_name": "Boiler"}',
     )
     session.add(document)
@@ -103,5 +103,5 @@ def test_document_accepts_house_domain_category_and_fields(session):
     session.refresh(document)
 
     assert document.domain == Domain.HOUSE
-    assert document.category == "warranty_invoice"
+    assert document.paper_kind == "warranty_invoice"
     assert document.fields_json == '{"item_name": "Boiler"}'

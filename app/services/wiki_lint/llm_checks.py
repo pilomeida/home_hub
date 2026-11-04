@@ -125,7 +125,7 @@ def build_domain_payload(session: Session, spec: DomainSpec, reach: Optional[Rea
         else:
             doc_ids.add(e.document.id)
             ref = f"doc {e.document.id}"
-        lines.append(f"{ref} | {e.category or '-'} | {e.title} | added {e.created_at:%Y-%m-%d} | "
+        lines.append(f"{ref} | {e.paper_kind or '-'} | {e.title} | added {e.created_at:%Y-%m-%d} | "
                      f"{entry_fields_text(e) or 'no details'}")
     return DomainPayload("\n".join(lines), {p.id for p in pages}, claims, doc_ids, rec_ids)
 

@@ -18,7 +18,7 @@ def _doc(session, category, fields, status=DocumentStatus.PROCESSED, domain=Doma
     n = _counter["n"]
     document = Document(
         filename=filename or f"doc{n}.pdf", file_path=f"/tmp/doc{n}.pdf", content_hash=f"hash-items-{n}",
-        source=DocumentSource.MANUAL, status=status, domain=domain, category=category, fields_json=json.dumps(fields),
+        source=DocumentSource.MANUAL, status=status, domain=domain, paper_kind=category, fields_json=json.dumps(fields),
     )
     session.add(document)
     session.commit()

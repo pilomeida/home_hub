@@ -126,7 +126,7 @@ def test_claim_source_needs_exactly_one_of_document_or_record(session):
     from app.models.record import Record
 
     page = WikiPage(topic="Heat pump")
-    record = Record(domain=Domain.HOUSE, category="maintenance_log")
+    record = Record(domain=Domain.HOUSE, paper_kind="maintenance_log")
     session.add(page)
     session.add(record)
     session.commit()

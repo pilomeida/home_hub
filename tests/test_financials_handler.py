@@ -430,7 +430,7 @@ async def test_process_financials_document_sets_category_on_document(session, mo
     monkeypatch.setattr(pipeline, "ingest_into_wiki", fake_ingest_into_wiki)
 
     result = await pipeline.process_financials_document(session, bill_document)
-    assert result.category == "bill"
+    assert result.paper_kind == "bill"
 
     statement_document = _make_document(session, tmp_path, filename="statement.pdf", content_hash="hash-doctype-stmt")
     extracted_statement = ExtractedStatement(statement_period="2026-07", transactions=[])
@@ -442,7 +442,7 @@ async def test_process_financials_document_sets_category_on_document(session, mo
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_extract_statement_transactions)
 
     result2 = await pipeline.process_financials_document(session, statement_document)
-    assert result2.category == "statement"
+    assert result2.paper_kind == "statement"
 
 
 @pytest.mark.asyncio
@@ -567,7 +567,7 @@ async def test_process_financials_document_bill_dedup_still_works_when_prior_doc
     participate in dedup, not silently exclude them."""
     legacy_document = _make_document(session, tmp_path, filename="legacy-bill.pdf", content_hash="hash-legacy")
     legacy_document.status = DocumentStatus.PROCESSED
-    assert legacy_document.category is None
+    assert legacy_document.paper_kind is None
     session.add(legacy_document)
     session.commit()
 

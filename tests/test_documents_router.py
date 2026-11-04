@@ -39,7 +39,7 @@ def test_refile_house_document_to_another_house_category(client, session):
     }, follow_redirects=False)
 
     assert response.status_code == 303 and response.headers["location"] == f"/house/documents/{document_id}"
-    assert session.get(Document, int(document_id)).category == "house_appliance"
+    assert session.get(Document, int(document_id)).paper_kind == "house_appliance"
 
 
 def test_refile_into_maintenance_makes_the_file_a_record_attachment(client, session):

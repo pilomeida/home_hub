@@ -36,7 +36,7 @@ def house_overview_card(session: Session, today: date) -> DomainCard:
 
     missing = sum(
         1 for e in domain_entries(session, Domain.HOUSE)
-        if e.category == HouseCategory.WARRANTY_INVOICE.value and effective_warranty_expiry(e.fields) is None
+        if e.paper_kind == HouseCategory.WARRANTY_INVOICE.value and effective_warranty_expiry(e.fields) is None
     )
     if missing:
         lines.append(CardLine(

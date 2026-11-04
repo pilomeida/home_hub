@@ -22,7 +22,7 @@ def make_document(session, *, domain: Optional[Domain] = Domain.HOUSE, status=Do
                   category: Optional[str] = "manual", fields: Optional[dict] = None, filename="doc.pdf",
                   file_path="/tmp/doc.pdf", created_at: Optional[datetime] = None) -> Document:
     doc = Document(filename=filename, file_path=file_path, content_hash=f"h-{next(_seq)}",
-                   source=DocumentSource.MANUAL, status=status, domain=domain, category=category,
+                   source=DocumentSource.MANUAL, status=status, domain=domain, paper_kind=category,
                    fields_json=json.dumps(fields or {}))
     if created_at:
         doc.created_at = created_at
@@ -44,7 +44,7 @@ def make_page(session, topic, *, domain: Optional[Domain] = Domain.HOUSE, page_t
 def make_record(session, *, domain=Domain.HOUSE, category="visit", fields: Optional[dict] = None,
                 document_id: Optional[int] = None, retired: bool = False,
                 created_at: Optional[datetime] = None) -> Record:
-    record = Record(domain=domain, category=category, fields_json=json.dumps(fields or {}),
+    record = Record(domain=domain, paper_kind=category, fields_json=json.dumps(fields or {}),
                     document_id=document_id, retired_at=datetime(2026, 1, 1) if retired else None)
     if created_at:
         record.created_at = created_at

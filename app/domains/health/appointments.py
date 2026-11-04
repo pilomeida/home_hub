@@ -33,7 +33,7 @@ def _today() -> date:
 def _administrative(document: Document, fields: Optional[dict] = None) -> dict:
     """The fields an event may show, from `fields` (default: the paper's current ones)."""
     spec = get_spec(Domain.HEALTH)
-    return channel_fields(spec, document.category, fields if fields is not None else load_fields(document))
+    return channel_fields(spec, document.paper_kind, fields if fields is not None else load_fields(document))
 
 
 def event_title(document: Document, fields: Optional[dict] = None) -> tuple[str, str]:
@@ -48,7 +48,7 @@ def event_title(document: Document, fields: Optional[dict] = None) -> tuple[str,
 def appointment_event(document: Document, public_url: str, today: Optional[date] = None) -> Optional[dict]:
     """The calendar entry for an appointment paper, or None when it has none to make: not an appointment, no
     date, or a date already past (old papers filed later, e.g. the backfill, must not fill the past of the calendar)."""
-    if document.category != "appointment":
+    if document.paper_kind != "appointment":
         return None
     fields = _administrative(document)
     day = fields.get("appointment_date")

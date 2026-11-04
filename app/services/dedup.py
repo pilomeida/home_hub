@@ -49,7 +49,7 @@ def find_duplicate_transaction(
         # keeps held rows: bill re-upload duplicate check must see every stored bill row
         select(Transaction)
         .join(Document, Transaction.document_id == Document.id)
-        .where(or_(Document.category.is_(None), Document.category != "statement"))
+        .where(or_(Document.paper_kind.is_(None), Document.paper_kind != "statement"))
     )
     if amount is None:
         return session.exec(bills.where(Transaction.description == description,

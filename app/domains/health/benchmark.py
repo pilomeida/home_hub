@@ -91,7 +91,7 @@ def expected_from_reading(x: ExtractedHealth) -> dict:
     results = [{"path": m.group_path, "test": m.test, "unit": m.unit, "value": m.value, "value_text": m.value_text,
                 "reference": m.reference_text, "previous": previous.get(m.position, [])}
                for m in x.measurements if not m.is_previous]
-    return {"layout": x.layout or None, "header": {"category": x.category, "document_date": x.document_date.isoformat() if x.document_date else None,
+    return {"layout": x.layout or None, "header": {"category": x.paper_kind, "document_date": x.document_date.isoformat() if x.document_date else None,
                        "person": x.person_name, "provider": x.provider}, "results": results}
 
 
@@ -100,8 +100,8 @@ def compare(name: str, expected: dict, actual: ExtractedHealth) -> CaseResult:
     head = expected.get("header") or {}
     if expected.get("layout") and expected["layout"] != (actual.layout or None):
         out.problems.append(f"layout: expected {expected['layout']}, read {actual.layout or 'not said'}")
-    if head.get("category") and head["category"] != actual.category:
-        out.problems.append(f"kind of paper: expected {head['category']}, read {actual.category}")
+    if head.get("category") and head["category"] != actual.paper_kind:
+        out.problems.append(f"kind of paper: expected {head['category']}, read {actual.paper_kind}")
     if head.get("document_date") and head["document_date"] != (actual.document_date.isoformat() if actual.document_date else None):
         out.problems.append(f"date: expected {head['document_date']}, read {actual.document_date}")
     if head.get("person") and not _same_text(head["person"], actual.person_name):
@@ -183,7 +183,7 @@ def promote(session: Session, document_id: int, name: str, directory: Path = DEF
     expected = {
         "reviewed": False,         # set to true once a person has checked every line against the paper
         "layout": entry.layout or None,
-        "header": {"category": document.category, "document_date": entry.entry_date.isoformat() if entry.entry_date else None,
+        "header": {"category": document.paper_kind, "document_date": entry.entry_date.isoformat() if entry.entry_date else None,
                    "person": person.name if person else None, "provider": entry.provider},
         "results": [{"path": m.group_path, "test": m.test, "unit": m.unit, "value": m.value, "value_text": m.value_text,
                      "reference": m.reference_text, "previous": earlier.get(m.position, [])} for m in rows if not m.is_previous],

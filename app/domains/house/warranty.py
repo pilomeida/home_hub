@@ -126,7 +126,7 @@ def sync_warranty_todo(session: Session, document: Document, today: Optional[dat
     """Create/update the renewal reminder for a warranty document. No
     reminder when the expiry is unknown or already past (nothing to renew in
     time)."""
-    if document.category != HouseCategory.WARRANTY_INVOICE.value:
+    if document.paper_kind != HouseCategory.WARRANTY_INVOICE.value:
         return None
     fields = load_fields(document)
     effective = effective_warranty_expiry(fields)

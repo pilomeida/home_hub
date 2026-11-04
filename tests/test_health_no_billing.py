@@ -99,7 +99,7 @@ async def test_a_bill_is_refused_with_the_three_part_message_and_nothing_is_file
     doc, wire = await _ingest_a_bill(session)
     assert doc.status == DocumentStatus.NEEDS_ATTENTION
     assert BILL_MESSAGE in doc.failure_reason
-    assert doc.category is None
+    assert doc.paper_kind is None
     assert session.exec(select(HealthEntry)).all() == []
     assert session.exec(select(HealthMeasurement)).all() == []
     assert session.exec(select(WikiClaim)).all() == []
@@ -146,7 +146,7 @@ async def test_changing_a_refused_bill_to_financials_bill_files_it_as_a_bill(cli
     monkeypatch.setattr(financials, "classify_transaction", no_classify)
 
     moved = await refile_document(session, doc, Classification(Domain.FINANCIALS, "bill", {}))
-    assert moved.domain == Domain.FINANCIALS and moved.category == "bill"
+    assert moved.domain == Domain.FINANCIALS and moved.paper_kind == "bill"
     assert moved.status == DocumentStatus.PROCESSED and moved.failure_reason is None
     txn = session.exec(select(Transaction).where(Transaction.document_id == doc.id)).one()
     assert txn.amount == 45.5
@@ -159,7 +159,7 @@ async def test_changing_a_refused_bill_to_financials_bill_files_it_as_a_bill(cli
 async def test_the_bill_reply_is_parsed_as_a_bill_with_no_category(tmp_path):
     fake = FakeGateway([gateway_text_result(json.dumps({"category": "bill", "summary": "Invoice."}))])
     got = await extract_health_document(_png(tmp_path), None, gateway=fake)
-    assert got.is_bill is True and got.category is None
+    assert got.is_bill is True and got.paper_kind is None
     assert '"bill"' in fake.requests[0]["system"] or "bill:" in fake.requests[0]["system"]
 
 

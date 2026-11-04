@@ -24,7 +24,7 @@ AS_OF = date(2026, 7, 31)
 
 def _doc(session, n=1):
     d = Document(filename=f"p{n}.pdf", file_path=f"/tmp/p{n}.pdf", content_hash=f"loans-router-{n}",
-                 source=DocumentSource.MANUAL, status=DocumentStatus.PENDING, category="statement_positions")
+                 source=DocumentSource.MANUAL, status=DocumentStatus.PENDING, paper_kind="statement_positions")
     session.add(d)
     session.commit()
     session.refresh(d)
@@ -300,7 +300,7 @@ def test_resubmitting_an_ordinary_statement_document_yields_positions(client, se
     content = PDF + b"already-a-statement"
     doc = Document(filename="old.pdf", file_path=save_file("old.pdf", content), content_hash=content_hash(content),
                    source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain="financials",
-                   category="statement")
+                   paper_kind="statement")
     session.add(doc)
     session.commit()
     gateway([STMT_A])
@@ -313,7 +313,7 @@ def test_resubmitting_an_ordinary_statement_document_yields_positions(client, se
 def test_duplicate_of_incompatible_document_is_reported_not_processed(client, session, gateway):
     content = PDF + b"a-bill"
     doc = Document(filename="bill.pdf", file_path=save_file("bill.pdf", content), content_hash=content_hash(content),
-                   source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain="financials", category="bill")
+                   source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED, domain="financials", paper_kind="bill")
     session.add(doc)
     session.commit()
     fake = gateway([])
@@ -498,7 +498,7 @@ def test_no_capital_repaid_line_without_granted_or_balance(client, session):
 def _dup_doc(session, name, category, status):
     content = PDF + name.encode()
     doc = Document(filename=name, file_path=save_file(name, content), content_hash=content_hash(content),
-                   source=DocumentSource.MANUAL, status=status, domain="financials", category=category)
+                   source=DocumentSource.MANUAL, status=status, domain="financials", paper_kind=category)
     session.add(doc)
     session.commit()
     return doc, content

@@ -15,7 +15,7 @@ _n = [0]
 def _doc(session, category, source=DocumentSource.MANUAL, name=None):
     _n[0] += 1
     d = Document(filename=name or f"d{_n[0]}.pdf", file_path=f"/tmp/d{_n[0]}.pdf", content_hash=f"rec-{_n[0]}",
-                 source=source, category=category, status=DocumentStatus.PROCESSED)
+                 source=source, paper_kind=category, status=DocumentStatus.PROCESSED)
     session.add(d); session.commit(); session.refresh(d)
     return d
 

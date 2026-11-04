@@ -80,7 +80,7 @@ def _later(current: Optional[date], candidate: Optional[date]) -> Optional[date]
 def build_item_cards(session: Session) -> list[ItemCard]:
     cards: dict[str, ItemCard] = {}
     for entry in domain_entries(session, Domain.HOUSE):
-        if entry.category not in ITEM_CATEGORIES:
+        if entry.paper_kind not in ITEM_CATEGORIES:
             continue
         fields = entry.fields
         name = (fields.get("item_name") or "").strip()
@@ -90,11 +90,11 @@ def build_item_cards(session: Session) -> list[ItemCard]:
         card = cards.setdefault(key, ItemCard(key=key, name=name))
         card.name = name
         card.documents.append(entry)
-        if entry.category in ITEM_KIND_CATEGORIES:
-            card.kind = entry.category
+        if entry.paper_kind in ITEM_KIND_CATEGORIES:
+            card.kind = entry.paper_kind
         if fields.get("room"):
             card.room = fields["room"]
-        warranty = effective_warranty_expiry(fields) if entry.category == HouseCategory.WARRANTY_INVOICE.value else None
+        warranty = effective_warranty_expiry(fields) if entry.paper_kind == HouseCategory.WARRANTY_INVOICE.value else None
         if warranty is not None and (card.warranty_expiry is None or warranty.date > card.warranty_expiry):
             card.warranty_expiry, card.warranty_assumed = warranty.date, warranty.assumed
         card.last_serviced = _later(card.last_serviced, field_date(fields, "service_date"))
@@ -123,7 +123,7 @@ def group_item_cards(cards: list[ItemCard], group_by: str) -> list[tuple[str, li
 def reference_sections(session: Session) -> list[tuple[str, list[SourceEntry]]]:
     entries = domain_entries(session, Domain.HOUSE)
     return [
-        (title, [e for e in entries if e.category == category])
+        (title, [e for e in entries if e.paper_kind == category])
         for category, title in REFERENCE_TITLES.items()
     ]
 

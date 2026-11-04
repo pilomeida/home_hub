@@ -45,7 +45,7 @@ def _doc(session, tmp_path, name="d.pdf", category="statement_positions", h=None
     path = tmp_path / name
     path.write_bytes(b"%PDF-1.4 fake")
     d = Document(filename=name, file_path=str(path), content_hash=h or name, source=DocumentSource.MANUAL,
-                 status=DocumentStatus.PENDING, category=category)
+                 status=DocumentStatus.PENDING, paper_kind=category)
     session.add(d)
     session.commit()
     session.refresh(d)

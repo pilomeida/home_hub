@@ -35,7 +35,7 @@ def _doc(session, tmp_path, n=1):
     path = tmp_path / f"h{n}.pdf"
     path.write_bytes(b"%PDF-1.4 x")
     d = Document(filename=f"h{n}.pdf", file_path=str(path), content_hash=f"crop-{n}", source=DocumentSource.MANUAL,
-                 status=DocumentStatus.PENDING, category="loan_history")
+                 status=DocumentStatus.PENDING, paper_kind="loan_history")
     session.add(d)
     session.commit()
     session.refresh(d)

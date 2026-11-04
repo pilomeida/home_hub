@@ -179,8 +179,8 @@ async def test_the_run_summary_and_the_problems_log_say_what_was_left_out_and_cl
     for info in ps.known_types():                                           # every type gets a readable level
         if info.domain in ps.FORCED_TIERS:                                   # (Health is always High: it cannot be set)
             continue
-        ps.save_type(session, info.domain, info.category, "house_low", False, "pedro")
-    world.unk.category = "floor_plan"                                       # and the odd document is filed as a real type
+        ps.save_type(session, info.domain, info.paper_kind, "house_low", False, "pedro")
+    world.unk.paper_kind = "floor_plan"                                       # and the odd document is filed as a real type
     session.add(world.unk)
     session.commit()
     final = await _run_wiki_lint(session, "manual")

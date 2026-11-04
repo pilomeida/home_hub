@@ -24,7 +24,7 @@ class HealthHandler(DomainHandler):
 
     async def process(self, session: Session, document: Document) -> Document:
         extracted = await read_health_document(
-            document.file_path, document.category,
+            document.file_path, document.paper_kind,
             existing_areas=areas_svc.names_for_prompt(session, "area"),
             existing_conditions=areas_svc.names_for_prompt(session, "condition"),
             guidance=outlines.guidance(session))
@@ -32,13 +32,13 @@ class HealthHandler(DomainHandler):
             raise HealthExtractionError(
                 "This looks like a bill or receipt, so it is not filed under Health. "
                 "Bills are dealt with under Bills, like any other bill. " + HEALTH_BILL_NEXT_STEP)
-        if document.category is None:       # the upload asked only for the file: the reading proposes the kind of paper
-            if extracted.category is None:
+        if document.paper_kind is None:       # the upload asked only for the file: the reading proposes the kind of paper
+            if extracted.paper_kind is None:
                 raise HealthExtractionError(
                     "The Hub could not tell what kind of health paper this is (or whether it is one). "
                     "Choose the kind on the paper's page, or delete it.")
-            document.category = extracted.category
-            document.sensitivity_tier = configured_tier(session, document.domain, document.category)
+            document.paper_kind = extracted.paper_kind
+            document.sensitivity_tier = configured_tier(session, document.domain, document.paper_kind)
             session.add(document)
             session.commit()
         store.apply_extraction(session, document, extracted)

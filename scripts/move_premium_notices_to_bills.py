@@ -41,7 +41,7 @@ async def run(session: Session, apply: bool) -> list[str]:
         if not apply:
             continue
         document = await refile_document(session, document, Classification(
-            domain=Domain.FINANCIALS, category=FinancialsCategory.BILL.value, fields={"policy_number": number}))
+            domain=Domain.FINANCIALS, paper_kind=FinancialsCategory.BILL.value, fields={"policy_number": number}))
         lines = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
         read = ", ".join(f"{t.description} €{t.amount:,.2f}{' (settled by a bank line)' if t.settled_by_id else ''}"
                          for t in lines) or "no bill line read"

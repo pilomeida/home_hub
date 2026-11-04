@@ -48,7 +48,7 @@ class ExtractedMeasurement:
 
 @dataclass
 class ExtractedHealth:
-    category: Optional[str] = None
+    paper_kind: Optional[str] = None
     person_name: Optional[str] = None
     document_date: Optional[date] = None
     provider: Optional[str] = None
@@ -315,7 +315,7 @@ async def extract_health_document(
         layout = _text(data.get("layout"))
         category_read = _text(data.get("category"))
         return ExtractedHealth(
-            category=category_read if category_read in ALL_CATEGORIES else None, is_bill=category_read == BILL,
+            paper_kind=category_read if category_read in ALL_CATEGORIES else None, is_bill=category_read == BILL,
             person_name=_text(data.get("person_name")), document_date=_date(data.get("document_date")),
             provider=_text(data.get("provider")), provider_phone=_text(data.get("provider_phone")),
             provider_address=_text(data.get("provider_address")), record_kind=kind if kind in kinds else None,

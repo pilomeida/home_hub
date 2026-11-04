@@ -54,7 +54,7 @@ def _tokens(*texts: Optional[str]) -> set[str]:
 
 
 def _is_bank(document: Document) -> bool:
-    return document.category in _UNKNOWN_BANK_DOCS or document.source == DocumentSource.API
+    return document.paper_kind in _UNKNOWN_BANK_DOCS or document.source == DocumentSource.API
 
 
 def reconcile_quietly(session: Session) -> None:

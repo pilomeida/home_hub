@@ -24,7 +24,7 @@ _spec.loader.exec_module(give_kind)
 
 def _doc(session, filename, status, domain=Domain.FINANCIALS, category=None, account_id=None, source=DocumentSource.MANUAL):
     d = Document(filename=filename, file_path=f"/tmp/{filename}", content_hash=f"h-{filename}", source=source,
-                 status=status, domain=domain, category=category, account_id=account_id)
+                 status=status, domain=domain, paper_kind=category, account_id=account_id)
     session.add(d); session.commit(); session.refresh(d)
     return d
 
@@ -61,18 +61,18 @@ def test_the_dry_run_says_what_it_would_do_and_changes_nothing(session, live_lik
     assert "'medical_bill' no longer exists" in text and "file_dental_receipt.py" in text
     assert "scan.jpg" not in text and "image001.png" not in text              # waiting for a person / discarded
     session.expire_all()
-    assert session.get(Document, docs["march"].id).category is None
+    assert session.get(Document, docs["march"].id).paper_kind is None
 
 
 def test_applied_every_filed_document_has_a_kind_and_the_revolut_file_is_on_revolut(session, live_like):
     docs, santander, revolut = live_like
     give_kind.run(session, apply=True)
     session.expire_all()
-    assert session.get(Document, docs["march"].id).category == "statement"
+    assert session.get(Document, docs["march"].id).paper_kind == "statement"
     assert session.get(Document, docs["march"].id).status == DocumentStatus.NEEDS_ATTENTION   # nothing read again
     assert session.get(Document, docs["revolut"].id).account_id == revolut.id
-    assert session.get(Document, docs["metlife"].id).category == "bill"
-    assert session.get(Document, docs["inbox"].id).category is None
+    assert session.get(Document, docs["metlife"].id).paper_kind == "bill"
+    assert session.get(Document, docs["inbox"].id).paper_kind is None
     assert len(session.exec(select(Transaction)).all()) == 1                                # no line changes
 
 
@@ -83,7 +83,7 @@ async def test_a_paper_the_hub_cannot_give_a_kind_to_goes_to_a_person(session, m
 
     class ForgetsTheKind(RecordingHandler):
         async def process(self, session, document):
-            document.category = None
+            document.paper_kind = None
             return await super().process(session, document)
 
     spec = make_fake_spec(handler=ForgetsTheKind())

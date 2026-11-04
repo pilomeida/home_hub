@@ -46,7 +46,7 @@ def _document(session, category="manual", fields=None, content_hash="h1"):
     document = Document(
         filename="doc.pdf", file_path="/tmp/doc.pdf", content_hash=content_hash,
         source=DocumentSource.MANUAL, status=DocumentStatus.PROCESSED,
-        domain=Domain.HOUSE, category=category, fields_json=json.dumps(fields or {}),
+        domain=Domain.HOUSE, paper_kind=category, fields_json=json.dumps(fields or {}),
     )
     session.add(document)
     session.commit()
@@ -169,7 +169,7 @@ def test_links_from_fields_follow_the_schema(session, monkeypatch):
 async def test_records_are_ingested_like_documents(session, fake_domain):
     from app.models.record import Record
 
-    record = Record(domain=Domain.HOUSE, category="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
+    record = Record(domain=Domain.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
     session.add(record)
     session.commit()
     session.refresh(record)

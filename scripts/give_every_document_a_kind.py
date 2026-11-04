@@ -54,7 +54,7 @@ def decide(session: Session, document: Document) -> tuple[str, int | None] | Non
 
 def run(session: Session, apply: bool) -> list[str]:
     report = []
-    kindless = session.exec(select(Document).where(Document.category.is_(None), Document.status.not_in(WAITING))).all()
+    kindless = session.exec(select(Document).where(Document.paper_kind.is_(None), Document.status.not_in(WAITING))).all()
     for document in kindless:
         decision = decide(session, document)
         if decision is None:
@@ -64,16 +64,16 @@ def run(session: Session, apply: bool) -> list[str]:
         note = f" and move it to account {account_id}" if account_id is not None else ""
         report.append(f"document {document.id} {document.filename} ({document.status.value}): kind {kind}{note}")
         if apply:
-            document.category = kind
+            document.paper_kind = kind
             document.sensitivity_tier = configured_tier(session, document.domain, kind)
             if account_id is not None:
                 document.account_id = account_id
             session.add(document)
-    for document in session.exec(select(Document).where(Document.category.is_not(None), Document.domain.is_not(None))).all():
+    for document in session.exec(select(Document).where(Document.paper_kind.is_not(None), Document.domain.is_not(None))).all():
         try:
-            get_spec(document.domain).kind(document.category)
+            get_spec(document.domain).kind(document.paper_kind)
         except UnknownKindError:
-            report.append(f"document {document.id} {document.filename}: kind {document.category!r} no longer exists "
+            report.append(f"document {document.id} {document.filename}: kind {document.paper_kind!r} no longer exists "
                           "in its category; move it (for the dental receipt: scripts/file_dental_receipt.py)")
     if apply:
         session.commit()

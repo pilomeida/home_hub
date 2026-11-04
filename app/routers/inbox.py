@@ -81,7 +81,7 @@ async def inbox_page(request: Request, session: Session = Depends(get_session)):
     cards = [card.render(**_card_context(session, e)) for e in inbox_service.pending_entries(session)]
     recent = [
         {"item": item, "document": document,
-         "label": inbox_service.describe(document.domain, document.category)}
+         "label": inbox_service.describe(document.domain, document.paper_kind)}
         for item, document in inbox_service.recently_reviewed(session)
     ]
     skipped = [{"skip": s, "document": d, "href": (document_url(d) if d is not None and d.domain is not None else "/inbox")}
@@ -126,7 +126,7 @@ async def approve(request: Request, document_id: int, session: Session = Depends
     record = record_for_document(session, document)  # RECORD category => link the record, not the attachment
     return templates.TemplateResponse(request, "inbox/_result.html", {
         "document": document, "discarded": False,
-        "label": inbox_service.describe(document.domain, document.category),
+        "label": inbox_service.describe(document.domain, document.paper_kind),
         "document_href": record_url(record) if record is not None else document_url(document),
     })
 

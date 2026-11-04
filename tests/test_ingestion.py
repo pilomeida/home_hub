@@ -29,7 +29,7 @@ def test_receive_file_stores_an_unclassified_pending_document(session, documents
     document = result.document
     assert document.id is not None
     assert document.status == DocumentStatus.PENDING
-    assert document.domain is None and document.category is None
+    assert document.domain is None and document.paper_kind is None
     assert load_fields(document) == {}
     assert document.uploaded_by == "pedro@example.com"
     assert len(list(documents_dir.iterdir())) == 1
@@ -60,7 +60,7 @@ async def test_finalize_tags_document_and_dispatches_to_handler(session, documen
 
     assert result.status == DocumentStatus.PROCESSED
     assert result.domain == Domain.HOUSE
-    assert result.category == "manual"
+    assert result.paper_kind == "manual"
     assert load_fields(result) == {"item_name": "Boiler"}
     assert fake_domain.handler.processed == [document.id]
 
@@ -123,7 +123,7 @@ async def test_finalize_allows_missing_category_when_domain_infers_it(session, d
 
     class InfersTheKind(RecordingHandler):            # as Financials does: bill or statement, worked out on reading
         async def process(self, session, document):
-            document.category = "manual"
+            document.paper_kind = "manual"
             return await super().process(session, document)
 
     spec = make_fake_spec(handler=InfersTheKind(), infers_kind=True)
@@ -134,7 +134,7 @@ async def test_finalize_allows_missing_category_when_domain_infers_it(session, d
 
     # Accepted without a kind, but filed only with the kind the handler worked out (work-list B6).
     assert result.status == DocumentStatus.PROCESSED
-    assert result.category == "manual"
+    assert result.paper_kind == "manual"
 
 
 @pytest.mark.asyncio
@@ -195,7 +195,7 @@ async def test_record_with_attachment_and_later_attachment(session, documents_di
         Domain.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}, attachment=_incoming("r.pdf", b"r"),
     ))
     attachment = session.get(Document, with_file.document_id)
-    assert attachment.domain == Domain.HOUSE and attachment.category == "visit"
+    assert attachment.domain == Domain.HOUSE and attachment.paper_kind == "visit"
     assert attachment.fields_json == "{}" and attachment.status == DocumentStatus.PROCESSED
 
     later = await ingestion.create_record(session, RecordInput(Domain.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-04-01"}))
@@ -230,7 +230,7 @@ async def test_refile_document_withdraws_then_refiles_and_logs_edit(session, doc
 
     result = await ingestion.refile_document(session, document, Classification(Domain.HOUSE, "clip", {"side": "in"}))
 
-    assert result.category == "clip" and load_fields(result) == {"side": "in"}
+    assert result.paper_kind == "clip" and load_fields(result) == {"side": "in"}
     assert [t.title for t in session.exec(select(Todo)).all()] == ["history"]
     edits = session.exec(select(WikiLogEntry).where(WikiLogEntry.operation == WikiOperation.EDIT)).all()
     assert len(edits) == 1 and "re-filed" in edits[0].description
@@ -251,7 +251,7 @@ async def test_refile_is_refused_when_the_old_handler_blocks_it(session, documen
     with pytest.raises(RefileRefusedError, match="commitment"):
         await ingestion.refile_document(session, document, Classification(Domain.HOUSE, "clip", {"side": "in"}))
     session.refresh(document)
-    assert document.category == "manual"
+    assert document.paper_kind == "manual"
 
 
 @pytest.mark.asyncio
@@ -266,5 +266,5 @@ async def test_refile_record_to_a_document_category_needs_its_file(session, docu
     document = await ingestion.refile_record(session, with_file, Classification(Domain.HOUSE, "manual", {"item_name": "Oven"}))
 
     session.refresh(with_file)
-    assert isinstance(document, Document) and document.category == "manual" and load_fields(document) == {"item_name": "Oven"}
+    assert isinstance(document, Document) and document.paper_kind == "manual" and load_fields(document) == {"item_name": "Oven"}
     assert with_file.retired_at is not None and record_for_document(session, document) is None

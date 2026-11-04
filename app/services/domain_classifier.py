@@ -27,7 +27,7 @@ class DomainClassificationError(Exception):
 @dataclass
 class DomainSuggestion:
     domain: Optional[Domain]
-    category: Optional[str]
+    paper_kind: Optional[str]
     confidence: float
     note: str
 
@@ -69,7 +69,7 @@ _DOMAIN_SCHEMA = {
 
 
 def _empty(note: str) -> DomainSuggestion:
-    return DomainSuggestion(domain=None, category=None, confidence=0.0, note=note)
+    return DomainSuggestion(domain=None, paper_kind=None, confidence=0.0, note=note)
 
 
 async def suggest_domain_and_category(
@@ -115,4 +115,4 @@ async def suggest_domain_and_category(
     )
     if not valid_category:
         return _empty(f"Suggestion '{domain_value}/{category_value}' isn't a known area — please choose.")
-    return DomainSuggestion(domain=spec.domain, category=category_value, confidence=confidence, note=reason)
+    return DomainSuggestion(domain=spec.domain, paper_kind=category_value, confidence=confidence, note=reason)

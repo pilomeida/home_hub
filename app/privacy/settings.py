@@ -56,7 +56,7 @@ class TierHeld(Exception):
     """Enforcement is on and this document type has no tier yet: the document waits."""
 
     def __init__(self, domain: object, category: object):
-        self.domain, self.category = _s(domain), category
+        self.domain, self.paper_kind = _s(domain), category
         super().__init__(f"no tier set for {self.domain}/{category}")
 
 
@@ -64,7 +64,7 @@ class TierHeld(Exception):
 class TypeInfo:
     domain: str
     domain_label: str
-    category: str
+    paper_kind: str
     label: str
     description: str
     suggested: Tier
@@ -103,7 +103,7 @@ def known_types() -> list[TypeInfo]:
 
 def _setting(session: Session, domain: object, category: str) -> Optional[DocumentTypeSetting]:
     return session.exec(select(DocumentTypeSetting).where(
-        DocumentTypeSetting.domain == _s(domain), DocumentTypeSetting.category == category)).first()
+        DocumentTypeSetting.domain == _s(domain), DocumentTypeSetting.paper_kind == category)).first()
 
 
 def configured_tier(session: Session, domain: object, category: Optional[str]) -> Optional[str]:
@@ -145,28 +145,28 @@ def require_ready(session: Session, domain: object, category: Optional[str]) -> 
 
 
 def type_rows(session: Session) -> list[TypeRow]:
-    saved = {(r.domain, r.category): r for r in session.exec(select(DocumentTypeSetting))}
+    saved = {(r.domain, r.paper_kind): r for r in session.exec(select(DocumentTypeSetting))}
     rows = []
     for info in known_types():
         forced = FORCED_TIERS.get(info.domain)
         if forced is not None:
             rows.append(TypeRow(info, forced, False, forced, True, locked=True))
             continue
-        row = saved.get((info.domain, info.category))
+        row = saved.get((info.domain, info.paper_kind))
         tier = parse_tier(row.tier) if row is not None and row.tier else None
         rows.append(TypeRow(info, tier, bool(row and row.redact), tier or info.suggested, row is not None and tier is not None))
     return rows
 
 
 def _log(session, *, domain, category, what, old, new, by) -> None:
-    session.add(TierChange(domain=domain, category=category, what=what, old_value=old, new_value=new,
+    session.add(TierChange(domain=domain, paper_kind=category, what=what, old_value=old, new_value=new,
                            changed_by=by, changed_at=datetime.utcnow()))
 
 
 def save_type(session: Session, domain: str, category: str, tier: object, redact: bool, by: Optional[str]) -> None:
     """Set a type's tier (a tier value, or "" / None to unset) and redaction switch. Logged;
     documents and records already filed under the type are re-tiered at once."""
-    if (domain, category) not in {(i.domain, i.category) for i in known_types()}:
+    if (domain, category) not in {(i.domain, i.paper_kind) for i in known_types()}:
         raise TierBlocked(f"unknown document type {domain}/{category}")
     if forced_tier(domain) is not None:
         raise TierBlocked("Health is always High and cannot be given another level.")
@@ -174,7 +174,7 @@ def save_type(session: Session, domain: str, category: str, tier: object, redact
     row = _setting(session, domain, category)
     old_tier, old_redact = (row.tier, row.redact) if row else (None, False)
     if row is None:
-        row = DocumentTypeSetting(domain=domain, category=category)
+        row = DocumentTypeSetting(domain=domain, paper_kind=category)
     row.tier, row.redact, row.updated_by, row.updated_at = new_tier, bool(redact), by, datetime.utcnow()
     session.add(row)
     if old_tier != new_tier:
@@ -190,7 +190,7 @@ def confirm_suggestions(session: Session, by: Optional[str]) -> int:
     n = 0
     for r in type_rows(session):
         if r.tier is None:
-            save_type(session, r.info.domain, r.info.category, r.info.suggested, r.redact, by)
+            save_type(session, r.info.domain, r.info.paper_kind, r.info.suggested, r.redact, by)
             n += 1
     return n
 
@@ -212,7 +212,7 @@ def retier(session: Session, domain: str, category: str, tier: Optional[str]) ->
     except ValueError:
         return 0
     for model in (Document, Record):
-        for row in session.exec(select(model).where(model.domain == dom, model.category == category)):
+        for row in session.exec(select(model).where(model.domain == dom, model.paper_kind == category)):
             if row.sensitivity_tier != tier:
                 row.sensitivity_tier = tier
                 session.add(row)

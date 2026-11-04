@@ -41,7 +41,7 @@ async def test_receive_creates_unfinalized_pending_review_document(session, two_
     doc = receipt.document
     assert not receipt.duplicate
     assert doc.status == DocumentStatus.PENDING_REVIEW
-    assert doc.domain is None and doc.category is None
+    assert doc.domain is None and doc.paper_kind is None
     assert doc.source == DocumentSource.TELEGRAM and doc.uploaded_by == "Rute (Telegram)"
     item = receipt.inbox_item
     assert (item.suggested_domain, item.suggested_category, item.confidence) == ("house", "manual", 0.95)
@@ -102,7 +102,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_domain
         fields={"item_name": "Boiler"}, reviewed_by="pedro@example.com",
     )
 
-    assert doc.domain == Domain.HOUSE and doc.category == "manual"
+    assert doc.domain == Domain.HOUSE and doc.paper_kind == "manual"
     assert load_fields(doc) == {"item_name": "Boiler"}
     assert doc.status == DocumentStatus.PROCESSED
     assert two_domains["house"].handler.processed == [doc.id]
@@ -123,7 +123,7 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
         fields={"item_name": "Boiler", "visit_date": "2026-03-01"}, reviewed_by="pedro@example.com",
     )
 
-    assert doc.domain == Domain.HOUSE and doc.category == "visit" and doc.status == DocumentStatus.PROCESSED
+    assert doc.domain == Domain.HOUSE and doc.paper_kind == "visit" and doc.status == DocumentStatus.PROCESSED
     assert load_fields(doc) == {}                           # fields live on the Record
     record = record_for_document(session, doc)
     assert record is not None and load_fields(record)["visit_date"] == "2026-03-01"
@@ -136,7 +136,7 @@ async def test_approve_with_inferred_category(session, two_domains):
     receipt = await _receive(session, suggestion=DomainSuggestion(Domain.FINANCIALS, None, 0.9, "x"))
     doc = await inbox_service.approve(session, receipt.document.id, domain_value="financials",
                                       category=None, fields={}, reviewed_by=None)
-    assert doc.domain == Domain.FINANCIALS and doc.category is None
+    assert doc.domain == Domain.FINANCIALS and doc.paper_kind is None
     assert two_domains["money"].handler.processed == [doc.id]
 
 

@@ -155,7 +155,7 @@ async def test_wrapped_bytes_end_to_end_through_the_store(session, tmp_path, mon
     path = tmp_path / "w.pdf"
     path.write_bytes(clean)
     doc = Document(filename="w.pdf", file_path=str(path), content_hash="wrap-e2e", source=DocumentSource.MANUAL,
-                   status=DocumentStatus.PENDING, category="loan_history")
+                   status=DocumentStatus.PENDING, paper_kind="loan_history")
     session.add(doc)
     session.commit()
     session.refresh(doc)

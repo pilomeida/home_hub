@@ -130,10 +130,10 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     is_report = bool(entry and entry.layout == "report")
     media_kind = media_kind_for(document.filename)
-    legacy_bill = document.category in LEGACY_CATEGORIES        # filed as a bill before bills left Health: it still opens
+    legacy_bill = document.paper_kind in LEGACY_CATEGORIES        # filed as a bill before bills left Health: it still opens
     description = describe_document(document)
     if legacy_bill:
-        description.category_label = LEGACY_LABELS[document.category]
+        description.category_label = LEGACY_LABELS[document.paper_kind]
     return {"document": document, "description": description, "legacy_bill": legacy_bill,
             "bill_refused": document.status == DocumentStatus.NEEDS_ATTENTION and is_health_bill_refusal(document.failure_reason), "media_kind": media_kind.value,
             "entry": entry, "measurements": measurements, "is_report": is_report, "path_sep": PATH_SEP,
@@ -143,7 +143,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
             "area_names": ", ".join(t.name for t in tags if t.kind == "area"),
             "condition_names": ", ".join(t.name for t in tags if t.kind == "condition"),
             "why": {k: fields.get(k, "") for k in ("indication", "clinical_notes", "requested_by", "performed_by", "details")},
-            "form_fields": build_form_fields(session, spec, document.category, values, errors, media_kind=media_kind)}
+            "form_fields": build_form_fields(session, spec, document.paper_kind, values, errors, media_kind=media_kind)}
 
 
 async def _read_in_background(session_factory, document_id: int) -> None:
@@ -153,7 +153,7 @@ async def _read_in_background(session_factory, document_id: int) -> None:
         if document is None or document.status == DocumentStatus.PROCESSED:
             return
         try:
-            await finalize_document(session, document, Classification(Domain.HEALTH, document.category, load_fields(document)))
+            await finalize_document(session, document, Classification(Domain.HEALTH, document.paper_kind, load_fields(document)))
         except BaseException as exc:      # also a cancelled task: the paper must never be left looking unread
             session.rollback()
             session.refresh(document)
@@ -190,7 +190,7 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
     try:
         result = file_for_later(session, IncomingFile(upload_file.filename, await upload_file.read(), DocumentSource.MANUAL,
                                                       getattr(request.state, "user_email", None)),
-                                Classification(domain=Domain.HEALTH, category=category, fields=values))
+                                Classification(domain=Domain.HEALTH, paper_kind=category, fields=values))
     except InvalidClassification as exc:
         return templates.TemplateResponse(request, "health/upload.html", _upload_context(exc.errors), status_code=400)
     if not result.duplicate:       # the reading takes minutes: the person lands on the paper's page, which shows its progress
@@ -201,7 +201,7 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
 async def prepare_reread(session: Session, document: Document) -> None:
     """The steps behind "Read again": take back everything read from a filed paper (calendar entry, wiki claims,
     results, tags), clear its fields so they start again from the new reading, and mark it pending."""
-    if document.category in LEGACY_CATEGORIES:       # checked first: nothing may be withdrawn from a paper that cannot be read
+    if document.paper_kind in LEGACY_CATEGORIES:       # checked first: nothing may be withdrawn from a paper that cannot be read
         raise HTTPException(status_code=409, detail={
             "what": "Not read again.", "why": "Health no longer reads bills, so there is nothing to read it with.",
             "next_step": HEALTH_BILL_NEXT_STEP})

@@ -21,7 +21,7 @@ from app.models.record import Record
 @dataclass
 class SourceEntry:
     kind: SourceKind
-    category: Optional[str]
+    paper_kind: Optional[str]
     fields: dict[str, str]
     created_at: datetime
     document: Optional[Document]   # the file: the document itself, or a record's attachment
@@ -33,7 +33,7 @@ class SourceEntry:
         if self.document is not None:
             return self.document.filename
         domain = self.record.domain if self.record is not None else None
-        label = get_spec(domain).kind_label(self.category) if is_implemented(domain) else (self.category or "")
+        label = get_spec(domain).kind_label(self.paper_kind) if is_implemented(domain) else (self.paper_kind or "")
         return f"{label} — entered by hand"
 
 
@@ -59,11 +59,11 @@ def domain_entries(session: Session, domain: Domain) -> list[SourceEntry]:
     ).all()
 
     entries = [
-        SourceEntry(SourceKind.DOCUMENT, d.category, load_fields(d), d.created_at, d, None, document_url(d))
+        SourceEntry(SourceKind.DOCUMENT, d.paper_kind, load_fields(d), d.created_at, d, None, document_url(d))
         for d in documents if d.id not in attached_ids
     ]
     entries += [
-        SourceEntry(SourceKind.RECORD, r.category, load_fields(r), r.created_at,
+        SourceEntry(SourceKind.RECORD, r.paper_kind, load_fields(r), r.created_at,
                     attachments.get(r.document_id), r, record_url(r))
         for r in records
     ]

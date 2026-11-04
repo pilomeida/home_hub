@@ -46,7 +46,7 @@ async def upload_bill(
 ):
     content = await file.read()
     classification = Classification(
-        domain=Domain.FINANCIALS, category=None,
+        domain=Domain.FINANCIALS, paper_kind=None,
         fields={"account_id": account_id} if account_id else {},
     )
     try:

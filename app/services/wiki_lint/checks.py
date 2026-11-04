@@ -85,8 +85,8 @@ def find_stale_links(session: Session) -> list[FindingDraft]:
                                for s in ss if is_settled_source(s)}
                     candidates = []
                     for source in sources.values():
-                        value = effective_fields(spec, source.category, load_fields(source)).get(link.field)
-                        if value and (link.kinds is None or source.category in link.kinds):
+                        value = effective_fields(spec, source.paper_kind, load_fields(source)).get(link.field)
+                        if value and (link.kinds is None or source.paper_kind in link.kinds):
                             candidates.append((source.created_at, source.id, source, value))
                     if not candidates:
                         continue

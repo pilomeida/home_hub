@@ -42,15 +42,15 @@ def _key(insurer: str, number: str) -> str:
 
 
 def _note(entry: SourceEntry) -> str:
-    if entry.category == InsuranceKind.CLAIM.value:
+    if entry.paper_kind == InsuranceKind.CLAIM.value:
         return "claim"
     return _PART_LABELS.get(entry.fields.get("part", ""), "policy paper").lower()
 
 
 def _order(paper: PolicyPaper) -> tuple:
     entry = paper.entry
-    rank = (PART_ORDER.get(entry.fields.get("part", "other"), 90) if entry.category == InsuranceKind.POLICY.value
-            else 95 if entry.category == InsuranceKind.CLAIM.value else 99)
+    rank = (PART_ORDER.get(entry.fields.get("part", "other"), 90) if entry.paper_kind == InsuranceKind.POLICY.value
+            else 95 if entry.paper_kind == InsuranceKind.CLAIM.value else 99)
     return rank, entry.created_at
 
 
