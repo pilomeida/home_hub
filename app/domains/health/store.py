@@ -170,11 +170,14 @@ def purge_derived(session: Session, document: Document) -> None:
 
 async def discard_document(session: Session, document: Document, calendar=None) -> Document:
     """Take a health paper out of use: its calendar entry, wiki claims, measurements, tags and entry are
-    withdrawn; the row and file are kept (raw sources are immutable) and the paper is marked discarded."""
+    withdrawn; the row and file are kept (raw sources are immutable) and the paper is marked discarded. A paper still
+    used anywhere else (a to-do, a record, Money, Loans) is refused first, with the list of places (work-list B7)."""
     from app.domains.health.appointments import remove_appointment
     from app.models.document import DocumentStatus
+    from app.services.paper_uses import HEALTH, WIKI, refuse_if_used
     from app.services.wiki_engine import withdraw_from_wiki
 
+    refuse_if_used(session, document, what="Not deleted.", takes_back=frozenset({HEALTH, WIKI}))
     await remove_appointment(session, document, calendar=calendar)
     await withdraw_from_wiki(session, document, description=f"{document.filename} deleted from Health")
     purge_derived(session, document)

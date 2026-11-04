@@ -25,6 +25,7 @@ from app.problems import HEALTH_BILL_NEXT_STEP, Problem, file_notices, is_health
 from app.services.ingestion import (
     Classification, IncomingFile, file_for_later, finalize_document, mark_needs_attention, update_document_fields,
 )
+from app.services.paper_uses import PaperInUse
 from app.templating import templates
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -522,6 +523,8 @@ async def delete_document(document_id: int, session: Session = Depends(get_sessi
     document = _document_or_404(session, document_id)
     try:
         await store.discard_document(session, document)
+    except PaperInUse as refused:
+        raise HTTPException(status_code=409, detail=refused.problem.as_detail()) from None
     except Exception as exc:
         session.rollback()
         problem = Problem("Not deleted.", "The Hub could not take everything read from this paper out of its wiki and records, "

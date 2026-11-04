@@ -19,6 +19,7 @@ from app.privacy.recognise import original_sender
 from app.privacy.settings import TierHeld
 from app.routers.to_check import section_html as to_check_section
 from app.services import inbox_service
+from app.services.paper_uses import PaperInUse
 from app.templating import templates
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
@@ -138,6 +139,8 @@ async def discard(request: Request, document_id: int, session: Session = Depends
                                          reviewed_by=getattr(request.state, "user_email", None))
     except inbox_service.InboxError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except PaperInUse as refused:
+        raise HTTPException(status_code=409, detail=refused.problem.as_detail()) from None
     return templates.TemplateResponse(request, "inbox/_result.html", {
         "document": document, "discarded": True, "label": None, "document_href": None,
     })

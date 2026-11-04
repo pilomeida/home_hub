@@ -39,10 +39,17 @@ class Problem:
     why: str
     next_step: str
     link: Optional[str] = None
+    places: tuple[tuple[str, Optional[str]], ...] = ()     # (label, link): what a refusal concerns, listed under it
 
     @property
     def text(self) -> str:
-        return f"{self.what} {self.why} {self.next_step}"
+        listed = "".join(f" — {label}" for label, _link in self.places)
+        return f"{self.what} {self.why} {self.next_step}{listed}"
+
+    def as_detail(self) -> dict:
+        """For `HTTPException(detail=...)`: the page's error handler turns it back into this message (for_http)."""
+        return {"what": self.what, "why": self.why, "next_step": self.next_step, "link": self.link,
+                "places": [list(p) for p in self.places]}
 
 
 # --- classifying technical reasons -------------------------------------------------------------
@@ -160,6 +167,10 @@ def render_html(problem: Problem, technical: Optional[str] = None) -> Markup:
     body = f"<strong>{escape(problem.what)}</strong> {escape(problem.why)} {escape(problem.next_step)}"
     if problem.link:
         body += f' <a href="{escape(problem.link)}">Open</a>'
+    if problem.places:
+        items = "".join(f'<li><a href="{escape(link)}">{escape(label)}</a></li>' if link else f"<li>{escape(label)}</li>"
+                        for label, link in problem.places)
+        body += f'<ul class="problem-places">{items}</ul>'
     if technical:
         body += f"<details><summary>Technical details</summary><code>{escape(technical)}</code></details>"
     return Markup(body)
@@ -289,7 +300,8 @@ _HTTP_PATTERNS: list[tuple[re.Pattern, callable]] = [
 
 def for_http(status: int, detail: object) -> Problem:
     if isinstance(detail, dict) and {"what", "why", "next_step"} <= set(detail):    # a route that wrote its own
-        return Problem(detail["what"], detail["why"], detail["next_step"], detail.get("link"))
+        return Problem(detail["what"], detail["why"], detail["next_step"], detail.get("link"),
+                       tuple((label, link) for label, link in detail.get("places") or ()))
     text = detail if isinstance(detail, str) else "".join(str(detail))
     if text in _HTTP_EXACT:
         what, why, nxt = _HTTP_EXACT[text]

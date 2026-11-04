@@ -4,6 +4,7 @@
 <h1>{{ problem.what }}</h1>
 <p>{{ problem.why }}</p>
 <p><strong>What you can do:</strong> {{ problem.next_step }}</p>
+{% if problem.places %}<ul class="problem-places">{% for label, link in problem.places %}<li>{% if link %}<a href="{{ link }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</li>{% endfor %}</ul>{% endif %}
 {% if problem.link %}<p><a href="{{ problem.link }}">Open</a></p>{% endif %}
 <p><a href="javascript:history.back()">← Go back</a> · <a href="/problems">Problems</a></p>
 {% if technical %}<details><summary>Technical details</summary><code>{{ technical }}</code></details>{% endif %}

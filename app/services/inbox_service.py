@@ -39,6 +39,7 @@ from app.services.ingestion import (
 from app.privacy.ratchet import ratchet_scope
 from app.privacy.tiers import Tier
 from app.problems import Problem, explain, record_problem
+from app.services.paper_uses import refuse_if_used
 from app.privacy.recognise import original_sender, recognise, remember
 from app.privacy.scope import require_ready
 from app.services.wiki_store import append_log
@@ -252,7 +253,9 @@ async def approve(
 
 
 def discard(session: Session, document_id: int, *, reviewed_by: Optional[str]) -> Document:
+    """Raises PaperInUse when something already links to the waiting paper (work-list B7)."""
     document, item = _pending(session, document_id)
+    refuse_if_used(session, document, what="Not discarded.")
     document.status = DocumentStatus.DISCARDED
     item.reviewed_by = reviewed_by
     item.reviewed_at = datetime.utcnow()
