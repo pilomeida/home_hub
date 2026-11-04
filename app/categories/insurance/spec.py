@@ -9,6 +9,7 @@ from app.categories.insurance.kinds import (
 from app.categories.insurance.handler import InsuranceHandler
 from app.categories.insurance.overview import insurance_overview_card
 from app.models.category import Category
+from app.privacy.tiers import Tier
 
 SPEC = CategorySpec(
     category=Category.INSURANCE,
@@ -24,9 +25,9 @@ SPEC = CategorySpec(
                      "A policy's own paper: general or particular conditions, schedule, summary, payment plan or "
                      "green card, for the house, a car, health or life. A premium notice or receipt is NOT this: "
                      "it is a bill, dealt with under Bills. A statement of what a health insurer reimbursed is "
-                     "a bill-type paper too."),
+                     "a bill-type paper too.", suggested_tier=Tier.MID),
         KindSpec(InsuranceKind.CLAIM.value, "Claim",
-                     "A claim made on a policy, or the insurer's answer to one."),
+                     "A claim made on a policy, or the insurer's answer to one.", suggested_tier=Tier.MID),
     ),
     fields=(
         FieldSpec("insurer", "Insurer", FieldKind.SUGGEST, required=True),

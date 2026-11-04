@@ -1,4 +1,4 @@
-"""Health's CategorySpec. Always house_high (app/privacy/settings.py FORCED_TIERS)."""
+"""Health's CategorySpec. Always house_high: declared here (forced_tier), read by app/privacy/settings.py."""
 
 from app.categories.base import (
     KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
@@ -8,6 +8,7 @@ from app.categories.health.kinds import ALL_KINDS, PERSON_PAGE_TYPE, RECORD_KIND
 from app.categories.health.handler import HealthHandler
 from app.categories.health.overview import health_overview_card
 from app.models.category import Category
+from app.privacy.tiers import Tier
 
 _GUIDANCE = (
     "Health records of the family. Record standing facts per person that are worth finding later: long-term "
@@ -18,6 +19,7 @@ _GUIDANCE = (
 
 SPEC = CategorySpec(
     category=Category.HEALTH,
+    forced_tier=Tier.HIGH,          # nothing about Health may ever be read below High (decision D19)
     label="Health",
     description=(
         "The family's medical papers: lab results, imaging reports, consultation and discharge letters, "

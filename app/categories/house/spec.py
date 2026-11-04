@@ -9,6 +9,7 @@ from app.categories.house.handler import HouseHandler
 from app.categories.house.overview import house_overview_card
 from app.categories.house.warranty import house_derived_fields
 from app.models.category import Category
+from app.privacy.tiers import Tier
 
 _WARRANTY = frozenset({HouseKind.WARRANTY_INVOICE.value})
 _MAINTENANCE = frozenset({HouseKind.MAINTENANCE_LOG.value})
@@ -24,19 +25,19 @@ SPEC = CategorySpec(
     home_url="/house",
     kinds=(
         KindSpec(HouseKind.HOUSE_APPLIANCE.value, "House appliance",
-                     "Manual or documentation for an indoor appliance (boiler, dishwasher, oven, heat pump...)."),
+                     "Manual or documentation for an indoor appliance (boiler, dishwasher, oven, heat pump...).", suggested_tier=Tier.LOW),
         KindSpec(HouseKind.OUTDOOR_GEAR.value, "Outdoor gear",
-                     "Manual or documentation for outdoor equipment (lawnmower, barbecue, garden tools...)."),
+                     "Manual or documentation for outdoor equipment (lawnmower, barbecue, garden tools...).", suggested_tier=Tier.LOW),
         KindSpec(HouseKind.WARRANTY_INVOICE.value, "Warranty / invoice",
-                     "A purchase invoice, receipt or warranty certificate for a household item."),
+                     "A purchase invoice, receipt or warranty certificate for a household item.", suggested_tier=Tier.LOW),
         KindSpec(HouseKind.MAINTENANCE_LOG.value, "Maintenance log",
                      "A service, repair or inspection done on a household item — typed in by hand, "
-                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD),
+                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD, suggested_tier=Tier.LOW),
         KindSpec(HouseKind.FLOOR_PLAN.value, "Floor plan",
                      "A floor plan, or a diagram, photo or video of the house's pipes, sewage, wiring or floors.",
-                     accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}),
+                     accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}, suggested_tier=Tier.LOW),
         KindSpec(HouseKind.OWNERSHIP_DOCUMENT.value, "Ownership document",
-                     "A property deed, land registry record or purchase contract for the house."),
+                     "A property deed, land registry record or purchase contract for the house.", suggested_tier=Tier.MID),
     ),
     fields=(
         FieldSpec("item_name", "Item", FieldKind.SUGGEST, kinds=ITEM_KINDS, required=True,

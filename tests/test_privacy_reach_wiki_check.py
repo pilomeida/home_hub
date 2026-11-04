@@ -177,7 +177,7 @@ async def test_the_run_summary_and_the_problems_log_say_what_was_left_out_and_cl
     assert logged.times == 2
 
     for info in ps.known_types():                                           # every type gets a readable level
-        if info.category in ps.FORCED_TIERS:                                   # (Health is always High: it cannot be set)
+        if info.category in ps.forced_tiers():                                   # (Health is always High: it cannot be set)
             continue
         ps.save_type(session, info.category, info.paper_kind, "house_low", False, "pedro")
     world.unk.paper_kind = "floor_plan"                                       # and the odd document is filed as a real type

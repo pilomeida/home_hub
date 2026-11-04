@@ -24,32 +24,23 @@ from app.privacy.tiers import Tier, TierBlocked, parse_tier
 
 ENFORCE_KEY = "enforce_tiers"
 
-# Starting suggestions shown pre-filled on the settings screen (Pedro, 2026-10-15).
-# They are NOT active until confirmed. house_high is deliberately never suggested:
-# Pedro chooses it per type (it is served only by Privatemode, which costs money).
-SUGGESTED_TIERS: dict[tuple[str, str], Tier] = {
-    ("financials", "bill"): Tier.MID,
-    ("financials", "statement"): Tier.MID,
-    ("financials", "statement_positions"): Tier.MID,
-    ("financials", "loan_history"): Tier.MID,
-    ("house", "house_appliance"): Tier.LOW,
-    ("house", "outdoor_gear"): Tier.LOW,
-    ("house", "warranty_invoice"): Tier.LOW,
-    ("house", "maintenance_log"): Tier.LOW,
-    ("house", "floor_plan"): Tier.LOW,
-    ("house", "ownership_document"): Tier.MID,
-    ("insurance", "policy"): Tier.MID,
-    ("insurance", "claim"): Tier.MID,
-}
-FALLBACK_SUGGESTION = Tier.MID      # a type added later: cautious middle until Pedro decides
+# Starting suggestions shown pre-filled on the settings screen (Pedro, 2026-10-15), and the levels a category
+# always has (decision D19), are declared on the kinds and categories themselves (work-list B2): KindSpec
+# .suggested_tier, CategorySpec.forced_tier. A suggestion is NOT active until confirmed, and is never High.
+FALLBACK_SUGGESTION = Tier.MID      # a kind that declares none: cautious middle until Pedro decides
 
-# Domains whose types are ALWAYS at this level, whether or not levels are binding and whatever the
-# settings table says (decision D19). Health is the only one: nothing about it may ever be read below High.
-FORCED_TIERS: dict[str, Tier] = {"health": Tier.HIGH}
+
+def suggested_tiers() -> dict[tuple[str, str], Tier]:
+    return {(spec.category.value, k.value): k.suggested_tier for spec in implemented_categories()
+            for k in spec.kinds if k.suggested_tier is not None}
+
+
+def forced_tiers() -> dict[str, Tier]:
+    return {spec.category.value: spec.forced_tier for spec in implemented_categories() if spec.forced_tier is not None}
 
 
 def forced_tier(category: object) -> Optional[Tier]:
-    return None if category is None else FORCED_TIERS.get(_s(category))
+    return None if category is None else forced_tiers().get(_s(category))
 
 
 class TierHeld(Exception):
@@ -95,8 +86,7 @@ def known_types() -> list[TypeInfo]:
     out = []
     for spec in implemented_categories():
         for c in spec.kinds:
-            key = (spec.category.value, c.value)
-            suggested = FORCED_TIERS.get(spec.category.value) or SUGGESTED_TIERS.get(key, FALLBACK_SUGGESTION)
+            suggested = spec.forced_tier or c.suggested_tier or FALLBACK_SUGGESTION
             out.append(TypeInfo(spec.category.value, spec.label, c.value, c.label, c.description, suggested))
     return out
 
@@ -148,7 +138,7 @@ def type_rows(session: Session) -> list[TypeRow]:
     saved = {(r.category, r.paper_kind): r for r in session.exec(select(DocumentTypeSetting))}
     rows = []
     for info in known_types():
-        forced = FORCED_TIERS.get(info.category)
+        forced = forced_tiers().get(info.category)
         if forced is not None:
             rows.append(TypeRow(info, forced, False, forced, True, locked=True))
             continue

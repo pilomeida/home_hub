@@ -11,6 +11,7 @@ from app.categories.financials.handler import FinancialsHandler
 from app.categories.financials.overview import financials_overview_card
 from app.models.account import Account
 from app.models.category import Category
+from app.privacy.tiers import Tier
 
 
 def _account_choices(session: Session) -> list[tuple[str, str]]:
@@ -27,20 +28,24 @@ SPEC = CategorySpec(
         KindSpec(
             FinancialsKind.BILL.value, "Bill / invoice",
             "A single bill, invoice, receipt or premium notice from one provider with one amount due.",
+            suggested_tier=Tier.MID,
         ),
         KindSpec(
             FinancialsKind.STATEMENT.value, "Bank statement",
             "A bank or card account statement listing many transactions.",
+            suggested_tier=Tier.MID,
         ),
         KindSpec(
             FinancialsKind.POSITIONS.value, "Statement – loans & savings positions only",
             "A consolidated bank statement read only for loan, fund and balance positions (never for transactions).",
             classifiable=False,
+            suggested_tier=Tier.MID,
         ),
         KindSpec(
             FinancialsKind.LOAN_HISTORY.value, "Online-banking loan movements printout",
             "An online-banking printout of one loan's instalment movements.",
             classifiable=False,
+            suggested_tier=Tier.MID,
         ),
     ),
     fields=(

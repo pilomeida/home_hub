@@ -2,7 +2,7 @@
 
 The old kinds said what a policy covers (home_insurance, car_insurance, health_insurance, life_insurance) and the
 field `document_kind` said what the paper is. Now the kind is the paper, `covers` says what the policy is for and
-`part` which part of the policy a paper is. On 2026-11-04: 17 policy papers change here. The 6 premium notices are
+`part` which part of the policy a paper is. On 2026-11-04: 16 policy papers change here. The 6 premium notices are
 bills (Pedro): they are moved to Bills afterwards, through the Hub's own re-file path, which takes them off the
 policy's wiki page and reads them as bills (scripts/move_premium_notices_to_bills.py). Until then they keep their
 old kind. A hand-entered record of a premium (none today) becomes a policy paper, part "other": a record has no file

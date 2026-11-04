@@ -29,11 +29,11 @@ def test_every_registry_type_is_listed_with_a_suggestion_and_none_is_saved_yet(s
     health = [r for r in rows if r.info.category == "health"]               # Health is locked High, not suggested
     assert len(health) == 7 and all(r.locked and r.tier == Tier.HIGH and r.is_saved for r in health)
     assert {r.info.category for r in rows if r.locked} == {"health"}
-    assert all(s != Tier.HIGH for s in ps.SUGGESTED_TIERS.values())
+    assert all(s != Tier.HIGH for s in ps.suggested_tiers().values())
 
 
 def test_suggestions_cover_every_registry_type():
-    assert {(i.category, i.paper_kind) for i in ps.known_types() if i.category not in ps.FORCED_TIERS} == set(ps.SUGGESTED_TIERS)
+    assert {(i.category, i.paper_kind) for i in ps.known_types() if i.category not in ps.forced_tiers()} == set(ps.suggested_tiers())
 
 
 def test_off_by_default_so_the_live_hub_is_unchanged(session):
@@ -65,7 +65,7 @@ def test_unsetting_a_tier_holds_the_type_again(session):
 
 def test_confirming_suggestions_saves_each_unset_type_once(session):
     n = ps.confirm_suggestions(session, "pedro@example.com")
-    assert n == len([i for i in ps.known_types() if i.category not in ps.FORCED_TIERS])   # Health is locked: never saved
+    assert n == len([i for i in ps.known_types() if i.category not in ps.forced_tiers()])   # Health is locked: never saved
     assert ps.confirm_suggestions(session, "pedro@example.com") == 0
     saved = {(s.category, s.paper_kind): s.tier for s in session.exec(select(DocumentTypeSetting))}
     assert saved[("financials", "statement")] == "house_mid" and saved[("house", "floor_plan")] == "house_low"

@@ -19,6 +19,7 @@ from sqlmodel import Session
 from app.models.document import Document
 from app.models.category import Category
 from app.models.record import Record
+from app.privacy.tiers import Tier
 
 
 class FieldKind(str, Enum):
@@ -61,6 +62,13 @@ class KindSpec:
     accepted_media: frozenset[MediaKind] = DEFAULT_MEDIA
     kind: SourceKind = SourceKind.DOCUMENT
     classifiable: bool = True  # False: chosen explicitly (e.g. an upload page), never offered to the automatic classifier
+    # The privacy level offered on the Privacy page until Pedro confirms one (B2; never High: Pedro chooses High
+    # himself, it is served only by Privatemode, which costs money). None: the cautious middle, Mid.
+    suggested_tier: Optional[Tier] = None
+
+    def __post_init__(self) -> None:
+        if self.suggested_tier == Tier.HIGH:
+            raise ValueError(f"{self.label}: High is never suggested, only chosen on the Privacy page")
 
 
 @dataclass(frozen=True)
@@ -205,6 +213,8 @@ class CategorySpec:
     record_url: Optional[Callable[[Record], str]] = None
     derive_fields: Callable[[Optional[str], dict[str, str]], dict[str, str]] = _no_derived_fields
     ask_tools: tuple = ()                             # tuple[app.services.ask.contracts.AskTool, ...] (Plan C)
+    # A level every kind of this category always has, whatever the settings say (decision D19): Health is High.
+    forced_tier: Optional[Tier] = None
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.kinds]

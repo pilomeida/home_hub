@@ -19,6 +19,7 @@ from typing import Optional, Sequence
 from app.categories.health.kinds import ALL_KINDS, RECORD_KINDS
 from app.categories.health.text import PATH_SEP, limits_from_reference, spaced_intervals, split_method
 from app.llm_gateway import HEALTH_EXTRACTION, get_gateway
+from app.models.category import Category
 from app.privacy.tiers import Tier
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
@@ -302,9 +303,11 @@ async def extract_health_document(
     user = f"Paper type: {paper_kind or 'not known yet: work it out'}. Read it as JSON."
     if text:
         user += "\n\nThe paper's exact text, taken from its PDF (the order of lines may be scrambled):\n\n" + text
-    # Always High, stated here and not left to the caller's privacy scope: a health paper must never be routable
-    # anywhere else, however this reader is reached (an explicit sensitivity always wins over the scope).
-    result = await gw.run(HEALTH_EXTRACTION, system, user, sensitivity=Tier.HIGH.value,
+    # Health's own level (its spec forces High), stated here and not left to the caller's privacy scope: a health
+    # paper must never be routable anywhere else, however this reader is reached (an explicit sensitivity always
+    # wins over the scope).
+    from app.categories.registry import get_spec
+    result = await gw.run(HEALTH_EXTRACTION, system, user, sensitivity=get_spec(Category.HEALTH).forced_tier.value,
                           attachments=[build_content_block(file_path)], response_schema=_SCHEMA)
     try:
         data = json.loads(strip_json_fences(result.text))
