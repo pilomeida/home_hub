@@ -26,10 +26,10 @@ _NON_FIELD_KEYS = {"domain", "category"}
 
 def _category_or_none(value: Optional[str]) -> Optional[Category]:
     try:
-        domain = Category(value) if value else None
+        category = Category(value) if value else None
     except ValueError:
         return None
-    return domain if is_implemented(domain) else None
+    return category if is_implemented(category) else None
 
 
 def _context(session: Session, *, action: str, title: str, has_file: bool, filename: Optional[str],

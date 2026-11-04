@@ -32,17 +32,17 @@ class CategorySuggestion:
     note: str
 
 
-def build_system_prompt(domains: Sequence) -> str:
+def build_system_prompt(categories: Sequence) -> str:
     lines = [
         "You sort household documents into the area of family life they belong to.",
         "Choose exactly one domain and one of THAT domain's categories from this list:",
         "",
     ]
-    for spec in domains:
+    for spec in categories:
         inferred = " (category may be null — this area works out its own category)" if spec.infers_kind else ""
         lines.append(f'- domain "{spec.category.value}" ({spec.label}): {spec.description}{inferred}')
-        for category in (c for c in spec.kinds if c.classifiable):
-            lines.append(f'    - category "{category.value}" ({category.label}): {category.description}')
+        for kind in (c for c in spec.kinds if c.classifiable):
+            lines.append(f'    - category "{kind.value}" ({kind.label}): {kind.description}')
     lines += [
         "",
         "Respond with ONLY a JSON object:",
@@ -76,10 +76,10 @@ async def suggest_category_and_kind(
     file_path: str,
     context_text: Optional[str] = None,
     *,
-    domains: Optional[Sequence] = None,
+    categories: Optional[Sequence] = None,
     gateway=None,
 ) -> CategorySuggestion:
-    specs = list(domains) if domains is not None else implemented_categories()
+    specs = list(categories) if categories is not None else implemented_categories()
     if not is_model_readable(file_path):
         return _empty("This file type can't be read automatically — please choose where it goes.")
 

@@ -436,16 +436,16 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
         )
 
     def sort_key(key: tuple[Optional[Category], str]):
-        domain, page_type = key
-        return (category_order.get(domain, len(category_order)), page_type == TOPIC_PAGE_TYPE,
+        category, page_type = key
+        return (category_order.get(category, len(category_order)), page_type == TOPIC_PAGE_TYPE,
                 type_labels.get(page_type, page_type))
 
     sections = []
-    for (domain, page_type), entries in sorted(grouped.items(), key=lambda item: sort_key(item[0])):
-        if domain is None:
+    for (category, page_type), entries in sorted(grouped.items(), key=lambda item: sort_key(item[0])):
+        if category is None:
             category_label = "General"
         else:
-            category_label = category_labels.get(domain, domain.value.replace("_", " ").title())
+            category_label = category_labels.get(category, category.value.replace("_", " ").title())
         sections.append(IndexSection(
             category_label=category_label,
             section_label=type_labels.get(page_type, page_type.replace("_", " ").title()),

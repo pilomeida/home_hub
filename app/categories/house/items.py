@@ -123,8 +123,8 @@ def group_item_cards(cards: list[ItemCard], group_by: str) -> list[tuple[str, li
 def reference_sections(session: Session) -> list[tuple[str, list[SourceEntry]]]:
     entries = category_entries(session, Category.HOUSE)
     return [
-        (title, [e for e in entries if e.paper_kind == category])
-        for category, title in REFERENCE_TITLES.items()
+        (title, [e for e in entries if e.paper_kind == kind])
+        for kind, title in REFERENCE_TITLES.items()
     ]
 
 

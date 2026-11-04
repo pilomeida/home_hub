@@ -365,9 +365,9 @@ class Reach:
             elif not self.includes_document(e.document):
                 bump(e.document.category, e.document.paper_kind, False)
         types = []
-        for (domain, category), (n_docs, n_recs) in sorted(counts.items(), key=lambda kv: str(kv[0])):
-            a = self.access.get((domain, category))
-            types.append(LeftOutType(a.label if a else (category or "Unknown kind of document"),
+        for (category, paper_kind), (n_docs, n_recs) in sorted(counts.items(), key=lambda kv: str(kv[0])):
+            a = self.access.get((category, paper_kind))
+            types.append(LeftOutType(a.label if a else (paper_kind or "Unknown kind of document"),
                                      a.reason if a and a.reason else UNSET, n_docs, n_recs))
         return LeftOut(True, tuple(sorted(self.excluded_keys)), tuple(types), history_dropped)
 

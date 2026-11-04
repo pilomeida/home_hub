@@ -32,8 +32,8 @@ class SourceEntry:
     def title(self) -> str:
         if self.document is not None:
             return self.document.filename
-        domain = self.record.category if self.record is not None else None
-        label = get_spec(domain).kind_label(self.paper_kind) if is_implemented(domain) else (self.paper_kind or "")
+        category = self.record.category if self.record is not None else None
+        label = get_spec(category).kind_label(self.paper_kind) if is_implemented(category) else (self.paper_kind or "")
         return f"{label} — entered by hand"
 
 

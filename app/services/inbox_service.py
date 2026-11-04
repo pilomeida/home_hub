@@ -146,10 +146,10 @@ async def receive_document(
 def suggested_category(item: InboxItem) -> Optional[Category]:
     """The suggestion as a registered Domain, or None if it no longer is one."""
     try:
-        domain = Category(item.suggested_category) if item.suggested_category else None
+        category = Category(item.suggested_category) if item.suggested_category else None
     except ValueError:
         return None
-    return domain if is_implemented(domain) else None
+    return category if is_implemented(category) else None
 
 
 def describe(category: Optional[Category], paper_kind: Optional[str]) -> Optional[str]:
@@ -160,10 +160,10 @@ def describe(category: Optional[Category], paper_kind: Optional[str]) -> Optiona
 
 
 def is_confident(item: InboxItem) -> bool:
-    domain = suggested_category(item)
-    if domain is None or (item.confidence or 0.0) < CONFIDENT_THRESHOLD:
+    category = suggested_category(item)
+    if category is None or (item.confidence or 0.0) < CONFIDENT_THRESHOLD:
         return False
-    spec = get_spec(domain)
+    spec = get_spec(category)
     if item.suggested_paper_kind is None:
         return spec.infers_kind
     return item.suggested_paper_kind in {c.value for c in spec.kinds}
@@ -225,20 +225,20 @@ async def approve(
 ) -> Document:
     document, item = _pending(session, document_id)
     try:
-        domain = Category(category_value)
+        category = Category(category_value)
     except ValueError:
         raise InvalidClassification({"domain": "Choose a category"}) from None
-    classification = Classification(category=domain, paper_kind=paper_kind or None, fields=dict(fields))
+    classification = Classification(category=category, paper_kind=paper_kind or None, fields=dict(fields))
     # Validate first so a rejected choice changes nothing (no review mark, no log).
     validated = validate_classification(session, classification, document.filename)
-    require_ready(session, domain, validated.paper_kind)    # raises TierHeld before anything is marked or read
+    require_ready(session, category, validated.paper_kind)    # raises TierHeld before anything is marked or read
 
     item.reviewed_by = reviewed_by
     item.reviewed_at = datetime.utcnow()
     session.add(item)
     append_log(
         session, WikiOperation.REVIEW,
-        f"Approved {document.filename} as {describe(domain, classification.paper_kind)} "
+        f"Approved {document.filename} as {describe(category, classification.paper_kind)} "
         f"(via {document.source.value}, by {reviewed_by or 'unknown'})",
         document_id=document.id, commit=False,
     )
@@ -246,7 +246,7 @@ async def approve(
 
     filed = await finalize_document(session, document, classification)
     if remember_sender or remember_words.strip():
-        remember(session, category=domain.value, paper_kind=validated.paper_kind or "", by=reviewed_by,
+        remember(session, category=category.value, paper_kind=validated.paper_kind or "", by=reviewed_by,
                  sender=original_sender(item.context_text) if remember_sender else "",
                  words=remember_words, note=f"Remembered when {document.filename} was filed")
     return filed

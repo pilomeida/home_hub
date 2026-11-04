@@ -104,11 +104,11 @@ def _target_kind(classification: Classification) -> Optional[SourceKind]:
         spec = get_spec(classification.category)
     except UnknownCategoryError:
         return None
-    category = (classification.paper_kind or "").strip() or None
-    if category is None:
+    paper_kind = (classification.paper_kind or "").strip() or None
+    if paper_kind is None:
         return None
     try:
-        return spec.kind(category).kind
+        return spec.kind(paper_kind).kind
     except UnknownKindError:
         return None
 
@@ -172,30 +172,30 @@ def validate_classification(
     except UnknownCategoryError:
         raise InvalidClassification({"domain": "Choose a category that exists"}) from None
 
-    category = (classification.paper_kind or "").strip() or None
+    paper_kind = (classification.paper_kind or "").strip() or None
     media_kind = media_kind_for(filename) if filename else None
     errors: dict[str, str] = {}
-    if category is None:
+    if paper_kind is None:
         if not spec.infers_kind:
             errors["category"] = "Choose a kind of paper"
         elif media_kind is None:
             errors["file"] = "Choose a file to upload"
     else:
         try:
-            category_spec = spec.kind(category)
+            kind_spec = spec.kind(paper_kind)
         except UnknownKindError:
             errors["category"] = f"Unknown {spec.label} kind of paper"
         else:
-            if media_kind is None and category_spec.kind == SourceKind.DOCUMENT:
+            if media_kind is None and kind_spec.kind == SourceKind.DOCUMENT:
                 errors["file"] = "Choose a file to upload"
-            elif media_kind is not None and media_kind not in category_spec.accepted_media:
-                accepted = ", ".join(sorted(m.value for m in category_spec.accepted_media))
-                errors["file"] = f"{category_spec.label} accepts {accepted} files only"
+            elif media_kind is not None and media_kind not in kind_spec.accepted_media:
+                accepted = ", ".join(sorted(m.value for m in kind_spec.accepted_media))
+                errors["file"] = f"{kind_spec.label} accepts {accepted} files only"
     if errors:
         raise InvalidClassification(errors)
 
-    fields = validate_fields(session, spec, category, media_kind, classification.fields)
-    return ValidatedClassification(spec=spec, paper_kind=category, fields=fields)
+    fields = validate_fields(session, spec, paper_kind, media_kind, classification.fields)
+    return ValidatedClassification(spec=spec, paper_kind=paper_kind, fields=fields)
 
 
 async def _file_under(session: Session, document: Document, validated: ValidatedClassification) -> Document:

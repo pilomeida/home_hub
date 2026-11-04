@@ -70,8 +70,8 @@ def settled_entries(session: Session, category: Optional[Category] = None,
     """PROCESSED documents and non-retired records of implemented domains, newest first.
     With a binding `reach`, only those of types the AI may read (everything the AI is shown
     about documents comes through here)."""
-    domains = [category] if category is not None else [s.category for s in implemented_categories()]
-    entries = [e for d in domains for e in category_entries(session, d)
+    categories = [category] if category is not None else [s.category for s in implemented_categories()]
+    entries = [e for d in categories for e in category_entries(session, d)
                if e.kind == SourceKind.RECORD or is_settled(e.document)]
     if reach is not None:
         entries = reach.filter_entries(entries)
@@ -150,14 +150,14 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
 
 
 def _find_sources(session: Session, args: dict) -> ToolOutput:
-    domain = _parse_category(args.get("domain"))
-    category = args.get("category")
+    category = _parse_category(args.get("domain"))
+    paper_kind = args.get("category")
     limit = max(1, min(int(args.get("limit", 30)), 60))
     query_tokens = tokens(args.get("query") or "")
     scored = []
     reach = reach_for(session)
-    for entry in settled_entries(session, domain, reach=reach):
-        if category and entry.paper_kind != category:
+    for entry in settled_entries(session, category, reach=reach):
+        if paper_kind and entry.paper_kind != paper_kind:
             continue
         source = _entry_source(entry)
         spec = get_spec(source.category)
@@ -204,12 +204,12 @@ def _read_document_file(session: Session, args: dict) -> ToolOutput:
 
 
 def _list_todos(session: Session, args: dict) -> ToolOutput:
-    domain = _parse_category(args.get("domain"))
+    category = _parse_category(args.get("domain"))
     statement = select(Todo)
     if not args.get("include_done", False):
         statement = statement.where(Todo.done == False)  # noqa: E712
-    if domain is not None:
-        statement = statement.where(Todo.category == domain)
+    if category is not None:
+        statement = statement.where(Todo.category == category)
     reach = reach_for(session)
     todos = session.exec(statement.order_by(Todo.due_date)).all()
     todos = [t for t in todos if reach.includes_todo(session, t)][:100]

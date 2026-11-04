@@ -86,12 +86,12 @@ class Wire:
 
 
 def set_levels(session, *, on: bool = True, low=(), mid=(), high=(), hides=()) -> None:
-    """Save levels with the real service. Each item is "domain/category". Types not listed stay unset."""
+    """Save levels with the real service. Each item is "category/kind". Types not listed stay unset."""
     for keys, tier, redact in ((low, "house_low", False), (mid, "house_mid", False),
                                (high, "house_high", False), (hides, "house_mid", True)):
         for key in keys:
-            domain, category = key.split("/")
-            ps.save_type(session, domain, category, tier, redact, "test")
+            category, paper_kind = key.split("/")
+            ps.save_type(session, category, paper_kind, tier, redact, "test")
     ps.set_enforcing(session, on, "test")
 
 
@@ -176,8 +176,8 @@ def build_world(session, docs_dir) -> SimpleNamespace:
         session.add(d)
         session.commit()
         session.refresh(d)
-        domain, category = suggested.split("/")
-        session.add(InboxItem(document_id=d.id, suggested_category=domain, suggested_paper_kind=category))
+        category, paper_kind = suggested.split("/")
+        session.add(InboxItem(document_id=d.id, suggested_category=category, suggested_paper_kind=paper_kind))
     session.commit()
     return w
 

@@ -29,10 +29,10 @@ _SELECTOR_KEYS = ("domain", "category", "remember", "remember_words")
 
 def _spec_for_value(category_value: Optional[str]):
     try:
-        domain = Category(category_value) if category_value else None
+        category = Category(category_value) if category_value else None
     except ValueError:
         return None
-    return get_spec(domain) if is_implemented(domain) else None
+    return get_spec(category) if is_implemented(category) else None
 
 
 def _fields_context(session: Session, entry, category_value: Optional[str], paper_kind: Optional[str],

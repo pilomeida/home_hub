@@ -227,3 +227,34 @@ async def test_the_move_script_files_the_old_premium_notices_as_bills(session, m
     assert (moved.category, moved.paper_kind, load_fields(moved)) == (Category.FINANCIALS, "bill", {"policy_number": "009886609"})
     assert session.get(Document, policy.id).category == Category.INSURANCE
     assert [p.note for p in build_policy_cards(session)[0].documents][-1] == "premium notice (in Bills)"
+
+
+def test_waiting_inbox_suggestions_of_an_old_insurance_kind_become_policy(session):
+    """Migration e5a9c3d1f702: a paper still waiting keeps a suggestion the Inbox can use; history is left alone."""
+    import importlib.util
+    from datetime import datetime
+    from alembic.operations import Operations
+    from alembic.runtime.migration import MigrationContext
+    from app.models.document import Document, DocumentSource, DocumentStatus
+    from app.models.inbox_item import InboxItem
+    from app.services.inbox_service import describe, is_confident, suggested_category as inbox_suggestion
+    docs = [Document(filename=f"{n}.pdf", file_path=f"/x/{n}", content_hash=n, source=DocumentSource.EMAIL,
+                     status=DocumentStatus.PENDING_REVIEW) for n in ("waiting", "reviewed")]
+    session.add_all(docs); session.commit()
+    waiting = InboxItem(document_id=docs[0].id, suggested_category="insurance", suggested_paper_kind="home_insurance",
+                        confidence=0.95)
+    reviewed = InboxItem(document_id=docs[1].id, suggested_category="insurance", suggested_paper_kind="home_insurance",
+                         reviewed_at=datetime(2026, 10, 17))
+    session.add_all([waiting, reviewed]); session.commit()
+    shown = lambda item: describe(inbox_suggestion(item), item.suggested_paper_kind)
+    assert shown(waiting) == "Insurance › home_insurance" and not is_confident(waiting)   # before: a raw key, no pre-fill
+
+    spec = importlib.util.spec_from_file_location("m", "alembic/versions/e5a9c3d1f702_inbox_insurance_suggestions.py")
+    migration = importlib.util.module_from_spec(spec); spec.loader.exec_module(migration)
+    with Operations.context(MigrationContext.configure(session.connection())):
+        migration.upgrade()
+    session.commit(); session.expire_all()
+
+    assert (waiting.suggested_category, waiting.suggested_paper_kind) == ("insurance", "policy")
+    assert shown(waiting) == "Insurance › Policy" and is_confident(waiting)
+    assert reviewed.suggested_paper_kind == "home_insurance"

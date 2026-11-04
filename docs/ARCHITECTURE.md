@@ -5,7 +5,7 @@ Technical reference for developers and AI assistants extending or debugging this
 ## Glossary: the model's words and the code's names
 
 The agreed model (`../docs/architecture-redesign/model.md`) and the code use different words for the same ideas;
-the code is being renamed step by step (`docs/architecture/work-list.md`, B1). Until then, read the code with this table.
+the code was renamed to the model's words on 2026-11-04 (`docs/architecture/work-list.md`, B1). Three places keep the old words on purpose, because changing them would change stored data or a contract: the database columns (`domain`, `category`, `suggested_domain`, `suggested_category`; migrations only add), the HTML form field names (`domain`, `category`) with the template variables that feed them, and the JSON keys the AI readers are asked to return (`domain`, `category`).
 Use the model's word in anything a person reads (pages, messages, docs).
 
 | Model word | Means | Code name today |

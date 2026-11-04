@@ -28,12 +28,12 @@ def _todo_lists(session: Session):
 
 def _parse_category(value: str) -> Category:
     try:
-        domain = Category(value)
+        category = Category(value)
     except ValueError:
         raise HTTPException(status_code=400, detail="Unknown domain") from None
-    if not is_implemented(domain):
+    if not is_implemented(category):
         raise HTTPException(status_code=400, detail="Unknown domain")
-    return domain
+    return category
 
 
 @router.get("")

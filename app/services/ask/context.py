@@ -49,7 +49,7 @@ def _pending_count(session: Session, reach: Reach) -> int:
     rows = session.exec(select(InboxItem.suggested_category, InboxItem.suggested_paper_kind)
                         .join(Document, Document.id == InboxItem.document_id)
                         .where(Document.status == DocumentStatus.PENDING_REVIEW)).all()
-    return sum(1 for domain, category in rows if reach.includes_type(domain, category))
+    return sum(1 for category, paper_kind in rows if reach.includes_type(category, paper_kind))
 
 
 _PRIVATE_NOTE = (
