@@ -26,7 +26,7 @@ def _todo_lists(session: Session):
     return open_todos, done_todos
 
 
-def _parse_domain(value: str) -> Category:
+def _parse_category(value: str) -> Category:
     try:
         domain = Category(value)
     except ValueError:
@@ -52,7 +52,7 @@ async def add(
     due_date: Optional[str] = Form(None),
     session: Session = Depends(get_session),
 ):
-    target = _parse_domain(domain)
+    target = _parse_category(domain)
     try:
         due = date.fromisoformat(due_date) if due_date else None
     except ValueError:
@@ -80,7 +80,7 @@ async def mark_done(
     session.commit()
     if backlog:
         return templates.TemplateResponse(
-            request, "todos/_backlog.html", backlog_context(session, _parse_domain(backlog))
+            request, "todos/_backlog.html", backlog_context(session, _parse_category(backlog))
         )
     open_todos, done_todos = _todo_lists(session)
     return templates.TemplateResponse(

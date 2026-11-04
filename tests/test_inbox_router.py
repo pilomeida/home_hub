@@ -7,7 +7,7 @@ from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.category import Category
 from app.models.inbox_item import InboxItem
 
-pytestmark = pytest.mark.usefixtures("two_domains")
+pytestmark = pytest.mark.usefixtures("two_categories")
 
 
 def _pending(session, *, confident=True, content_hash="h1", filename="boiler.pdf",
@@ -21,7 +21,7 @@ def _pending(session, *, confident=True, content_hash="h1", filename="boiler.pdf
     session.refresh(document)
     session.add(InboxItem(
         document_id=document.id, context_text="Telegram caption: new boiler",
-        suggested_domain=category, suggested_category=paper_kind,
+        suggested_domain=category, suggested_paper_kind=paper_kind,
         confidence=0.95 if confident else 0.3, classifier_note="a manual",
     ))
     session.commit()
@@ -56,7 +56,7 @@ def test_fields_partial_follows_chosen_domain_and_category(client, session):
     assert 'name="side"' in clip and 'name="item_name"' not in clip
 
 
-def test_approve_finalizes_and_returns_result(client, session, two_domains):
+def test_approve_finalizes_and_returns_result(client, session, two_categories):
     document = _pending(session)
 
     response = client.post(f"/inbox/{document.id}/approve",
@@ -64,12 +64,12 @@ def test_approve_finalizes_and_returns_result(client, session, two_domains):
 
     assert response.status_code == 200
     assert "Fake › Manual" in response.text and 'href="/fake/documents/' in response.text
-    assert two_domains["house"].handler.processed == [document.id]
+    assert two_categories["house"].handler.processed == [document.id]
     session.expire_all()
     assert session.get(Document, document.id).category == Category.HOUSE
 
 
-def test_approve_into_record_category_links_to_the_record(client, session, two_domains):
+def test_approve_into_record_category_links_to_the_record(client, session, two_categories):
     document = _pending(session, filename="service.pdf")
     fields = client.get(f"/inbox/{document.id}/fields", params={"domain": "house", "category": "visit"}).text
     assert 'name="visit_date"' in fields and 'name="item_name"' in fields
@@ -82,26 +82,26 @@ def test_approve_into_record_category_links_to_the_record(client, session, two_d
     assert "Fake › Visit" in response.text and 'href="/fake/records/' in response.text
 
 
-def test_approve_shows_validation_errors(client, session, two_domains):
+def test_approve_shows_validation_errors(client, session, two_categories):
     document = _pending(session)
 
     response = client.post(f"/inbox/{document.id}/approve", data={"domain": "house", "category": "manual"})
 
     assert response.status_code == 422
     assert "Item is required" in response.text
-    assert two_domains["house"].handler.processed == []
+    assert two_categories["house"].handler.processed == []
 
     bad_category = client.post(f"/inbox/{document.id}/approve", data={"domain": "house", "category": "bill"})
     assert bad_category.status_code == 422 and "Unknown Fake kind of paper" in bad_category.text
 
 
-def test_discard(client, session, two_domains):
+def test_discard(client, session, two_categories):
     document = _pending(session)
     response = client.post(f"/inbox/{document.id}/discard")
     assert response.status_code == 200 and "Discarded" in response.text
     session.expire_all()
     assert session.get(Document, document.id).status == DocumentStatus.DISCARDED
-    assert two_domains["house"].handler.processed == []
+    assert two_categories["house"].handler.processed == []
 
 
 def test_inbox_list_shows_a_friendly_message_for_a_raw_classifier_note(client, session):
@@ -118,9 +118,9 @@ def test_inbox_list_shows_a_friendly_message_for_a_raw_classifier_note(client, s
     assert "Error code: 401" in html  # kept, inside the technical details
 
 
-def test_approve_result_shows_a_friendly_message_when_processing_fails(client, session, two_domains):
+def test_approve_result_shows_a_friendly_message_when_processing_fails(client, session, two_categories):
     document = _pending(session)
-    two_domains["house"].handler.fail_with = RuntimeError(
+    two_categories["house"].handler.fail_with = RuntimeError(
         "Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error'}}"
     )
 
@@ -145,7 +145,7 @@ def test_inbox_list_shows_a_friendly_datetime_for_received_at(client, session):
     assert "2026-08-18 09:05" in html
 
 
-def test_inbox_recently_handled_shows_a_friendly_datetime_for_reviewed_at(client, session, two_domains):
+def test_inbox_recently_handled_shows_a_friendly_datetime_for_reviewed_at(client, session, two_categories):
     document = _pending(session)
     client.post(f"/inbox/{document.id}/discard")
     item = session.exec(select(InboxItem).where(InboxItem.document_id == document.id)).one()

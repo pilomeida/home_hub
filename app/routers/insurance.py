@@ -41,8 +41,8 @@ def _upload_context(session: Session, paper_kind: Optional[str], values: dict, e
     choices = _kind_choices(spec)
     known = paper_kind if paper_kind and any(value == paper_kind for value, _ in choices) else None
     if known == PREMIUM_NOTICE:
-        target_domain, target_kind = _PREMIUM_TARGET
-        form_fields = build_form_fields(session, get_spec(target_domain), target_kind, values, errors)
+        target_category, target_kind = _PREMIUM_TARGET
+        form_fields = build_form_fields(session, get_spec(target_category), target_kind, values, errors)
     else:
         form_fields = build_form_fields(session, spec, known, values, errors) if known else []
     return {"choices": choices, "category": known, "errors": file_notices(errors), "form_fields": form_fields}
@@ -52,8 +52,8 @@ def _classification(paper_kind: Optional[str], values: dict) -> Classification:
     if paper_kind == PREMIUM_NOTICE:
         if not (values.get("policy_number") or "").strip():
             raise InvalidClassification({"policy_number": "Which policy this premium is for, so it shows on that policy"})
-        target_domain, target_kind = _PREMIUM_TARGET
-        return Classification(category=target_domain, paper_kind=target_kind, fields=values)
+        target_category, target_kind = _PREMIUM_TARGET
+        return Classification(category=target_category, paper_kind=target_kind, fields=values)
     return Classification(category=Category.INSURANCE, paper_kind=paper_kind, fields=values)
 
 

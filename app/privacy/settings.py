@@ -15,7 +15,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.models.document import Document
 from app.models.category import Category
 from app.models.privacy import DocumentTypeSetting, PrivacySetting, TierChange
@@ -93,7 +93,7 @@ def _s(value: object) -> str:
 
 def known_types() -> list[TypeInfo]:
     out = []
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         for c in spec.kinds:
             key = (spec.category.value, c.value)
             suggested = FORCED_TIERS.get(spec.category.value) or SUGGESTED_TIERS.get(key, FALLBACK_SUGGESTION)

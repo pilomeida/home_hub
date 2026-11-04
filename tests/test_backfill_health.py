@@ -4,7 +4,7 @@ import pytest
 
 from scripts.backfill_health import backfill
 from app.models.category import Category
-from app.services.domain_classifier import CategorySuggestion
+from app.services.category_classifier import CategorySuggestion
 
 
 @pytest.fixture(autouse=True)

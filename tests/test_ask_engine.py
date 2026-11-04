@@ -40,7 +40,7 @@ def _refusal():
 
 
 @pytest.mark.asyncio
-async def test_wiki_first_answer_with_valid_citations(session, fake_domain):
+async def test_wiki_first_answer_with_valid_citations(session, fake_category):
     doc = make_document(session, filename="service.pdf")
     boiler = make_page(session, "Boiler", summary="Vaillant boiler")
     make_claim(session, boiler, "last_service", "2026-03-02", doc_ids=[doc.id])
@@ -70,7 +70,7 @@ async def test_wiki_first_answer_with_valid_citations(session, fake_domain):
 
 
 @pytest.mark.asyncio
-async def test_follow_up_gets_history_and_may_recite_earlier_refs(session, fake_domain):
+async def test_follow_up_gets_history_and_may_recite_earlier_refs(session, fake_category):
     boiler = make_page(session, "Boiler")
     turn1 = start_conversation(session, "When was the boiler serviced?", started_by=None)
     await run_turn(session, turn1.id, gateway=FakeGateway([_text(f"March 2026 [[wiki:{boiler.id}]].")]))
@@ -87,7 +87,7 @@ async def test_follow_up_gets_history_and_may_recite_earlier_refs(session, fake_
 
 
 @pytest.mark.asyncio
-async def test_raw_source_fallback_sets_flag(session, fake_domain):
+async def test_raw_source_fallback_sets_flag(session, fake_category):
     doc = make_document(session, filename="dishwasher-manual.pdf")
     turn = start_conversation(session, "Do we have the dishwasher manual?", started_by=None)
     gateway = FakeGateway([
@@ -98,7 +98,7 @@ async def test_raw_source_fallback_sets_flag(session, fake_domain):
 
 
 @pytest.mark.asyncio
-async def test_file_reads_are_capped_at_two(session, fake_domain, tmp_path):
+async def test_file_reads_are_capped_at_two(session, fake_category, tmp_path):
     pdf = tmp_path / "m.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     doc = make_document(session, filename="m.pdf", file_path=str(pdf))
@@ -116,7 +116,7 @@ async def test_file_reads_are_capped_at_two(session, fake_domain, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_unknown_tool_and_tool_crash_become_error_results(session, fake_domain, monkeypatch):
+async def test_unknown_tool_and_tool_crash_become_error_results(session, fake_category, monkeypatch):
     def _boom(session, args):
         raise RuntimeError("db exploded")
     monkeypatch.setattr("app.services.ask.tools._list_todos", _boom)
@@ -132,7 +132,7 @@ async def test_unknown_tool_and_tool_crash_become_error_results(session, fake_do
 
 
 @pytest.mark.asyncio
-async def test_runaway_loop_fails_gracefully(session, fake_domain):
+async def test_runaway_loop_fails_gracefully(session, fake_category):
     turn = start_conversation(session, "q", started_by=None)
     gateway = FakeGateway([_tool([{"id": "tu_1", "name": "list_todos", "input": {}}])] * 8)
     result = await run_turn(session, turn.id, gateway=gateway)
@@ -142,7 +142,7 @@ async def test_runaway_loop_fails_gracefully(session, fake_domain):
 
 
 @pytest.mark.asyncio
-async def test_refusal_marks_failed(session, fake_domain):
+async def test_refusal_marks_failed(session, fake_category):
     turn = start_conversation(session, "q", started_by=None)
     result = await run_turn(session, turn.id, gateway=FakeGateway([_refusal()]))
     problem, _ = ask_messages.failure(result)
@@ -150,7 +150,7 @@ async def test_refusal_marks_failed(session, fake_domain):
 
 
 @pytest.mark.asyncio
-async def test_gateway_error_marks_failed(session, fake_domain):
+async def test_gateway_error_marks_failed(session, fake_category):
     turn = start_conversation(session, "q", started_by=None)
     error = GatewayError(status=503, detail="overloaded")
     result = await run_turn(session, turn.id, gateway=FakeGateway(errors=[error]))

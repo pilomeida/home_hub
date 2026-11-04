@@ -57,7 +57,7 @@ def test_once_nothing_else_uses_it_the_health_paper_is_deleted(client, session):
     assert session.get(Document, doc.id).status == DocumentStatus.DISCARDED
 
 
-@pytest.mark.usefixtures("two_domains")
+@pytest.mark.usefixtures("two_categories")
 def test_a_waiting_paper_already_linked_elsewhere_is_not_discarded_and_the_banner_lists_it(client, session):
     from tests.test_inbox_router import _pending
     doc = _pending(session)

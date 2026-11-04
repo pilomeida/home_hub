@@ -1,6 +1,6 @@
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
-from tests.domain_fakes import make_fake_spec
+from tests.category_fakes import make_fake_spec
 
 
 def test_ask_tool_to_api_shape():
@@ -22,5 +22,5 @@ def test_citable_is_a_value_object():
 
 def test_domain_spec_ask_tools_defaults_to_empty_tuple():
     assert make_fake_spec().ask_tools == ()
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         assert isinstance(spec.ask_tools, tuple)

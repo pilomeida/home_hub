@@ -73,8 +73,8 @@ def test_private_tier_and_domain_helpers(session):
     assert reach.private_tier([clean]) is None
     assert reach.private_tier([clean, health]) == Tier.HIGH
     assert reach.tier_of_source(health) == Tier.HIGH and reach.tier_of_source(clean) == Tier.MID     # a non-private type reports its saved level
-    assert reach.domain_is_private("health") and reach.domain_has_private("health")
-    assert not reach.domain_is_private("financials") and not reach.domain_has_private("financials")
+    assert reach.category_is_private("health") and reach.category_has_private("health")
+    assert not reach.category_is_private("financials") and not reach.category_has_private("financials")
     assert reach.has_private()
 
 

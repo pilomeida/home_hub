@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from sqlmodel import Session
 
 from app.categories.base import CardLine, CategoryCard
-from app.categories.entries import domain_entries
+from app.categories.entries import category_entries
 from app.categories.house.kinds import HouseKind
 from app.categories.house.items import build_item_cards, describe_age, house_documents
 from app.categories.house.warranty import effective_warranty_expiry
@@ -35,7 +35,7 @@ def house_overview_card(session: Session, today: date) -> CategoryCard:
         ))
 
     missing = sum(
-        1 for e in domain_entries(session, Category.HOUSE)
+        1 for e in category_entries(session, Category.HOUSE)
         if e.paper_kind == HouseKind.WARRANTY_INVOICE.value and effective_warranty_expiry(e.fields) is None
     )
     if missing:

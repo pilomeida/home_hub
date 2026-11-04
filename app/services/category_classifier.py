@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.models.category import Category
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
@@ -57,7 +57,7 @@ def build_system_prompt(domains: Sequence) -> str:
 
 # No stricter than the prompt ("Use null for domain and category") and the
 # parser (.get with defaults for every field — nothing is indexed directly).
-_DOMAIN_SCHEMA = {
+_CATEGORY_SCHEMA = {
     "type": "object",
     "properties": {
         "domain": {"type": ["string", "null"]},
@@ -72,14 +72,14 @@ def _empty(note: str) -> CategorySuggestion:
     return CategorySuggestion(category=None, paper_kind=None, confidence=0.0, note=note)
 
 
-async def suggest_domain_and_category(
+async def suggest_category_and_kind(
     file_path: str,
     context_text: Optional[str] = None,
     *,
     domains: Optional[Sequence] = None,
     gateway=None,
 ) -> CategorySuggestion:
-    specs = list(domains) if domains is not None else implemented_domains()
+    specs = list(domains) if domains is not None else implemented_categories()
     if not is_model_readable(file_path):
         return _empty("This file type can't be read automatically — please choose where it goes.")
 
@@ -94,7 +94,7 @@ async def suggest_domain_and_category(
         build_system_prompt(specs),
         user_text,
         attachments=content,
-        response_schema=_DOMAIN_SCHEMA,
+        response_schema=_CATEGORY_SCHEMA,
     )
 
     try:

@@ -6,7 +6,7 @@ from app.categories.base import (
 )
 from app.models.document import Document, DocumentSource
 from app.models.category import Category
-from tests.domain_fakes import make_fake_spec
+from tests.category_fakes import make_fake_spec
 
 
 def test_category_lookup_and_labels():
@@ -38,8 +38,8 @@ def test_fields_for_filters_by_category_and_media():
     assert [f.key for f in spec.fields_for("clip")] == ["side", "seen_on", "observations"]
 
 
-def test_get_spec_and_unknown_domain(fake_domain):
-    assert registry.get_spec(Category.HOUSE) is fake_domain
+def test_get_spec_and_unknown_domain(fake_category):
+    assert registry.get_spec(Category.HOUSE) is fake_category
     assert registry.is_implemented(Category.HOUSE)
     assert not registry.is_implemented(Category.FINANCIALS)
     assert not registry.is_implemented(None)
@@ -47,7 +47,7 @@ def test_get_spec_and_unknown_domain(fake_domain):
         registry.get_spec(Category.FINANCIALS)
 
 
-def test_document_url_is_none_until_finalized(fake_domain):
+def test_document_url_is_none_until_finalized(fake_category):
     unfinalized = Document(id=7, filename="a.pdf", file_path="/tmp/a.pdf", content_hash="h", source=DocumentSource.MANUAL)
     finalized = Document(id=8, filename="b.pdf", file_path="/tmp/b.pdf", content_hash="h2",
                          source=DocumentSource.MANUAL, category=Category.HOUSE)
@@ -56,12 +56,12 @@ def test_document_url_is_none_until_finalized(fake_domain):
 
 
 def test_registry_loads_spec_modules_in_order(monkeypatch):
-    monkeypatch.setattr(registry, "_SPEC_MODULES", ("tests.domain_fakes",))
+    monkeypatch.setattr(registry, "_SPEC_MODULES", ("tests.category_fakes",))
     monkeypatch.setattr(registry, "_specs_cache", None)
-    assert [s.label for s in registry.implemented_domains()] == ["Fake"]
+    assert [s.label for s in registry.implemented_categories()] == ["Fake"]
 
 
-def test_document_url_points_pending_review_documents_to_the_inbox(fake_domain):
+def test_document_url_points_pending_review_documents_to_the_inbox(fake_category):
     from app.models.document import DocumentStatus
 
     pending = Document(id=9, filename="a.pdf", file_path="/tmp/a.pdf", content_hash="h9",

@@ -223,10 +223,10 @@ def _record_source_label(category: Optional[Category], record: Record) -> str:
     """A hand-entered Record's default log-description source, e.g.
     "Maintenance log (entered by hand) #1" -- the registry's category
     label, not the raw internal category key."""
-    category_label = record.paper_kind
+    kind_label = record.paper_kind
     if category is not None and is_implemented(category):
-        category_label = get_spec(category).kind_label(record.paper_kind) or record.paper_kind
-    return f"{category_label} (entered by hand) #{record.id}"
+        kind_label = get_spec(category).kind_label(record.paper_kind) or record.paper_kind
+    return f"{kind_label} (entered by hand) #{record.id}"
 
 
 def _derived_summary(pairs: Iterable[tuple[str, str]]) -> Optional[str]:
@@ -415,11 +415,11 @@ def visible_summary(session: Session, page: WikiPage, view) -> Optional[str]:
 
 def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
     """`view` (app.privacy.reach.WikiView) hides the pages and claims Ask may not see; None = all."""
-    from app.categories.registry import implemented_domains
+    from app.categories.registry import implemented_categories
 
-    specs = implemented_domains()
-    domain_order = {spec.category: i for i, spec in enumerate(specs)}
-    domain_labels = {spec.category: spec.label for spec in specs}
+    specs = implemented_categories()
+    category_order = {spec.category: i for i, spec in enumerate(specs)}
+    category_labels = {spec.category: spec.label for spec in specs}
     type_labels = {TOPIC_PAGE_TYPE: "Topics", ANSWER_PAGE_TYPE: "Saved answers"}
     for spec in specs:
         for entity_type in spec.wiki.entity_types:
@@ -437,7 +437,7 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
 
     def sort_key(key: tuple[Optional[Category], str]):
         domain, page_type = key
-        return (domain_order.get(domain, len(domain_order)), page_type == TOPIC_PAGE_TYPE,
+        return (category_order.get(domain, len(category_order)), page_type == TOPIC_PAGE_TYPE,
                 type_labels.get(page_type, page_type))
 
     sections = []
@@ -445,7 +445,7 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
         if domain is None:
             domain_label = "General"
         else:
-            domain_label = domain_labels.get(domain, domain.value.replace("_", " ").title())
+            domain_label = category_labels.get(domain, domain.value.replace("_", " ").title())
         sections.append(IndexSection(
             domain_label=domain_label,
             section_label=type_labels.get(page_type, page_type.replace("_", " ").title()),

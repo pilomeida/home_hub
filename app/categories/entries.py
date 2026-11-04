@@ -43,7 +43,7 @@ def record_for_document(session: Session, document: Document) -> Optional[Record
     ).first()
 
 
-def domain_entries(session: Session, category: Category) -> list[SourceEntry]:
+def category_entries(session: Session, category: Category) -> list[SourceEntry]:
     records = list(session.exec(
         select(Record).where(Record.category == category, Record.retired_at.is_(None))
     ).all())

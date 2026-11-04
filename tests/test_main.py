@@ -15,7 +15,7 @@ def test_dashboard_renders(client):
     assert 'href="/financials/utilities/electricity"' in response.text
 
 
-def test_nav_is_built_from_the_registry(client, fake_domain):
+def test_nav_is_built_from_the_registry(client, fake_category):
     response = client.get("/todos")
 
     assert response.status_code == 200

@@ -8,7 +8,7 @@ from sqlmodel import Session
 from app.db import get_session
 from app.problems import Problem, notice_problem, refusal_response
 from app.services.budget_service import get_budget_overview, set_budget
-from app.services.domain_overview import build_domain_cards
+from app.services.category_overview import build_category_cards
 from app.services.household_service import get_household_data
 from app.services.overview_service import get_overview_data, get_period_dependent_data
 from app.templating import templates
@@ -25,7 +25,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
     household = get_household_data(session)
     return templates.TemplateResponse(
         request, "dashboard.html",
-        {"overview": overview, "household": household, "domain_cards": build_domain_cards(session, date.today()),
+        {"overview": overview, "household": household, "domain_cards": build_category_cards(session, date.today()),
          "today": date.today(), **_budget_context(session, "month")},
     )
 

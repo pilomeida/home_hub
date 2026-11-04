@@ -9,10 +9,10 @@ from app.models.category import Category
 from app.models.inbox_item import InboxItem
 from app.models.wiki import WikiClaim, WikiLogEntry, WikiOperation, WikiPage
 from app.services import inbox_service
-from app.services.domain_classifier import CategorySuggestion
+from app.services.category_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 
-pytestmark = pytest.mark.usefixtures("two_domains", "inbox_documents_dir")
+pytestmark = pytest.mark.usefixtures("two_categories", "inbox_documents_dir")
 
 
 def _classifier(suggestion):
@@ -35,7 +35,7 @@ def _review_logs(session):
 
 
 @pytest.mark.asyncio
-async def test_receive_creates_unfinalized_pending_review_document(session, two_domains):
+async def test_receive_creates_unfinalized_pending_review_document(session, two_categories):
     receipt = await _receive(session)
 
     doc = receipt.document
@@ -44,9 +44,9 @@ async def test_receive_creates_unfinalized_pending_review_document(session, two_
     assert doc.category is None and doc.paper_kind is None
     assert doc.source == DocumentSource.TELEGRAM and doc.uploaded_by == "Rute (Telegram)"
     item = receipt.inbox_item
-    assert (item.suggested_domain, item.suggested_category, item.confidence) == ("house", "manual", 0.95)
+    assert (item.suggested_domain, item.suggested_paper_kind, item.confidence) == ("house", "manual", 0.95)
     # Nothing finalized, nothing in the wiki (not even a log line), before approval.
-    assert two_domains["house"].handler.processed == []
+    assert two_categories["house"].handler.processed == []
     assert session.exec(select(WikiPage)).all() == []
     assert session.exec(select(WikiClaim)).all() == []
     assert session.exec(select(WikiLogEntry)).all() == []
@@ -94,7 +94,7 @@ async def test_stale_suggested_domain_is_ignored(session):
 
 
 @pytest.mark.asyncio
-async def test_approve_finalizes_with_fields_and_logs_review(session, two_domains):
+async def test_approve_finalizes_with_fields_and_logs_review(session, two_categories):
     receipt = await _receive(session)
 
     doc = await inbox_service.approve(
@@ -105,7 +105,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_domain
     assert doc.category == Category.HOUSE and doc.paper_kind == "manual"
     assert load_fields(doc) == {"item_name": "Boiler"}
     assert doc.status == DocumentStatus.PROCESSED
-    assert two_domains["house"].handler.processed == [doc.id]
+    assert two_categories["house"].handler.processed == [doc.id]
     item = inbox_service.item_for(session, doc.id)
     assert item.reviewed_by == "pedro@example.com" and item.reviewed_at is not None
     [log] = _review_logs(session)
@@ -114,7 +114,7 @@ async def test_approve_finalizes_with_fields_and_logs_review(session, two_domain
 
 
 @pytest.mark.asyncio
-async def test_approve_into_record_category_creates_record_with_file_attached(session, two_domains):
+async def test_approve_into_record_category_creates_record_with_file_attached(session, two_categories):
     from app.categories.entries import record_for_document
 
     receipt = await _receive(session, filename="service-invoice.pdf")
@@ -132,16 +132,16 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
 
 
 @pytest.mark.asyncio
-async def test_approve_with_inferred_category(session, two_domains):
+async def test_approve_with_inferred_category(session, two_categories):
     receipt = await _receive(session, suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "x"))
     doc = await inbox_service.approve(session, receipt.document.id, domain_value="financials",
                                       paper_kind=None, fields={}, reviewed_by=None)
     assert doc.category == Category.FINANCIALS and doc.paper_kind is None
-    assert two_domains["money"].handler.processed == [doc.id]
+    assert two_categories["money"].handler.processed == [doc.id]
 
 
 @pytest.mark.asyncio
-async def test_approve_invalid_leaves_document_untouched(session, two_domains):
+async def test_approve_invalid_leaves_document_untouched(session, two_categories):
     receipt = await _receive(session)
     with pytest.raises(InvalidClassification) as missing_field:
         await inbox_service.approve(session, receipt.document.id, domain_value="house",
@@ -158,7 +158,7 @@ async def test_approve_invalid_leaves_document_untouched(session, two_domains):
 
     session.refresh(receipt.document)
     assert receipt.document.status == DocumentStatus.PENDING_REVIEW and receipt.document.category is None
-    assert two_domains["house"].handler.processed == []
+    assert two_categories["house"].handler.processed == []
     assert _review_logs(session) == []
     assert inbox_service.item_for(session, receipt.document.id).reviewed_at is None
 
@@ -174,13 +174,13 @@ async def test_approve_twice_is_refused(session):
 
 
 @pytest.mark.asyncio
-async def test_discard_keeps_row_and_file_and_logs_review(session, two_domains):
+async def test_discard_keeps_row_and_file_and_logs_review(session, two_categories):
     receipt = await _receive(session)
     doc = inbox_service.discard(session, receipt.document.id, reviewed_by="rute@example.com")
 
     assert doc.status == DocumentStatus.DISCARDED and doc.category is None
     assert Path(doc.file_path).exists()
-    assert two_domains["house"].handler.processed == []
+    assert two_categories["house"].handler.processed == []
     [log] = session.exec(select(WikiLogEntry)).all()
     assert log.operation == WikiOperation.REVIEW and log.description.startswith("Discarded warranty.pdf")
     assert inbox_service.pending_entries(session) == []

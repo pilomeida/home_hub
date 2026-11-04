@@ -72,7 +72,7 @@ def _house_document(session, name="boiler-warranty.pdf", content_hash="hw1"):
     return document
 
 
-def test_wiki_index_groups_and_summarises(client, session, fake_domain):
+def test_wiki_index_groups_and_summarises(client, session, fake_category):
     ref = PageRef("fake.item", "Boiler", "boiler")
     wiki_store.apply_claims(session, [ClaimInput(ref, "room", "Kitchen", label="Room")], document=_house_document(session))
 
@@ -83,7 +83,7 @@ def test_wiki_index_groups_and_summarises(client, session, fake_domain):
     assert 'href="/wiki/log"' in response.text
 
 
-def test_wiki_index_and_page_humanize_a_claim_missing_a_label(client, session, fake_domain):
+def test_wiki_index_and_page_humanize_a_claim_missing_a_label(client, session, fake_category):
     ref = PageRef("fake.item", "Boiler", "boiler")
     wiki_store.apply_claims(session, [ClaimInput(ref, "statement_period", "2026-08")], document=_house_document(session))
     page = wiki_store.find_page(session, ref)
@@ -97,7 +97,7 @@ def test_wiki_index_and_page_humanize_a_claim_missing_a_label(client, session, f
     assert "<td>statement_period</td>" not in page_response.text
 
 
-def test_wiki_page_shows_claims_sources_and_superseded_history(client, session, fake_domain):
+def test_wiki_page_shows_claims_sources_and_superseded_history(client, session, fake_category):
     ref = PageRef("fake.item", "Boiler", "boiler")
     first = _house_document(session)
     second = _house_document(session, "boiler-extended.pdf", "hw2")
@@ -136,7 +136,7 @@ def test_wiki_log_shows_a_friendly_datetime_not_the_raw_one(client, session):
     assert "09:05:52.222395" not in response.text
 
 
-def test_wiki_page_lists_links_both_ways(client, session, fake_domain):
+def test_wiki_page_lists_links_both_ways(client, session, fake_category):
     from app.services.wiki_store import LinkInput
 
     kitchen = PageRef("fake.room", "Kitchen", "kitchen")

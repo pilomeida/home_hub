@@ -4,16 +4,16 @@ from datetime import date
 from app.categories import registry
 from app.models.category import Category
 from app.models.todo import Todo
-from app.services.domain_overview import build_domain_cards
-from tests.domain_fakes import make_fake_spec
+from app.services.category_overview import build_category_cards
+from tests.category_fakes import make_fake_spec
 
 
-def test_one_card_per_domain_with_open_todo_count(session, fake_domain):
+def test_one_card_per_domain_with_open_todo_count(session, fake_category):
     session.add(Todo(title="a", category=Category.HOUSE))
     session.add(Todo(title="b", category=Category.HOUSE, done=True))
     session.commit()
 
-    cards = build_domain_cards(session, date(2026, 9, 24))
+    cards = build_category_cards(session, date(2026, 9, 24))
 
     assert [(c.label, c.open_todos) for c in cards] == [("Fake", 1)]
     assert cards[0].lines[0].text == "fake line"
@@ -26,7 +26,7 @@ def test_a_failing_card_does_not_break_the_overview(session, monkeypatch):
     spec = dataclasses.replace(make_fake_spec(), overview_card=broken)
     monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
 
-    cards = build_domain_cards(session, date(2026, 9, 24))
+    cards = build_category_cards(session, date(2026, 9, 24))
 
     assert cards[0].label == "Fake" and cards[0].url == "/fake"
     assert cards[0].lines[0].attention is True

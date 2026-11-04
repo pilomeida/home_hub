@@ -4,7 +4,7 @@ import pytest
 
 from app.models.category import Category
 from app.models.todo import Todo
-from app.services.todo_backlog import add_todo, backlog_context, open_todo_count, open_todos_for_domain
+from app.services.todo_backlog import add_todo, backlog_context, open_todo_count, open_todos_for_category
 
 
 def test_open_todos_for_domain_filters_and_orders(session):
@@ -15,7 +15,7 @@ def test_open_todos_for_domain_filters_and_orders(session):
     session.add(Todo(title="money", category=Category.FINANCIALS))
     session.commit()
 
-    titles = [t.title for t in open_todos_for_domain(session, Category.HOUSE)]
+    titles = [t.title for t in open_todos_for_category(session, Category.HOUSE)]
 
     assert titles == ["sooner house", "later house", "undated house"]
     assert open_todo_count(session, Category.HOUSE) == 3

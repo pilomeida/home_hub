@@ -9,7 +9,7 @@ from app.models.category import Category
 from app.models.todo import Todo
 from app.services.ask import tools as ask_tools
 from app.services.ask.contracts import AskTool, ToolOutput
-from tests.domain_fakes import make_fake_spec
+from tests.category_fakes import make_fake_spec
 from tests.knowledge_factories import make_claim, make_document, make_link, make_page, make_record
 
 
@@ -17,7 +17,7 @@ def _tool(name):
     return next(t for t in ask_tools.core_tools() if t.name == name)
 
 
-def test_settled_entries_are_processed_documents_and_live_records(session, fake_domain):
+def test_settled_entries_are_processed_documents_and_live_records(session, fake_category):
     ok = make_document(session, filename="manual.pdf")
     make_document(session, filename="inbox.pdf", category=None, paper_kind=None, status=DocumentStatus.PENDING_REVIEW)
     make_document(session, filename="broken.pdf", status=DocumentStatus.NEEDS_ATTENTION)
@@ -27,7 +27,7 @@ def test_settled_entries_are_processed_documents_and_live_records(session, fake_
     assert {(e.kind.value, (e.record or e.document).id) for e in entries} == {("document", ok.id), ("record", visit.id)}
 
 
-def test_read_wiki_pages_notes_sources_withdrawn_links_and_neighbours(session, fake_domain):
+def test_read_wiki_pages_notes_sources_withdrawn_links_and_neighbours(session, fake_category):
     doc = make_document(session, filename="warranty.pdf")
     old_doc = make_document(session, filename="old.pdf")
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"})
@@ -51,7 +51,7 @@ def test_read_wiki_pages_notes_sources_withdrawn_links_and_neighbours(session, f
     assert next(c for c in out.citables if c.ref == f"rec:{visit.id}").url == f"/fake/records/{visit.id}"
 
 
-def test_find_sources_searches_documents_and_records_accent_insensitive(session, fake_domain):
+def test_find_sources_searches_documents_and_records_accent_insensitive(session, fake_category):
     hit = make_document(session, filename="caldeira.pdf", fields={"item_name": "Caldeira Vaillant"})
     visit = make_record(session, fields={"item_name": "Caldeira Vaillant", "visit_date": "2026-03-02"})
     make_document(session, filename="lawnmower.pdf", fields={"item_name": "Lawnmower"})
@@ -65,14 +65,14 @@ def test_find_sources_searches_documents_and_records_accent_insensitive(session,
     assert out.used_raw_sources is True
 
 
-def test_find_sources_shows_a_records_attachment_for_reading(session, fake_domain):
+def test_find_sources_shows_a_records_attachment_for_reading(session, fake_category):
     pdf = make_document(session, filename="invoice.pdf", paper_kind="visit")
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"}, document_id=pdf.id)
     out = _tool("find_sources").run(session, {"query": "boiler"})
     assert f"rec:{visit.id}" in out.text and f"attachment doc:{pdf.id}" in out.text
 
 
-def test_read_document_file_refuses_unsettled_and_attaches_settled(session, fake_domain, tmp_path):
+def test_read_document_file_refuses_unsettled_and_attaches_settled(session, fake_category, tmp_path):
     pdf = tmp_path / "w.pdf"
     pdf.write_bytes(b"%PDF-1.4 fake")
     good = make_document(session, filename="w.pdf", file_path=str(pdf))
@@ -84,7 +84,7 @@ def test_read_document_file_refuses_unsettled_and_attaches_settled(session, fake
     assert out.content_blocks[0]["type"] == "document" and out.used_raw_sources is True
 
 
-def test_read_document_file_video_is_a_soft_error(session, fake_domain, tmp_path):
+def test_read_document_file_video_is_a_soft_error(session, fake_category, tmp_path):
     vid = tmp_path / "pipes.mp4"
     vid.write_bytes(b"0000")
     doc = make_document(session, filename="pipes.mp4", file_path=str(vid), paper_kind="clip")
@@ -92,7 +92,7 @@ def test_read_document_file_video_is_a_soft_error(session, fake_domain, tmp_path
     assert out.is_error and "details" in out.text
 
 
-def test_list_todos_open_only_and_links_to_domain_backlog(session, fake_domain):
+def test_list_todos_open_only_and_links_to_domain_backlog(session, fake_category):
     session.add(Todo(title="Renew boiler warranty", category=Category.HOUSE))
     session.add(Todo(title="Old", done=True, category=Category.HOUSE))
     session.commit()
@@ -107,4 +107,4 @@ def test_domain_tools_must_be_prefixed(monkeypatch):
     spec = dataclasses.replace(make_fake_spec(), ask_tools=(bad,))
     monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     with pytest.raises(ValueError):
-        ask_tools.domain_tools()
+        ask_tools.category_tools()

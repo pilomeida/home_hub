@@ -13,7 +13,7 @@ from sqlmodel import Session
 from app.db import get_session
 from app.categories.fields import InvalidClassification, build_form_fields, file_url, media_kind_for
 from app.categories.entries import record_for_document
-from app.categories.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
+from app.categories.registry import document_url, get_spec, implemented_categories, is_implemented, record_url
 from app.models.category import Category
 from app.privacy.recognise import original_sender
 from app.privacy.settings import TierHeld
@@ -47,7 +47,7 @@ def _fields_context(session: Session, entry, domain_value: Optional[str], paper_
     )
     return {
         "entry": entry,
-        "domains": implemented_domains(),
+        "domains": implemented_categories(),
         "selected_spec": spec,
         "selected_domain": spec.category.value if spec else "",
         "selected_category": paper_kind or "",
@@ -60,7 +60,7 @@ def _card_context(session: Session, entry, *, domain_value=None, paper_kind=None
                   values=None, errors=None) -> dict:
     if domain_value is None and entry.confident:  # confident => pre-filled
         domain_value = entry.item.suggested_domain
-        paper_kind = entry.item.suggested_category
+        paper_kind = entry.item.suggested_paper_kind
     return {
         "file_href": file_url(entry.document),
         "original_sender": original_sender(entry.item.context_text),

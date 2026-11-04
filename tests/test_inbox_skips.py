@@ -15,7 +15,7 @@ from app.models.document import DocumentSource
 from app.models.category import Category
 from app.models.inbox_item import InboxSkip
 from app.services import inbox_service
-from app.services.domain_classifier import CategorySuggestion
+from app.services.category_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 from tests.test_email_poller import ALLOWED, FakeMailbox
 
@@ -101,7 +101,7 @@ async def test_the_poller_records_decorative_images_and_counts_them(engine):
         assert (skip.filename, skip.source, skip.reason) == ("image001.png", "email", "decorative")
 
 
-@pytest.mark.usefixtures("two_domains", "inbox_documents_dir")
+@pytest.mark.usefixtures("two_categories", "inbox_documents_dir")
 @pytest.mark.asyncio
 async def test_an_exact_copy_of_a_held_document_is_recorded_with_where_it_already_is(session):
     async def classify(file_path, context_text=None):
@@ -120,7 +120,7 @@ async def test_an_exact_copy_of_a_held_document_is_recorded_with_where_it_alread
     assert len(session.exec(select(InboxSkip)).all()) == 1
 
 
-@pytest.mark.usefixtures("two_domains", "inbox_documents_dir")
+@pytest.mark.usefixtures("two_categories", "inbox_documents_dir")
 def test_the_inbox_page_lists_what_was_not_added_and_why(client, session):
     inbox_service.record_skip(session, filename="image001.png", source="email", reason="decorative",
                               detail="Not added: a small image embedded in the email body (logo, banner or signature), not a document.")

@@ -12,7 +12,7 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.categories.base import CategorySpec, SourceKind
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.models.wiki import ANSWER_PAGE_TYPE, WikiClaim, WikiPage
 from app.models.wiki_lint import LintFindingKind
 from app.privacy.ratchet import ratchet_scope
@@ -94,7 +94,7 @@ def _schema_text(spec: CategorySpec) -> str:
     return "\n".join(lines)
 
 
-def build_domain_payload(session: Session, spec: CategorySpec, reach: Optional[Reach] = None) -> CategoryPayload:
+def build_category_payload(session: Session, spec: CategorySpec, reach: Optional[Reach] = None) -> CategoryPayload:
     """What the AI audit is shown. While levels are binding (app/privacy/reach.py) that is only the pages,
     claims and sources of types the audit may read: a claim derived from any withheld source is left out,
     a page whose claims are all left out is left out, and the audit's ids can only name what it was shown.
@@ -130,12 +130,12 @@ def build_domain_payload(session: Session, spec: CategorySpec, reach: Optional[R
     return CategoryPayload("\n".join(lines), {p.id for p in pages}, claims, doc_ids, rec_ids)
 
 
-async def check_domain(session: Session, spec: CategorySpec, gateway=None) -> list[FindingDraft]:
+async def check_category(session: Session, spec: CategorySpec, gateway=None) -> list[FindingDraft]:
     reach = reach_for(session)
-    private = reach.domain_has_private(spec.category)
+    private = reach.category_has_private(spec.category)
     # A domain that holds private records is audited as a whole at High; every other domain is audited
     # from a view without them (a claim with any private source is left out, D16/D18).
-    payload = build_domain_payload(session, spec, reach=reach if private else reach.without_private())
+    payload = build_category_payload(session, spec, reach=reach if private else reach.without_private())
     if not payload.page_ids and not payload.document_ids and not payload.record_ids:
         return []
     gw = gateway or get_gateway()
@@ -168,9 +168,9 @@ async def check_domain(session: Session, spec: CategorySpec, gateway=None) -> li
 async def run_llm_checks(session: Session, gateway=None) -> tuple[list[FindingDraft], list[str]]:
     gw = gateway or get_gateway()
     drafts, errors = [], []
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         try:
-            drafts += await check_domain(session, spec, gw)
+            drafts += await check_category(session, spec, gw)
         except Exception as exc:  # one domain's failure must not sink the run
             logger.exception("Lint LLM audit failed for %s", spec.category.value)
             errors.append(f"{spec.label}: {exc}")

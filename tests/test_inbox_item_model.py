@@ -29,7 +29,7 @@ def test_inbox_item_round_trip(session):
     item = InboxItem(
         document_id=document.id, context_text="Telegram caption: boiler warranty",
         external_ref="telegram:1:2", suggested_domain="some_future_domain",
-        suggested_category="anything", confidence=0.91, classifier_note="looks like it",
+        suggested_paper_kind="anything", confidence=0.91, classifier_note="looks like it",
     )
     session.add(item)
     session.commit()

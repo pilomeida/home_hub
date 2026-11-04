@@ -6,13 +6,13 @@ from datetime import date
 from sqlmodel import Session
 
 from app.categories.base import CardLine, CategoryCard
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.services.todo_backlog import open_todo_count
 
 
-def build_domain_cards(session: Session, today: date) -> list[CategoryCard]:
+def build_category_cards(session: Session, today: date) -> list[CategoryCard]:
     cards = []
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         try:
             card = spec.overview_card(session, today)
         except Exception as exc:

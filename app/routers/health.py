@@ -133,7 +133,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     legacy_bill = document.paper_kind in LEGACY_KINDS        # filed as a bill before bills left Health: it still opens
     description = describe_document(document)
     if legacy_bill:
-        description.category_label = LEGACY_LABELS[document.paper_kind]
+        description.kind_label = LEGACY_LABELS[document.paper_kind]
     return {"document": document, "description": description, "legacy_bill": legacy_bill,
             "bill_refused": document.status == DocumentStatus.NEEDS_ATTENTION and is_health_bill_refusal(document.failure_reason), "media_kind": media_kind.value,
             "entry": entry, "measurements": measurements, "is_report": is_report, "path_sep": PATH_SEP,

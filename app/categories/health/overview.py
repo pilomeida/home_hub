@@ -6,12 +6,12 @@ from sqlmodel import Session
 
 from app.categories.base import CardLine, CategoryCard
 from app.categories.health.browse import facets
-from app.categories.entries import domain_entries
+from app.categories.entries import category_entries
 from app.models.category import Category
 
 
 def health_overview_card(session: Session, today: date) -> CategoryCard:
-    n = len(domain_entries(session, Category.HEALTH))
+    n = len(category_entries(session, Category.HEALTH))
     f = facets(session)
     lines = [CardLine(text=f"{n} record{'s' if n != 1 else ''} on file", url="/health/records")]
     if f.needs_check:

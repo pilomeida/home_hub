@@ -14,7 +14,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.categories.entries import SourceEntry, domain_entries
+from app.categories.entries import SourceEntry, category_entries
 from app.categories.fields import field_date
 from app.categories.house.kinds import (
     ITEM_KINDS, ITEM_TYPE_KINDS, ITEM_PAGE_TYPE, HouseKind,
@@ -79,7 +79,7 @@ def _later(current: Optional[date], candidate: Optional[date]) -> Optional[date]
 
 def build_item_cards(session: Session) -> list[ItemCard]:
     cards: dict[str, ItemCard] = {}
-    for entry in domain_entries(session, Category.HOUSE):
+    for entry in category_entries(session, Category.HOUSE):
         if entry.paper_kind not in ITEM_KINDS:
             continue
         fields = entry.fields
@@ -121,7 +121,7 @@ def group_item_cards(cards: list[ItemCard], group_by: str) -> list[tuple[str, li
 
 
 def reference_sections(session: Session) -> list[tuple[str, list[SourceEntry]]]:
-    entries = domain_entries(session, Category.HOUSE)
+    entries = category_entries(session, Category.HOUSE)
     return [
         (title, [e for e in entries if e.paper_kind == category])
         for category, title in REFERENCE_TITLES.items()

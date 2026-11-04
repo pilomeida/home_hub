@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from app.categories.base import SourceKind
 from app.categories.fields import effective_fields, load_fields
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.models.record import Record
 from app.models.wiki import ANSWER_PAGE_TYPE, ClaimStatus, WikiClaim, WikiLink, WikiLogEntry, WikiOperation, WikiPage
 from app.models.wiki_lint import LintFindingKind
@@ -76,7 +76,7 @@ def find_missing_links(session: Session) -> list[FindingDraft]:
 
 def find_stale_links(session: Session) -> list[FindingDraft]:
     drafts = []
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         for entity_type in spec.wiki.entity_types:
             for link in entity_type.links:
                 for page in session.exec(select(WikiPage).where(WikiPage.page_type == entity_type.page_type)).all():
@@ -113,7 +113,7 @@ def find_uningested_sources(session: Session) -> list[FindingDraft]:
     doc_ids = {e.document_id for e in logs if e.document_id}
     rec_ids = {e.record_id for e in logs if e.record_id}
     drafts = []
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         missing_docs, missing_recs = [], []
         for entry in settled_entries(session, spec.category):
             if entry.kind == SourceKind.RECORD:

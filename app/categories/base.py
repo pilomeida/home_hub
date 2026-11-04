@@ -148,7 +148,7 @@ class CategoryCard:
     label: str
     url: str
     lines: list[CardLine] = field(default_factory=list)
-    open_todos: int = 0  # filled in by app.services.domain_overview, never by the domain
+    open_todos: int = 0  # filled in by app.services.category_overview, never by the domain
 
 
 class CategoryHandler:

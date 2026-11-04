@@ -7,7 +7,7 @@ import pytest
 import jsonschema
 
 from app.categories.house import warranty
-from app.services import classification_engine, domain_classifier, wiki_engine
+from app.services import classification_engine, category_classifier, wiki_engine
 from app.services import extraction
 from app.services.wiki_lint import llm_checks
 
@@ -115,10 +115,10 @@ def test_findings_schema_allows_null_and_missing_optional_fields():
 
 
 def test_domain_schema_allows_null_and_missing_fields():
-    _validate(domain_classifier._DOMAIN_SCHEMA, {
+    _validate(category_classifier._CATEGORY_SCHEMA, {
         "domain": None, "category": None, "confidence": None, "reason": None,
     })
-    _validate(domain_classifier._DOMAIN_SCHEMA, {})
+    _validate(category_classifier._CATEGORY_SCHEMA, {})
 
 
 # --- _WIKI_SCHEMA / _MERCHANT_SCHEMA: parser indexes these directly ------

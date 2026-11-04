@@ -8,7 +8,7 @@ from app.services import ingestion
 from app.services.ingestion import (
     AlreadyFinalizedError, Classification, IncomingFile, NotFinalizedError,
 )
-from tests.domain_fakes import RecordingHandler, make_fake_spec
+from tests.category_fakes import RecordingHandler, make_fake_spec
 
 
 @pytest.fixture()
@@ -51,7 +51,7 @@ def test_receive_file_honours_initial_status(session, documents_dir):
 
 
 @pytest.mark.asyncio
-async def test_finalize_tags_document_and_dispatches_to_handler(session, documents_dir, fake_domain):
+async def test_finalize_tags_document_and_dispatches_to_handler(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming()).document
 
     result = await ingestion.finalize_document(
@@ -62,11 +62,11 @@ async def test_finalize_tags_document_and_dispatches_to_handler(session, documen
     assert result.category == Category.HOUSE
     assert result.paper_kind == "manual"
     assert load_fields(result) == {"item_name": "Boiler"}
-    assert fake_domain.handler.processed == [document.id]
+    assert fake_category.handler.processed == [document.id]
 
 
 @pytest.mark.asyncio
-async def test_finalize_rejects_invalid_classification_without_mutating(session, documents_dir, fake_domain):
+async def test_finalize_rejects_invalid_classification_without_mutating(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming()).document
 
     with pytest.raises(InvalidClassification) as unknown_category:
@@ -83,11 +83,11 @@ async def test_finalize_rejects_invalid_classification_without_mutating(session,
 
     session.refresh(document)
     assert document.category is None and document.status == DocumentStatus.PENDING
-    assert fake_domain.handler.processed == []
+    assert fake_category.handler.processed == []
 
 
 @pytest.mark.asyncio
-async def test_finalize_rejects_a_file_type_the_category_does_not_accept(session, documents_dir, fake_domain):
+async def test_finalize_rejects_a_file_type_the_category_does_not_accept(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming(name="walkthrough.mp4")).document
     with pytest.raises(InvalidClassification) as exc:
         await ingestion.finalize_document(session, document, Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))
@@ -95,7 +95,7 @@ async def test_finalize_rejects_a_file_type_the_category_does_not_accept(session
 
 
 @pytest.mark.asyncio
-async def test_finalize_refuses_an_already_processed_document(session, documents_dir, fake_domain):
+async def test_finalize_refuses_an_already_processed_document(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming()).document
     await ingestion.finalize_document(session, document, Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))
     with pytest.raises(AlreadyFinalizedError):
@@ -138,27 +138,27 @@ async def test_finalize_allows_missing_category_when_domain_infers_it(session, d
 
 
 @pytest.mark.asyncio
-async def test_update_document_fields_validates_saves_and_notifies_handler(session, documents_dir, fake_domain):
+async def test_update_document_fields_validates_saves_and_notifies_handler(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming()).document
     await ingestion.finalize_document(session, document, Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))
 
     updated = await ingestion.update_document_fields(session, document, {"item_name": "Boiler", "seen_on": "2026-05-01"})
 
     assert load_fields(updated) == {"item_name": "Boiler", "seen_on": "2026-05-01"}
-    assert fake_domain.handler.changed == [(document.id, {"item_name": "Boiler"})]
+    assert fake_category.handler.changed == [(document.id, {"item_name": "Boiler"})]
     with pytest.raises(InvalidClassification):
         await ingestion.update_document_fields(session, document, {"item_name": ""})
 
 
 @pytest.mark.asyncio
-async def test_update_document_fields_requires_a_finalized_document(session, documents_dir, fake_domain):
+async def test_update_document_fields_requires_a_finalized_document(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming()).document
     with pytest.raises(NotFinalizedError):
         await ingestion.update_document_fields(session, document, {"item_name": "Boiler"})
 
 
 @pytest.mark.asyncio
-async def test_ingest_validates_first_then_receives_and_finalizes(session, documents_dir, fake_domain):
+async def test_ingest_validates_first_then_receives_and_finalizes(session, documents_dir, fake_category):
     with pytest.raises(InvalidClassification):
         await ingestion.ingest(session, _incoming(), Classification(Category.HOUSE, "manual", {}))
     assert not documents_dir.exists() or list(documents_dir.iterdir()) == []
@@ -168,7 +168,7 @@ async def test_ingest_validates_first_then_receives_and_finalizes(session, docum
 
     assert first.duplicate is False and first.document.status == DocumentStatus.PROCESSED
     assert again.duplicate is True and again.document.id == first.document.id
-    assert fake_domain.handler.processed == [first.document.id]
+    assert fake_category.handler.processed == [first.document.id]
 
 
 from app.categories.entries import record_for_document
@@ -179,7 +179,7 @@ from app.services.ingestion import RecordInput, RefileRefusedError
 
 
 @pytest.mark.asyncio
-async def test_hand_entered_record_without_a_file(session, documents_dir, fake_domain):
+async def test_hand_entered_record_without_a_file(session, documents_dir, fake_category):
     record = await ingestion.create_record(session, RecordInput(
         Category.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}, entered_by="pedro@example.com",
     ))
@@ -190,7 +190,7 @@ async def test_hand_entered_record_without_a_file(session, documents_dir, fake_d
 
 
 @pytest.mark.asyncio
-async def test_record_with_attachment_and_later_attachment(session, documents_dir, fake_domain):
+async def test_record_with_attachment_and_later_attachment(session, documents_dir, fake_category):
     with_file = await ingestion.create_record(session, RecordInput(
         Category.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}, attachment=_incoming("r.pdf", b"r"),
     ))
@@ -204,14 +204,14 @@ async def test_record_with_attachment_and_later_attachment(session, documents_di
 
 
 @pytest.mark.asyncio
-async def test_record_categories_reject_document_only_use_and_vice_versa(session, documents_dir, fake_domain):
+async def test_record_categories_reject_document_only_use_and_vice_versa(session, documents_dir, fake_category):
     with pytest.raises(InvalidClassification) as needs_file:
         await ingestion.create_record(session, RecordInput(Category.HOUSE, "manual", {"item_name": "Boiler"}))
     assert "category" in needs_file.value.errors
 
 
 @pytest.mark.asyncio
-async def test_finalizing_a_file_into_a_record_category_creates_the_record(session, documents_dir, fake_domain):
+async def test_finalizing_a_file_into_a_record_category_creates_the_record(session, documents_dir, fake_category):
     document = ingestion.receive_file(session, _incoming("service.pdf", b"s")).document
     result = await ingestion.finalize_document(session, document, Classification(Category.HOUSE, "visit",
                                                                                   {"item_name": "Boiler", "visit_date": "2026-01-01"}))
@@ -222,7 +222,7 @@ async def test_finalizing_a_file_into_a_record_category_creates_the_record(sessi
 
 
 @pytest.mark.asyncio
-async def test_refile_document_withdraws_then_refiles_and_logs_edit(session, documents_dir, fake_domain):
+async def test_refile_document_withdraws_then_refiles_and_logs_edit(session, documents_dir, fake_category):
     document = (await ingestion.ingest(session, _incoming(), Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))).document
     session.add(Todo(title="derived", document_id=document.id))
     session.add(Todo(title="history", document_id=document.id, done=True))
@@ -255,7 +255,7 @@ async def test_refile_is_refused_when_the_old_handler_blocks_it(session, documen
 
 
 @pytest.mark.asyncio
-async def test_refile_record_to_a_document_category_needs_its_file(session, documents_dir, fake_domain):
+async def test_refile_record_to_a_document_category_needs_its_file(session, documents_dir, fake_category):
     by_hand = await ingestion.create_record(session, RecordInput(Category.HOUSE, "visit", {"item_name": "Boiler", "visit_date": "2026-03-01"}))
     with pytest.raises(RefileRefusedError):
         await ingestion.refile_record(session, by_hand, Classification(Category.HOUSE, "manual", {"item_name": "Boiler"}))

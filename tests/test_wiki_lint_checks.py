@@ -8,7 +8,7 @@ from app.models.wiki import ANSWER_PAGE_TYPE
 from app.models.wiki_lint import LintFindingKind
 from app.services.wiki_lint import checks
 from app.services.wiki_lint.findings import FindingDraft
-from tests.domain_fakes import make_fake_spec
+from tests.category_fakes import make_fake_spec
 from tests.knowledge_factories import (
     make_claim, make_document, make_ingest_log, make_link, make_page, make_record,
 )
@@ -28,7 +28,7 @@ def test_orphan_pages(session):
     assert [f.wiki_page_ids for f in checks.find_orphan_pages(session)] == [(lonely.id,)]
 
 
-def test_unsourced_claims_include_withdrawn_only_and_skip_records_answers_superseded(session, fake_domain):
+def test_unsourced_claims_include_withdrawn_only_and_skip_records_answers_superseded(session, fake_category):
     doc, old = make_document(session, filename="a.pdf"), make_document(session, filename="old.pdf")
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"})
     page = make_page(session, "Boiler")
@@ -93,7 +93,7 @@ def test_withdrawn_source_does_not_decide_the_current_link_target(session, monke
     assert checks.find_stale_links(session) == []
 
 
-def test_uningested_sources_cover_documents_and_records(session, fake_domain):
+def test_uningested_sources_cover_documents_and_records(session, fake_category):
     done_doc = make_document(session, filename="a.pdf")
     make_ingest_log(session, done_doc)
     missing_doc = make_document(session, filename="b.pdf")

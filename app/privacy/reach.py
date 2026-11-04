@@ -210,10 +210,10 @@ class Reach:
         return any(a.private for a in self.access.values()) or any(
             i.category in ps.FORCED_TIERS for i in ps.known_types())
 
-    def domain_has_private(self, category: object) -> bool:
+    def category_has_private(self, category: object) -> bool:
         return any(self.is_private_type(category, i.paper_kind) for i in ps.known_types() if i.category == ps._s(category))
 
-    def domain_is_private(self, category: object) -> bool:
+    def category_is_private(self, category: object) -> bool:
         cats = [i.paper_kind for i in ps.known_types() if i.category == ps._s(category)]
         return bool(cats) and all(self.is_private_type(category, c) for c in cats)
 

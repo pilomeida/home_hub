@@ -87,8 +87,8 @@ def reply_for(receipt: InboxReceipt, base_url: str, session: Session) -> str:
     item = receipt.inbox_item
     if item is not None and is_confident(item):
         domain = suggested_domain(item)
-        label = describe(domain, item.suggested_category)
-        label = channel_label(session, domain, item.suggested_category, label)
+        label = describe(domain, item.suggested_paper_kind)
+        label = channel_label(session, domain, item.suggested_paper_kind, label)
         return f"Got it — looks like {label}. Approve it in the Inbox: {inbox_url}"
     return f"Got it — I'm not sure where this belongs. Please sort it in the Inbox: {inbox_url}"
 

@@ -316,7 +316,7 @@ def test_detach_positions_helper_touches_only_that_document(session, tmp_path):
 def test_new_categories_registered_but_not_offered_to_the_classifier():
     from app.categories.registry import get_spec
     from app.models.category import Category
-    from app.services.domain_classifier import build_system_prompt
+    from app.services.category_classifier import build_system_prompt
     spec = get_spec(Category.FINANCIALS)
     assert {"statement_positions", "loan_history"} <= {c.value for c in spec.kinds}
     prompt = build_system_prompt([spec])

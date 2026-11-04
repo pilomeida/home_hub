@@ -10,7 +10,7 @@ from typing import Optional
 
 from sqlmodel import Session, func, select
 
-from app.categories.registry import implemented_domains
+from app.categories.registry import implemented_categories
 from app.models.document import Document, DocumentStatus
 from app.models.inbox_item import InboxItem
 from app.privacy.reach import LeftOut, Reach, reach_for
@@ -46,7 +46,7 @@ def _pending_count(session: Session, reach: Reach) -> int:
     if not reach.binding:
         return session.exec(select(func.count()).select_from(Document)
                             .where(Document.status == DocumentStatus.PENDING_REVIEW)).one()
-    rows = session.exec(select(InboxItem.suggested_domain, InboxItem.suggested_category)
+    rows = session.exec(select(InboxItem.suggested_domain, InboxItem.suggested_paper_kind)
                         .join(Document, Document.id == InboxItem.document_id)
                         .where(Document.status == DocumentStatus.PENDING_REVIEW)).all()
     return sum(1 for domain, category in rows if reach.includes_type(domain, category))
@@ -75,10 +75,10 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
                             "the records below may be incomplete. If a question could depend on them, say the answer "
                             "may be incomplete rather than saying nothing exists.")
 
-    domain_lines = ["Domains:"]
-    for spec in implemented_domains():
-        if reach.domain_is_private(spec.category):
-            domain_lines.append(f"- {spec.category.value} ({spec.label}): PRIVATE. Nothing is listed here; use the "
+    category_lines = ["Domains:"]
+    for spec in implemented_categories():
+        if reach.category_is_private(spec.category):
+            category_lines.append(f"- {spec.category.value} ({spec.label}): PRIVATE. Nothing is listed here; use the "
                                 f"{spec.category.value}_* tools if the question needs it (this makes the answer private).")
             continue
         public = [c for c in spec.kinds if not reach.is_private_type(spec.category, c.value)]
@@ -86,9 +86,9 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
         categories = ", ".join(f"{c.value} ({c.label})" for c in public)
         fields = ", ".join(f.label for f in spec.fields) or "none"
         on_file = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"
-        domain_lines.append(f"- {spec.category.value} ({spec.label}): categories [{categories}]; "
+        category_lines.append(f"- {spec.category.value} ({spec.label}): categories [{categories}]; "
                             f"details [{fields}]; sources on file (documents and records) [{on_file}]")
-    sections.append("\n".join(domain_lines))
+    sections.append("\n".join(category_lines))
 
     index_lines = ["Wiki index:"]
     citables: list[Citable] = []

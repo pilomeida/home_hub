@@ -11,10 +11,10 @@ from app.models.inbox_item import InboxItem
 from app.models.privacy import DocumentFingerprint
 from app.privacy import settings as ps
 from app.services import inbox_service
-from app.services.domain_classifier import CategorySuggestion
+from app.services.category_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 
-pytestmark = [pytest.mark.usefixtures("two_domains", "inbox_documents_dir"), pytest.mark.asyncio]
+pytestmark = [pytest.mark.usefixtures("two_categories", "inbox_documents_dir"), pytest.mark.asyncio]
 
 FROM_BILLER = "Originally from: Billing@Exemplo.pt\nEmail subject: Your invoice"
 
@@ -44,7 +44,7 @@ async def test_known_document_is_prefilled_by_a_rule_and_no_ai_is_called(session
     r = await _receive(session, "a.pdf", spy)
     assert spy.calls == 0
     item = r.inbox_item
-    assert (item.suggested_domain, item.suggested_category, item.confidence) == ("house", "manual", 1.0)
+    assert (item.suggested_domain, item.suggested_paper_kind, item.confidence) == ("house", "manual", 1.0)
     assert item.classifier_note.startswith("Recognised from") and inbox_service.is_confident(item)
     assert r.document.status == DocumentStatus.PENDING_REVIEW          # a human still approves it
 
@@ -52,7 +52,7 @@ async def test_known_document_is_prefilled_by_a_rule_and_no_ai_is_called(session
 async def test_unrecognised_document_still_gets_the_ai_suggestion_while_levels_are_not_binding(session):
     spy = SpyClassifier()
     r = await _receive(session, "b.pdf", spy)
-    assert spy.calls == 1 and r.inbox_item.suggested_category == "manual"
+    assert spy.calls == 1 and r.inbox_item.suggested_paper_kind == "manual"
 
 
 async def test_unrecognised_document_is_classified_in_a_high_run_once_levels_are_binding(session):
@@ -60,7 +60,7 @@ async def test_unrecognised_document_is_classified_in_a_high_run_once_levels_are
     spy = SpyClassifier()
     r = await _receive(session, "c.pdf", spy)
     assert spy.calls == 1
-    assert (r.inbox_item.suggested_domain, r.inbox_item.suggested_category) == ("house", "manual")
+    assert (r.inbox_item.suggested_domain, r.inbox_item.suggested_paper_kind) == ("house", "manual")
     assert r.inbox_item.classifier_note == "ai guess"
     assert inbox_service.is_confident(r.inbox_item)
 
@@ -103,7 +103,7 @@ async def test_a_failed_filing_creates_no_rules(session):
     assert session.exec(select(DocumentFingerprint)).all() == []
 
 
-async def test_approving_into_a_held_type_marks_nothing_and_reads_nothing(session, two_domains):
+async def test_approving_into_a_held_type_marks_nothing_and_reads_nothing(session, two_categories):
     r = await _receive(session, "i.pdf", SpyClassifier())
     ps.set_enforcing(session, True, None)
     with pytest.raises(ps.TierHeld):
@@ -111,10 +111,10 @@ async def test_approving_into_a_held_type_marks_nothing_and_reads_nothing(sessio
                                     fields={"item_name": "Boiler"}, reviewed_by="p@x")
     assert session.exec(select(InboxItem)).one().reviewed_at is None
     assert session.get(Document, r.document.id).status == DocumentStatus.PENDING_REVIEW
-    assert two_domains["house"].handler.processed == []                # the handler never ran
+    assert two_categories["house"].handler.processed == []                # the handler never ran
 
 
-async def test_once_the_type_has_a_level_the_same_document_files_normally(session, two_domains):
+async def test_once_the_type_has_a_level_the_same_document_files_normally(session, two_categories):
     r = await _receive(session, "j.pdf", SpyClassifier())
     ps.set_enforcing(session, True, None)
     ps.save_type(session, "house", "manual", "house_low", False, None)

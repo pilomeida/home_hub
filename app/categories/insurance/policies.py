@@ -8,7 +8,7 @@ from typing import Optional
 
 from sqlmodel import Session
 
-from app.categories.entries import SourceEntry, domain_entries
+from app.categories.entries import SourceEntry, category_entries
 from app.categories.insurance.kinds import PART_ORDER, POLICY_PARTS, SECTION_TITLES, InsuranceKind
 from app.models.category import Category
 from app.services.wiki_store import normalize_entity_key
@@ -57,7 +57,7 @@ def _order(paper: PolicyPaper) -> tuple:
 def build_policy_cards(session: Session) -> list[PolicyCard]:
     cards: dict[str, PolicyCard] = {}
     by_number: dict[str, PolicyCard] = {}
-    for entry in domain_entries(session, Category.INSURANCE):
+    for entry in category_entries(session, Category.INSURANCE):
         insurer, number = entry.fields.get("insurer", ""), entry.fields.get("policy_number", "")
         key = _key(insurer, number)
         card = cards.setdefault(key, PolicyCard(key, entry.fields.get("covers", ""), insurer, number))
@@ -67,7 +67,7 @@ def build_policy_cards(session: Session) -> list[PolicyCard]:
         card.documents.append(PolicyPaper(entry, _note(entry)))
         by_number.setdefault(normalize_entity_key(number), card)
     # A premium notice is a bill: it lives under Bills and is shown on the policy it names.
-    for entry in domain_entries(session, Category.FINANCIALS):
+    for entry in category_entries(session, Category.FINANCIALS):
         number = entry.fields.get("policy_number")
         card = by_number.get(normalize_entity_key(number)) if number else None
         if card is not None:

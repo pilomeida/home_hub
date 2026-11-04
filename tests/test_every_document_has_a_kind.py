@@ -15,7 +15,7 @@ from app.models.schedule import ProblemEntry
 from app.models.transaction import Transaction
 from app.problems import explain
 from app.services import ingestion
-from tests.domain_fakes import RecordingHandler, make_fake_spec
+from tests.category_fakes import RecordingHandler, make_fake_spec
 
 _spec = importlib.util.spec_from_file_location("give_kind", Path("scripts/give_every_document_a_kind.py"))
 give_kind = importlib.util.module_from_spec(_spec)

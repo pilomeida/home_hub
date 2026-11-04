@@ -5,7 +5,7 @@ from app.services.ask.context import build_system_prompt
 from tests.knowledge_factories import make_document, make_page
 
 
-def test_prompt_has_rules_date_domains_index_and_pending_note(session, fake_domain):
+def test_prompt_has_rules_date_domains_index_and_pending_note(session, fake_category):
     boiler = make_page(session, "Boiler", summary="Vaillant boiler, utility room")
     make_page(session, "Who does what", category=None, summary="Chores")
     make_document(session, filename="a.pdf", paper_kind="manual")
@@ -22,6 +22,6 @@ def test_prompt_has_rules_date_domains_index_and_pending_note(session, fake_doma
     assert f"wiki:{boiler.id}" in {c.ref for c in citables}
 
 
-def test_prompt_without_pending_has_no_review_note(session, fake_domain):
+def test_prompt_without_pending_has_no_review_note(session, fake_category):
     prompt, _ = build_system_prompt(session, date(2026, 9, 24))
     assert "awaiting review" not in prompt and "(the wiki is empty)" in prompt

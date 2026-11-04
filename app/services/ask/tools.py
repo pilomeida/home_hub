@@ -19,9 +19,9 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.categories.base import SourceKind
-from app.categories.entries import SourceEntry, domain_entries
+from app.categories.entries import SourceEntry, category_entries
 from app.categories.fields import effective_fields
-from app.categories.registry import get_spec, implemented_domains
+from app.categories.registry import get_spec, implemented_categories
 from app.models.document import Document, DocumentStatus
 from app.models.category import Category
 from app.models.record import Record
@@ -70,8 +70,8 @@ def settled_entries(session: Session, category: Optional[Category] = None,
     """PROCESSED documents and non-retired records of implemented domains, newest first.
     With a binding `reach`, only those of types the AI may read (everything the AI is shown
     about documents comes through here)."""
-    domains = [category] if category is not None else [s.category for s in implemented_domains()]
-    entries = [e for d in domains for e in domain_entries(session, d)
+    domains = [category] if category is not None else [s.category for s in implemented_categories()]
+    entries = [e for d in domains for e in category_entries(session, d)
                if e.kind == SourceKind.RECORD or is_settled(e.document)]
     if reach is not None:
         entries = reach.filter_entries(entries)
@@ -97,7 +97,7 @@ def _opened(reach: Reach, sources, pages: int = 0) -> str:
     return " and ".join(parts)
 
 
-def _parse_domain(value) -> Optional[Category]:
+def _parse_category(value) -> Optional[Category]:
     return Category(value) if value else None  # ValueError -> tool error via engine
 
 
@@ -150,7 +150,7 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
 
 
 def _find_sources(session: Session, args: dict) -> ToolOutput:
-    domain = _parse_domain(args.get("domain"))
+    domain = _parse_category(args.get("domain"))
     category = args.get("category")
     limit = max(1, min(int(args.get("limit", 30)), 60))
     query_tokens = tokens(args.get("query") or "")
@@ -204,7 +204,7 @@ def _read_document_file(session: Session, args: dict) -> ToolOutput:
 
 
 def _list_todos(session: Session, args: dict) -> ToolOutput:
-    domain = _parse_domain(args.get("domain"))
+    domain = _parse_category(args.get("domain"))
     statement = select(Todo)
     if not args.get("include_done", False):
         statement = statement.where(Todo.done == False)  # noqa: E712
@@ -223,7 +223,7 @@ def _list_todos(session: Session, args: dict) -> ToolOutput:
 
 
 def core_tools() -> list[AskTool]:
-    domain_prop = {"type": "string", "enum": [s.category.value for s in implemented_domains()],
+    category_prop = {"type": "string", "enum": [s.category.value for s in implemented_categories()],
                    "description": "Restrict to one domain."}
     return [
         AskTool(name="read_wiki_pages",
@@ -238,7 +238,7 @@ def core_tools() -> list[AskTool]:
                             "keywords over title, category and details (item, room, dates...). Omit query to list by "
                             "recency. Use only when the wiki doesn't answer.",
                 input_schema={"type": "object", "properties": {
-                    "query": {"type": "string"}, "domain": domain_prop,
+                    "query": {"type": "string"}, "domain": category_prop,
                     "category": {"type": "string", "description": "A category value from the domain list."},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 60}}},
                 run=_find_sources),
@@ -250,14 +250,14 @@ def core_tools() -> list[AskTool]:
                 run=_read_document_file),
         AskTool(name="list_todos",
                 description="List household to-dos (open by default), optionally for one domain.",
-                input_schema={"type": "object", "properties": {"domain": domain_prop, "include_done": {"type": "boolean"}}},
+                input_schema={"type": "object", "properties": {"domain": category_prop, "include_done": {"type": "boolean"}}},
                 run=_list_todos),
     ]
 
 
-def domain_tools() -> list[AskTool]:
+def category_tools() -> list[AskTool]:
     tools: list[AskTool] = []
-    for spec in implemented_domains():
+    for spec in implemented_categories():
         for tool in spec.ask_tools:
             if not tool.name.startswith(f"{spec.category.value}_"):
                 raise ValueError(f"Ask tool {tool.name!r} must be prefixed with '{spec.category.value}_'")
@@ -269,4 +269,4 @@ def domain_tools() -> list[AskTool]:
 
 
 def available_tools() -> list[AskTool]:
-    return core_tools() + domain_tools()
+    return core_tools() + category_tools()

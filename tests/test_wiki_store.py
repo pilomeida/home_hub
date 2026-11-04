@@ -135,7 +135,7 @@ def test_recent_log_is_newest_first(session):
     assert [e.description for e in wiki_store.recent_log(session)] == ["second", "first"]
 
 
-def test_build_wiki_index_groups_by_domain_and_page_type(session, fake_domain):
+def test_build_wiki_index_groups_by_domain_and_page_type(session, fake_category):
     wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen", label="Room")], document=_document(session))
     session.add(WikiPage(topic="House insurance", category=Category.HOUSE, summary="Fidelidade policy"))
     session.add(WikiPage(topic="Legacy", facts_json='{"provider": "EDP"}'))
@@ -214,7 +214,7 @@ def test_a_record_can_be_a_claim_source_and_is_logged(session):
     assert entry.record_id == record.id and entry.document_id is None and page.category == Category.HOUSE
 
 
-def test_a_record_source_default_description_uses_the_category_label_not_the_raw_key(session, fake_domain):
+def test_a_record_source_default_description_uses_the_category_label_not_the_raw_key(session, fake_category):
     record = _record(session)
     report = wiki_store.apply_claims(session, [ClaimInput(BOILER, "visited", "2026-02-01")], document=None, record=record)
     entry = session.get(WikiLogEntry, report.log_entry_id)

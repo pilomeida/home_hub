@@ -18,7 +18,7 @@ from sqlmodel import Session
 
 from app.db import engine
 from app.models.document import DocumentSource
-from app.services.domain_classifier import suggest_domain_and_category
+from app.services.category_classifier import suggest_category_and_kind
 from app.services.inbox_service import approve, is_confident, receive_document
 from app.services.ingestion import IncomingFile
 
@@ -26,7 +26,7 @@ _SKIP = {".txt", ".md", ".ds_store"}
 
 
 async def backfill(session: Session, folder: Path, auto_approve: bool,
-                   classify=suggest_domain_and_category, approve=approve) -> dict[str, int]:
+                   classify=suggest_category_and_kind, approve=approve) -> dict[str, int]:
     counts = {"received": 0, "duplicates": 0, "approved": 0, "waiting": 0, "failed": 0}
     for path in sorted(p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() not in _SKIP):
         try:
@@ -44,7 +44,7 @@ async def backfill(session: Session, folder: Path, auto_approve: bool,
         item = receipt.inbox_item
         if auto_approve and item is not None and is_confident(item) and item.suggested_domain == "health":
             try:
-                await approve(session, receipt.document.id, domain_value="health", paper_kind=item.suggested_category,
+                await approve(session, receipt.document.id, domain_value="health", paper_kind=item.suggested_paper_kind,
                               fields={}, reviewed_by="backfill")
                 counts["approved"] += 1
                 continue

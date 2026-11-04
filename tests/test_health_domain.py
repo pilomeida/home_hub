@@ -2,12 +2,12 @@
 
 import pytest
 
-from app.categories.registry import get_spec, implemented_domains, is_implemented
+from app.categories.registry import get_spec, implemented_categories, is_implemented
 from app.models.category import Category
 from app.privacy import settings as ps
 from app.privacy.scope import current_scope, privacy_scope
 from app.privacy.tiers import Tier, TierBlocked
-from app.services.domain_classifier import build_system_prompt
+from app.services.category_classifier import build_system_prompt
 
 HEALTH_KINDS = {"lab_result", "imaging_report", "medical_report", "prescription", "referral",
                      "vaccination", "appointment"}
@@ -21,7 +21,7 @@ def test_health_is_a_registered_domain_with_the_agreed_categories():
 
 
 def test_the_classifier_no_longer_offers_bills_under_health():
-    prompt = build_system_prompt(implemented_domains())
+    prompt = build_system_prompt(implemented_categories())
     assert 'domain "health"' in prompt and 'category "claim_statement"' not in prompt
     assert 'category "medical_bill"' not in prompt
     insurance_line = next(l for l in prompt.splitlines() if 'category "policy"' in l)

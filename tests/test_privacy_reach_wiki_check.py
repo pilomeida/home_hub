@@ -111,7 +111,7 @@ async def test_with_levels_off_the_audit_bodies_are_exactly_todays(session, worl
     expected = []
     for spec in (get_spec(Category.FINANCIALS), get_spec(Category.HOUSE), get_spec(Category.INSURANCE), get_spec(Category.HEALTH)):
         body = {"workload_type": "critique_review", "system": llm_checks._SYSTEM_PROMPT, "max_tokens": 16000,
-                "response_schema": llm_checks._FINDINGS_SCHEMA, "user": llm_checks.build_domain_payload(session, spec).text}
+                "response_schema": llm_checks._FINDINGS_SCHEMA, "user": llm_checks.build_category_payload(session, spec).text}
         if spec.category == Category.HEALTH:
             body["sensitivity"] = "house_high"                                      # forced High: the one body that carries a level
         expected.append(body)
@@ -128,7 +128,7 @@ async def test_findings_that_name_something_the_audit_was_not_shown_are_dropped(
     wire.lint_reply = {"findings": [
         {"kind": "gap", "summary": "Invented.", "wiki_page_ids": [world.page_high.id], "claim_ids": [world.claim_high.id]},
         {"kind": "gap", "summary": "Real.", "wiki_page_ids": [world.page_clean.id, world.page_high.id]}]}
-    drafts = await llm_checks.check_domain(session, get_spec(Category.HOUSE), gateway=wire.client())
+    drafts = await llm_checks.check_category(session, get_spec(Category.HOUSE), gateway=wire.client())
     assert [d.summary for d in drafts] == ["Real."] and drafts[0].wiki_page_ids == (world.page_clean.id,)
 
 

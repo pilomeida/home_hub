@@ -11,7 +11,7 @@ from app.models.category import Category
 from app.models.schedule import ProblemEntry
 from app.privacy.ratchet import current_ratchet
 from app.privacy.tiers import Tier
-from app.services.domain_classifier import CategorySuggestion
+from app.services.category_classifier import CategorySuggestion
 from app.services.ingestion import IncomingFile
 from app.services.inbox_service import receive_document
 from tests import privacy_world as pw
@@ -38,7 +38,7 @@ async def test_an_unrecognised_paper_is_classified_inside_a_high_run_whatever_th
 
     receipt = await receive_document(session, _incoming(), context_text=None, external_ref="x", classify=classify)
     assert seen == [Tier.HIGH]
-    assert receipt.inbox_item.suggested_domain == "health" and receipt.inbox_item.suggested_category == "lab_result"
+    assert receipt.inbox_item.suggested_domain == "health" and receipt.inbox_item.suggested_paper_kind == "lab_result"
 
 
 @pytest.mark.asyncio

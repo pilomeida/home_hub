@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi.templating import Jinja2Templates
 
-from app.categories.registry import get_spec, implemented_domains, is_implemented
+from app.categories.registry import get_spec, implemented_categories, is_implemented
 from app.models.category import Category
 from app.privacy.notices import HEALTH_NOTICE, SCAN_NOTICE
 from app.services.presentation import (
@@ -24,7 +24,7 @@ def domain_label(category: Optional[Category]) -> str:
     return category.value.replace("_", " ").title()
 
 
-templates.env.globals["domain_nav"] = implemented_domains
+templates.env.globals["domain_nav"] = implemented_categories
 templates.env.globals["domain_label"] = domain_label
 templates.env.globals["scan_notice"] = SCAN_NOTICE
 templates.env.globals["health_notice"] = HEALTH_NOTICE

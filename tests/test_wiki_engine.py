@@ -12,7 +12,7 @@ from app.services import wiki_store
 from app.services.wiki_engine import (
     WikiAssessmentError, assess_document_for_wiki, claims_from_fields, ingest_into_wiki,
 )
-from tests.domain_fakes import make_fake_spec
+from tests.category_fakes import make_fake_spec
 
 
 from tests.fakes.fake_gateway import FakeGateway
@@ -36,7 +36,7 @@ class _ExplodingGateway:
 
 
 @pytest.fixture()
-def guided_domain(monkeypatch):
+def guided_category(monkeypatch):
     spec = make_fake_spec(wiki_guidance="Record provider facts.")
     monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
     return spec
@@ -54,10 +54,10 @@ def _document(session, paper_kind="manual", fields=None, content_hash="h1"):
     return document
 
 
-def test_claims_from_fields_builds_entity_claims(session, fake_domain):
+def test_claims_from_fields_builds_entity_claims(session, fake_category):
     document = _document(session, fields={"item_name": "Heat  Pump", "seen_on": "2026-03-01"})
 
-    claims = claims_from_fields(fake_domain, document)
+    claims = claims_from_fields(fake_category, document)
 
     assert {(c.page.page_type, c.page.title, c.page.entity_key) for c in claims} == {("fake.item", "Heat  Pump", "heat pump")}
     by_key = {c.key: c for c in claims}
@@ -65,13 +65,13 @@ def test_claims_from_fields_builds_entity_claims(session, fake_domain):
     assert by_key["seen"].value == "2026-03-01" and by_key["seen"].policy == FactPolicy.LATEST
 
 
-def test_claims_from_fields_skips_unnamed_or_unrelated_documents(session, fake_domain):
-    assert claims_from_fields(fake_domain, _document(session, fields={"seen_on": "2026-03-01"})) == []
-    assert claims_from_fields(fake_domain, _document(session, paper_kind="clip", fields={"side": "in"}, content_hash="h2")) == []
+def test_claims_from_fields_skips_unnamed_or_unrelated_documents(session, fake_category):
+    assert claims_from_fields(fake_category, _document(session, fields={"seen_on": "2026-03-01"})) == []
+    assert claims_from_fields(fake_category, _document(session, paper_kind="clip", fields={"side": "in"}, content_hash="h2")) == []
 
 
 @pytest.mark.asyncio
-async def test_assess_returns_topic_claims_and_offers_existing_titles(session, guided_domain):
+async def test_assess_returns_topic_claims_and_offers_existing_titles(session, guided_category):
     session.add(WikiPage(topic="Electricity — provider & contract", category=Category.HOUSE))
     session.commit()
     document = _document(session)
@@ -95,18 +95,18 @@ async def test_assess_returns_topic_claims_and_offers_existing_titles(session, g
 
 
 @pytest.mark.asyncio
-async def test_assess_is_a_no_op_without_guidance(session, fake_domain):
+async def test_assess_is_a_no_op_without_guidance(session, fake_category):
     assert await assess_document_for_wiki(session, _document(session), "ctx", gateway=_ExplodingGateway()) == []
 
 
 @pytest.mark.asyncio
-async def test_assess_raises_on_unparseable_reply(session, guided_domain):
+async def test_assess_raises_on_unparseable_reply(session, guided_category):
     with pytest.raises(WikiAssessmentError):
         await assess_document_for_wiki(session, _document(session), "ctx", gateway=_fake_gateway("not json"))
 
 
 @pytest.mark.asyncio
-async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_domain):
+async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_category):
     document = _document(session, fields={"item_name": "Boiler"})
     client = _fake_gateway(json.dumps({"pages": [{"title": "Gas supply", "summary": "Galp", "facts": {"provider": "Galp"}}]}))
 
@@ -120,14 +120,14 @@ async def test_ingest_applies_field_and_llm_claims_and_logs(session, guided_doma
 
 
 @pytest.mark.asyncio
-async def test_ingest_without_context_never_calls_the_llm(session, guided_domain):
+async def test_ingest_without_context_never_calls_the_llm(session, guided_category):
     document = _document(session, fields={"item_name": "Boiler"})
     report = await ingest_into_wiki(session, document, gateway=_ExplodingGateway())
     assert report.added == 1  # the "type" fact from the category
 
 
 @pytest.mark.asyncio
-async def test_ingest_records_a_log_entry_even_with_nothing_to_record(session, fake_domain):
+async def test_ingest_records_a_log_entry_even_with_nothing_to_record(session, fake_category):
     document = _document(session, paper_kind="clip", fields={"side": "in"})
     report = await ingest_into_wiki(session, document, operation=WikiOperation.EDIT)
     assert report.page_ids == []
@@ -136,7 +136,7 @@ async def test_ingest_records_a_log_entry_even_with_nothing_to_record(session, f
 
 
 @pytest.mark.asyncio
-async def test_ingest_logs_an_ingest_entry_even_when_nothing_changes(session, fake_domain):
+async def test_ingest_logs_an_ingest_entry_even_when_nothing_changes(session, fake_category):
     document = _document(session, paper_kind="clip", fields={"side": "in"})
 
     await ingest_into_wiki(session, document)
@@ -166,7 +166,7 @@ def test_links_from_fields_follow_the_schema(session, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_records_are_ingested_like_documents(session, fake_domain):
+async def test_records_are_ingested_like_documents(session, fake_category):
     from app.models.record import Record
 
     record = Record(category=Category.HOUSE, paper_kind="visit", fields_json=json.dumps({"item_name": "Boiler", "visit_date": "2026-04-01"}))
@@ -181,7 +181,7 @@ async def test_records_are_ingested_like_documents(session, fake_domain):
 
 
 @pytest.mark.asyncio
-async def test_derived_fields_feed_facts_and_notes(session, fake_domain):
+async def test_derived_fields_feed_facts_and_notes(session, fake_category):
     document = _document(session, fields={"item_name": "Boiler", "seen_on": "2000-01-01"})
     await ingest_into_wiki(session, document)
     page = session.exec(select(WikiPage).where(WikiPage.entity_key == "boiler")).one()
@@ -190,7 +190,7 @@ async def test_derived_fields_feed_facts_and_notes(session, fake_domain):
 
 
 @pytest.mark.asyncio
-async def test_reingest_after_rename_retracts_the_old_item(session, fake_domain):
+async def test_reingest_after_rename_retracts_the_old_item(session, fake_category):
     from app.services.wiki_engine import withdraw_from_wiki
 
     document = _document(session, fields={"item_name": "Boiler"})

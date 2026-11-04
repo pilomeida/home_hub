@@ -24,10 +24,10 @@ from app.models.document import Document, DocumentStatus
 from app.models.category import Category
 from app.models.inbox_item import InboxItem, InboxSkip
 from app.models.wiki import WikiOperation
-from app.services.domain_classifier import (
+from app.services.category_classifier import (
     CONFIDENT_THRESHOLD,
     CategorySuggestion,
-    suggest_domain_and_category,
+    suggest_category_and_kind,
 )
 from app.services.ingestion import (
     Classification,
@@ -94,7 +94,7 @@ async def receive_document(
     *,
     context_text: Optional[str],
     external_ref: Optional[str],
-    classify=suggest_domain_and_category,
+    classify=suggest_category_and_kind,
 ) -> InboxReceipt:
     received = receive_file(session, incoming, initial_status=DocumentStatus.PENDING_REVIEW)
     document = received.document
@@ -134,7 +134,7 @@ async def receive_document(
     item = InboxItem(
         document_id=document.id, context_text=context_text, external_ref=external_ref,
         suggested_domain=suggestion.category.value if suggestion.category is not None else None,
-        suggested_category=suggestion.paper_kind,
+        suggested_paper_kind=suggestion.paper_kind,
         confidence=suggestion.confidence, classifier_note=suggestion.note,
     )
     session.add(item)
@@ -164,15 +164,15 @@ def is_confident(item: InboxItem) -> bool:
     if domain is None or (item.confidence or 0.0) < CONFIDENT_THRESHOLD:
         return False
     spec = get_spec(domain)
-    if item.suggested_category is None:
+    if item.suggested_paper_kind is None:
         return spec.infers_kind
-    return item.suggested_category in {c.value for c in spec.kinds}
+    return item.suggested_paper_kind in {c.value for c in spec.kinds}
 
 
 def _entry(item: InboxItem, document: Document) -> InboxEntry:
     return InboxEntry(
         item=item, document=document, confident=is_confident(item),
-        suggestion_label=describe(suggested_domain(item), item.suggested_category),
+        suggestion_label=describe(suggested_domain(item), item.suggested_paper_kind),
     )
 
 

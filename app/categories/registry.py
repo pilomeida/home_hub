@@ -41,7 +41,7 @@ def _specs() -> dict[Category, CategorySpec]:
     return _specs_cache
 
 
-def implemented_domains() -> list[CategorySpec]:
+def implemented_categories() -> list[CategorySpec]:
     return list(_specs().values())
 
 

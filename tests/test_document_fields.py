@@ -40,43 +40,43 @@ def test_load_dump_and_field_date():
     assert field_date({}, "d") is None
 
 
-def test_validate_requires_required_fields(session, fake_domain):
+def test_validate_requires_required_fields(session, fake_category):
     with pytest.raises(InvalidClassification) as exc:
-        validate_fields(session, fake_domain, "manual", MediaKind.PDF, {"item_name": "   "})
+        validate_fields(session, fake_category, "manual", MediaKind.PDF, {"item_name": "   "})
     assert "item_name" in exc.value.errors
 
 
-def test_validate_drops_fields_that_do_not_apply(session, fake_domain):
+def test_validate_drops_fields_that_do_not_apply(session, fake_category):
     clean = validate_fields(
-        session, fake_domain, "clip", MediaKind.PDF,
+        session, fake_category, "clip", MediaKind.PDF,
         {"side": "in", "observations": "only for photos", "item_name": "not for clips", "unknown": "x"},
     )
     assert clean == {"side": "in"}
 
-    clean_video = validate_fields(session, fake_domain, "clip", MediaKind.VIDEO, {"side": "out", "observations": " leak "})
+    clean_video = validate_fields(session, fake_category, "clip", MediaKind.VIDEO, {"side": "out", "observations": " leak "})
     assert clean_video == {"side": "out", "observations": "leak"}
 
 
-def test_validate_dates_and_choices(session, fake_domain):
-    assert validate_fields(session, fake_domain, "manual", MediaKind.PDF,
+def test_validate_dates_and_choices(session, fake_category):
+    assert validate_fields(session, fake_category, "manual", MediaKind.PDF,
                            {"item_name": "Boiler", "seen_on": "2026-02-03"})["seen_on"] == "2026-02-03"
     with pytest.raises(InvalidClassification) as bad_date:
-        validate_fields(session, fake_domain, "manual", MediaKind.PDF, {"item_name": "Boiler", "seen_on": "03/02/2026"})
+        validate_fields(session, fake_category, "manual", MediaKind.PDF, {"item_name": "Boiler", "seen_on": "03/02/2026"})
     assert "seen_on" in bad_date.value.errors
     with pytest.raises(InvalidClassification) as bad_choice:
-        validate_fields(session, fake_domain, "clip", MediaKind.PDF, {"side": "sideways"})
+        validate_fields(session, fake_category, "clip", MediaKind.PDF, {"side": "sideways"})
     assert "side" in bad_choice.value.errors
 
 
-def test_suggest_fields_reuse_existing_spelling(session, fake_domain):
+def test_suggest_fields_reuse_existing_spelling(session, fake_category):
     _doc(session, {"item_name": "Boiler"})
-    clean = validate_fields(session, fake_domain, "manual", MediaKind.PDF, {"item_name": "  boiler  "})
+    clean = validate_fields(session, fake_category, "manual", MediaKind.PDF, {"item_name": "  boiler  "})
     assert clean["item_name"] == "Boiler"
-    new = validate_fields(session, fake_domain, "manual", MediaKind.PDF, {"item_name": "Heat   pump"})
+    new = validate_fields(session, fake_category, "manual", MediaKind.PDF, {"item_name": "Heat   pump"})
     assert new["item_name"] == "Heat pump"
 
 
-def test_distinct_field_values_dedupes_and_is_domain_scoped(session, fake_domain):
+def test_distinct_field_values_dedupes_and_is_domain_scoped(session, fake_category):
     _doc(session, {"item_name": "Kitchen"}, content_hash="1")
     _doc(session, {"item_name": "kitchen"}, content_hash="2")
     _doc(session, {"item_name": "Attic"}, content_hash="3")
@@ -85,27 +85,27 @@ def test_distinct_field_values_dedupes_and_is_domain_scoped(session, fake_domain
     assert distinct_field_values(session, Category.HOUSE, "item_name") == ["Attic", "Kitchen"]
 
 
-def test_describe_document_uses_registry_labels(session, fake_domain):
+def test_describe_document_uses_registry_labels(session, fake_category):
     document = _doc(session, {"item_name": "Boiler", "seen_on": "2026-01-02"})
     description = describe_document(document)
     assert description.domain_label == "Fake"
-    assert description.category_label == "Manual"
+    assert description.kind_label == "Manual"
     assert description.fields == [("Item", "Boiler"), ("Seen on", "2026-01-02")]
     assert description.url == f"/fake/documents/{document.id}"
     assert description.file_url == "/static/documents/abc.pdf"
 
 
-def test_build_form_fields_carries_options_values_and_errors(session, fake_domain):
+def test_build_form_fields_carries_options_values_and_errors(session, fake_category):
     _doc(session, {"item_name": "Boiler"})
-    manual_fields = build_form_fields(session, fake_domain, "manual", {"item_name": "Boi"}, {"item_name": "bad"})
+    manual_fields = build_form_fields(session, fake_category, "manual", {"item_name": "Boi"}, {"item_name": "bad"})
     item = manual_fields[0]
     assert item.spec.key == "item_name" and item.value == "Boi" and item.error == "bad"
     assert item.options == [("Boiler", "Boiler")]
-    clip_fields = build_form_fields(session, fake_domain, "clip", {}, {})
+    clip_fields = build_form_fields(session, fake_category, "clip", {}, {})
     assert clip_fields[0].options == [("in", "Indoor"), ("out", "Outdoor")]
 
 
-def test_suggestions_include_record_values(session, fake_domain):
+def test_suggestions_include_record_values(session, fake_category):
     from app.models.record import Record
 
     session.add(Record(category=Category.HOUSE, paper_kind="visit", fields_json='{"item_name": "Heat pump"}'))

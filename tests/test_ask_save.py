@@ -9,7 +9,7 @@ from app.services.wiki_store import active_claims
 from tests.knowledge_factories import make_conversation, make_document, make_page, make_turn
 
 
-def test_saves_one_turn_with_claims_links_and_query_log(session, fake_domain):
+def test_saves_one_turn_with_claims_links_and_query_log(session, fake_category):
     boiler = make_page(session, "Boiler")
     doc = make_document(session, filename="service.pdf")
     conv = make_conversation(session)
@@ -31,7 +31,7 @@ def test_saves_one_turn_with_claims_links_and_query_log(session, fake_domain):
     assert save_answer_as_wiki_page(session, turn.id, "again").id == page.id
 
 
-def test_follow_up_question_claim_carries_previous_question(session, fake_domain):
+def test_follow_up_question_claim_carries_previous_question(session, fake_category):
     page = make_page(session, "Dishwasher")
     conv = make_conversation(session)
     make_turn(session, conv, "When was the boiler serviced?", answer_text="March.")
@@ -42,7 +42,7 @@ def test_follow_up_question_claim_carries_previous_question(session, fake_domain
     assert question == "When was the boiler serviced? → and the dishwasher?"
 
 
-def test_title_of_a_topic_page_gets_suffix_and_mixed_domains_are_general(session, fake_domain):
+def test_title_of_a_topic_page_gets_suffix_and_mixed_domains_are_general(session, fake_category):
     make_page(session, "Boiler")
     fin = make_page(session, "Electricity", category=Category.FINANCIALS)
     house = make_page(session, "Boiler room")

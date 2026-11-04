@@ -13,7 +13,7 @@ from app.models.category import Category
 from app.models.todo import Todo
 
 
-def open_todos_for_domain(session: Session, category: Category) -> list[Todo]:
+def open_todos_for_category(session: Session, category: Category) -> list[Todo]:
     todos = session.exec(select(Todo).where(Todo.done == False, Todo.category == category)).all()  # noqa: E712
     return sorted(todos, key=lambda t: (t.due_date is None, t.due_date or date.max, t.created_at))
 
@@ -39,5 +39,5 @@ def backlog_context(session: Session, category: Category) -> dict:
     return {
         "backlog_domain": category,
         "backlog_label": get_spec(category).label,
-        "backlog_todos": open_todos_for_domain(session, category),
+        "backlog_todos": open_todos_for_category(session, category),
     }

@@ -11,7 +11,7 @@ from sqlmodel import Session
 from app.db import get_session
 from app.categories.entries import record_for_document
 from app.categories.fields import InvalidClassification, build_form_fields, load_fields, media_kind_for
-from app.categories.registry import document_url, get_spec, implemented_domains, is_implemented, record_url
+from app.categories.registry import document_url, get_spec, implemented_categories, is_implemented, record_url
 from app.models.document import Document
 from app.models.category import Category
 from app.models.record import Record
@@ -24,7 +24,7 @@ router = APIRouter(tags=["documents"])
 _NON_FIELD_KEYS = {"domain", "category"}
 
 
-def _domain_or_none(value: Optional[str]) -> Optional[Category]:
+def _category_or_none(value: Optional[str]) -> Optional[Category]:
     try:
         domain = Category(value) if value else None
     except ValueError:
@@ -39,7 +39,7 @@ def _context(session: Session, *, action: str, title: str, has_file: bool, filen
     media_kind = media_kind_for(filename) if filename else None
     return {
         "action": action, "title": title, "has_file": has_file,
-        "domains": implemented_domains(), "domain": category, "category": paper_kind,
+        "domains": implemented_categories(), "domain": category, "category": paper_kind,
         "categories": spec.kinds if spec else (),
         "form_fields": build_form_fields(session, spec, paper_kind, values, errors, media_kind=media_kind) if spec and paper_kind else [],
         "errors": file_notices(errors), "refused": notice(refused) if refused else None,
@@ -48,7 +48,7 @@ def _context(session: Session, *, action: str, title: str, has_file: bool, filen
 
 def _form_values(form) -> tuple[Optional[Category], Optional[str], dict]:
     values = {k: v for k, v in form.items() if k not in _NON_FIELD_KEYS and isinstance(v, str)}
-    return _domain_or_none(form.get("domain")), (form.get("category") or "").strip() or None, values
+    return _category_or_none(form.get("domain")), (form.get("category") or "").strip() or None, values
 
 
 def _finalized_document_or_404(session: Session, document_id: int) -> Document:
@@ -74,7 +74,7 @@ def _home_of(session: Session, result) -> str:
 
 @router.get("/documents/edit/categories")
 async def category_options(request: Request, domain: Optional[str] = None):
-    parsed = _domain_or_none(domain)
+    parsed = _category_or_none(domain)
     categories = get_spec(parsed).kinds if parsed else ()
     return templates.TemplateResponse(request, "documents/_category_select.html",
                                       {"categories": categories, "category": None})
@@ -83,7 +83,7 @@ async def category_options(request: Request, domain: Optional[str] = None):
 @router.get("/documents/edit/fields")
 async def field_inputs(request: Request, domain: Optional[str] = None, category: Optional[str] = None,
                        session: Session = Depends(get_session)):
-    parsed = _domain_or_none(domain)
+    parsed = _category_or_none(domain)
     spec = get_spec(parsed) if parsed else None
     known = category if spec and any(c.value == category for c in spec.kinds) else None
     form_fields = build_form_fields(session, spec, known, {}, {}) if known else []

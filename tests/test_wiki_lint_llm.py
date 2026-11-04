@@ -23,7 +23,7 @@ NOTE = "Assumed: Portugal's 3-year legal guarantee from the purchase date (12 Ma
 
 
 @pytest.mark.asyncio
-async def test_contradiction_parsed_and_unknown_ids_filtered(session, fake_domain):
+async def test_contradiction_parsed_and_unknown_ids_filtered(session, fake_category):
     doc = make_document(session, filename="w.pdf", fields={"item_name": "Boiler"})
     visit = make_record(session, fields={"item_name": "Boiler", "visit_date": "2026-03-02"})
     boiler = make_page(session, "Boiler")
@@ -34,7 +34,7 @@ async def test_contradiction_parsed_and_unknown_ids_filtered(session, fake_domai
         {"kind": "made_up_kind", "summary": "x", "wiki_page_ids": [boiler.id]},
     ]}))])
 
-    drafts = await llm_checks.check_domain(session, fake_domain, gateway=client)
+    drafts = await llm_checks.check_category(session, fake_category, gateway=client)
 
     assert len(drafts) == 1
     d = drafts[0]
@@ -51,7 +51,7 @@ async def test_contradiction_parsed_and_unknown_ids_filtered(session, fake_domai
 
 
 @pytest.mark.asyncio
-async def test_gaps_about_assumed_claims_only_are_dropped(session, fake_domain):
+async def test_gaps_about_assumed_claims_only_are_dropped(session, fake_category):
     doc = make_document(session, filename="w.pdf")
     boiler = make_page(session, "Boiler")
     assumed = make_claim(session, boiler, "warranty_expires", "2029-03-12", doc_ids=[doc.id], note=NOTE)
@@ -60,24 +60,24 @@ async def test_gaps_about_assumed_claims_only_are_dropped(session, fake_domain):
         {"kind": "gap", "summary": "Expiry is only assumed.", "wiki_page_ids": [boiler.id], "claim_ids": [assumed.id]},
         {"kind": "gap", "summary": "Model lacks a serial.", "wiki_page_ids": [boiler.id], "claim_ids": [stated.id]},
     ]}))])
-    drafts = await llm_checks.check_domain(session, fake_domain, gateway=client)
+    drafts = await llm_checks.check_category(session, fake_category, gateway=client)
     assert [d.summary for d in drafts] == ["Model lacks a serial."]
 
 
 @pytest.mark.asyncio
-async def test_empty_domain_skips_llm(session, fake_domain):
-    assert await llm_checks.check_domain(session, fake_domain, FakeGateway()) == []
+async def test_empty_domain_skips_llm(session, fake_category):
+    assert await llm_checks.check_category(session, fake_category, FakeGateway()) == []
 
 
 @pytest.mark.asyncio
-async def test_run_llm_checks_collects_errors_per_domain(session, fake_domain):
+async def test_run_llm_checks_collects_errors_per_domain(session, fake_category):
     make_page(session, "Boiler")
     drafts, errors = await llm_checks.run_llm_checks(session, gateway=FakeGateway([_body("not json")]))
     assert drafts == [] and len(errors) == 1 and errors[0].startswith("Fake:")
 
 
 @pytest.mark.asyncio
-async def test_refusal_is_a_domain_error(session, fake_domain):
+async def test_refusal_is_a_domain_error(session, fake_category):
     make_page(session, "Boiler")
     _, errors = await llm_checks.run_llm_checks(session, gateway=FakeGateway([_refusal()]))
     assert "declined" in errors[0]

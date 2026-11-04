@@ -65,7 +65,7 @@ def _record_context(session: Session, record: Record, values: dict, errors: dict
     attachment = session.get(Document, record.document_id) if record.document_id else None
     media_kind = media_kind_for(attachment.filename) if attachment else None
     return {
-        "record": record, "category_label": spec.kind_label(record.paper_kind),
+        "record": record, "kind_label": spec.kind_label(record.paper_kind),
         "attachment": attachment, "attachment_description": describe_document(attachment) if attachment else None,
         "media_kind": media_kind.value if media_kind else None,
         "form_fields": build_form_fields(session, spec, record.paper_kind, values, errors, media_kind=media_kind),
@@ -99,7 +99,7 @@ async def house_landing(request: Request, group_by: str = "type", session: Sessi
         "group_by": group_by,
         "sections": group_item_cards(build_item_cards(session), group_by),
         "reference": reference_sections(session),
-        "category_label": spec.kind_label,
+        "kind_label": spec.kind_label,
         "today": date.today(),
         "reminder_days": REMINDER_LEAD_DAYS,
         **backlog_context(session, Category.HOUSE),

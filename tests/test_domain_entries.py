@@ -1,12 +1,12 @@
 import json
 
-from app.categories.entries import domain_entries, record_for_document
+from app.categories.entries import category_entries, record_for_document
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.category import Category
 from app.models.record import Record
 
 
-def test_entries_merge_documents_and_records_without_double_counting_attachments(session, fake_domain):
+def test_entries_merge_documents_and_records_without_double_counting_attachments(session, fake_category):
     manual = Document(filename="m.pdf", file_path="/tmp/m.pdf", content_hash="e1", source=DocumentSource.MANUAL,
                       status=DocumentStatus.PROCESSED, category=Category.HOUSE, paper_kind="manual",
                       fields_json=json.dumps({"item_name": "Boiler"}))
@@ -22,7 +22,7 @@ def test_entries_merge_documents_and_records_without_double_counting_attachments
     session.add_all([with_file, by_hand, retired])
     session.commit()
 
-    entries = domain_entries(session, Category.HOUSE)
+    entries = category_entries(session, Category.HOUSE)
 
     assert [(e.kind.value, e.title) for e in entries] == [
         ("document", "m.pdf"), ("record", "receipt.pdf"), ("record", "Visit — entered by hand"),
