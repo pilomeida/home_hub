@@ -8,10 +8,11 @@ from typing import Optional
 
 from sqlmodel import Session
 
-from app.categories.base import CategoryHandler
+from app.categories.base import CategoryHandler, read_by_kind
 from app.categories.fields import dump_fields, field_date, load_fields
 from app.categories.house.kinds import HouseKind
 from app.categories.house.warranty import effective_warranty_expiry, extract_warranty_dates, sync_warranty_todo
+from app.models.category import Category
 from app.models.document import Document, DocumentStatus
 from app.models.wiki import WikiOperation
 from app.services.wiki_engine import ingest_into_wiki
@@ -26,44 +27,53 @@ def _is_warranty_without_expiry(document: Document) -> bool:
     )
 
 
+async def read_house_paper(session: Session, document: Document, note: Optional[str] = None) -> Document:
+    """Store and tag: the item's wiki page and, for a warranty, its reminder."""
+    await _sync_derived(session, document, WikiOperation.INGEST)
+    document.status = DocumentStatus.PROCESSED
+    document.failure_reason = note
+    session.add(document)
+    session.commit()
+    session.refresh(document)
+    return document
+
+
+async def read_warranty(session: Session, document: Document) -> Document:
+    """A warranty or invoice: its dates are read from the paper when none was entered by hand."""
+    note: Optional[str] = None
+    fields = load_fields(document)
+    if field_date(fields, "warranty_expiry") is None:
+        try:
+            dates = await extract_warranty_dates(document.file_path)
+        except Exception as exc:
+            dates = None
+            note = f"Warranty date could not be read ({exc}) — enter it manually."
+        if dates is not None:
+            if dates.expiry and not fields.get("warranty_expiry"):
+                fields["warranty_expiry"] = dates.expiry.isoformat()
+            if dates.purchase_date and not fields.get("purchase_date"):
+                fields["purchase_date"] = dates.purchase_date.isoformat()
+            document.fields_json = dump_fields(fields)
+            session.add(document)
+            session.commit()
+            session.refresh(document)
+        if note is None and _is_warranty_without_expiry(document):
+            note = MISSING_EXPIRY_NOTE
+    return await read_house_paper(session, document, note)
+
+
+async def _sync_derived(session: Session, document: Document, operation: WikiOperation) -> None:
+    sync_warranty_todo(session, document)
+    await ingest_into_wiki(session, document, operation=operation)
+
+
 class HouseHandler(CategoryHandler):
     async def process(self, session: Session, document: Document) -> Document:
-        note: Optional[str] = None
-        fields = load_fields(document)
-        if document.paper_kind == HouseKind.WARRANTY_INVOICE.value and field_date(fields, "warranty_expiry") is None:
-            try:
-                dates = await extract_warranty_dates(document.file_path)
-            except Exception as exc:
-                dates = None
-                note = f"Warranty date could not be read ({exc}) — enter it manually."
-            if dates is not None:
-                if dates.expiry and not fields.get("warranty_expiry"):
-                    fields["warranty_expiry"] = dates.expiry.isoformat()
-                if dates.purchase_date and not fields.get("purchase_date"):
-                    fields["purchase_date"] = dates.purchase_date.isoformat()
-                document.fields_json = dump_fields(fields)
-                session.add(document)
-                session.commit()
-                session.refresh(document)
-            if note is None and _is_warranty_without_expiry(document):
-                note = MISSING_EXPIRY_NOTE
-
-        await self._sync_derived(session, document, WikiOperation.INGEST)
-
-        document.status = DocumentStatus.PROCESSED
-        document.failure_reason = note
-        session.add(document)
-        session.commit()
-        session.refresh(document)
-        return document
+        return await read_by_kind(session, document, Category.HOUSE, default=read_house_paper)     # each kind declares its reader
 
     async def on_fields_changed(self, session: Session, document: Document, previous_fields: dict[str, str]) -> None:
-        await self._sync_derived(session, document, WikiOperation.EDIT)
+        await _sync_derived(session, document, WikiOperation.EDIT)
         if document.paper_kind == HouseKind.WARRANTY_INVOICE.value and not _is_warranty_without_expiry(document):
             document.failure_reason = None
             session.add(document)
             session.commit()
-
-    async def _sync_derived(self, session: Session, document: Document, operation: WikiOperation) -> None:
-        sync_warranty_todo(session, document)
-        await ingest_into_wiki(session, document, operation=operation)

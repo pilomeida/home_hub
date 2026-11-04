@@ -3,11 +3,13 @@
 from sqlmodel import Session, select
 
 from app.categories.base import (
-    KindSpec, CategorySpec, FieldKind, FieldSpec, NavLink, WikiSchema,
+    CategorySpec, FieldKind, FieldSpec, FiledAs, KindSpec, NavLink, WikiSchema,
 )
 from app.categories.financials.ask import FINANCIALS_ASK_TOOLS
 from app.categories.financials.kinds import FinancialsKind
-from app.categories.financials.handler import FinancialsHandler
+from app.categories.financials.handler import (
+    FinancialsHandler, read_bill, read_loan_history, read_statement, read_statement_positions,
+)
 from app.categories.financials.overview import financials_overview_card
 from app.models.account import Account
 from app.models.category import Category
@@ -28,24 +30,24 @@ SPEC = CategorySpec(
         KindSpec(
             FinancialsKind.BILL.value, "Bill / invoice",
             "A single bill, invoice, receipt or premium notice from one provider with one amount due.",
-            suggested_tier=Tier.MID,
+            suggested_tier=Tier.MID, reader=read_bill, files_as=frozenset({FiledAs.MONEY, FiledAs.TODOS, FiledAs.WIKI}),
         ),
         KindSpec(
             FinancialsKind.STATEMENT.value, "Bank statement",
             "A bank or card account statement listing many transactions.",
-            suggested_tier=Tier.MID,
+            suggested_tier=Tier.MID, reader=read_statement, files_as=frozenset({FiledAs.MONEY}),
         ),
         KindSpec(
             FinancialsKind.POSITIONS.value, "Statement – loans & savings positions only",
             "A consolidated bank statement read only for loan, fund and balance positions (never for transactions).",
             classifiable=False,
-            suggested_tier=Tier.MID,
+            suggested_tier=Tier.MID, reader=read_statement_positions, files_as=frozenset({FiledAs.MONEY, FiledAs.LOANS}),
         ),
         KindSpec(
             FinancialsKind.LOAN_HISTORY.value, "Online-banking loan movements printout",
             "An online-banking printout of one loan's instalment movements.",
             classifiable=False,
-            suggested_tier=Tier.MID,
+            suggested_tier=Tier.MID, reader=read_loan_history, files_as=frozenset({FiledAs.LOANS}),
         ),
     ),
     fields=(

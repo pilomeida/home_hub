@@ -1,11 +1,11 @@
 """House's CategorySpec."""
 
 from app.categories.base import (
-    DEFAULT_MEDIA, KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec,
+    DEFAULT_MEDIA, KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, FiledAs,
     LinkSpec, MediaKind, NavLink, SourceKind, WikiSchema,
 )
 from app.categories.house.kinds import ITEM_KINDS, ITEM_TYPE_KINDS, ITEM_PAGE_TYPE, ROOM_PAGE_TYPE, HouseKind
-from app.categories.house.handler import HouseHandler
+from app.categories.house.handler import HouseHandler, read_warranty
 from app.categories.house.overview import house_overview_card
 from app.categories.house.warranty import house_derived_fields
 from app.models.category import Category
@@ -25,19 +25,19 @@ SPEC = CategorySpec(
     home_url="/house",
     kinds=(
         KindSpec(HouseKind.HOUSE_APPLIANCE.value, "House appliance",
-                     "Manual or documentation for an indoor appliance (boiler, dishwasher, oven, heat pump...).", suggested_tier=Tier.LOW),
+                     "Manual or documentation for an indoor appliance (boiler, dishwasher, oven, heat pump...).", suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
         KindSpec(HouseKind.OUTDOOR_GEAR.value, "Outdoor gear",
-                     "Manual or documentation for outdoor equipment (lawnmower, barbecue, garden tools...).", suggested_tier=Tier.LOW),
+                     "Manual or documentation for outdoor equipment (lawnmower, barbecue, garden tools...).", suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
         KindSpec(HouseKind.WARRANTY_INVOICE.value, "Warranty / invoice",
-                     "A purchase invoice, receipt or warranty certificate for a household item.", suggested_tier=Tier.LOW),
+                     "A purchase invoice, receipt or warranty certificate for a household item.", suggested_tier=Tier.LOW, reader=read_warranty, files_as=frozenset({FiledAs.WIKI, FiledAs.TODOS})),
         KindSpec(HouseKind.MAINTENANCE_LOG.value, "Maintenance log",
                      "A service, repair or inspection done on a household item — typed in by hand, "
-                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD, suggested_tier=Tier.LOW),
+                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD, suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
         KindSpec(HouseKind.FLOOR_PLAN.value, "Floor plan",
                      "A floor plan, or a diagram, photo or video of the house's pipes, sewage, wiring or floors.",
-                     accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}, suggested_tier=Tier.LOW),
+                     accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}, suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
         KindSpec(HouseKind.OWNERSHIP_DOCUMENT.value, "Ownership document",
-                     "A property deed, land registry record or purchase contract for the house.", suggested_tier=Tier.MID),
+                     "A property deed, land registry record or purchase contract for the house.", suggested_tier=Tier.MID, files_as=frozenset({FiledAs.WIKI})),
     ),
     fields=(
         FieldSpec("item_name", "Item", FieldKind.SUGGEST, kinds=ITEM_KINDS, required=True,

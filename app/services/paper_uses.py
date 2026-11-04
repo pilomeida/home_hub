@@ -14,7 +14,8 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.categories.registry import document_url, record_url
+from app.categories.base import FiledAs, UnknownKindError
+from app.categories.registry import document_url, get_spec, is_implemented, record_url
 from app.models.debt import Debt
 from app.models.document import Document
 from app.models.category import Category
@@ -28,8 +29,10 @@ from app.models.utility_reading import UtilityReading
 from app.models.wiki import ClaimStatus, WikiClaim, WikiClaimSource, WikiPage
 from app.problems import Problem
 
-# Areas a use belongs to; a path that takes a paper out of use names the ones it takes back itself.
-MONEY, LOANS, RECORDS, HEALTH, TODOS, WIKI, INSURANCE = "money", "loans", "records", "health", "todos", "wiki", "insurance"
+# Areas a use belongs to: the places a kind's reading writes (FiledAs, declared on each kind, work-list B2). A path
+# that takes a paper out of use takes back what its kind files as (`filed_as`), and nothing else.
+MONEY, LOANS, RECORDS, HEALTH, TODOS, WIKI, INSURANCE = (a.value for a in (
+    FiledAs.MONEY, FiledAs.LOANS, FiledAs.RECORDS, FiledAs.HEALTH, FiledAs.TODOS, FiledAs.WIKI, FiledAs.INSURANCE))
 
 USE_TABLES = frozenset({
     "transactions", "statement_checks", "utility_readings", "loan_movements", "loan_snapshots", "loan_alerts",
@@ -107,6 +110,19 @@ def uses_of(session: Session, document: Document) -> list[PaperUse]:
                 uses.append(PaperUse(INSURANCE, f"listed on the {card.insurer} policy {card.policy_number}, in Insurance",
                                      f"/insurance#{card.anchor}"))
     return uses
+
+
+def filed_as(document: Document) -> frozenset[str]:
+    """What reading this paper wrote, as its kind declares; for a paper whose kind is not known (any more), what any
+    kind of its category may write."""
+    if not is_implemented(document.category):
+        return frozenset()
+    spec = get_spec(document.category)
+    try:
+        declared = spec.kind(document.paper_kind).files_as
+    except UnknownKindError:
+        declared = frozenset().union(*(k.files_as for k in spec.kinds))
+    return frozenset(a.value for a in declared)
 
 
 def refuse_if_used(session: Session, document: Document, *, what: str, takes_back: frozenset[str] = frozenset()) -> None:

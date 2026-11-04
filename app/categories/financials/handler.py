@@ -10,9 +10,9 @@ from typing import Optional
 
 from sqlmodel import Session, or_, select
 
-from app.categories.base import CategoryHandler
+from app.categories.base import CategoryHandler, read_by_kind
 from app.categories.fields import dump_fields, load_fields
-from app.categories.financials.kinds import FinancialsKind
+from app.models.category import Category
 from app.models.document import Document, DocumentStatus
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
@@ -90,11 +90,7 @@ async def process_financials_document(session: Session, document: Document) -> D
             # Document on needs_attention with a reason, never propagate.
             return mark_needs_attention(session, document, str(exc))
 
-    if document.paper_kind == FinancialsKind.STATEMENT.value:
-        return await _ingest_statement(session, document)
-    if document.paper_kind in (FinancialsKind.POSITIONS.value, FinancialsKind.LOAN_HISTORY.value):
-        return await _ingest_positions(session, document)
-    return await _ingest_bill(session, document)
+    return await read_by_kind(session, document, Category.FINANCIALS, default=read_bill)     # each kind declares its reader (spec.py)
 
 
 class FinancialsHandler(CategoryHandler):
@@ -169,7 +165,7 @@ async def _log_ingest_without_assessment(session: Session, document: Document) -
         print(f"wiki ingest log failed for document {document.id}: {exc}")
 
 
-async def _ingest_bill(session: Session, document: Document) -> Document:
+async def read_bill(session: Session, document: Document) -> Document:
     try:
         extracted: ExtractedBill = await extract_bill(document.file_path)
     except Exception as exc:
@@ -274,15 +270,20 @@ async def _ingest_bill(session: Session, document: Document) -> Document:
     return document
 
 
-async def _ingest_positions(session: Session, document: Document) -> Document:
+async def read_statement_positions(session: Session, document: Document) -> Document:
+    """A consolidated statement read only for its loan, fund and balance positions."""
+    return await _read_positions(session, document, process_positions_document)
+
+
+async def read_loan_history(session: Session, document: Document) -> Document:
+    """An online-banking printout of one loan's instalment movements."""
+    return await _read_positions(session, document, process_loan_history_document)
+
+
+async def _read_positions(session: Session, document: Document, processor) -> Document:
     """Loans/savings documents: never transaction extraction. A failed
     extraction is already marked needs_attention by the processor; success
     (including a history awaiting a loan assignment) ends PROCESSED."""
-    processor = (
-        process_positions_document
-        if document.paper_kind == FinancialsKind.POSITIONS.value
-        else process_loan_history_document
-    )
     try:
         extraction = await processor(session, document)
     except Exception as exc:
@@ -299,7 +300,7 @@ async def _ingest_positions(session: Session, document: Document) -> Document:
     return document
 
 
-async def _ingest_statement(session: Session, document: Document) -> Document:
+async def read_statement(session: Session, document: Document) -> Document:
     # Transactions (and any brand-new Merchants) committed so far in this
     # attempt — tracked so that if a later line item fails (e.g. a bad
     # transaction_type value), we can explicitly delete them below. A plain
@@ -334,7 +335,7 @@ async def _ingest_statement(session: Session, document: Document) -> Document:
                     created_merchant_ids.append(result.merchant.id)
                 session.commit()
             except Exception as exc:
-                # Same reasoning as _ingest_bill: classification failure
+                # Same reasoning as read_bill: classification failure
                 # must not affect the statement's own ingestion outcome.
                 session.rollback()
                 print(f"classification failed for transaction {transaction.id}: {exc}")

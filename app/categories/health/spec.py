@@ -1,7 +1,7 @@
 """Health's CategorySpec. Always house_high: declared here (forced_tier), read by app/privacy/settings.py."""
 
 from app.categories.base import (
-    KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
+    KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, FiledAs, NavLink, WikiSchema,
 )
 from app.categories.health.ask import HEALTH_TOOLS
 from app.categories.health.kinds import ALL_KINDS, PERSON_PAGE_TYPE, RECORD_KINDS, HealthKind
@@ -17,6 +17,9 @@ _GUIDANCE = (
     "amounts or appointment logistics. Title a page after the person and the topic, e.g. 'Maria: vaccinations'."
 )
 
+# A health paper, once read, is its Health record and its facts in the wiki (the calendar entry goes with the record).
+_HEALTH_FILES = frozenset({FiledAs.HEALTH, FiledAs.WIKI})
+
 SPEC = CategorySpec(
     category=Category.HEALTH,
     forced_tier=Tier.HIGH,          # nothing about Health may ever be read below High (decision D19)
@@ -27,17 +30,17 @@ SPEC = CategorySpec(
     ),
     home_url="/health/records",
     kinds=(
-        KindSpec(HealthKind.LAB_RESULT.value, "Lab result", "Blood, urine or other laboratory results."),
+        KindSpec(HealthKind.LAB_RESULT.value, "Lab result", "Blood, urine or other laboratory results.", files_as=_HEALTH_FILES),
         KindSpec(HealthKind.IMAGING_REPORT.value, "Imaging report",
-                     "An X-ray, ultrasound, MRI, CT or similar report."),
+                     "An X-ray, ultrasound, MRI, CT or similar report.", files_as=_HEALTH_FILES),
         KindSpec(HealthKind.MEDICAL_REPORT.value, "Medical report",
-                     "A consultation note, discharge letter, medical certificate or other clinical letter."),
-        KindSpec(HealthKind.PRESCRIPTION.value, "Prescription", "A prescription for medicines or treatment."),
-        KindSpec(HealthKind.REFERRAL.value, "Referral", "A referral to a specialist, exam or treatment."),
+                     "A consultation note, discharge letter, medical certificate or other clinical letter.", files_as=_HEALTH_FILES),
+        KindSpec(HealthKind.PRESCRIPTION.value, "Prescription", "A prescription for medicines or treatment.", files_as=_HEALTH_FILES),
+        KindSpec(HealthKind.REFERRAL.value, "Referral", "A referral to a specialist, exam or treatment.", files_as=_HEALTH_FILES),
         KindSpec(HealthKind.VACCINATION.value, "Vaccination record",
-                     "A vaccination card, certificate or record."),
+                     "A vaccination card, certificate or record.", files_as=_HEALTH_FILES),
         KindSpec(HealthKind.APPOINTMENT.value, "Appointment",
-                     "A letter, email or message confirming a medical appointment."),
+                     "A letter, email or message confirming a medical appointment.", files_as=_HEALTH_FILES),
     ),
     fields=(
         FieldSpec("person", "Whose it is", FieldKind.SUGGEST, help="The person the paper is about."),

@@ -174,10 +174,10 @@ async def discard_document(session: Session, document: Document, calendar=None) 
     used anywhere else (a to-do, a record, Money, Loans) is refused first, with the list of places (work-list B7)."""
     from app.categories.health.appointments import remove_appointment
     from app.models.document import DocumentStatus
-    from app.services.paper_uses import HEALTH, WIKI, refuse_if_used
+    from app.services.paper_uses import filed_as, refuse_if_used
     from app.services.wiki_engine import withdraw_from_wiki
 
-    refuse_if_used(session, document, what="Not deleted.", takes_back=frozenset({HEALTH, WIKI}))
+    refuse_if_used(session, document, what="Not deleted.", takes_back=filed_as(document))     # what its kind files as
     await remove_appointment(session, document, calendar=calendar)
     await withdraw_from_wiki(session, document, description=f"{document.filename} deleted from Health")
     purge_derived(session, document)

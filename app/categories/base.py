@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Callable, Optional
+from typing import Awaitable, Callable, Optional
 
 from sqlmodel import Session
 
@@ -53,6 +53,23 @@ def _no_derived_fields(paper_kind: Optional[str], fields: dict[str, str]) -> dic
     return {}
 
 
+class FiledAs(str, Enum):
+    """Where a kind's reading writes (work-list B2): the places a paper of that kind is used once read. A path that
+    takes the paper out of use takes these back itself (services/paper_uses.py)."""
+    MONEY = "money"            # bill and bank lines, statement checks, balances, meter readings
+    LOANS = "loans"            # loan figures
+    RECORDS = "records"        # a record entered by hand, with the paper attached
+    HEALTH = "health"          # the Health record read from the paper
+    TODOS = "todos"            # a to-do made from it (a bill due, a warranty ending)
+    WIKI = "wiki"              # facts on wiki pages
+    INSURANCE = "insurance"    # shown on a policy card (a premium notice)
+
+
+# How a kind is read (work-list B2): reads the paper and leaves it PROCESSED or NEEDS_ATTENTION. A reader carries
+# its own check until the checks share one shape (work-list C4): the statement reader includes the add-up.
+Reader = Callable[[Session, Document], Awaitable[Document]]
+
+
 @dataclass(frozen=True)
 class KindSpec:
     """In the model's words: a PAPER KIND inside a category (glossary, docs/ARCHITECTURE.md)."""
@@ -65,6 +82,8 @@ class KindSpec:
     # The privacy level offered on the Privacy page until Pedro confirms one (B2; never High: Pedro chooses High
     # himself, it is served only by Privatemode, which costs money). None: the cautious middle, Mid.
     suggested_tier: Optional[Tier] = None
+    reader: Optional[Reader] = None            # None: the category's own reader
+    files_as: frozenset[FiledAs] = frozenset()
 
     def __post_init__(self) -> None:
         if self.suggested_tier == Tier.HIGH:
@@ -194,6 +213,17 @@ class CategoryHandler:
 
 class UnknownKindError(KeyError):
     pass
+
+
+async def read_by_kind(session: Session, document: Document, category: Category, default: Reader) -> Document:
+    """Read a paper of this category with the reader its kind declares, or the category's own (work-list B2): no
+    handler branches on the kind."""
+    from app.categories.registry import get_spec  # lazy: the registry imports every spec, which imports this module
+    try:
+        kind = get_spec(category).kind(document.paper_kind) if document.paper_kind else None
+    except UnknownKindError:
+        kind = None
+    return await (kind.reader if kind is not None and kind.reader is not None else default)(session, document)
 
 
 @dataclass(frozen=True)

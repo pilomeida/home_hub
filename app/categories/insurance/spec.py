@@ -1,7 +1,7 @@
 """Insurance's CategorySpec."""
 
 from app.categories.base import (
-    KindSpec, CategorySpec, EntityTypeSpec, FactSpec, FieldKind, FieldSpec, NavLink, WikiSchema,
+    KindSpec, CategorySpec, EntityTypeSpec, FactSpec, FieldKind, FieldSpec, FiledAs, NavLink, WikiSchema,
 )
 from app.categories.insurance.kinds import (
     ALL_KINDS, COVERS, POLICY_PAGE_TYPE, POLICY_PARTS, InsuranceKind, insurance_derived_fields,
@@ -25,9 +25,9 @@ SPEC = CategorySpec(
                      "A policy's own paper: general or particular conditions, schedule, summary, payment plan or "
                      "green card, for the house, a car, health or life. A premium notice or receipt is NOT this: "
                      "it is a bill, dealt with under Bills. A statement of what a health insurer reimbursed is "
-                     "a bill-type paper too.", suggested_tier=Tier.MID),
+                     "a bill-type paper too.", suggested_tier=Tier.MID, files_as=frozenset({FiledAs.WIKI})),
         KindSpec(InsuranceKind.CLAIM.value, "Claim",
-                     "A claim made on a policy, or the insurer's answer to one.", suggested_tier=Tier.MID),
+                     "A claim made on a policy, or the insurer's answer to one.", suggested_tier=Tier.MID, files_as=frozenset({FiledAs.WIKI})),
     ),
     fields=(
         FieldSpec("insurer", "Insurer", FieldKind.SUGGEST, required=True),
