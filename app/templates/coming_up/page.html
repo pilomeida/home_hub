@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Coming up — Money{% endblock %}
+{% block content %}
+<h1>Coming up</h1>
+<p>What is due from {{ view.today.strftime('%Y-%m-%d') }} to {{ view.until.strftime('%Y-%m-%d') }}: your commitments, and the bills filed but not paid yet. Each payment shows once. Budgets are separate: they are a planned maximum, on the <a href="/">Overview</a>.</p>
+
+{% if view.overdue %}
+<h2>Overdue</h2>
+<table class="table">
+  {% for i in view.overdue %}
+  <tr class="needs-attention"><td>{{ i.when.strftime('%Y-%m-%d') }}</td><td><a href="{{ i.link }}">{{ i.name }}</a></td><td>{{ i.place or "Not filed yet" }}</td><td>{{ i.note }}</td><td class="amt">€{{ "{:,.2f}".format(i.amount) }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% for month in view.months %}
+<h2>{{ month.label }} <small>€{{ "{:,.2f}".format(month.total) }}</small></h2>
+<table class="table">
+  {% for i in month.items %}
+  <tr><td>{{ i.when.strftime('%Y-%m-%d') }}</td><td><a href="{{ i.link }}">{{ i.name }}</a></td><td>{{ i.place or "Not filed yet" }}</td>
+      <td>{% if i.kind == "bill" %}bill, not paid yet{% else %}commitment ({{ i.note }}){% endif %}</td><td class="amt">€{{ "{:,.2f}".format(i.amount) }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+{% if not view.overdue %}<p>Nothing due in the next three months: no commitment is set up yet and no bill is waiting to be paid. Add a commitment below, or press “↻ repeats” on a bank line in <a href="/financials/transactions">Transactions</a>.</p>{% endif %}
+{% endfor %}
+
+<h2 id="add">Add a commitment</h2>
+<p>A spend you know is coming: a subscription, a yearly tax, an insurance. It shows here on its dates; it does not change any budget.</p>
+{% if problem %}<p class="needs-attention"><strong>{{ problem.what }}</strong> {{ problem.why }} {{ problem.next_step }}</p>{% endif %}
+<form method="post" action="/financials/coming-up/commitments">
+  <div class="field"><label>Name <input name="name" value="{{ values.get('name', '') }}" required></label></div>
+  <div class="field"><label>Amount (€) <input name="amount" inputmode="decimal" value="{{ values.get('amount', '') }}" required></label></div>
+  <div class="field"><label>How often
+    <select name="cadence">{% for v, label in cadences %}<option value="{{ v }}"{% if values.get('cadence') == v %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></div>
+  <div class="field"><label>Next date <input type="date" name="next_due" value="{{ values.get('next_due', '') }}" required></label></div>
+  <div class="field"><label>Place on the spending tree
+    <select name="category_id" required><option value="">Choose…</option>
+      {% for o in leaves %}<option value="{{ o.id }}"{% if values.get('category_id') == o.id|string %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select></label></div>
+  <button type="submit">Save</button>
+</form>
+
+{% if commitments %}
+<h2>Your commitments</h2>
+<table class="table">
+  {% for c in commitments %}
+  <tr id="commitment-{{ c.id }}"><td>{{ c.name }}</td><td>{{ places.get(c.id) or "Not on the tree" }}</td><td>{{ c.cadence.value }}</td>
+      <td>{{ c.next_due_date.strftime('%Y-%m-%d') if c.next_due_date else "no date yet" }}</td><td class="amt">€{{ "{:,.2f}".format(c.planned_amount) }}</td>
+      <td><form method="post" action="/financials/coming-up/commitments/{{ c.id }}/remove"><button>Remove</button></form></td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

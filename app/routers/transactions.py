@@ -26,6 +26,7 @@ from app.problems import Problem, notice, refusal_response
 from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
 from app.services.merchant_assign import assign_category, list_merchants
 from app.services.taxonomy import (
+    node_options as tree_options,
     auto_fits, descendant_ids, direction_matches, file_transaction, flow_of, get_node, is_refund,
 )
 from app.templating import templates
@@ -198,17 +199,6 @@ def _attached_documents(session: Session, transactions: list[Transaction]) -> di
     return out
 
 
-def _node_options(session: Session) -> list[dict]:
-    nodes = session.exec(select(CategoryNode).order_by(CategoryNode.sort_order)).all()
-    by_id = {n.id: n for n in nodes}
-    options = []
-    for n in nodes:
-        parts, cur = [n.name], n
-        while cur.parent_id:
-            cur = by_id[cur.parent_id]
-            parts.append(cur.name)
-        options.append({"id": n.id, "slug": n.slug, "label": " › ".join(reversed(parts)), "name": n.name, "level": n.level})
-    return options
 
 def _int(value, default=None):
     """A blank or malformed query number (a form sends `account_id=`) means 'not set', not a 422."""
@@ -291,7 +281,7 @@ async def list_transactions(
             "merchant_names": merchant_names,
             "account_names": account_names,
             "linked_transactions": linked_transactions,
-            "node_options": _node_options(session),
+            "node_options": tree_options(session),
             "node_labels": node_labels, "attached": _attached_documents(session, transactions),
             "row_flow": row_flow,
             "tags": tags,
@@ -394,7 +384,7 @@ def _review_offsets(source) -> dict[str, int]:
 def _needs_review_context(session: Session, offsets: Optional[dict[str, int]] = None) -> dict:
     page = get_needs_review_page(session, offsets)
     queue = page.queue
-    nodes = _node_options(session)
+    nodes = tree_options(session)
     # Rows carry only the suggested node; the full list loads on first focus.
     return {
         "queue": queue,
@@ -432,7 +422,7 @@ async def node_options(session: Session = Depends(get_session)):
     """<option> elements for every level-3 node, grouped per level-1 group, loaded
     by a Needs Review select the first time it is focused."""
     groups: dict[str, list[str]] = {}
-    for o in _node_options(session):
+    for o in tree_options(session):
         if o["level"] != 3 or o["slug"].startswith("unsorted"):
             continue
         group = o["label"].split(" \u203a ")[0]
@@ -606,7 +596,7 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
 
 def _leaf_groups(session: Session) -> list[tuple[str, list[dict]]]:
     groups: dict[str, list[dict]] = {}
-    for o in _node_options(session):
+    for o in tree_options(session):
         if o["level"] == 3 and not o["slug"].startswith("unsorted"):
             groups.setdefault(o["label"].split(" \u203a ")[0], []).append(o)
     return list(groups.items())
@@ -654,7 +644,7 @@ async def bulk_page(request: Request, session: Session = Depends(get_session)):
         "baseline_note": baseline_note(session),
         "result": result, "view": view, "view_qs": _view_qs({k: v for k, v in view.items() if k != "page"}),
         "qs_nb": _view_qs({k: v for k, v in view.items() if k not in ("page", "by")}),
-        "leaf_groups": _leaf_groups(session), "node_options": _node_options(session),
+        "leaf_groups": _leaf_groups(session), "node_options": tree_options(session),
         "banner": None if applied is None else {"n": applied, "moved": _int(params.get("moved"), 0),
                                                 "filed": _int(params.get("filed"), 0), "rules": _int(params.get("rules"), 0),
                                                 "by": view["by"]},

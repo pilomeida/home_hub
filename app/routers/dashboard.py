@@ -10,6 +10,7 @@ from app.problems import Problem, notice_problem, refusal_response
 from app.services.budget_service import get_budget_overview, set_budget
 from app.services.category_overview import build_category_cards
 from app.services.household_service import get_household_data
+from app.services.coming_up import next_days_summary
 from app.services.overview_service import get_overview_data, get_period_dependent_data
 from app.templating import templates
 
@@ -26,7 +27,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request, "dashboard.html",
         {"overview": overview, "household": household, "domain_cards": build_category_cards(session, date.today()),
-         "today": date.today(), **_budget_context(session, "month")},
+         "today": date.today(), "coming_soon": next_days_summary(session, date.today()), **_budget_context(session, "month")},
     )
 
 @router.get("/overview/period")

@@ -68,6 +68,21 @@ def descendant_ids(session: Session, node_id: int) -> list[int]:
     return ids
 
 
+def node_options(session: Session) -> list[dict]:
+    """Every node of the tree with its full label ("Food › Groceries › Supermarket"), in tree order: the pickers."""
+    nodes = session.exec(select(CategoryNode).order_by(CategoryNode.sort_order)).all()
+    by_id = {n.id: n for n in nodes}
+    options = []
+    for n in nodes:
+        parts, cur = [n.name], n
+        while cur.parent_id:
+            cur = by_id[cur.parent_id]
+            parts.append(cur.name)
+        options.append({"id": n.id, "slug": n.slug, "label": " › ".join(reversed(parts)), "name": n.name,
+                        "level": n.level, "kind": n.kind})
+    return options
+
+
 def path_label(session: Session, node: CategoryNode) -> str:
     parts = [node.name]
     while node.parent_id:

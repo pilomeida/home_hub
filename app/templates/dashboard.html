@@ -29,6 +29,10 @@
     </div>
   </div>
 
+  {% if coming_soon %}{% set n, amount = coming_soon %}
+  <p class="fc-coming"><a href="/financials/coming-up">Coming up in the next 30 days: {% if n %}{{ n }} payment{{ "s" if n != 1 }}, €{{ "{:,.2f}".format(amount) }}{% else %}nothing due{% endif %} →</a></p>
+  {% endif %}
+
   {% if overview.narrative %}
   <div class="fc-insight">
     <span style="font-size:16px">💡</span>

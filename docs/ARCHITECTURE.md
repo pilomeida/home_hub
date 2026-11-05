@@ -18,7 +18,7 @@ Use the model's word in anything a person reads (pages, messages, docs).
 | **source** | A paper or hand-entered record kept as received | `Document`, `Record` |
 | **privacy level** | house_low / house_mid / house_high, set per paper kind | `Tier`, `sensitivity`, `document_type_settings` |
 | **bank line** | A line from a statement or the bank feed; takes its statement's privacy level (Pedro, 2026-11-03). A feed line's statement is its account's **feed statement**: a statement-kind paper with no file, never re-filed (work-list B5) | `Transaction`; `app/categories/financials/feed.py` |
-| **budget** / **commitment** | A planned maximum to monitor against / a known spend that is coming, for cash flow (Pedro, 2026-11-03) | `Budget` / `Commitment` |
+| **budget** / **commitment** | A planned maximum to monitor against / a known spend that is coming, for cash flow (Pedro, 2026-11-03); commitments and unpaid bills show on **Coming up** (work-list B3b) | `Budget` / `Commitment`; `services/coming_up.py`, `/financials/coming-up` |
 
 ---
 

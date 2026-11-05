@@ -65,6 +65,7 @@ SPEC = CategorySpec(
     nav_links=(
         NavLink("Bills & Bank", "/financials/bills"),
         NavLink("Transactions", "/financials/transactions"),
+        NavLink("Coming up", "/financials/coming-up"),
         NavLink("Bank connections", "/financials/bank/"),
         NavLink("Loans & Savings", "/financials/loans"),
         NavLink("Utilities", "/financials/utilities/electricity"),

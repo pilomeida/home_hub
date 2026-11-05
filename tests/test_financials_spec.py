@@ -23,7 +23,7 @@ def test_financials_is_registered():
     assert all(c.classifiable for c in spec.kinds if c.value not in explicit_only)
     assert spec.infers_kind is True
     assert [link.url for link in spec.nav_links] == [
-        "/financials/bills", "/financials/transactions", "/financials/bank/",
+        "/financials/bills", "/financials/transactions", "/financials/coming-up", "/financials/bank/",
         "/financials/loans",
         "/financials/utilities/electricity",
     ]
