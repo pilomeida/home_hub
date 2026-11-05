@@ -12,6 +12,7 @@ from sqlmodel import Session, or_, select
 
 from app.categories.base import CategoryHandler, read_by_kind
 from app.categories.fields import dump_fields, load_fields
+from app.categories.financials.feed import is_feed_statement
 from app.models.category import Category
 from app.models.document import Document, DocumentStatus
 from app.models.category_node import CategoryNode
@@ -100,6 +101,9 @@ class FinancialsHandler(CategoryHandler):
         return await process_financials_document(session, document)
 
     def refile_blocker(self, session: Session, document: Document) -> Optional[str]:
+        if is_feed_statement(document):
+            return ("This is the bank feed's statement, not a paper: its lines came from the bank, so it stays where "
+                    "it is. To change one line, open it in Transactions.")
         # keeps held rows: re-file safety check must see every row of the document, held or not
         transactions = session.exec(select(Transaction).where(Transaction.document_id == document.id)).all()
         ids = [t.id for t in transactions]

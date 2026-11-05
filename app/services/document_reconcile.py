@@ -16,10 +16,11 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.models.document import Document, DocumentSource
+from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.todo import Todo
 from app.models.transaction import Transaction, TransactionType
+from app.categories.financials.feed import is_feed_statement
 
 DAYS_BANK_BEFORE_DOCUMENT = 5     # a receipt is often issued a few days after the debit
 DAYS_BANK_BEFORE_DUE_DATE = 45    # a bill known only by its due date may be paid weeks before it
@@ -54,7 +55,7 @@ def _tokens(*texts: Optional[str]) -> set[str]:
 
 
 def _is_bank(document: Document) -> bool:
-    return document.paper_kind in _UNKNOWN_BANK_DOCS or document.source == DocumentSource.API
+    return document.paper_kind in _UNKNOWN_BANK_DOCS or is_feed_statement(document)
 
 
 def reconcile_quietly(session: Session) -> None:

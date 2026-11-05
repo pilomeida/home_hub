@@ -1,7 +1,8 @@
 <div class="inbox-card tc-card" id="tc-line-{{ t.id }}">
   <div class="tc-grid">
     <div class="tc-source">
-      {% if source_kind == "image" %}<img src="{{ file_href }}" alt="The document this line was read from">
+      {% if not file_href %}<p>From the bank feed: there is no paper to show. Compare it with the bank's app.</p>
+      {% elif source_kind == "image" %}<img src="{{ file_href }}" alt="The document this line was read from">
       {% elif source_kind == "pdf" %}<iframe src="{{ file_href }}#page={{ t.source_page or 1 }}" title="The statement{% if t.source_page %}, page {{ t.source_page }}{% endif %}" loading="lazy"></iframe>
       {% else %}<a href="{{ file_href }}" target="_blank">Open the document</a>{% endif %}
       <small>{% if t.source_page %}Page {{ t.source_page }} of the statement{% else %}Page not recorded{% endif %}</small>

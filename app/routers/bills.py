@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.db import get_session
 from app.categories.fields import InvalidClassification
+from app.categories.financials.feed import is_feed_statement
 from app.categories.registry import document_url
 from app.models.account import Account
 from app.models.category_node import CategoryNode
@@ -77,5 +78,6 @@ async def bill_detail(request: Request, document_id: int, session: Session = Dep
     node_labels = {t.id: path_label(session, session.get(CategoryNode, t.category_id))
                    for t in transactions if t.category_id is not None}
     return templates.TemplateResponse(
-        request, "bills/detail.html", {"document": document, "transactions": transactions, "node_labels": node_labels}
+        request, "bills/detail.html", {"document": document, "transactions": transactions, "node_labels": node_labels,
+                                       "feed": is_feed_statement(document)}
     )

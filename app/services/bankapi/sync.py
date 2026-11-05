@@ -13,10 +13,10 @@ from typing import Optional
 import httpx
 from sqlmodel import Session, select
 
+from app.categories.financials.feed import feed_statement
 from app.models.account import Account, AccountType
 from app.models.bank import BankAccountLink, BankApiCall, BankConnection, BankConnectionStatus
-from app.models.document import Document, DocumentSource, DocumentStatus
-from app.models.category import Category
+from app.models.document import Document
 from app.models.transaction import Transaction, TransactionType
 from app.privacy.scope import privacy_scope
 from app.problems import Problem, record_problem, resolve_for
@@ -51,20 +51,6 @@ class SyncResult:
     error: Optional[str] = None          # the full what/why/next text when something failed (also stored on the link)
     problem: Optional[Problem] = None    # the same, structured; set for a failure and for a daily-limit stop
     _used_match_ids: set = field(default_factory=set, repr=False)
-
-
-def sync_document(session: Session, account_id: int, bank_name: str) -> Document:
-    key = f"bank-sync:{account_id}"
-    doc = session.exec(select(Document).where(Document.content_hash == key)).first()
-    if doc is None:
-        doc = Document(
-            filename=f"{bank_name} — automatic bank sync", file_path="", content_hash=key,
-            source=DocumentSource.API, status=DocumentStatus.PROCESSED,
-            category=Category.FINANCIALS, paper_kind="statement", account_id=account_id,
-        )
-        session.add(doc)
-        session.flush()
-    return doc
 
 
 def _calls_last_24h(session: Session, link_id: int, now: datetime, kind: str = "transactions") -> int:
@@ -291,7 +277,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
         return result
 
     result.fetched = len(rows)
-    document = sync_document(session, link.account_id, connection.bank_name)
+    document = feed_statement(session, link.account_id, connection.bank_name)
     if not dry_run:
         session.commit()  # the rolling document must survive any later rollback
     loop_finished = True
@@ -346,7 +332,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                 session.rollback()
                 # Keep the transaction: the bank reference prevents duplicates on
                 # a re-run, so re-fetch it and store it plainly.
-                document = sync_document(session, link.account_id, connection.bank_name)
+                document = feed_statement(session, link.account_id, connection.bank_name)
                 # keeps held rows: bank-sync recovery after a failed classify
                 txn = session.exec(select(Transaction).where(
                     Transaction.account_id == link.account_id, Transaction.external_id == external_id)).first()

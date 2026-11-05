@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlmodel import Session, select  # noqa: E402
 
+from app.categories.financials.feed import feed_statement  # noqa: E402
 from app.db import engine  # noqa: E402
+from app.models.account import Account  # noqa: E402
 from app.models.document import Document, DocumentSource, DocumentStatus  # noqa: E402
 from app.models.category import Category  # noqa: E402
 from app.services.card_figures import (  # noqa: E402
@@ -70,9 +72,9 @@ def main() -> None:
             for l in todo:
                 print(f"App line: {l.day}  {l.amount:>9.2f}  {l.description}")
             if apply and todo:
-                doc = session.exec(select(Document).where(Document.account_id == CARD_ACCOUNT_ID,
-                                                          Document.source == DocumentSource.API)).first()
-                print(f"  stored {add_lines(session, CARD_ACCOUNT_ID, todo, document_id=doc.id if doc else None)}")
+                # Lines seen only in the bank's app hang on the card's feed statement, like any feed line (B5).
+                doc = feed_statement(session, CARD_ACCOUNT_ID, session.get(Account, CARD_ACCOUNT_ID).institution)
+                print(f"  stored {add_lines(session, CARD_ACCOUNT_ID, todo, document_id=doc.id)}")
         rute = rute_card_payments_filed(session)
         print(f"{len(rute)} payment(s) now counted as 'not itemised' go back to transfers ({sum(t.amount for t in rute):.2f}):")
         for t in rute:

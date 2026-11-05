@@ -78,7 +78,11 @@ def test_one_bank_row_settles_at_most_one_document(session, bank, bill):
 
 
 def test_bank_rows_from_the_api_count_as_bank_and_statement_rows_are_never_settled(session, bill):
-    api = _doc(session, None, source=DocumentSource.API, name="sync")
+    from app.categories.financials.feed import feed_statement      # the bank feed's paper, as the sync makes it
+    from app.models.account import Account, AccountType
+    account = Account(name="Conta", institution="Santander Totta", currency="EUR", account_type=AccountType.CHECKING)
+    session.add(account); session.commit(); session.refresh(account)
+    api = feed_statement(session, account.id, "Santander Totta"); session.commit()
     b = _txn(session, bill, "Vodafone", 25.0, date(2026, 3, 1))
     d = _txn(session, api, "VODAFONE PORTUGAL", 25.0, date(2026, 3, 9), external_id="X1")
     reconcile_documents(session)

@@ -367,14 +367,17 @@ async def refile_document(session: Session, document: Document, classification: 
         raise NotFinalizedError(f"Document {document.id} has not been finalized")
     if record_for_document(session, document) is not None:
         raise RefileRefusedError("This file is attached to a hand-entered record; re-file the record instead.")
+    old_spec = get_spec(document.category)
+    moving = (classification.category, (classification.paper_kind or "").strip() or None) != (document.category,
+                                                                                            document.paper_kind)
+    # Whether the paper may leave comes before whether the new place is filled in right: a paper that can't move
+    # is told why, not asked for a file (work-list B5: the bank feed's statement).
+    blocker = old_spec.handler.refile_blocker(session, document) if moving else None
+    if blocker:
+        raise RefileRefusedError(blocker)
     validated = validate_classification(session, classification, document.filename)
     if validated.spec.category == document.category and validated.paper_kind == document.paper_kind:
         return await update_document_fields(session, document, classification.fields)
-
-    old_spec = get_spec(document.category)
-    blocker = old_spec.handler.refile_blocker(session, document)
-    if blocker:
-        raise RefileRefusedError(blocker)
     await old_spec.handler.withdraw(session, document)
     _drop_open_derived_todos(session, document_id=document.id)
     await withdraw_from_wiki(session, document, description=(

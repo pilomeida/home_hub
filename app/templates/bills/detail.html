@@ -3,7 +3,8 @@
 {% block content %}
 <h1>{{ document.filename }}</h1>
 <p>Status: {{ document.status.value }}</p>
-<p><a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
+{% if feed %}<p>The bank feed's statement: these lines came from the bank itself, not from a paper, so there is no file and it can't be re-filed. To change a line, open it in <a href="/financials/transactions">Transactions</a>.</p>
+{% else %}<p><a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>{% endif %}
 {% if document.failure_reason %}
 <p class="needs-attention">{{ document.failure_reason | friendly_reason }}</p>
 {% elif document.status.value == "needs_attention" %}

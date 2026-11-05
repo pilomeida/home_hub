@@ -128,15 +128,16 @@ def effective_fields(spec: CategorySpec, paper_kind: Optional[str], fields: Mapp
     return {**fields, **spec.derive_fields(paper_kind, dict(fields))}
 
 
-def file_url(document: Document) -> str:
-    return f"/static/documents/{Path(document.file_path).name}"
+def file_url(document: Document) -> Optional[str]:
+    """Where the paper's file is served; None for a source with no file (the bank feed's statement)."""
+    return f"/static/documents/{Path(document.file_path).name}" if document.file_path else None
 
 
 @dataclass
 class DocumentDescription:
     document_id: int
     filename: str
-    file_url: str
+    file_url: Optional[str]          # None: a source with no file
     url: Optional[str]
     category_label: Optional[str]
     kind_label: Optional[str]

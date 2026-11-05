@@ -17,7 +17,7 @@ Use the model's word in anything a person reads (pages, messages, docs).
 | **subject** | Who or what a paper is about: a person, account, counterparty, thing, policy, condition | today several unlinked stores (`people`, `health_people`, `merchants`, `accounts`, text fields); one registry planned (work-list B4) |
 | **source** | A paper or hand-entered record kept as received | `Document`, `Record` |
 | **privacy level** | house_low / house_mid / house_high, set per paper kind | `Tier`, `sensitivity`, `document_type_settings` |
-| **bank line** | A line from a statement or the bank feed; takes its statement's privacy level (Pedro, 2026-11-03) | `Transaction` |
+| **bank line** | A line from a statement or the bank feed; takes its statement's privacy level (Pedro, 2026-11-03). A feed line's statement is its account's **feed statement**: a statement-kind paper with no file, never re-filed (work-list B5) | `Transaction`; `app/categories/financials/feed.py` |
 | **budget** / **commitment** | A planned maximum to monitor against / a known spend that is coming, for cash flow (Pedro, 2026-11-03) | `Budget` / `Commitment` |
 
 ---
