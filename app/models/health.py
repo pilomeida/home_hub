@@ -16,6 +16,7 @@ class HealthPerson(SQLModel, table=True):
     match_key: str = Field(index=True)
     confirmed: bool = Field(default=False)
     merged_into_id: Optional[int] = Field(default=None, foreign_key="health_people.id")   # an alias, not a person
+    subject_id: Optional[int] = Field(default=None, foreign_key="subjects.id")             # work-list B4
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

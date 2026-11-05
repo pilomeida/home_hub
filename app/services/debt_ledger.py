@@ -21,6 +21,7 @@ from app.models.position import DebtEntry
 from app.models.transaction import Transaction, TransactionType
 from app.services.loan_math import informal_summary
 from app.services.taxonomy import direction_matches, file_transaction
+from app.services.subjects import register_person
 
 KINDS = ("advance", "repayment", "adjust_up", "adjust_down")
 ROLES = ("advance", "repayment")  # the roles a bank transaction can take
@@ -206,7 +207,8 @@ def create_informal_debt(session: Session, person_name: str, direction: DebtDire
         raise ValueError("Choose a direction")
     person = session.exec(select(Person).where(Person.name == name)).first()
     if person is None:
-        person = Person(name=name)
+        subject = register_person(session, name)          # the Hub's one registry of subjects (work-list B4)
+        person = Person(name=name, subject_id=subject.id if subject else None)
         session.add(person)
         session.flush()
     debt = Debt(kind=DebtKind.INFORMAL, person_id=person.id, direction=direction,

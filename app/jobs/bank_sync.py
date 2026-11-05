@@ -24,6 +24,7 @@ from app.services.bankapi.client import EnableBankingClient
 from app.services.bankapi.connect import connection_label, consent_ended, consent_warning, latest_connections
 from app.services.bankapi.sync import SyncResult, sync_link
 from app.services.bankapi.topups import link_revolut_topups
+from app.services.subjects import propose_matches
 
 logger = logging.getLogger("bank_sync")
 
@@ -97,6 +98,9 @@ async def run_all(session: Session, client, *, dry_run: bool = False,
                 link.id, result.created, result.already_synced, result.matched_existing,
             )
         results[link.id] = result
+    if not dry_run:
+        propose_matches(session)                           # new payees that look like people: asked on the Inbox (B4)
+        session.commit()
     return results
 
 

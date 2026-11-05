@@ -17,6 +17,7 @@ from app.categories.registry import document_url, get_spec, implemented_categori
 from app.models.category import Category
 from app.privacy.recognise import original_sender
 from app.privacy.settings import TierHeld
+from app.routers.subjects import section_html as same_person_section
 from app.routers.to_check import section_html as to_check_section
 from app.services import inbox_service
 from app.services.paper_uses import PaperInUse
@@ -88,7 +89,8 @@ async def inbox_page(request: Request, session: Session = Depends(get_session)):
                for s, d in inbox_service.recent_skips(session)]
     return templates.TemplateResponse(request, "inbox/list.html",
                                       {"cards": cards, "recent": recent, "skipped": skipped,
-                                       "to_check_section": to_check_section(session)})
+                                       "to_check_section": to_check_section(session),
+                                       "same_person_section": same_person_section(session)})
 
 
 @router.get("/{document_id}/fields")

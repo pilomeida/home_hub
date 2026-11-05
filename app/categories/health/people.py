@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 from app.categories.health.text import match_key
 from app.models.health import HealthEntry, HealthMeasurement, HealthPerson
 from app.problems import Problem
+from app.services.subjects import merge, register_person
 
 
 class PersonError(Exception):
@@ -56,7 +57,8 @@ def find_or_create_person(session: Session, name: Optional[str]) -> Optional[Hea
                    and (tokens <= set(p.match_key.split()) or set(p.match_key.split()) <= tokens)]
         if len(related) == 1:
             return related[0]
-    person = HealthPerson(name=name.strip(), match_key=key, confirmed=False)
+    subject = register_person(session, name)              # the Hub's one registry of subjects (work-list B4)
+    person = HealthPerson(name=name.strip(), match_key=key, confirmed=False, subject_id=subject.id if subject else None)
     session.add(person)
     session.commit()
     session.refresh(person)
@@ -94,6 +96,8 @@ def merge_people(session: Session, source_id: int, target_id: int) -> None:
     # The row stays as an alias: papers still hold this spelling, and it must keep leading to the person kept.
     source.merged_into_id = target_id
     session.add(source)
+    if source.subject_id and target.subject_id:        # the same person in the registry too
+        merge(session, source.subject_id, target.subject_id)
     target.confirmed = True
     session.add(target)
     session.commit()

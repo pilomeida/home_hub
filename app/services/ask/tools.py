@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import re
-import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -34,6 +33,7 @@ from app.services.ask.refs import (
     Source, citable_for_source, citable_for_todo, citable_for_wiki_page, source_ref,
 )
 from app.services.document_input import UnsupportedFileTypeError, build_content_block
+from app.services.names import fold   # lowercase, accent-free: 'Caldéira' -> 'caldeira'
 from app.services.wiki_store import (
     active_claims, claim_sources, links_from, links_to, superseded_claims, visible_summary,
 )
@@ -43,12 +43,6 @@ logger = logging.getLogger(__name__)
 READ_FILE_TOOL = "read_document_file"
 _MAX_FILE_BYTES = 10 * 1024 * 1024
 _MAX_PAGES_PER_CALL = 10
-
-
-def fold(text: str) -> str:
-    """Lowercase, accent-free: 'Caldéira' -> 'caldeira' (Portuguese records)."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).lower()
 
 
 def tokens(text: str) -> set[str]:

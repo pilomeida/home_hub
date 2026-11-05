@@ -1,0 +1,6 @@
+<div class="inbox-card" id="same-person-{{ p.match.id }}">
+  <p><strong>{{ p.one }}</strong> and <strong>{{ p.other }}</strong>: the same person?</p>
+  <p><small>{{ p.match.reason }}</small></p>
+  <button hx-post="/subjects/matches/{{ p.match.id }}" hx-vals='{"same": "yes"}' hx-target="#same-person-{{ p.match.id }}" hx-swap="outerHTML">Yes, the same person</button>
+  <button hx-post="/subjects/matches/{{ p.match.id }}" hx-vals='{"same": "no"}' hx-target="#same-person-{{ p.match.id }}" hx-swap="outerHTML">No, different people</button>
+</div>

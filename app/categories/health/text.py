@@ -2,16 +2,8 @@
 
 import re
 from typing import Optional
-import unicodedata
 
-
-def fold(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).lower()
-
-
-def match_key(text: str) -> str:
-    return re.sub(r"\s+", " ", fold(text)).strip()
+from app.services.names import fold, name_key as match_key  # noqa: F401  (one normaliser, work-list B4)
 
 
 PATH_SEP = " › "

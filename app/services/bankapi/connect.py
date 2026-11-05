@@ -12,6 +12,7 @@ from app.models.account import Account
 from app.models.bank import BankAccountLink, BankConnection, BankConnectionStatus
 from app.problems import resolve_for
 from app.services.bankapi import messages as msg
+from app.services.subjects import link_account_owners, register_person
 
 # aspsp.name strings must be confirmed against GET /aspsps (verified 2026-10-05: "Santander Totta"/PT, "Revolut"/LT) and
 # corrected here if they differ.
@@ -46,8 +47,10 @@ async def begin_connection(session: Session, client, bank_key: str, *,
     bank_name, country = SUPPORTED_BANKS[bank_key]
     state = secrets.token_urlsafe(24)
     days = min(await client.max_consent_days(bank_name, country), _MAX_CONSENT_DAYS)
-    connection = BankConnection(bank_name=bank_name, country=country, state=state, owner=owner_of(bank_key),
-                                status=BankConnectionStatus.PENDING)
+    owner = owner_of(bank_key)
+    subject = register_person(session, owner)              # the Hub's one registry of subjects (work-list B4)
+    connection = BankConnection(bank_name=bank_name, country=country, state=state, owner=owner,
+                                owner_subject_id=subject.id if subject else None, status=BankConnectionStatus.PENDING)
     session.add(connection)
     session.commit()
     try:
@@ -156,6 +159,8 @@ def map_account(session: Session, link_id: int, account_id: int) -> None:
         raise ValueError(f"no such bank account link: {link_id}")
     link.account_id = account_id
     session.add(link)
+    session.flush()
+    link_account_owners(session)                           # the account is its connection owner's
     session.commit()
 
 

@@ -1,0 +1,7 @@
+{% if proposals %}
+<section id="same-person">
+  <h2>Same person?</h2>
+  <p>The Hub found names that may belong to the same person. Say yes and they become one, everywhere in the Hub; say no and it won't ask again. Anyone in the family can answer.</p>
+  {% for p in proposals %}{% include "inbox/_same_person_card.html" %}{% endfor %}
+</section>
+{% endif %}

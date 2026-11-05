@@ -11,6 +11,8 @@
 
 {% if to_check_section %}{{ to_check_section | safe }}{% endif %}
 
+{% if same_person_section %}{{ same_person_section | safe }}{% endif %}
+
 {% if skipped %}
 <h2>Not added</h2>
 <p>Files that arrived but were not added, and why (last 30 days).</p>
