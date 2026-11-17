@@ -2,7 +2,7 @@
   <h3>Open to-dos</h3>
   <ul>
     {% for todo in household.open_todos %}
-      <li>{{ todo.title }} — due {{ todo.due_date }}</li>
+      <li>{{ todo.title }}{% if todo.due_date %} — due {{ todo.due_date }}{% endif %}</li>
     {% else %}
       <li>Nothing due.</li>
     {% endfor %}

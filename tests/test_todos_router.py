@@ -69,7 +69,7 @@ def test_todos_page_shows_domain_badges(client, session):
     assert '<span class="badge">Financials</span>' in client.get("/todos").text
 
 
-def test_add_general_todo_has_no_area_and_shows_on_the_todos_page_only(client, session):
+def test_add_general_todo_has_no_area_and_shows_on_the_todos_page_and_dashboard_not_in_an_area(client, session):
     response = client.post("/todos/add-general", data={"title": "Re-register the Ergon domain", "due_date": "2026-12-16"})
 
     assert response.status_code == 200
@@ -97,4 +97,22 @@ def test_a_todo_without_a_due_date_does_not_say_due_none(client, session):
 
 def test_the_todos_page_offers_the_general_form(client):
     assert 'hx-post="/todos/add-general"' in client.get("/todos").text
+
+
+def test_the_dashboard_does_not_say_due_none_for_a_to_do_without_a_date(client, session):
+    session.add(Todo(title="Someday thing on the dashboard"))
+    session.commit()
+    text = client.get("/").text
+    assert "Someday thing on the dashboard" in text and "due None" not in text
+
+
+def test_add_general_todo_works_without_a_due_date(client, session):
+    response = client.post("/todos/add-general", data={"title": "No date needed"})
+    assert response.status_code == 200 and "No date needed" in response.text and "due None" not in response.text
+    assert session.exec(select(Todo).where(Todo.title == "No date needed")).one().due_date is None
+
+
+def test_an_unknown_area_says_what_why_and_next_step(client):
+    detail = client.post("/todos/add", data={"title": "x", "domain": "nope"}).json()["detail"]
+    assert detail["what"] == "To-do not added." and detail["why"] and detail["next_step"]
 
