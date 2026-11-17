@@ -209,3 +209,57 @@ async def test_reingest_after_rename_retracts_the_old_item(session, fake_categor
     report = await withdraw_from_wiki(session, document, description="doc.pdf re-filed")
     assert wiki_store.active_claims(session, new.id) == []
     assert session.get(WikiLogEntry, report.log_entry_id).operation == WikiOperation.EDIT
+
+# --- Facts dated by their paper (Graphiti's valid time) ----------------------------------------------------------
+
+from datetime import date as _date
+
+
+@pytest.mark.asyncio
+async def test_assess_keeps_the_dates_a_paper_gives_a_fact(session, guided_category):
+    client = _fake_gateway(json.dumps({"pages": [{"title": "Electricity", "summary": "EDP", "facts": {
+        "tariff": {"value": "Bi-horário", "true_from": "2025-01-01", "true_until": None},
+        "provider": "EDP",
+    }}]}))
+
+    claims = {c.key: c for c in await assess_document_for_wiki(session, _document(session), "ctx", gateway=client)}
+
+    assert claims["tariff"].value == "Bi-horário" and claims["tariff"].valid_from == _date(2025, 1, 1)
+    assert claims["tariff"].valid_to is None and claims["provider"].valid_from is None
+    assert "true_from" in client.requests[0]["system"]
+
+
+@pytest.mark.asyncio
+async def test_ingest_dates_facts_by_the_kind_s_dated_by(session, monkeypatch):
+    import dataclasses
+    from app.categories.base import dated_by_fields
+    spec = dataclasses.replace(make_fake_spec(), dated_by=dated_by_fields("seen_on"))
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
+    document = _document(session, fields={"item_name": "Boiler", "seen_on": "2026-03-01"})
+
+    await ingest_into_wiki(session, document, gateway=_ExplodingGateway())
+
+    page = wiki_store.find_page(session, wiki_store.PageRef(page_type="fake.item", title="Boiler", entity_key="boiler"))
+    assert {c.valid_from for c in wiki_store.active_claims(session, page.id)} == {_date(2026, 3, 1)}
+
+
+def test_real_specs_date_their_papers(session):
+    from app.categories.registry import get_spec
+    from app.models.transaction import Transaction, TransactionType
+    health = Document(filename="lab.pdf", file_path="/tmp/lab.pdf", content_hash="hl", source=DocumentSource.MANUAL,
+                      status=DocumentStatus.PROCESSED, category=Category.HEALTH, paper_kind="lab_result",
+                      fields_json=json.dumps({"document_date": "2025-11-02"}))
+    warranty = Document(filename="w.pdf", file_path="/tmp/w.pdf", content_hash="hw", source=DocumentSource.MANUAL,
+                        status=DocumentStatus.PROCESSED, category=Category.HOUSE, paper_kind="warranty_invoice",
+                        fields_json=json.dumps({"item_name": "Oven", "purchase_date": "2024-05-20"}))
+    bill = Document(filename="b.pdf", file_path="/tmp/b.pdf", content_hash="hb", source=DocumentSource.MANUAL,
+                    status=DocumentStatus.PROCESSED, category=Category.FINANCIALS, paper_kind="bill")
+    session.add_all([health, warranty, bill])
+    session.commit()
+    session.add(Transaction(document_id=bill.id, description="EDP", transaction_type=TransactionType.DEBIT,
+                            amount=42, currency="EUR", issue_date=_date(2026, 10, 3)))
+    session.commit()
+
+    assert get_spec(Category.HEALTH).paper_date(session, health) == _date(2025, 11, 2)
+    assert get_spec(Category.HOUSE).paper_date(session, warranty) == _date(2024, 5, 20)
+    assert get_spec(Category.FINANCIALS).paper_date(session, bill) == _date(2026, 10, 3)

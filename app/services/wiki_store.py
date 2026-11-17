@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Iterable, Optional, Sequence
 
 from sqlmodel import Session, select
@@ -49,6 +49,10 @@ class ClaimInput:
     label: Optional[str] = None
     policy: FactPolicy = FactPolicy.REPLACE
     note: Optional[str] = None
+    # When the fact was true, if the paper says so itself (a tariff "from 2025-01-01"); otherwise apply_claims dates
+    # it from the paper (`as_of`). Graphiti's valid time, see WikiClaim.
+    valid_from: Optional[date] = None
+    valid_to: Optional[date] = None
 
 
 @dataclass(frozen=True)
@@ -277,7 +281,13 @@ def apply_claims(
     description: Optional[str] = None,
     links: Sequence[LinkInput] = (),
     retract_missing: bool = False,
+    as_of: Optional[date] = None,
 ) -> IngestReport:
+    """Write claims, never deleting one. Two clocks (Graphiti's bi-temporal model): created_at/superseded_at say
+    when the Hub learned or replaced a fact; valid_from/valid_to say when it was true. `as_of` is the date of the
+    paper (its kind's `dated_by`), the start of every claim that names none of its own. A paper older than the fact
+    on file adds history, it does not overwrite the present: its claim is recorded as already ended where the
+    current one begins."""
     source_given = document is not None or record is not None
     category = category if category is not None else (
         record.category if record is not None else (document.category if document is not None else None)
@@ -296,15 +306,19 @@ def apply_claims(
             page.summary = claim_input.page.summary
             changed.add(page.id)
 
+        valid_from = claim_input.valid_from or as_of
         active = _active_claim(session, page.id, claim_input.key)
         if active is not None and active.value == claim_input.value and active.note == claim_input.note:
             if source_given:
                 _add_source(session, active.id, document, record)
+            if valid_from is not None and (active.valid_from is None or valid_from < active.valid_from):
+                active.valid_from = valid_from           # an earlier paper saying the same: true since then
+                session.add(active)
             report.confirmed += 1
             continue
 
         new = WikiClaim(page_id=page.id, key=claim_input.key, label=claim_input.label, value=claim_input.value,
-                        note=claim_input.note)
+                        note=claim_input.note, valid_from=valid_from, valid_to=claim_input.valid_to)
         session.add(new)
         session.flush()
         if source_given:
@@ -315,15 +329,23 @@ def apply_claims(
         if active is None:
             continue
         is_correction = source_given and _has_source(session, active.id, document, record)
-        if claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value and not is_correction:
-            new.status = ClaimStatus.SUPERSEDED
+        older_paper = (not is_correction and new.valid_from is not None and active.valid_from is not None
+                       and new.valid_from < active.valid_from)
+        if not is_correction and (older_paper or (claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value)):
+            new.status = ClaimStatus.SUPERSEDED          # history: it ended where the fact on file begins
             new.superseded_by_claim_id = active.id
             new.superseded_at = now
+            if active.valid_from is not None and (new.valid_to is None or new.valid_to > active.valid_from):
+                new.valid_to = active.valid_from
             session.add(new)
         else:
             active.status = ClaimStatus.SUPERSEDED
             active.superseded_by_claim_id = new.id
             active.superseded_at = now
+            if is_correction:
+                active.was_correction = True             # the same paper corrected it: never true as stated
+            elif active.valid_to is None and new.valid_from is not None:
+                active.valid_to = new.valid_from         # true until the new fact took over
             session.add(active)
         report.superseded += 1
 
@@ -452,3 +474,46 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
             entries=sorted(entries, key=lambda e: e.title.lower()),
         ))
     return sections
+
+@dataclass
+class DatingReport:
+    dated: int = 0                 # facts given a start from their earliest paper
+    closed: int = 0                # replaced facts given an end where their successor begins
+    out_of_order: list[int] = field(default_factory=list)   # replaced by a fact from an OLDER paper: to look at
+
+
+def date_existing_facts(session: Session) -> DatingReport:
+    """Date the facts filed before the wiki knew when facts were true (migration a3c7e1f9b250): each fact starts
+    at the earliest date of the papers that say it, and a replaced fact ends where its successor starts. A fact
+    replaced by one from an older paper is listed, not changed: which is current is a person's call. The caller
+    commits; safe to run again (only empty dates are filled)."""
+    from app.categories.registry import get_spec   # lazy: the registry imports every spec
+    report = DatingReport()
+    claims = list(session.exec(select(WikiClaim)).all())
+    for claim in claims:
+        if claim.valid_from is not None:
+            continue
+        dates = []
+        for link in session.exec(select(WikiClaimSource).where(WikiClaimSource.claim_id == claim.id)).all():
+            source = session.get(Document, link.document_id) if link.document_id else session.get(Record, link.record_id)
+            if source is not None and source.category is not None:
+                when = get_spec(source.category).paper_date(session, source)
+                if when is not None:
+                    dates.append(when)
+        if dates:
+            claim.valid_from = min(dates)
+            session.add(claim)
+            report.dated += 1
+    by_id = {c.id: c for c in claims}
+    for claim in claims:
+        successor = by_id.get(claim.superseded_by_claim_id) if claim.superseded_by_claim_id else None
+        if successor is None or claim.was_correction or claim.valid_to is not None or successor.valid_from is None:
+            continue
+        if claim.valid_from is not None and successor.valid_from < claim.valid_from:
+            report.out_of_order.append(claim.id)
+            continue
+        claim.valid_to = successor.valid_from
+        session.add(claim)
+        report.closed += 1
+    session.flush()
+    return report

@@ -98,7 +98,21 @@ def _parse_category(value) -> Optional[Category]:
 def _claim_line(claim, sources: list[Source]) -> str:
     refs = ", ".join(source_ref(s) for s in sources) or "none"
     note = f" — NOTE: {claim.note}" if claim.note else ""
-    return f"- {claim.label or claim.key} ({claim.key}): {claim.value}{note} (recorded {claim.created_at:%Y-%m-%d}; sources: {refs})"
+    return (f"- {claim.label or claim.key} ({claim.key}): {claim.value}{note} ({_true_when(claim)}"
+            f"recorded {claim.created_at:%Y-%m-%d}; sources: {refs})")
+
+
+def _true_when(claim) -> str:
+    """When the fact was true in the world, apart from when the Hub recorded it (Graphiti's two clocks)."""
+    if claim.was_correction:
+        return "corrected: never true as stated; "
+    if claim.valid_from and claim.valid_to:
+        return f"true {claim.valid_from:%Y-%m-%d} to {claim.valid_to:%Y-%m-%d}; "
+    if claim.valid_from:
+        return f"true since {claim.valid_from:%Y-%m-%d}; "
+    if claim.valid_to:
+        return f"true until {claim.valid_to:%Y-%m-%d}; "
+    return ""
 
 
 def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
@@ -130,7 +144,7 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
         lines += [_claim_line(c, sources.get(c.id, [])) for c in current] or ["- (none)"]
         if history:
             lines.append("Superseded facts (history only, NOT current):")
-            lines += [f"- {c.key}: {c.value} (superseded {c.superseded_at:%Y-%m-%d})" for c in history]
+            lines += [f"- {c.key}: {c.value} ({_true_when(c)}superseded {c.superseded_at:%Y-%m-%d})" for c in history]
         neighbours = {p.id: p for p in links_from(session, page.id) + links_to(session, page.id)
                       if view.page_visible(p.id)}
         private_pages |= {i for i in neighbours if not first_call_view.page_visible(i)}   # listed by title: private

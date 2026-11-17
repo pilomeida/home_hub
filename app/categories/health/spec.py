@@ -1,7 +1,7 @@
 """Health's CategorySpec. Always house_high: declared here (forced_tier), read by app/privacy/settings.py."""
 
 from app.categories.base import (
-    KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, FiledAs, NavLink, WikiSchema,
+    KindSpec, CategorySpec, dated_by_fields, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, FiledAs, NavLink, WikiSchema,
 )
 from app.categories.health.ask import HEALTH_TOOLS
 from app.categories.health.kinds import ALL_KINDS, PERSON_PAGE_TYPE, RECORD_KINDS, HealthKind
@@ -23,6 +23,7 @@ _HEALTH_FILES = frozenset({FiledAs.HEALTH, FiledAs.WIKI})
 SPEC = CategorySpec(
     category=Category.HEALTH,
     forced_tier=Tier.HIGH,          # nothing about Health may ever be read below High (decision D19)
+    dated_by=dated_by_fields("document_date", "appointment_date"),
     label="Health",
     description=(
         "The family's medical papers: lab results, imaging reports, consultation and discharge letters, "

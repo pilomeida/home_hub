@@ -246,3 +246,116 @@ def test_retract_missing_supersedes_sole_source_claims_and_withdraws_shared_link
     (gone,) = wiki_store.superseded_claims(session, page.id)
     assert gone.key == "type" and gone.superseded_by_claim_id is None
     assert report.retracted == 2
+
+# --- When a fact was true (Graphiti's valid time), apart from when the Hub learned it ---------------------------
+
+from datetime import date as _date
+
+
+def test_a_fact_is_true_from_the_date_of_its_paper(session):
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=_document(session),
+                            as_of=_date(2024, 3, 1))
+
+    claim = wiki_store.active_claims(session, wiki_store.find_page(session, BOILER).id)[0]
+    assert claim.valid_from == _date(2024, 3, 1) and claim.valid_to is None and not claim.was_correction
+
+
+def test_a_newer_paper_closes_the_old_fact_where_the_new_one_begins(session):
+    first, second = _document(session), _document(session, "b.pdf", "h-b")
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=first, as_of=_date(2024, 3, 1))
+
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=second,
+                            as_of=_date(2025, 6, 1))
+
+    old, new = _claims(session, wiki_store.find_page(session, BOILER).id)
+    assert old.status == ClaimStatus.SUPERSEDED and (old.valid_from, old.valid_to) == (_date(2024, 3, 1), _date(2025, 6, 1))
+    assert new.status == ClaimStatus.ACTIVE and new.valid_from == _date(2025, 6, 1)
+
+
+def test_an_older_paper_arriving_late_adds_history_and_keeps_the_present(session):
+    newer, older = _document(session), _document(session, "b.pdf", "h-b")
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=newer,
+                            as_of=_date(2025, 6, 1))
+
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=older, as_of=_date(2024, 3, 1))
+
+    page = wiki_store.find_page(session, BOILER)
+    assert [c.value for c in wiki_store.active_claims(session, page.id)] == ["Utility room"]
+    history = _claims(session, page.id, ClaimStatus.SUPERSEDED)[0]
+    assert history.value == "Kitchen" and (history.valid_from, history.valid_to) == (_date(2024, 3, 1), _date(2025, 6, 1))
+    assert json.loads(page.facts_json) == {"room": "Utility room"}
+
+
+def test_an_earlier_paper_saying_the_same_moves_the_start_back(session):
+    newer, older = _document(session), _document(session, "b.pdf", "h-b")
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=newer, as_of=_date(2025, 6, 1))
+
+    report = wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=older,
+                                     as_of=_date(2023, 1, 15))
+
+    claim = wiki_store.active_claims(session, wiki_store.find_page(session, BOILER).id)[0]
+    assert report.confirmed == 1 and claim.valid_from == _date(2023, 1, 15)
+
+
+def test_a_correction_from_the_same_paper_was_never_true(session):
+    document = _document(session)
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchn")], document=document, as_of=_date(2024, 3, 1))
+
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=document, as_of=_date(2024, 3, 1))
+
+    wrong, right = _claims(session, wiki_store.find_page(session, BOILER).id)
+    assert wrong.was_correction and wrong.valid_to is None
+    assert right.status == ClaimStatus.ACTIVE and right.valid_from == _date(2024, 3, 1)
+
+
+def test_a_fact_that_names_its_own_dates_keeps_them(session):
+    wiki_store.apply_claims(
+        session, [ClaimInput(BOILER, "tariff", "Simples", valid_from=_date(2025, 1, 1), valid_to=_date(2025, 12, 31))],
+        document=_document(session), as_of=_date(2025, 3, 10),
+    )
+
+    claim = wiki_store.active_claims(session, wiki_store.find_page(session, BOILER).id)[0]
+    assert (claim.valid_from, claim.valid_to) == (_date(2025, 1, 1), _date(2025, 12, 31))
+
+
+def test_undated_papers_keep_the_old_rule_newest_filed_wins(session):
+    first, second = _document(session), _document(session, "b.pdf", "h-b")
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=first, as_of=_date(2025, 6, 1))
+
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=second)
+
+    page = wiki_store.find_page(session, BOILER)
+    assert [c.value for c in wiki_store.active_claims(session, page.id)] == ["Utility room"]
+
+
+def test_date_existing_facts_fills_starts_and_ends_and_lists_out_of_order(session, monkeypatch):
+    import dataclasses
+    from app.categories import registry
+    from app.categories.base import dated_by_fields
+    from tests.category_fakes import make_fake_spec
+    spec = dataclasses.replace(make_fake_spec(), dated_by=dated_by_fields("seen_on"))
+    monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
+
+    def dated(name, when):
+        document = _document(session, name, f"h-{name}")
+        document.fields_json = json.dumps({"seen_on": when})
+        session.add(document)
+        session.commit()
+        return document
+
+    # filed before facts had dates: no as_of
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=dated("a.pdf", "2024-03-01"))
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=dated("b.pdf", "2025-06-01"))
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "colour", "White")], document=dated("c.pdf", "2026-01-01"))
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "colour", "Grey")], document=dated("d.pdf", "2023-01-01"))
+
+    report = wiki_store.date_existing_facts(session)
+    session.commit()
+
+    page = wiki_store.find_page(session, BOILER)
+    kitchen, utility, white, grey = _claims(session, page.id)
+    assert (kitchen.valid_from, kitchen.valid_to) == (_date(2024, 3, 1), _date(2025, 6, 1))
+    assert utility.valid_from == _date(2025, 6, 1) and utility.valid_to is None
+    assert report.out_of_order == [white.id] and white.valid_to is None   # a person decides which is current
+    assert report.dated == 4 and report.closed == 1
+    assert wiki_store.date_existing_facts(session).dated == 0             # safe to run again

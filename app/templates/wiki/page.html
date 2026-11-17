@@ -8,12 +8,13 @@
 <h2>Current facts</h2>
 {% if active_claims %}
 <table class="review-table">
-  <thead><tr><th>Fact</th><th>Value</th><th>Source</th></tr></thead>
+  <thead><tr><th>Fact</th><th>Value</th><th>True since</th><th>Source</th></tr></thead>
   <tbody>
     {% for claim in active_claims %}
     <tr>
       <td>{{ claim_label(claim.label, claim.key) }}</td>
       <td>{{ claim.value }}</td>
+      <td>{% if claim.valid_from %}{{ claim.valid_from | display_date }}{% else %}—{% endif %}{% if claim.valid_to %} (until {{ claim.valid_to | display_date }}){% endif %}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
     </tr>
     {% endfor %}
@@ -35,12 +36,13 @@
 {% if history %}
 <h2>Superseded</h2>
 <table class="review-table">
-  <thead><tr><th>Fact</th><th>Was</th><th>Replaced on</th><th>Source</th></tr></thead>
+  <thead><tr><th>Fact</th><th>Was</th><th>True</th><th>Replaced on</th><th>Source</th></tr></thead>
   <tbody>
     {% for claim in history %}
     <tr>
       <td>{{ claim_label(claim.label, claim.key) }}</td>
       <td>{{ claim.value }}</td>
+      <td>{% if claim.was_correction %}Corrected — never true as written{% elif claim.valid_from or claim.valid_to %}{{ claim.valid_from | display_date if claim.valid_from else "?" }} → {{ claim.valid_to | display_date if claim.valid_to else "?" }}{% else %}—{% endif %}</td>
       <td>{{ claim.superseded_at | display_date }}</td>
       <td>{% for src in sources.get(claim.id, []) %}<a href="{{ src.url }}">{{ src.filename }}</a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
     </tr>

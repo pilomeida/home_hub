@@ -1,5 +1,7 @@
 """Financials' CategorySpec."""
 
+from datetime import date
+
 from sqlmodel import Session, select
 
 from app.categories.base import (
@@ -12,6 +14,8 @@ from app.categories.financials.handler import (
 )
 from app.categories.financials.overview import financials_overview_card
 from app.models.account import Account
+from app.models.document import Document
+from app.models.transaction import Transaction
 from app.models.category import Category
 from app.privacy.tiers import Tier
 
@@ -19,6 +23,13 @@ from app.privacy.tiers import Tier
 def _account_choices(session: Session) -> list[tuple[str, str]]:
     accounts = session.exec(select(Account).order_by(Account.name)).all()
     return [(str(a.id), a.name) for a in accounts]
+
+
+def _bill_date(session: Session, source) -> date | None:
+    """A bill speaks for the day it was issued (else its due or paid date), as read into its bank line."""
+    line = session.exec(select(Transaction).where(Transaction.document_id == source.id)).first() \
+        if isinstance(source, Document) else None
+    return (line.issue_date or line.due_date or line.paid_date) if line is not None else None
 
 
 SPEC = CategorySpec(
@@ -31,6 +42,7 @@ SPEC = CategorySpec(
             FinancialsKind.BILL.value, "Bill / invoice",
             "A single bill, invoice, receipt or premium notice from one provider with one amount due.",
             suggested_tier=Tier.MID, reader=read_bill, files_as=frozenset({FiledAs.MONEY, FiledAs.TODOS, FiledAs.WIKI}),
+            dated_by=_bill_date,
         ),
         KindSpec(
             FinancialsKind.STATEMENT.value, "Bank statement",

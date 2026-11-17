@@ -13,6 +13,7 @@ document is finalized, so documents awaiting review never touch the wiki."""
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -39,6 +40,10 @@ Existing pages in this section (reuse a title exactly when the facts belong ther
 
 Respond with ONLY a JSON object:
 {{"pages": [{{"title": "short human title", "summary": "one line describing the page", "facts": {{"key": "value"}}}}]}}
+When the document itself says from when, or until when, a fact holds (a tariff "valid from 2025-01-01", a \
+contract ending 2026-12-31), give that fact as an object instead of a string: \
+{{"value": "...", "true_from": "YYYY-MM-DD or null", "true_until": "YYYY-MM-DD or null"}}. \
+Never guess these dates; a deadline still to come (a renewal date) is a fact's value, not its "true_until".
 Return {{"pages": []}} when the document holds nothing worth recording."""
 
 _WIKI_SCHEMA = {
@@ -59,6 +64,13 @@ _WIKI_SCHEMA = {
         },
     },
 }
+
+
+def _iso_date(value) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(value)[:10]) if value else None
+    except ValueError:
+        return None
 
 
 class WikiAssessmentError(Exception):
@@ -136,8 +148,13 @@ async def assess_document_for_wiki(
         for page in data.get("pages", []):
             ref = PageRef(page_type=TOPIC_PAGE_TYPE, title=str(page["title"]).strip(), summary=page.get("summary"))
             for key, value in (page.get("facts") or {}).items():
+                valid_from = valid_to = None
+                if isinstance(value, dict) and "value" in value:   # a fact the paper dates itself
+                    valid_from, valid_to = _iso_date(value.get("true_from")), _iso_date(value.get("true_until"))
+                    value = value["value"]
                 text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-                claims.append(ClaimInput(page=ref, key=str(key), value=text, label=str(key)))
+                claims.append(ClaimInput(page=ref, key=str(key), value=text, label=str(key),
+                                         valid_from=valid_from, valid_to=valid_to))
         return claims
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise WikiAssessmentError(f"Could not parse wiki assessment: {exc}") from exc
@@ -163,6 +180,7 @@ async def ingest_into_wiki(
         session, claims,
         document=None if is_record else document, record=document if is_record else None,
         operation=operation, links=links_from_fields(spec, document), retract_missing=True,
+        as_of=spec.paper_date(session, document),
     )
 
 

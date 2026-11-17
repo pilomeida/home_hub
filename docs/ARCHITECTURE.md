@@ -526,6 +526,13 @@ The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique t
 claim is superseded — a new row written, the old one stamped — never deleted or edited. `WikiClaim.note`
 (nullable) carries a claim-level annotation such as an "assumed" note (see *Derived fields and claim
 notes* below) — a normal field of the claim, not itself versioned.
+**Two clocks** (work-list E1, after Graphiti): `created_at`/`superseded_at` say when the Hub learned or
+replaced a claim; `valid_from`/`valid_to` say when it was true. `valid_from` is the claim's own start
+(`ClaimInput.valid_from`, e.g. given by the AI reader) or else the paper's date (`apply_claims(as_of=)`,
+from `CategorySpec.paper_date`: the kind's `dated_by`, else the category's). A newer paper closes the
+active claim at its own start; a claim from an older paper is written already superseded, ending where
+the active one begins, so a late backfill never overwrites the present. A claim the same source corrects
+is `was_correction` (never true as stated). Undated claims keep the old rule: the newest filed wins.
 `WikiClaimSource` links each claim to the source asserting it: **a Document OR a Record, exactly
 one** (`document_id` nullable, `record_id` nullable FK → `records.id` indexed, check constraint
 `ck_wiki_claim_sources_one_source` enforces exactly one of the two is set). `withdrawn_at`

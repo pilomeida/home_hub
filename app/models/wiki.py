@@ -14,7 +14,7 @@ WikiPage.facts_json is a cache of the page's ACTIVE claims, rebuilt only by
 app.services.wiki_store. WikiChange is the pre-claims history table: kept
 read-only, no longer written."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -74,6 +74,13 @@ class WikiClaim(SQLModel, table=True):
     superseded_by_claim_id: Optional[int] = Field(default=None, foreign_key="wiki_claims.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     superseded_at: Optional[datetime] = None
+    # When the fact was true in the world (Graphiti's "valid time"), apart from when the Hub learned or replaced it
+    # (created_at / superseded_at). valid_from: the date of the paper that says it, unless the paper names its own
+    # start; NULL = not known. valid_to: when a later fact took over, or the end the paper itself gives; NULL = still
+    # true, or not known. A claim superseded as a correction of the same paper was never true as stated: was_correction.
+    valid_from: Optional[date] = None
+    valid_to: Optional[date] = None
+    was_correction: bool = Field(default=False)
 
 
 class WikiClaimSource(SQLModel, table=True):

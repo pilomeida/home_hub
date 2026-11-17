@@ -52,6 +52,28 @@ kind carries its four attributes → B5 bank lines explicit → B3b commitments 
 | D5 | Run jobs so the mailbox check is never stuck behind bank sync or the wiki check | F17 | S |
 | D6 | Bring ARCHITECTURE.md, SYSADMIN.md and `.env.example` up to date | F22 | S |
 
+## E. Knowledge layers (Pedro, 2026-11-17)
+Three layers, each with one job: **tables** for numbers and dates (the truth), the **wiki** for standing facts (each
+with its sources and its subject), **search over papers** for the long tail. Anything can be uploaded from day one;
+a kind of paper gets its own reader only once the same exact question keeps being asked about it.
+| # | What | Done when | Size |
+|---|---|---|---|
+| E1 | **Facts say when they were true** (Graphiti's two clocks: when it was true, apart from when the Hub learned it). **Built 2026-11-17:** `wiki_claims.valid_from/valid_to/was_correction` (migration `a3c7e1f9b250`); each kind declares how its papers are dated (`KindSpec.dated_by`, else `CategorySpec.dated_by`: Health by the paper's date, a warranty by the purchase date, maintenance by the service date, a bill by its issue date); a newer paper closes the old fact where the new one begins; **an older paper arriving late adds history and no longer overwrites the present**; a correction from the same paper is marked never true; the AI reader may give a fact's own dates (a tariff "from 2025-01-01"). The wiki page and Ask show "true since / true from–to". `scripts/date_wiki_facts.py` dates the facts on file and lists any replaced by an older paper (a person decides). | A fact on a wiki page shows since when it holds; a backfilled old paper leaves the current fact current (tested) | M |
+| E2 | **"Anything else" paper kind and search over papers.** A catch-all kind with no dedicated reader: stored, given a level, turned into text (the PDF's own text first, the AI reading the page only when there is none), titled, dated and summarised, then found by a search over every paper's text (SQLite FTS5, no new service) from a search box and from Ask, with citations, inside the privacy reach. | A paper of an unknown kind is uploaded, approved and found by a word inside it, from the page and from Ask; a High paper never reaches a lower call | L |
+| E3 | **Wiki facts point at subjects** (B4's next step) | Rute's facts are found from her subject, whichever page holds them | M |
+
+### What we can reuse from open source (survey 2026-11-17)
+Only MIT/Apache/BSD code may be adapted (with attribution); GPL/AGPL projects give ideas only.
+| For | Take | From (licence) |
+|---|---|---|
+| E1 | The rules for closing a fact by date (older closes at newer's start; never delete); a deadline still to come is not an end | getzep/graphiti `utils/maintenance/edge_operations.py`, `temporal_edge_utils.py` (Apache-2.0): used in E1 |
+| E2 | "Use the PDF's own text, read the page only when there is none"; prompts for title, date and kind | paperless-ngx consumer (GPL: idea only); icereed/paperless-gpt `default_prompts/` (MIT: adapt) |
+| C1, C2 | A rules table: field, match kind (contains/exact/regex/IBAN), pattern, priority, **source (person > AI > system)**, confidence, approved by/when; an AI rule below the confidence bar waits, switched off, for review; batches with an index per item | maciejb2k/open-banking-rails `app/models/merchant_rule.rb`, `services/llm/merchant_suggester.rb` (MIT: adapt); paperless-ngx `matching.py` fuzzy ≥ 90 (idea) |
+| C4 | Lab values: the reader returns the paper's own wording; code matches it to a known test (exact alias, then fuzzy, else a new one flagged for a person), never a long list in the prompt; field set value/unit/range/abnormal | giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, very young: adapt with care) |
+| C5 | Statement lines vs feed lines: match by the bank's id first, then by amount and nearest date; on a tie prefer the line with no bank id; never overwrite a reconciled line | actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MIT: port the idea) |
+| C6 | Nothing to copy; a `notices(dedup_key unique, sent_at, reminded_at)` table; Apprise (BSD) only if a second channel comes | caronc/apprise |
+| New categories | A generic "thing" with typed fields and attachments; Identity & Legal is "a paper with an expiry and a reminder" | sysadminsmedia/homebox (AGPL: idea only) |
+
 ## Backlog (parked, not scheduled)
 - **Matias's loan: reconcile where we are** (Pedro, 2026-11-03). The Hub shows it at 0 and still active. Park until Pedro picks it up.
 - **Emanuel's €15,000 from before 2025-10-10.** It is already counted as an opening balance of 15,000 on 2025-10-09, which is why the balance shows 17,000. Pedro wants it brought in properly: when it was received, how, and whether any of it was paid back before the bank data starts. Needs the date and the amount.

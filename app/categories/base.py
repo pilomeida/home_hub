@@ -68,6 +68,26 @@ class FiledAs(str, Enum):
 # How a kind is read (work-list B2): reads the paper and leaves it PROCESSED or NEEDS_ATTENTION. A reader carries
 # its own check until the checks share one shape (work-list C4): the statement reader includes the add-up.
 Reader = Callable[[Session, Document], Awaitable[Document]]
+# The date a paper speaks for (a bill's issue date, a lab result's date): the start of the wiki facts it gives
+# (Graphiti's valid time). None: the paper gives no date the Hub can read.
+DatedBy = Callable[[Session, "Document | Record"], Optional[date]]
+
+
+def dated_by_fields(*keys: str) -> DatedBy:
+    """A paper dated by the first of these fields it has filled with an ISO date."""
+    def _date(session: Session, source: Document | Record) -> Optional[date]:
+        import json
+        try:
+            fields = json.loads(source.fields_json or "{}")
+        except ValueError:
+            return None
+        for key in keys:
+            try:
+                return date.fromisoformat(str(fields[key])[:10])
+            except (KeyError, ValueError, TypeError):
+                continue
+        return None
+    return _date
 
 
 @dataclass(frozen=True)
@@ -84,6 +104,7 @@ class KindSpec:
     suggested_tier: Optional[Tier] = None
     reader: Optional[Reader] = None            # None: the category's own reader
     files_as: frozenset[FiledAs] = frozenset()
+    dated_by: Optional[DatedBy] = None         # None: the category's own (CategorySpec.dated_by)
 
     def __post_init__(self) -> None:
         if self.suggested_tier == Tier.HIGH:
@@ -245,6 +266,7 @@ class CategorySpec:
     ask_tools: tuple = ()                             # tuple[app.services.ask.contracts.AskTool, ...] (Plan C)
     # A level every kind of this category always has, whatever the settings say (decision D19): Health is High.
     forced_tier: Optional[Tier] = None
+    dated_by: Optional[DatedBy] = None                # how its papers are dated, unless the kind says otherwise
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.kinds]
@@ -262,6 +284,15 @@ class CategorySpec:
             if kind.value == value:
                 return kind
         raise UnknownKindError(value)
+
+    def paper_date(self, session: Session, source: Document | Record) -> Optional[date]:
+        """The date this paper speaks for, by its kind's `dated_by` or else the category's; None when unknown."""
+        try:
+            kind = self.kind(source.paper_kind) if source.paper_kind else None
+        except UnknownKindError:
+            kind = None
+        dated_by = (kind.dated_by if kind is not None else None) or self.dated_by
+        return dated_by(session, source) if dated_by is not None else None
 
     def kind_label(self, value: Optional[str]) -> str:
         if value is None:

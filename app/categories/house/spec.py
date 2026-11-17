@@ -1,7 +1,7 @@
 """House's CategorySpec."""
 
 from app.categories.base import (
-    DEFAULT_MEDIA, KindSpec, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, FiledAs,
+    DEFAULT_MEDIA, KindSpec, dated_by_fields, CategorySpec, EntityTypeSpec, FactPolicy, FactSpec, FieldKind, FieldSpec, FiledAs,
     LinkSpec, MediaKind, NavLink, SourceKind, WikiSchema,
 )
 from app.categories.house.kinds import ITEM_KINDS, ITEM_TYPE_KINDS, ITEM_PAGE_TYPE, ROOM_PAGE_TYPE, HouseKind
@@ -29,10 +29,12 @@ SPEC = CategorySpec(
         KindSpec(HouseKind.OUTDOOR_GEAR.value, "Outdoor gear",
                      "Manual or documentation for outdoor equipment (lawnmower, barbecue, garden tools...).", suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
         KindSpec(HouseKind.WARRANTY_INVOICE.value, "Warranty / invoice",
-                     "A purchase invoice, receipt or warranty certificate for a household item.", suggested_tier=Tier.LOW, reader=read_warranty, files_as=frozenset({FiledAs.WIKI, FiledAs.TODOS})),
+                     "A purchase invoice, receipt or warranty certificate for a household item.", suggested_tier=Tier.LOW, reader=read_warranty, files_as=frozenset({FiledAs.WIKI, FiledAs.TODOS}),
+                     dated_by=dated_by_fields("purchase_date")),
         KindSpec(HouseKind.MAINTENANCE_LOG.value, "Maintenance log",
                      "A service, repair or inspection done on a household item — typed in by hand, "
-                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD, suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
+                     "optionally with its receipt or report attached.", kind=SourceKind.RECORD, suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI}),
+                     dated_by=dated_by_fields("service_date")),
         KindSpec(HouseKind.FLOOR_PLAN.value, "Floor plan",
                      "A floor plan, or a diagram, photo or video of the house's pipes, sewage, wiring or floors.",
                      accepted_media=DEFAULT_MEDIA | {MediaKind.VIDEO}, suggested_tier=Tier.LOW, files_as=frozenset({FiledAs.WIKI})),
