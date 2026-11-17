@@ -421,3 +421,15 @@ def test_date_existing_facts_fills_starts_and_ends_and_lists_out_of_order(sessio
     assert report.out_of_order == [white.id] and white.valid_to is None   # resettle_facts puts it right
     assert report.dated == 4 and report.closed == 1
     assert wiki_store.date_existing_facts(session).dated == 0             # safe to run again
+
+
+def test_resettle_never_revives_a_fact_its_paper_took_back(session, dated_papers, monkeypatch):
+    old, new = dated_papers(session, "old", "2024-01-01"), dated_papers(session, "new", "2025-01-01")
+    _file_under_the_old_rule(session, monkeypatch, [(old, "allergy", "Penicillin"), (new, "room", "Kitchen")])
+    wiki_store.apply_claims(session, [], document=old, retract_missing=True)      # the paper was re-read: nothing
+    wiki_store.date_existing_facts(session)
+
+    assert wiki_store.resettle_facts(session) == []
+
+    page = wiki_store.find_page(session, BOILER)
+    assert [c.value for c in wiki_store.active_claims(session, page.id)] == ["Kitchen"]

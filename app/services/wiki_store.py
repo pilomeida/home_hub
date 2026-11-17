@@ -550,7 +550,7 @@ class Resettled:
     page_id: int
     topic: str
     key: str
-    was: Optional[str]             # the value shown before
+    was: str                       # the value shown before
     now: str                       # the value shown after
 
 
@@ -558,12 +558,16 @@ def resettle_facts(session: Session) -> list[Resettled]:
     """Replay the rule `apply_claims` follows today over every fact on file, for facts filed before it: per page and
     key, the current value is the one a paper asserted LATEST (a dated paper beats an undated one; corrections
     never count); every other value is history, ending where another value was next asserted. Keys with no dated
-    paper are left as filed (the newest filed wins). Returns the keys whose shown value changed; the caller commits."""
+    paper are left as filed (the newest filed wins). A fact taken back by its paper (retracted: replaced by nothing)
+    is never revived, and a key showing nothing stays empty. Returns the keys whose shown value changed; the caller
+    commits."""
     from collections import defaultdict
     now_ts = datetime.utcnow()
     groups: dict[tuple[int, str], list[WikiClaim]] = defaultdict(list)
     for claim in session.exec(select(WikiClaim).where(WikiClaim.was_correction.is_(False)).order_by(WikiClaim.id)):
-        groups[(claim.page_id, claim.key)].append(claim)
+        retracted = claim.status == ClaimStatus.SUPERSEDED and claim.superseded_by_claim_id is None
+        if not retracted:          # a fact its paper took back (re-read, re-filed, deleted) is never revived
+            groups[(claim.page_id, claim.key)].append(claim)
     changed: list[Resettled] = []
     pages: dict[int, WikiPage] = {}
     for (page_id, key), claims in groups.items():
@@ -573,6 +577,8 @@ def resettle_facts(session: Session) -> list[Resettled]:
             continue
         current = max(dated, key=lambda c: (max(dates[c.id]), c.id))
         before = next((c for c in claims if c.status == ClaimStatus.ACTIVE), None)
+        if before is None:
+            continue               # nothing is shown for this key: the replay never brings a value back
         for claim in claims:
             if claim.id == current.id:
                 if claim.status != ClaimStatus.ACTIVE:
@@ -590,9 +596,10 @@ def resettle_facts(session: Session) -> list[Resettled]:
                 if later:
                     claim.valid_to = min(later)
                     session.add(claim)
-        if before is None or before.id != current.id:
+        if before.id != current.id:
             page = pages.setdefault(page_id, session.get(WikiPage, page_id))
-            changed.append(Resettled(page_id, page.topic, key, before.value if before else None, current.value))
+            if before.value != current.value:
+                changed.append(Resettled(page_id, page.topic, key, before.value, current.value))
     session.flush()
     for page in pages.values():
         _refresh_page(session, page, now_ts)
