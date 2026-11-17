@@ -58,7 +58,7 @@ with its sources and its subject), **search over papers** for the long tail. Any
 a kind of paper gets its own reader only once the same exact question keeps being asked about it.
 | # | What | Done when | Size |
 |---|---|---|---|
-| E1 | **Facts say when they were true** (Graphiti's two clocks: when it was true, apart from when the Hub learned it). **Built 2026-11-17:** `wiki_claims.valid_from/valid_to/was_correction` (migration `a3c7e1f9b250`); each kind declares how its papers are dated (`KindSpec.dated_by`, else `CategorySpec.dated_by`: Health by the paper's date, a warranty by the purchase date, maintenance by the service date, a bill by its issue date); a newer paper closes the old fact where the new one begins; **an older paper arriving late adds history and no longer overwrites the present**; a correction from the same paper is marked never true; the AI reader may give a fact's own dates (a tariff "from 2025-01-01"). The wiki page and Ask show "true since / true from–to". `scripts/date_wiki_facts.py` dates the facts on file and lists any replaced by an older paper (a person decides). | A fact on a wiki page shows since when it holds; a backfilled old paper leaves the current fact current (tested) | M |
+| E1 | **Facts say when they were true** (Graphiti's two clocks: when it was true, apart from when the Hub learned it). **Built 2026-11-17:** `wiki_claims.valid_from/valid_to/was_correction` (migration `a3c7e1f9b250`); each kind declares how its papers are dated (`KindSpec.dated_by`, else `CategorySpec.dated_by`: Health by the paper's date, a warranty by the purchase date, maintenance by the service date, a bill by its issue date); a newer paper closes the old fact where the new one begins; **an older paper arriving late adds history and no longer overwrites the present**; a correction from the same paper is marked never true; the AI reader may give a fact's own dates (a tariff "from 2025-01-01"). The wiki page and Ask show "true since / true from–to". `scripts/date_wiki_facts.py` dates the facts on file. **Fixed the same day:** a fact stays current until a paper newer than its *latest* confirmation says otherwise, and an undated paper never replaces a dated fact; `resettle_facts` replays that rule over the facts on file (it fixed 8 Telecom and MetLife facts an older or undated paper had overwritten). | A fact on a wiki page shows since when it holds; a backfilled old paper leaves the current fact current (tested) | M |
 | E2 | **"Anything else" paper kind and search over papers.** A catch-all kind with no dedicated reader: stored, given a level, turned into text (the PDF's own text first, the AI reading the page only when there is none), titled, dated and summarised, then found by a search over every paper's text (SQLite FTS5, no new service) from a search box and from Ask, with citations, inside the privacy reach. | A paper of an unknown kind is uploaded, approved and found by a word inside it, from the page and from Ask; a High paper never reaches a lower call | L |
 | E3 | **Wiki facts point at subjects** (B4's next step) | Rute's facts are found from her subject, whichever page holds them | M |
 
@@ -73,6 +73,59 @@ Only MIT/Apache/BSD code may be adapted (with attribution); GPL/AGPL projects gi
 | C5 | Statement lines vs feed lines: match by the bank's id first, then by amount and nearest date; on a tie prefer the line with no bank id; never overwrite a reconciled line | actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MIT: port the idea) |
 | C6 | Nothing to copy; a `notices(dedup_key unique, sent_at, reminded_at)` table; Apprise (BSD) only if a second channel comes | caronc/apprise |
 | New categories | A generic "thing" with typed fields and attachments; Identity & Legal is "a paper with an expiry and a reminder" | sysadminsmedia/homebox (AGPL: idea only) |
+
+### Build plan, in order (2026-11-17)
+The order follows what each step needs from the one before: text first (search and the readers build on it), then
+the memory of answers (the review queue shows its waiting rules), then the money accuracy work, then Health, phone
+notices, subjects in the wiki, and new categories last (they need search, notices and the review queue).
+Each step is a green slice: tests, commit, deploy, then any one-off script on the server.
+
+**1. E2: "Anything else" and search over papers** (L). Reuse: paperless-gpt's prompts (MIT), the paperless-ngx "own text first" rule (idea).
+- a. A text layer for every paper: a `paper_texts` table (paper, text, how it was got: `pdf_text` or `ai_read`), filled at filing. pypdf text first; the AI reads the page only when there is no text, at the paper's own level. A script fills it for the papers on file.
+- b. Search: an SQLite FTS5 index over that text plus title and fields; `search_papers` replaces the word-match in Ask's `find_sources`, inside `reachable_scope` (tripwire test).
+- c. The catch-all kind "Other paper" (its own category, suggested Mid): its reader writes a title, date, summary and who or what it is about (paperless-gpt's title/date prompts, rewritten for the gateway). The Inbox offers it when nothing else fits.
+- d. A search box on the menu: results with the paper, its level and the line that matched.
+- Done when: an unknown paper is uploaded, approved, and found by a word inside it, from the page and from Ask; a High paper never reaches a lower call.
+
+**2. C2: One memory of past answers** (L). Reuse: open-banking-rails `merchant_rule.rb` and `merchant_suggester.rb` (MIT).
+- a. A `rules` table: what it looks at (description, counterparty, IBAN, Multibanco entity, sender, words), how (contains, exact, regex, prefix, IBAN), the pattern, the answer (merchant, spending leaf, kind of paper, subject), priority, **source (person, AI, system)**, confidence, switched on or off, approved by and when.
+- b. One reader of it, in one order: person, then AI, then system; then priority. Every classifier and batch re-file asks it first. Move today's provider rules, payment entities and code-held keyword lists into it (a migration, nothing lost).
+- c. An AI suggestion below the confidence bar is saved switched off and waits for a person (feeds step 3). AI calls go in batches with an index per item.
+- Done when: confirming a merchant or approving in the Inbox writes one rule, and no batch pass overrides a person (tested).
+
+**3. C1: One review queue** (L). Reuse: open-banking-rails' "switched-off rule waits for review"; SureHub's status words (idea only, no licence).
+- a. A `review_items` table: subject, why, evidence and its page, the options, "remember this answer" (writes a step-2 rule), status (waiting, approved, discarded, snoozed), who and when.
+- b. Move the review points onto it one by one, starting with Needs Review, then the Health queues, Inbox "Same person?" and step 2's waiting rules.
+- c. One "Waiting for you" count in the menu, replacing the separate counters.
+- Done when: one count, and every decision stamps who and when.
+
+**4. C5: Statements against the bank feed** (M). Reuse: Actual Budget `reconcileTransactions` (MIT, the idea ported to Python).
+- a. Match an uploaded statement's line to a feed line: by the bank's own id first, then same amount and nearest date (within a few days); on a tie, prefer the line without a bank id; never change a line a person has checked.
+- b. Overlapping periods are caught and shown as overlap, not doubled. The Loans upload and card statements go through the same intake (scope, duplicates, Problems).
+- c. Then re-read the missing history (Santander 2024-03 and 2025-02; Revolut before 2024-01; see Backlog) through it.
+- Done when: a statement for a feed period adds no double lines (tested on a real overlap), and Rute's card statement can be sent by Telegram.
+
+**5. C4: Shared reading blocks, Health first** (L). Reuse: asclepius `normalization/resolver.py` and `extraction_lab_test.yaml` (MIT, young project: adapt and test well).
+- a. One reader interface: text from step 1, Portuguese numbers and dates (`1.234,56`, `dd/mm/aaaa`; our own, nothing to copy), a size guard, one error type.
+- b. Lab values: the reader returns the paper's own wording, value, unit and range. Code matches the wording to a known test (exact alias, then near match, else a new test marked for a person in the step-3 queue), so no long list goes in the prompt.
+- c. One check-result shape (verdict, doubtful items) for the statement add-up, positions, card and Health checks, flowing into step 3.
+- Done when: the same blood test from two labs lands on one line of Rute's results, and every check returns the same shape.
+
+**6. C6: Phone notices** (M). Nothing to copy; Apprise only if a second channel comes.
+- a. A `notices` table (dedup key unique, first sent, reminded, closed); one sender for Telegram; a push rule per kind.
+- b. The four agreed notices: bank access expired, a job keeps failing, a bill due within 3 days, a new loan red flag. Each sent once, at most one reminder while it stays open.
+- Done when: the two copied Telegram senders are gone, and expired bank access reaches the phone once.
+
+**7. E3: Wiki facts point at subjects** (M). Our own (B4's next step).
+- a. Wiki pages about a person, account, policy or thing carry its subject; entity keys come from the subject registry.
+- b. The same provider written two ways ("Amigo", "Amigo (Vodafone Portugal)") becomes one subject with aliases, so its facts stop flip-flopping between spellings. Merge the two Telecom pages.
+- Done when: Rute's facts are found from her subject, and Amigo's provider fact keeps one value across bills.
+
+**8. New categories: Identity & Legal, then Vehicles, then Education** (M each). Reuse: Homebox's "a thing with typed fields and attachments" (idea only).
+- a. Identity & Legal: ID card, passport, driving licence, residence papers, wills and contracts; each with holder (a subject), number, expiry; a reminder before expiry (step 6); suggested High for identity papers.
+- b. Vehicles: the car as a subject; insurance, inspection (IPO), road tax (IUC), service; reminders.
+- c. Education: school papers per child; dates and fees into Coming up.
+- Done when: a passport is uploaded, read, and its expiry reminder appears on To-Dos and reaches the phone once.
 
 ## Backlog (parked, not scheduled)
 - **Matias's loan: reconcile where we are** (Pedro, 2026-11-03). The Hub shows it at 0 and still active. Park until Pedro picks it up.

@@ -293,6 +293,8 @@ def apply_claims(
         record.category if record is not None else (document.category if document is not None else None)
     )
     now = datetime.utcnow()
+    if as_of is None and source_given:
+        as_of = _paper_date(session, record if record is not None else document)
     report = IngestReport()
     touched: dict[int, WikiPage] = {}
     changed: set[int] = set()
@@ -329,14 +331,20 @@ def apply_claims(
         if active is None:
             continue
         is_correction = source_given and _has_source(session, active.id, document, record)
-        older_paper = (not is_correction and new.valid_from is not None and active.valid_from is not None
-                       and new.valid_from < active.valid_from)
-        if not is_correction and (older_paper or (claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value)):
-            new.status = ClaimStatus.SUPERSEDED          # history: it ended where the fact on file begins
+        asserted = [] if is_correction else _asserted_dates(session, active)
+        # The fact on file stays current unless this paper is newer than its LATEST confirmation; an undated paper
+        # never replaces a dated fact (where neither is dated, the newest filed wins, as before).
+        stays = not is_correction and (
+            (bool(asserted) and (new.valid_from is None or new.valid_from < max(asserted)))
+            or (claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value)
+        )
+        if stays:
+            new.status = ClaimStatus.SUPERSEDED          # history: true until the fact on file was next confirmed
             new.superseded_by_claim_id = active.id
             new.superseded_at = now
-            if active.valid_from is not None and (new.valid_to is None or new.valid_to > active.valid_from):
-                new.valid_to = active.valid_from
+            later = [d for d in asserted if new.valid_from is not None and d > new.valid_from]
+            if later and (new.valid_to is None or new.valid_to > min(later)):
+                new.valid_to = min(later)
             session.add(new)
         else:
             active.status = ClaimStatus.SUPERSEDED
@@ -475,6 +483,26 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
         ))
     return sections
 
+def _paper_date(session: Session, source: Optional[Document | Record]) -> Optional[date]:
+    """The date a paper speaks for, by its kind's `dated_by` (else its category's); None when unknown."""
+    from app.categories.registry import get_spec   # lazy: the registry imports every spec
+    if source is None or source.category is None:
+        return None
+    return get_spec(source.category).paper_date(session, source)
+
+
+def _asserted_dates(session: Session, claim: WikiClaim) -> list[date]:
+    """Every date a paper asserted this claim (its sources), plus its own start."""
+    dates = [claim.valid_from] if claim.valid_from is not None else []
+    for link in session.exec(select(WikiClaimSource).where(WikiClaimSource.claim_id == claim.id,
+                                                           WikiClaimSource.withdrawn_at.is_(None))).all():
+        when = _paper_date(session, session.get(Document, link.document_id) if link.document_id
+                           else session.get(Record, link.record_id))
+        if when is not None:
+            dates.append(when)
+    return dates
+
+
 @dataclass
 class DatingReport:
     dated: int = 0                 # facts given a start from their earliest paper
@@ -487,7 +515,6 @@ def date_existing_facts(session: Session) -> DatingReport:
     at the earliest date of the papers that say it, and a replaced fact ends where its successor starts. A fact
     replaced by one from an older paper is listed, not changed: which is current is a person's call. The caller
     commits; safe to run again (only empty dates are filled)."""
-    from app.categories.registry import get_spec   # lazy: the registry imports every spec
     report = DatingReport()
     claims = list(session.exec(select(WikiClaim)).all())
     for claim in claims:
@@ -495,11 +522,10 @@ def date_existing_facts(session: Session) -> DatingReport:
             continue
         dates = []
         for link in session.exec(select(WikiClaimSource).where(WikiClaimSource.claim_id == claim.id)).all():
-            source = session.get(Document, link.document_id) if link.document_id else session.get(Record, link.record_id)
-            if source is not None and source.category is not None:
-                when = get_spec(source.category).paper_date(session, source)
-                if when is not None:
-                    dates.append(when)
+            when = _paper_date(session, session.get(Document, link.document_id) if link.document_id
+                               else session.get(Record, link.record_id))
+            if when is not None:
+                dates.append(when)
         if dates:
             claim.valid_from = min(dates)
             session.add(claim)
@@ -517,3 +543,58 @@ def date_existing_facts(session: Session) -> DatingReport:
         report.closed += 1
     session.flush()
     return report
+
+
+@dataclass
+class Resettled:
+    page_id: int
+    topic: str
+    key: str
+    was: Optional[str]             # the value shown before
+    now: str                       # the value shown after
+
+
+def resettle_facts(session: Session) -> list[Resettled]:
+    """Replay the rule `apply_claims` follows today over every fact on file, for facts filed before it: per page and
+    key, the current value is the one a paper asserted LATEST (a dated paper beats an undated one; corrections
+    never count); every other value is history, ending where another value was next asserted. Keys with no dated
+    paper are left as filed (the newest filed wins). Returns the keys whose shown value changed; the caller commits."""
+    from collections import defaultdict
+    now_ts = datetime.utcnow()
+    groups: dict[tuple[int, str], list[WikiClaim]] = defaultdict(list)
+    for claim in session.exec(select(WikiClaim).where(WikiClaim.was_correction.is_(False)).order_by(WikiClaim.id)):
+        groups[(claim.page_id, claim.key)].append(claim)
+    changed: list[Resettled] = []
+    pages: dict[int, WikiPage] = {}
+    for (page_id, key), claims in groups.items():
+        dates = {c.id: _asserted_dates(session, c) for c in claims}
+        dated = [c for c in claims if dates[c.id]]
+        if not dated:
+            continue
+        current = max(dated, key=lambda c: (max(dates[c.id]), c.id))
+        before = next((c for c in claims if c.status == ClaimStatus.ACTIVE), None)
+        for claim in claims:
+            if claim.id == current.id:
+                if claim.status != ClaimStatus.ACTIVE:
+                    claim.status, claim.superseded_by_claim_id, claim.superseded_at = ClaimStatus.ACTIVE, None, None
+                    claim.valid_to = None
+                    session.add(claim)
+                continue
+            if claim.status == ClaimStatus.ACTIVE or claim.superseded_by_claim_id is None:
+                claim.status, claim.superseded_by_claim_id = ClaimStatus.SUPERSEDED, current.id
+                claim.superseded_at = claim.superseded_at or now_ts
+                session.add(claim)
+            if dates[claim.id] and claim.valid_to is None:
+                last = max(dates[claim.id])
+                later = [d for c in claims if c.id != claim.id for d in dates[c.id] if d > last]
+                if later:
+                    claim.valid_to = min(later)
+                    session.add(claim)
+        if before is None or before.id != current.id:
+            page = pages.setdefault(page_id, session.get(WikiPage, page_id))
+            changed.append(Resettled(page_id, page.topic, key, before.value if before else None, current.value))
+    session.flush()
+    for page in pages.values():
+        _refresh_page(session, page, now_ts)
+    session.flush()
+    return changed

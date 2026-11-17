@@ -1,3 +1,4 @@
+import pytest
 import json
 
 from sqlmodel import select
@@ -320,7 +321,7 @@ def test_a_fact_that_names_its_own_dates_keeps_them(session):
 
 def test_undated_papers_keep_the_old_rule_newest_filed_wins(session):
     first, second = _document(session), _document(session, "b.pdf", "h-b")
-    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=first, as_of=_date(2025, 6, 1))
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=first)
 
     wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=second)
 
@@ -328,7 +329,21 @@ def test_undated_papers_keep_the_old_rule_newest_filed_wins(session):
     assert [c.value for c in wiki_store.active_claims(session, page.id)] == ["Utility room"]
 
 
-def test_date_existing_facts_fills_starts_and_ends_and_lists_out_of_order(session, monkeypatch):
+def test_an_undated_paper_never_replaces_a_dated_fact(session):
+    dated, undated = _document(session), _document(session, "b.pdf", "h-b")
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=dated, as_of=_date(2025, 6, 1))
+
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=undated)
+
+    page = wiki_store.find_page(session, BOILER)
+    assert [c.value for c in wiki_store.active_claims(session, page.id)] == ["Kitchen"]
+    history = _claims(session, page.id, ClaimStatus.SUPERSEDED)[0]
+    assert history.value == "Utility room" and history.valid_from is None and history.valid_to is None
+
+
+@pytest.fixture()
+def dated_papers(monkeypatch):
+    """Papers dated by their `seen_on` field, as a real kind's `dated_by` dates them; `paper(name, when)` files one."""
     import dataclasses
     from app.categories import registry
     from app.categories.base import dated_by_fields
@@ -336,18 +351,65 @@ def test_date_existing_facts_fills_starts_and_ends_and_lists_out_of_order(sessio
     spec = dataclasses.replace(make_fake_spec(), dated_by=dated_by_fields("seen_on"))
     monkeypatch.setattr(registry, "_specs_cache", {spec.category: spec})
 
-    def dated(name, when):
+    def paper(session, name, when=None):
         document = _document(session, name, f"h-{name}")
-        document.fields_json = json.dumps({"seen_on": when})
+        document.fields_json = json.dumps({"seen_on": when} if when else {})
         session.add(document)
         session.commit()
         return document
+    return paper
 
-    # filed before facts had dates: no as_of
-    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=dated("a.pdf", "2024-03-01"))
-    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=dated("b.pdf", "2025-06-01"))
-    wiki_store.apply_claims(session, [ClaimInput(BOILER, "colour", "White")], document=dated("c.pdf", "2026-01-01"))
-    wiki_store.apply_claims(session, [ClaimInput(BOILER, "colour", "Grey")], document=dated("d.pdf", "2023-01-01"))
+
+def _file_under_the_old_rule(session, monkeypatch, filings):
+    """File as the Hub did before facts had dates: no dates read, the newest filed wins."""
+    with monkeypatch.context() as m:
+        m.setattr(wiki_store, "_paper_date", lambda session, source: None)
+        for document, key, value in filings:
+            wiki_store.apply_claims(session, [ClaimInput(BOILER, key, value)], document=document)
+
+
+def test_a_fact_confirmed_by_a_newer_paper_beats_one_in_between(session, dated_papers):
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=dated_papers(session, "a", "2024-01-06"))
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=dated_papers(session, "b", "2026-09-15"))
+
+    wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Utility room")], document=dated_papers(session, "c", "2026-08-14"))
+
+    page = wiki_store.find_page(session, BOILER)
+    assert [x.value for x in wiki_store.active_claims(session, page.id)] == ["Kitchen"]
+    history = _claims(session, page.id, ClaimStatus.SUPERSEDED)[0]
+    assert (history.valid_from, history.valid_to) == (_date(2026, 8, 14), _date(2026, 9, 15))
+
+
+def test_resettle_makes_the_latest_dated_paper_current(session, dated_papers, monkeypatch):
+    # filed under the old rule, in this order: the newest bill, then older ones, then an undated detail sheet
+    _file_under_the_old_rule(session, monkeypatch, [
+        (dated_papers(session, "jul26", "2026-07-25"), "provider", "Amigo"),
+        (dated_papers(session, "sep25", "2025-09-26"), "provider", "Vodafone Portugal"),
+        (dated_papers(session, "jun25", "2025-06-26"), "provider", "Amigo (Vodafone Portugal)"),
+        (dated_papers(session, "detail"), "provider", "Amigo (Vodafone)"),
+    ])
+    wiki_store.date_existing_facts(session)
+
+    changes = wiki_store.resettle_facts(session)
+    session.commit()
+
+    page = wiki_store.find_page(session, BOILER)
+    assert [c.value for c in wiki_store.active_claims(session, page.id)] == ["Amigo"]
+    assert json.loads(page.facts_json) == {"provider": "Amigo"}
+    assert [(c.key, c.was, c.now) for c in changes] == [("provider", "Amigo (Vodafone)", "Amigo")]
+    by_value = {c.value: c for c in _claims(session, page.id)}
+    assert by_value["Vodafone Portugal"].valid_to == _date(2026, 7, 25)
+    assert by_value["Amigo (Vodafone Portugal)"].valid_to == _date(2025, 9, 26)
+    assert wiki_store.resettle_facts(session) == []                       # safe to run again
+
+
+def test_date_existing_facts_fills_starts_and_ends_and_lists_out_of_order(session, dated_papers, monkeypatch):
+    _file_under_the_old_rule(session, monkeypatch, [
+        (dated_papers(session, "a", "2024-03-01"), "room", "Kitchen"),
+        (dated_papers(session, "b", "2025-06-01"), "room", "Utility room"),
+        (dated_papers(session, "c", "2026-01-01"), "colour", "White"),
+        (dated_papers(session, "d", "2023-01-01"), "colour", "Grey"),
+    ])
 
     report = wiki_store.date_existing_facts(session)
     session.commit()
@@ -356,6 +418,6 @@ def test_date_existing_facts_fills_starts_and_ends_and_lists_out_of_order(sessio
     kitchen, utility, white, grey = _claims(session, page.id)
     assert (kitchen.valid_from, kitchen.valid_to) == (_date(2024, 3, 1), _date(2025, 6, 1))
     assert utility.valid_from == _date(2025, 6, 1) and utility.valid_to is None
-    assert report.out_of_order == [white.id] and white.valid_to is None   # a person decides which is current
+    assert report.out_of_order == [white.id] and white.valid_to is None   # resettle_facts puts it right
     assert report.dated == 4 and report.closed == 1
     assert wiki_store.date_existing_facts(session).dated == 0             # safe to run again

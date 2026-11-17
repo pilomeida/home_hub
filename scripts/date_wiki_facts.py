@@ -4,7 +4,8 @@
 Run on the VPS, from the app folder, as the app's user, after the migration:
     python scripts/date_wiki_facts.py            # dry run: what it would date
     python scripts/date_wiki_facts.py --apply
-Safe to run again: only empty dates are filled. A fact replaced by one from an OLDER paper is listed, not changed."""
+Then replays today's rule (the value a paper asserted latest is current; an undated paper never beats a dated one)
+and prints each fact whose current value changes. Safe to run again."""
 
 import sys
 from pathlib import Path
@@ -15,7 +16,7 @@ from sqlmodel import Session  # noqa: E402
 
 from app.db import engine  # noqa: E402
 from app.models.wiki import WikiClaim, WikiPage  # noqa: E402
-from app.services.wiki_store import date_existing_facts  # noqa: E402
+from app.services.wiki_store import date_existing_facts, resettle_facts  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
@@ -27,6 +28,8 @@ def main(argv: list[str]) -> int:
             claim = session.get(WikiClaim, claim_id)
             page = session.get(WikiPage, claim.page_id)
             print(f"  replaced by an older paper: {page.topic} / {claim.key} = {claim.value} (claim {claim.id})")
+        for r in resettle_facts(session):     # the rule of today, replayed: the latest paper's value is current
+            print(f"  now current: {r.topic} / {r.key}: {r.was!r} -> {r.now!r}")
         if apply:
             session.commit()
         else:

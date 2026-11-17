@@ -529,10 +529,13 @@ notes* below) — a normal field of the claim, not itself versioned.
 **Two clocks** (work-list E1, after Graphiti): `created_at`/`superseded_at` say when the Hub learned or
 replaced a claim; `valid_from`/`valid_to` say when it was true. `valid_from` is the claim's own start
 (`ClaimInput.valid_from`, e.g. given by the AI reader) or else the paper's date (`apply_claims(as_of=)`,
-from `CategorySpec.paper_date`: the kind's `dated_by`, else the category's). A newer paper closes the
-active claim at its own start; a claim from an older paper is written already superseded, ending where
-the active one begins, so a late backfill never overwrites the present. A claim the same source corrects
-is `was_correction` (never true as stated). Undated claims keep the old rule: the newest filed wins.
+from `CategorySpec.paper_date`: the kind's `dated_by`, else the category's; read from the paper when
+`as_of` is not given). The active claim stays current unless the new paper is newer than the active
+claim's **latest** confirmation (any of its sources' dates); then the new claim closes it at its own start.
+Otherwise the new claim is written already superseded, ending where the active one was next confirmed, so
+a late backfill never overwrites the present. An undated paper never replaces a dated claim; where
+neither is dated, the newest filed wins. A claim the same source corrects is `was_correction` (never true
+as stated). `resettle_facts` replays this rule over claims filed before it.
 `WikiClaimSource` links each claim to the source asserting it: **a Document OR a Record, exactly
 one** (`document_id` nullable, `record_id` nullable FK → `records.id` indexed, check constraint
 `ck_wiki_claim_sources_one_source` enforces exactly one of the two is set). `withdrawn_at`
