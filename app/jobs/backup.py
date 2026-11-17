@@ -129,7 +129,15 @@ async def run_backup(session: Session, trigger: str) -> JobOutcome:
 
 def main(argv: list[str]) -> int:
     if argv[1:] == ["before-migration"]:
-        path = before_migration(settings.DATABASE_PATH, settings.BACKUP_DIR, datetime.now(timezone.utc))
+        try:
+            path = before_migration(settings.DATABASE_PATH, settings.BACKUP_DIR, datetime.now(timezone.utc))
+        except (BackupError, OSError, sqlite3.Error) as exc:
+            # The deploy runs with `set -e`: a non-zero exit here stops it before `alembic upgrade`.
+            print(Problem("Deploy stopped: no backup, so no migration.",
+                          f"The copy of the database taken before migrating failed ({exc}), and a migration must not run without one.",
+                          f"Nothing was changed. Check the backup folder {settings.BACKUP_DIR} is writable by the home-hub user "
+                          f"and has free space, then push again.").text, file=sys.stderr)
+            return 1
         print(f"database copied before the migration: {path}")
         return 0
     print("usage: python -m app.jobs.backup before-migration", file=sys.stderr)

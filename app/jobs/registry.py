@@ -40,6 +40,11 @@ class JobDef:
     quiet_when_ok: bool = False
 
 
+async def _run_privacy_selftest(session: Session, trigger: str) -> JobOutcome:
+    from app.privacy.selftest import run_privacy_selftest
+    return await run_privacy_selftest(session, trigger)
+
+
 async def _run_wiki_lint(session: Session, trigger: str) -> JobOutcome:
     from app.models.wiki_lint import LintRunStatus
     from app.services.wiki_lint.runner import LintAlreadyRunning, run_lint
@@ -108,6 +113,13 @@ JOBS: dict[str, JobDef] = {
         default=Spec(kind="times_per_day", time_of_day="07:30,13:00,18:30"),
         run=run_bank_sync, legacy_last_start=bank_legacy_last_start,
         max_runs_per_day=4, max_runs_reason=BANK_LIMIT_REASON),
+    "privacy_selftest": JobDef(
+        key="privacy_selftest", label="Privacy self-test",
+        description="Every night, proves that the privacy rules still hold: a document with no level reads as nothing, and a "
+                    "High document is never reachable at a lower level or when the High service is unavailable. It uses a "
+                    "scratch copy with made-up papers, never calls the AI, and tells you on the Problems page if a rule broke.",
+        default=Spec(kind="daily", time_of_day="03:20"),
+        run=_run_privacy_selftest),
     "wiki_lint": JobDef(
         key="wiki_lint", label="Wiki check",
         description="Looks through the household wiki for contradictions, out-of-date facts, gaps and loose ends, "

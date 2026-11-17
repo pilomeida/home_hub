@@ -3,7 +3,7 @@
   <ul>
     {% for todo in open_todos %}
     <li>
-      {% if todo.category %}<span class="badge">{{ category_label(todo.category) }}</span> {% endif %}{{ todo.title }} — due {{ todo.due_date }}
+      {% if todo.category %}<span class="badge">{{ category_label(todo.category) }}</span> {% endif %}{{ todo.title }}{% if todo.due_date %} — due {{ todo.due_date }}{% endif %}
       <button hx-post="/todos/{{ todo.id }}/done" hx-target="#todo-lists" hx-swap="innerHTML">Done</button>
     </li>
     {% else %}

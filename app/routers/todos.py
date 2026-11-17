@@ -44,6 +44,21 @@ async def list_todos(request: Request, session: Session = Depends(get_session)):
     )
 
 
+def _add(session: Session, title: str, category: Optional[Category], due_date: Optional[str]) -> None:
+    try:
+        due = date.fromisoformat(due_date) if due_date else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail={
+            "what": "To-do not added.", "why": "The due date isn't a real date in the form YYYY-MM-DD.",
+            "next_step": "Pick the date again, or leave it empty, and add the to-do again."}) from None
+    try:
+        add_todo(session, title, category, due)
+    except ValueError:
+        raise HTTPException(status_code=400, detail={
+            "what": "To-do not added.", "why": "The title is empty, and a to-do needs a few words saying what to do.",
+            "next_step": "Type a title and add the to-do again."}) from None
+
+
 @router.post("/add")
 async def add(
     request: Request,
@@ -53,19 +68,23 @@ async def add(
     session: Session = Depends(get_session),
 ):
     target = _parse_category(domain)
-    try:
-        due = date.fromisoformat(due_date) if due_date else None
-    except ValueError:
-        raise HTTPException(status_code=400, detail={
-            "what": "To-do not added.", "why": "The due date isn't a real date in the form YYYY-MM-DD.",
-            "next_step": "Pick the date again, or leave it empty, and add the to-do again."}) from None
-    try:
-        add_todo(session, title, target, due)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={
-            "what": "To-do not added.", "why": "The title is empty, and a to-do needs a few words saying what to do.",
-            "next_step": "Type a title and add the to-do again."}) from None
+    _add(session, title, target, due_date)
     return templates.TemplateResponse(request, "todos/_backlog.html", backlog_context(session, target))
+
+
+@router.post("/add-general")
+async def add_general(
+    request: Request,
+    title: str = Form(...),
+    due_date: Optional[str] = Form(None),
+    session: Session = Depends(get_session),
+):
+    """A to-do that belongs to no house area (work, a domain name, ...). It shows on this page only."""
+    _add(session, title, None, due_date)
+    open_todos, done_todos = _todo_lists(session)
+    return templates.TemplateResponse(
+        request, "todos/_lists.html", {"open_todos": open_todos, "done_todos": done_todos}
+    )
 
 
 @router.post("/{todo_id}/done")

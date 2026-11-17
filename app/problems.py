@@ -56,6 +56,7 @@ class Problem:
 
 _OUTAGE = re.compile(r"gateway returned\s+5\d\d|gateway returned 408|gateway unreachable", re.I)
 _CLIENT_ERROR = re.compile(r"gateway returned\s+4\d\d", re.I)
+_SPEND_LIMIT = re.compile(r"spend limit", re.I)   # the gateway's daily/monthly safety stop (llmsel spend_guard)
 _CREDIT = re.compile(r"out of credit|insufficient[_ ]quota|credit balance|payment required|returned 402", re.I)
 _LEGACY_API = re.compile(
     r"error code:\s*\d+|authentication_error|permission_error|rate_limit_error|overloaded_error|"
@@ -117,6 +118,10 @@ def classify_reason(raw: Optional[str]) -> Optional[Cause]:
         return Cause("The AI wasn't allowed to read this document.",
                      "Its privacy level is “High”, which only the confidential AI service may read, and that service couldn't be used just now.",
                      "Try again in a few minutes. If it keeps happening, tell Pedro: the technical details below will help.")
+    if _SPEND_LIMIT.search(raw):
+        return Cause("The AI wasn't asked.",
+                     "The Hub has reached its daily or monthly AI spending limit, a safety stop so a fault can't run up a bill.",
+                     "Nothing is lost. Try again tomorrow, or tell Pedro to raise the limit if this use is expected.")
     if _CREDIT.search(raw):
         return Cause("The AI service couldn't be used.",
                      "The account that pays for it has run out of credit.",

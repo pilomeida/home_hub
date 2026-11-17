@@ -137,3 +137,13 @@ def test_browser_requests_get_a_page_htmx_gets_a_banner_and_api_callers_keep_jso
 def test_the_page_has_a_banner_and_lets_failed_button_presses_through(client):
     page = client.get("/privacy").text
     assert 'id="problem-banner"' in page and "htmx:beforeSwap" in page and "htmx:sendError" in page
+
+
+def test_gateway_spend_limit_refusal_is_explained_in_plain_words():
+    """Built through the production path: GatewayError stringifies the way it is stored."""
+    from app.llm_gateway import GatewayError
+    from app.problems import classify_reason
+    detail = ('{"detail":"Not sent to the AI. The hub app has reached its daily spend limit '
+              '(about EUR 5.01 used, limit EUR 5.00), a safety stop so a fault cannot run up a bill."}')
+    cause = classify_reason(str(GatewayError(429, detail)))
+    assert cause is not None and "spending limit" in cause.why and "Nothing is lost" in cause.next_step

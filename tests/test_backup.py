@@ -110,3 +110,22 @@ def test_the_backup_runs_every_night_on_the_hubs_scheduler():
 def test_the_deploy_backs_up_before_it_migrates():
     workflow = Path(".github/workflows/deploy.yml").read_text()
     assert workflow.index("python -m app.jobs.backup before-migration") < workflow.index("alembic upgrade head")
+
+
+def test_a_failed_copy_before_a_migration_stops_the_deploy_with_a_plain_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(settings, "DATABASE_PATH", tmp_path / "missing.db")
+    monkeypatch.setattr(settings, "BACKUP_DIR", tmp_path / "backups")
+    assert backup.main(["backup", "before-migration"]) == 1             # non-zero: `set -e` stops the deploy before alembic
+    err = capsys.readouterr().err
+    assert "Deploy stopped" in err and "does not exist" in err and "writable by the home-hub user" in err
+    assert "Traceback" not in err
+    assert not (tmp_path / "backups" / "before-migration").exists()
+
+
+def test_a_damaged_database_also_stops_the_deploy(tmp_path, monkeypatch, capsys):
+    bad = tmp_path / "home_family.db"
+    bad.write_bytes(b"this is not a database" * 100)
+    monkeypatch.setattr(settings, "DATABASE_PATH", bad)
+    monkeypatch.setattr(settings, "BACKUP_DIR", tmp_path / "backups")
+    assert backup.main(["backup", "before-migration"]) == 1
+    assert "Deploy stopped" in capsys.readouterr().err

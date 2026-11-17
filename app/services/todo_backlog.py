@@ -24,7 +24,8 @@ def open_todo_count(session: Session, category: Category) -> int:
     ).one()
 
 
-def add_todo(session: Session, title: str, category: Category, due_date: Optional[date] = None) -> Todo:
+def add_todo(session: Session, title: str, category: Optional[Category], due_date: Optional[date] = None) -> Todo:
+    """`category` None = a general to-do, not tied to a house area (work, a domain name, ...): it shows on the To-Dos page only."""
     clean = title.strip()
     if not clean:
         raise ValueError("A to-do needs a title")

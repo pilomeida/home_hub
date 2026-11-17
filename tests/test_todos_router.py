@@ -1,5 +1,7 @@
 from datetime import date
 
+from sqlmodel import select
+
 from app.models.todo import Todo
 
 
@@ -65,3 +67,34 @@ def test_todos_page_shows_domain_badges(client, session):
     session.add(Todo(title="Pay EDP", category=Category.FINANCIALS))
     session.commit()
     assert '<span class="badge">Financials</span>' in client.get("/todos").text
+
+
+def test_add_general_todo_has_no_area_and_shows_on_the_todos_page_only(client, session):
+    response = client.post("/todos/add-general", data={"title": "Re-register the Ergon domain", "due_date": "2026-12-16"})
+
+    assert response.status_code == 200
+    assert "Re-register the Ergon domain" in response.text and "due 2026-12-16" in response.text
+    todo = session.exec(select(Todo).where(Todo.title == "Re-register the Ergon domain")).one()
+    assert todo.category is None and todo.due_date == date(2026, 12, 16)
+    assert '<span class="badge">' not in response.text
+    assert "Re-register the Ergon domain" in client.get("/todos").text
+
+
+def test_add_general_todo_says_what_why_and_next_step_when_it_cannot_add(client):
+    for data in ({"title": " "}, {"title": "x", "due_date": "16/12"}):
+        response = client.post("/todos/add-general", data=data)
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["what"] == "To-do not added." and detail["why"] and detail["next_step"]
+
+
+def test_a_todo_without_a_due_date_does_not_say_due_none(client, session):
+    session.add(Todo(title="Someday thing"))
+    session.commit()
+    text = client.get("/todos").text
+    assert "Someday thing" in text and "due None" not in text
+
+
+def test_the_todos_page_offers_the_general_form(client):
+    assert 'hx-post="/todos/add-general"' in client.get("/todos").text
+
