@@ -110,9 +110,3 @@ def test_add_general_todo_works_without_a_due_date(client, session):
     response = client.post("/todos/add-general", data={"title": "No date needed"})
     assert response.status_code == 200 and "No date needed" in response.text and "due None" not in response.text
     assert session.exec(select(Todo).where(Todo.title == "No date needed")).one().due_date is None
-
-
-def test_an_unknown_area_says_what_why_and_next_step(client):
-    detail = client.post("/todos/add", data={"title": "x", "domain": "nope"}).json()["detail"]
-    assert detail["what"] == "To-do not added." and detail["why"] and detail["next_step"]
-

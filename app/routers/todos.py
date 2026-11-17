@@ -26,17 +26,13 @@ def _todo_lists(session: Session):
     return open_todos, done_todos
 
 
-_UNKNOWN_AREA = {"what": "To-do not added.", "why": "The Hub does not have that house area.",
-                 "next_step": "Add it from one of the areas on the page, or from the form on the To-Dos page for a to-do with no area."}
-
-
 def _parse_category(value: str) -> Category:
     try:
         category = Category(value)
     except ValueError:
-        raise HTTPException(status_code=400, detail=_UNKNOWN_AREA) from None
+        raise HTTPException(status_code=400, detail="Unknown domain") from None      # the central handler words this in three parts
     if not is_implemented(category):
-        raise HTTPException(status_code=400, detail=_UNKNOWN_AREA)
+        raise HTTPException(status_code=400, detail="Unknown domain")
     return category
 
 
