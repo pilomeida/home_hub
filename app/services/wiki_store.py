@@ -331,18 +331,18 @@ def apply_claims(
         if active is None:
             continue
         is_correction = source_given and _has_source(session, active.id, document, record)
-        asserted = [] if is_correction else _asserted_dates(session, active)
+        confirmed_on = [] if is_correction else _asserted_dates(session, active)
         # The fact on file stays current unless this paper is newer than its LATEST confirmation; an undated paper
         # never replaces a dated fact (where neither is dated, the newest filed wins, as before).
         stays = not is_correction and (
-            (bool(asserted) and (new.valid_from is None or new.valid_from < max(asserted)))
+            (bool(confirmed_on) and (new.valid_from is None or new.valid_from < max(confirmed_on)))
             or (claim_input.policy == FactPolicy.LATEST and claim_input.value < active.value)
         )
         if stays:
             new.status = ClaimStatus.SUPERSEDED          # history: true until the fact on file was next confirmed
             new.superseded_by_claim_id = active.id
             new.superseded_at = now
-            later = [d for d in asserted if new.valid_from is not None and d > new.valid_from]
+            later = [d for d in confirmed_on if new.valid_from is not None and d > new.valid_from]
             if later and (new.valid_to is None or new.valid_to > min(later)):
                 new.valid_to = min(later)
             session.add(new)
