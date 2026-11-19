@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice d: Health reading, first time right (5a–5c done).
+**Now (2026-11-19):** step 10 (UI redesign, Option A), slice a (step 5 done: in section 4).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -67,59 +67,6 @@ on it), then the memory of answers and the one review queue (every later step se
 accuracy work, then Health reading, subjects in the wiki, Health conditions (a condition is a subject), and new
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
-
-### Step 5. Shared reading blocks, Health first (C4, with Health "first time right") · L
-Reuse: giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, young project:
-adapt and test well).
-- a. One reader interface: text from step 1, Portuguese numbers and dates (`1.234,56`, `dd/mm/aaaa`), a size guard,
-  one error type. ✅ 2026-11-19 (`app/services/reading.py`: every reader's error is a `ReadingError`; files over
-  25 MB refused before upload with a plain reason; bill, statement, utility, Health, Other and warranty readers
-  understand `1.234,56` and `05/03/2025`). Benchmark before: 0/2, failures already there (headings under the
-  A1c and CRP blocks, one RDW reference, one Doppler conclusion and provider name): 5b and 5d's work. Commit 39aa82a
-  (live bb54da6). Benchmark after: still 0/2, no new failure (the RDW reference, the Doppler conclusion and
-  provider name remain; the heading errors did not recur this run).
-- b. Lab values: the reader returns the paper's own wording, value, unit and range; code matches the wording to a
-  known test (exact alias, then near match, else a new test sent to the step-3 queue). Lab-sheet headings get the
-  topic baseline written reports already have. ✅ 2026-11-19 (`app/categories/health/tests.py`, tables `health_tests` and
-  `health_test_aliases`; a person's results page, one line per test whatever lab printed it; sheets now get topics).
-  A new test that looks like one already listed waits on "Waiting for you" ("Same as X" or "A test of its own"); one
-  with nothing alike is simply added (Claude; Pedro may change: the PLAN said every new test is asked, which would
-  have been 65 questions for the first two lab sheets). Units never merge (% and 10^9/L stay two tests).
-- c. One check-result shape (verdict, doubtful items) for the statement add-up, positions, card and Health checks,
-  flowing into step 3. Read-twice and the benchmark move into the shared block. ✅ 2026-11-19 (`app/services/checks.py`:
-  `CheckResult` = verdict ok / doubtful / not checked + doubts; the statement add-up, positions, card and Health
-  checks return it; `read_twice` is shared; a Health paper with doubts is one item on "Waiting for you", closed by
-  "I looked at the paper" or by the paper's own button). 5b live: 88 results → 65 tests, 3 look-alikes asked
-  (left/right eye, ALT/AST). The benchmark runner stays with Health for now: no other reader has cases yet; it
-  moves when a second one does (Claude; Pedro may change).
-- d. Health reading, from the agreed "first time right" list: read the PDF's structure with code (positions, fonts,
-  grey bands) so the model only interprets; learn each provider once (a profile Pedro confirms, his corrections kept
-  for that provider); narrative findings get a structure of their own instead of long text in a result; "Read again"
-  keeps fields a person edited; a history point printed on several papers is stored once. ◐ 2026-11-19: "Read again" keeps
-  the fields a person typed or changed (`documents.person_fields_json`); the PDF's own layout is read with code
-  (`app/categories/health/layout.py`: sections in bold, headings alone at the left margin, results with figures)
-  and settles two things the model got wrong on the benchmark: results left under the section go under their
-  printed heading (A1c, CRP), and a reference the model changed is set back to the printed one (RDW "=< 15,0"). A heading's
-  block ends at a wider gap than its rows (the first version moved Ureia, AST… under A1c and Ionograma: caught by
-  the benchmark, fixed the same day); a reference in words ("Risco elevado: >5,0") or differing only in spaces is
-  kept as read. The benchmark's AI readings vary run to run (the Doppler passed, then failed, on the same code): each
-  reader change is judged on two runs. Benchmark after 5d (commit 7c55622, two runs): the Cintramédica lab sheet passes both
-  (55/55, it failed every run before); the Doppler (a scan) fails differently each run: the "Conclusões" wrapper
-  heading, one conclusion cut short, the hospital's long name. Those are the narrative-findings and provider items left.
-  Then: a wrapper heading ("Conclusões") is dropped from every reading, as topics already do; a written finding one
-  reading cut short is completed from the other reading when it is the start of it. A provider is learnt once: a reading
-  whose provider has every distinctive word of a name a person confirmed (with its outline) takes that name. The
-  benchmark now reads as the Hub does, with the confirmed topics, outlines and providers (`--fresh` without them;
-  Claude, 2026-11-19; Pedro may change: the Doppler's own outline is among those confirmed). Benchmark (commit 5be65f0): run 1 passed both
-  cases; run 2 lost PSA's printed note from its reference, so a reference cut short is completed from the other
-  reading too.
-  A history point printed on several papers shows once on a person's results (5b) while each paper keeps what it
-  printed (Claude; Pedro may change). Left: narrative findings as a structure of their own; Pedro's corrections
-  kept per provider; grey bands (pypdf gives no shading; needs another reader).
-- e. The benchmark grows with each provider Pedro supplies (see section 2); every reader change is run through
-  `scripts/health_benchmark.py run` before and after.
-- Done when: the same blood test from two labs lands on one line of Rute's results; every check returns the same shape;
-  the benchmark passes on every case it holds.
 
 ### Step 10. UI redesign, Option A (Pedro, 2026-11-19) · XL (nine slices; run after step 5, before step 6)
 Numbered 10 so no other step is renumbered; it is listed here because steps 6–8 add pages, and those should be built in
@@ -227,6 +174,7 @@ Whatever the steps above did not already touch.
 | D8 | (from step 2, 2026-11-19) The payment entities and the supermarket list move into `rules` as Pedro's person rules, with a merchant-key column so the merchants they made keep their keys; they already rank right, so nothing a family member sees changes |
 | D10 | (from step 3b, 2026-11-19) Health's outline confirmation onto "Waiting for you": it is a per-paper button today, with no list of papers waiting for it to adopt |
 | D11 | (from step 4c, 2026-11-19) Revolut before 2024-01: document 51 (2022-08 → 2026-08, 1.3 MB) is refused whole by the AI provider ("cannot succeed by retrying"). Read large statements in page chunks and keep only the lines before 2024-01 (later months are in the feed and the monthly statements); compare live totals before and after |
+| D12 | (from step 5d, 2026-11-19) Health reading, what is left of "first time right": narrative findings as a structure of their own (today a long text in a result); Pedro's field corrections kept per provider (the provider's name is learnt; other fields are not yet); grey bands on lab sheets (pypdf gives no shading; needs another reader); 5e grows the benchmark as Pedro sends papers |
 | D9 | (from step 2c, 2026-11-19) AI calls in batches with an index per item: the bank sync's new-merchant pass sends one call per merchant today |
 
 ---
@@ -283,6 +231,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-11-03 | **A1–A5** safety: nightly off-server backups and a snapshot before every migration; tests gate the deploy, pinned dependencies; privacy gate fails closed; failed presses show the three-part banner; notice bugs fixed. **C6** phone notices: bank access expired, a job failing, a bill due within 3 days, a new loan red flag; once each, one reminder, quiet at night |
 | 2026-11-03 → 11-05 | **B** foundation: glossary and renames (B1), the kind carries its level, reader and filing (B2), one spending tree (B3), Coming up (B3b), registry of subjects slice 1 (B4), bank lines take their statement's level (B5), every paper has a kind (B6), one copy of each paper and no voids (B7) |
 | 2026-11-19 | **Step 4 (C5)** statements against the bank feed (371d90c → f597040): a statement line the feed or another statement of the account already holds is kept but settled by its twin (dimmed, linked, counted once; checked lines untouched); a new Money kind "Credit card statement" through the normal intake (Rute's by Telegram, checked to the cent); the bank-download wrapper stripped on every channel; a line type in the reader's own words no longer refuses a statement. Re-read on the server: Santander 2024-03 (104 lines), 2025-02 (108), 2022-08 (1), all adding up; live totals unchanged (the only move was the 18:30 bank sync's five lines). Leftover D11 (document 51) in step 9 |
+| 2026-11-19 | **Step 5 (C4)** shared reading blocks, Health first (39aa82a → e5680ae): one reading block (one error type, Portuguese numbers and dates, a 25 MB guard before upload); lab results matched to known tests, one line per test on a person's results page (88 live results → 65 tests; a new test is asked only when it looks like one listed: 3 asked); lab sheets get topics; one check-result shape for the statement, positions, card and Health checks, Health doubts on "Waiting for you"; "Read again" keeps a person's fields; the PDF's own layout settles headings and references; wrapper headings dropped; a finding or reference cut short completed from the second reading; a provider learnt once from the names a person confirmed. Benchmark: 0/2 before, 2/2 on two runs after (the benchmark now reads as the Hub does; `--fresh` without what it has learnt). Choices (Claude; Pedro may change): a new test is asked only when it looks like one listed; a history point shows once on a person's results while each paper keeps what it printed; the benchmark runner stays with Health until a second reader has cases; the benchmark reads with what the Hub has learnt. Leftover D12 in step 9 |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |
