@@ -116,6 +116,10 @@ def test_unknown_category_uses_the_strictest_level_of_the_domain_and_holds_if_an
         with privacy_scope(session, Category.FINANCIALS, None):
             pass
     ps.save_type(session, "financials", "loan_history", "house_low", False, None)
+    with pytest.raises(ps.TierHeld):                                   # card_statement (PLAN step 4b) still unset
+        with privacy_scope(session, Category.FINANCIALS, None):
+            pass
+    ps.save_type(session, "financials", "card_statement", "house_low", False, None)
     with privacy_scope(session, Category.FINANCIALS, None):
         assert current_scope().tier.value == "house_mid"
 
