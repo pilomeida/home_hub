@@ -14,6 +14,14 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
+**Now (2026-11-19):** nothing in progress. Next: step 1, search over papers and "Other paper".
+
+**How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
+happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
+dated; a slice that starts sets "Now"; a slice that lands is marked in its step (✅ date and commit, or ◐ with what is
+left), and a finished step moves to section 4. Every commit touching Hub code carries this file (a hook refuses
+one that does not; "PLAN-EXEMPT: <reason>" only for work no step covers). Rules in `CLAUDE.md`.
+
 **How a step is done.** Each step ships as green slices: tests, commit, deploy, then any one-off script on the server.
 "Done when" names what a test shows. IDs in brackets are the old work list's (A–E), so code comments saying
 "work-list C2" point here. Size: S under half a day, M one to two days, L three days or more. Reuse: only

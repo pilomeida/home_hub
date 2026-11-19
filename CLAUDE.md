@@ -13,5 +13,19 @@ Every warning or error a person can see says **what** didn't happen, **why**, an
 ## Privacy levels: what the AI may read (D16)
 Anything that shows the AI documents, records, wiki claims, transactions or to-dos beyond one document being filed (Ask tools, the wiki check, any new reader) must go through `app/privacy/reach.py` (`reach_for(session)`, `settled_entries(..., reach=)`, `wiki_view`) and run inside `reachable_scope(session)`. Never read those tables straight into a prompt. The tripwire tests (`tests/test_privacy_reach*.py`) must cover any new tool.
 
+## docs/PLAN.md rules execution (Pedro, 2026-11-19)
+`docs/PLAN.md` is the Hub's only plan and the live document that rules what is done, in what order. Read its "Now"
+line before starting any Hub work, and keep it true as you go, not at the end:
+- **A new task or request** (from Pedro, a finding, a bug) goes into PLAN.md before work starts: into the step it
+  belongs to, as a new step in the order, under "Waiting on Pedro", or under "Parked". Never a separate plan, backlog
+  or to-do file.
+- **A change to a task** (scope, order, approach, a decision from Pedro) is edited into its entry, dated.
+- **Execution, partial or complete:** when a slice starts, set "Now"; when it lands, mark it in its step (✅ date and
+  commit, or ◐ with what is left) and move finished steps to "Done". A slice that stops halfway says what is left.
+- **Every commit that touches Hub code carries PLAN.md** with it. A hook refuses a commit that does not
+  (`~/.claude/hooks/hub-plan-guard.py`); "PLAN-EXEMPT: <reason>" in the message only for work no step covers.
+- The dashboard (https://claude.ai/artifact/FAy2A5HYWy4bqk6u5AsRTa) is refreshed from PLAN.md when a step finishes.
+
 ## Never
 - `git commit`/`git push` without explicit order (see the monorepo root CLAUDE.md).
+- A plan, backlog or to-do list anywhere but `docs/PLAN.md`.
