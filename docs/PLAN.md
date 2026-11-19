@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 2, last two items (entities and supermarket list into `rules` with a merchant-key column; batched AI calls).
+**Now (2026-11-19):** step 3 (one review queue, "Waiting for you"), slice a: the `review_items` table.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -66,57 +66,6 @@ on it), then the memory of answers and the one review queue (every later step se
 accuracy work, then Health reading, subjects in the wiki, Health conditions (a condition is a subject), and new
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
-
-### Step 2. One memory of past answers (C2, with C3) · L
-Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` (MIT).
-- a. A `rules` table: what it looks at (description, counterparty, IBAN, Multibanco entity, sender, words), how
-  (contains, exact, regex, prefix, IBAN), the pattern, the answer (merchant, spending leaf, kind of paper, subject),
-  priority, **source (person, AI, system)**, confidence, on or off, approved by and when.
-- b. One reader, one order: person, then AI, then system; then priority. Every classifier and batch re-file asks it
-  first. Today's provider rules, payment entities, recognition fingerprints and code-held keyword lists move into it
-  (a migration, nothing lost).
-- c. An AI suggestion below the confidence bar is saved switched off and waits for a person (step 3). AI calls go in
-  batches with an index per item.
-- d. (C3) The kind of a paper is decided once: the hidden second bill-or-statement decision after approval goes; hand
-  uploads go through the same recognition.
-- e. A provider written two ways ("amigo (Vodafone)", "amigo (Vodafone Portugal)") resolves through a rule to one
-  merchant instead of making a new one each time.
-- f. Optional, not part of an autonomous run (a new adapter in the gateway repository and a new paid service):
-  benchmark jev (typed answers with probabilities, on OpenRouter) against the current pairing
-  on two or three narrow decisions (kind of paper, spending leaf, which bank line paid a bill): accuracy, EUR, speed;
-  keep, try or drop. It would be a new llmsel adapter, Low and Mid only, deciding on facts already read (less
-  accurate above ~32 KB), and it gives no reasons, so the "why" comes from the Hub's facts. API still alpha.
-- Done when: confirming a merchant or approving in the Inbox writes one rule, and no batch pass overrides a person
-  (tested).
-- ◐ 2026-11-19 (Claude): a, and b for two of the stores. The `rules` table and its one reader (`app/services/rules.py`:
-  person, then AI, then system; then priority; switched-off rules answer nothing) are in. The provider rules (filing
-  by bank text) and the recognition rules (sender, words, file name → kind of paper) moved into it by migration
-  d7f2b4a8c615 (the old tables stay, no longer read); the Privacy page and the Inbox "remember" write person rules.
-  ◐ 2026-11-19 (Claude): confirming a merchant writes one person's rule (counterparty → spending leaf; money-in
-  defaults stay on the merchant); a new bank line takes a person's rule (bank text, then counterparty) before the
-  merchant's stored default, and the merchant consistency pass cannot move it back (tested). The supermarket list is
-  Pedro's own ruling (2026-10-07), so it keeps its place above a confirmed merchant and moves in as a person's rule,
-  not a system one. "Approving in the Inbox writes one rule" is read as: with "Remember this" ticked, one rule per
-  thing remembered, as today (Claude, 2026-11-19; Pedro may change). On the server: 92 of the 105 merchants
-  confirmed before rules existed got their person's rule (13 skipped: money in or no real category; only `rules`
-  written; `scripts/rules_from_confirmed_merchants.py`).
-  ◐ c, 2026-11-19 (Claude): the merchant AI now states how sure it is; a new merchant's AI answer is saved as an AI
-  rule, switched off below 0.8, and then the merchant waits in Needs Review instead of being filed on a guess; an
-  answer with no stated confidence keeps today's behaviour. Left: AI calls in batches with an index per item.
-  ✅ e, 2026-11-19 (Claude): before a new merchant is made, the engine asks the rules whether the name is another
-  spelling of a known counterparty; merging merchants writes each merged spelling as a person's rule (tested with
-  "Amigo (Vodafone Portugal)" → "Amigo (Vodafone)"). The live Amigo / Amigo EasyPay / Vodafone Portugal merchants
-  are left as they are: their merge is step 6b's subject merge.
-  ✅ d, 2026-11-19 (Claude): the kind of a paper is decided once. The bill-or-statement prompt that ran after approval
-  is gone; the Inbox classifier must give a Money paper its kind and approving one without a kind is refused; a hand
-  upload with no kind gets the Inbox's own decision once (a person's recognition rule first, then the same
-  classifier limited to Money & Bills). Health keeps its design: its reading proposes the kind
-  (`reading_proposes_kind`).
-  Left in step 2 (◐, Claude 2026-11-19): (1) the payment entities and the supermarket list into the table. Both are
-  Pedro's rulings and already rank right (a person's rule on the bank text overrides either; the supermarket list
-  keeps its place above a confirmed merchant); moving them needs a merchant-key column on `rules` so the merchants
-  they made keep their keys. (2) AI calls in batches with an index per item (rest of c): one call per new merchant
-  today; batching means restructuring the bank sync's classification pass.
 
 ### Step 3. One review queue: "Waiting for you" (C1) · L
 Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).
@@ -208,6 +157,8 @@ Whatever the steps above did not already touch.
 | D5 | The mailbox check is never stuck behind bank sync or the wiki check |
 | D6 | ARCHITECTURE.md, SYSADMIN.md and `.env.example` up to date |
 | D7 | The test database enforces foreign keys everywhere, not only in `fk_session` (how the Health delete-order bug passed) |
+| D8 | (from step 2, 2026-11-19) The payment entities and the supermarket list move into `rules` as Pedro's person rules, with a merchant-key column so the merchants they made keep their keys; they already rank right, so nothing a family member sees changes |
+| D9 | (from step 2c, 2026-11-19) AI calls in batches with an index per item: the bank sync's new-merchant pass sends one call per merchant today |
 
 ---
 
@@ -267,5 +218,6 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-10-28 | Billing is not Health (bills go to Bills); every Health paper read twice, differences flagged |
 | 2026-11-03 | **A1–A5** safety: nightly off-server backups and a snapshot before every migration; tests gate the deploy, pinned dependencies; privacy gate fails closed; failed presses show the three-part banner; notice bugs fixed. **C6** phone notices: bank access expired, a job failing, a bill due within 3 days, a new loan red flag; once each, one reminder, quiet at night |
 | 2026-11-03 → 11-05 | **B** foundation: glossary and renames (B1), the kind carries its level, reader and filing (B2), one spending tree (B3), Coming up (B3b), registry of subjects slice 1 (B4), bank lines take their statement's level (B5), every paper has a kind (B6), one copy of each paper and no voids (B7) |
+| 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-17 | Hardening: a deploy that cannot back up stops plainly; nightly privacy self-test; to-dos with no house area. **E1** facts say when they were true; 8 Telecom and MetLife facts fixed |
