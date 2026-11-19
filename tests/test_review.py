@@ -131,3 +131,24 @@ def test_an_unconfirmed_merchant_waits_here_and_yes_confirms_it(session):
     review.decide(session, item.id, review.APPROVE, by="p@x", remember=True)
     session.refresh(m)
     assert m.confirmed and session.exec(select(Rule).where(Rule.pattern == "café central")).one().source == PERSON
+
+
+def test_health_proposals_and_same_person_wait_here_and_are_answered_through_their_own_rules(session):
+    from app.models.health import HealthArea, HealthPerson
+    from app.models.subject import Subject, SubjectKind, SubjectMatch
+    session.add(HealthArea(name="Eyes", kind="area", match_key="eyes", approved=False))
+    session.add(HealthPerson(name="Vicente Almeida", match_key="vicente almeida", confirmed=False))
+    from app.services import subjects
+    subjects.register_person(session, "Rute Almeida")
+    subjects.register_person(session, "Rute Alexandra Almeida")
+    session.commit()
+    assert len(subjects.pending(session)) == 1                                     # registering asked, as in production
+    items = {i.kind: i for i in review.waiting(session)}
+    assert set(items) == {"health_area", "health_person", "same_person"}
+    assert review.area_counts(session) == {"health": 2, "inbox": 1}
+    review.decide(session, items["health_area"].id, review.APPROVE, by="p@x")
+    review.decide(session, items["same_person"].id, review.DISCARD, by="rute@example.com")
+    assert session.exec(select(HealthArea)).one().approved
+    match = session.exec(select(SubjectMatch)).one()
+    assert (match.decision, match.decided_by) == ("different", "rute@example.com")
+    assert [i.kind for i in review.waiting(session)] == ["health_person"]

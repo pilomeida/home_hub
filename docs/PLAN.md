@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 3b (To-check, statements, merchants on the queue) deploying; next: the Health queues and "Same person?".
+**Now (2026-11-19):** step 4 (statements against the bank feed), slice a: match a statement line to a feed line.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -66,26 +66,6 @@ on it), then the memory of answers and the one review queue (every later step se
 accuracy work, then Health reading, subjects in the wiki, Health conditions (a condition is a subject), and new
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
-
-### Step 3. One review queue: "Waiting for you" (C1) · L
-Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).
-- a. A `review_items` table: subject, why, evidence and its page, the options, "remember this answer" (writes a step-2
-  rule), status (waiting, approved, discarded, snoozed), who and when.
-- b. Move the review points onto it one by one: Needs Review (1,430 merchants unconfirmed on 2026-10-28), To-check
-  lines, the Health queues (areas, people, topics, outline confirmation), Inbox "Same person?", step 2's waiting
-  rules.
-- c. One "Waiting for you" count in the menu, replacing the separate counters; the page filters by area (Money,
-  Health, Inbox…) (Pedro, 2026-11-19: one count, filters inside).
-- Done when: one count, and every decision stamps who and when.
-- ◐ a, 2026-11-19 (Claude): the `review_items` table, the "Waiting for you" page (`/waiting`, filters by area, an
-  "Ask me in a week" snooze of 7 days, "Remember this answer" ticked by default) and its count in the menu are live.
-  First thing moved onto it: step 2's AI answers saved switched off (the engine opens the item the moment it saves
-  one; "Yes" files the waiting entries and, remembered, makes it a person's rule; "No" leaves them in Needs review).
-  ◐ b, 2026-11-19 (Claude): To-check lines, statements that don't add up and Needs Review's unconfirmed merchants are
-  on the queue too (answered there, or on their own page, which closes the item with that answer's who and when);
-  one question per thing (a merchant whose AI guess is waiting is not asked twice); 50 items a page.
-  Left: the Health queues (areas, people, topics, outline confirmation) and Inbox "Same person?"; c (the separate
-  counters go once their queues are moved).
 
 ### Step 4. Statements against the bank feed, then the missing history (C5) · M
 Reuse: actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MIT, the idea ported).
@@ -167,6 +147,7 @@ Whatever the steps above did not already touch.
 | D6 | ARCHITECTURE.md, SYSADMIN.md and `.env.example` up to date |
 | D7 | The test database enforces foreign keys everywhere, not only in `fk_session` (how the Health delete-order bug passed) |
 | D8 | (from step 2, 2026-11-19) The payment entities and the supermarket list move into `rules` as Pedro's person rules, with a merchant-key column so the merchants they made keep their keys; they already rank right, so nothing a family member sees changes |
+| D10 | (from step 3b, 2026-11-19) Health's outline confirmation onto "Waiting for you": it is a per-paper button today, with no list of papers waiting for it to adopt |
 | D9 | (from step 2c, 2026-11-19) AI calls in batches with an index per item: the bank sync's new-merchant pass sends one call per merchant today |
 
 ---
@@ -214,7 +195,9 @@ brackets); tick off here when done.
   dashboards; plan: save them under `docs/design-references/`, decide the screens and workflow from how the family
   uses the Hub (interview in `Personal/brainstorms/2026-11-19-hub-ui-workflow-and-screens.md`), then draw 3 wireframe
   options, each with coherent screens. No code until Pedro picks one; then it becomes a numbered step. Not part of
-  the autonomous run.
+  the autonomous run. ◐ 2026-11-19: references filed, UX call written (`docs/design/ux-workflow-and-screens.md`) and
+  three mock-up sheets drawn (`docs/design/mockups/`); waiting for Pedro to pick or mix. Open: light vs dark, a pet
+  category (a thing with a type), Papers page not yet drawn.
 
 ---
 
@@ -227,6 +210,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-10-28 | Billing is not Health (bills go to Bills); every Health paper read twice, differences flagged |
 | 2026-11-03 | **A1–A5** safety: nightly off-server backups and a snapshot before every migration; tests gate the deploy, pinned dependencies; privacy gate fails closed; failed presses show the three-part banner; notice bugs fixed. **C6** phone notices: bank access expired, a job failing, a bill due within 3 days, a new loan red flag; once each, one reminder, quiet at night |
 | 2026-11-03 → 11-05 | **B** foundation: glossary and renames (B1), the kind carries its level, reader and filing (B2), one spending tree (B3), Coming up (B3b), registry of subjects slice 1 (B4), bank lines take their statement's level (B5), every paper has a kind (B6), one copy of each paper and no voids (B7) |
+| 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-17 | Hardening: a deploy that cannot back up stops plainly; nightly privacy self-test; to-dos with no house area. **E1** facts say when they were true; 8 Telecom and MetLife facts fixed |

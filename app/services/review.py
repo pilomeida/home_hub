@@ -81,6 +81,7 @@ def menu_count() -> int:
     try:
         from app.db import engine
         with Session(engine) as s:
+            sync(s)                  # a line held a minute ago counts now, not only once someone opens the page
             return count(s)
     except Exception:
         return 0
@@ -318,10 +319,96 @@ def _answer_merchant(session: Session, item: ReviewItem, answer: str, remember: 
     return APPROVED
 
 
+def _flagged(session: Session, *, kind: str, area: str, model, flag: str, title: Callable, why: str, url: str,
+             label: str) -> None:
+    """Rows a person approves by setting one flag (Health areas, people, topics): one item each while it is unset."""
+    rows = [r for r in session.exec(select(model).where(getattr(model, flag) == False))  # noqa: E712
+            if getattr(r, "merged_into_id", None) is None]
+    refs, existing = set(), _open_refs(session, kind)
+    for r in rows:
+        ref = f"{kind}:{r.id}"
+        refs.add(ref)
+        if ref not in existing:
+            open_item(session, area=area, kind=kind, ref=ref, title=title(r), why=why, evidence_url=url,
+                      options=[{"value": APPROVE, "label": label}])
+
+    def stamp(ref: str) -> tuple:
+        r = session.get(model, int(ref.split(":")[1]))
+        return (APPROVED if r is not None and getattr(r, flag) else DISCARDED), None, None
+    _close_gone(session, kind, refs, stamp)
+
+
+def _health(session: Session) -> None:
+    from app.models.health import HealthArea, HealthPerson, HealthTopic
+    _flagged(session, kind="health_area", area="health", model=HealthArea, flag="approved",
+             title=lambda a: f"New Health area proposed: {a.name}",
+             why="The AI proposed it while reading a Health paper; it is used only once a person approves it.",
+             url="/health/areas", label="Approve it")
+    _flagged(session, kind="health_person", area="health", model=HealthPerson, flag="confirmed",
+             title=lambda p: f"New person on a Health paper: {p.name}",
+             why="A Health paper named someone the Hub didn't know; confirm it is a new person (or merge it on the "
+                 "Records page if it is someone already there).", url="/health/records", label="Yes, a new person")
+    _flagged(session, kind="health_topic", area="health", model=HealthTopic, flag="approved",
+             title=lambda t: f"New Health topic proposed: {t.name}",
+             why="A written report's headings named a topic the Hub didn't have; it is used once a person approves it.",
+             url="/health/topics", label="Approve it")
+
+
+def _answer_health(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.categories.health import areas, people, topics
+    row_id = int(item.ref.split(":")[1])
+    approve = {"health_area": areas.approve_area, "health_person": people.confirm_person,
+               "health_topic": topics.approve_topic}[item.kind]
+    try:
+        approve(session, row_id)
+    except Exception as exc:                       # the Health services raise their own three-part errors
+        problem = getattr(exc, "problem", None)
+        if problem is None:
+            raise
+        raise ReviewError(problem.what, problem.why, problem.next_step) from None
+    return APPROVED
+
+
+def _same_person(session: Session) -> None:
+    """Inbox "Same person?" (work-list B4): two names that may be one person, asked, never guessed."""
+    from app.models.subject import SubjectMatch
+    from app.services import subjects
+    refs, existing = set(), _open_refs(session, "same_person")
+    for p in subjects.pending(session):
+        ref = f"match:{p.match.id}"
+        refs.add(ref)
+        if ref not in existing:
+            open_item(session, area="inbox", kind="same_person", ref=ref, title=f"Same person? {p.one} and {p.other}",
+                      why="The two names are alike but not the same, so the Hub asks instead of guessing.",
+                      evidence_url="/inbox", options=[{"value": APPROVE, "label": "Same person"},
+                                                      {"value": DISCARD, "label": "Different people"}])
+
+    def stamp(ref: str) -> tuple:
+        m = session.get(SubjectMatch, int(ref.split(":")[1]))
+        if m is None or m.decision is None:
+            return DISCARDED, None, None
+        return (APPROVED if m.decision == subjects.SAME else DISCARDED), m.decided_by, m.decided_at
+    _close_gone(session, "same_person", refs, stamp)
+
+
+def _answer_same_person(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.services import subjects
+    try:
+        subjects.decide(session, int(item.ref.split(":")[1]), answer == APPROVE, by)
+    except subjects.SubjectError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED if answer == APPROVE else DISCARDED
+
+
+for _kind in ("health_area", "health_person", "health_topic"):
+    HANDLERS[_kind] = _answer_health
+HANDLERS["same_person"] = _answer_same_person
 HANDLERS["merchant"] = _answer_merchant
 HANDLERS["to_check_line"] = _answer_to_check_line
 HANDLERS["statement_mismatch"] = _answer_statement_mismatch
-PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants]
+PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants,
+                                               _health, _same_person]
 
 
 @dataclass

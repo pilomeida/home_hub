@@ -303,15 +303,16 @@ def test_an_htmx_request_for_the_list_gets_a_fragment_not_a_page(hub, session):
     assert "<html" in hub.get("/to-check").text
 
 
-def test_the_menu_link_appears_only_when_something_is_waiting(hub, session):
-    assert 'href="/to-check"' not in hub.get("/inbox").text and "To check (" not in hub.get("/").text
+def test_waiting_lines_count_in_the_one_waiting_for_you_count_not_a_separate_menu_link(hub, session):
+    # PLAN step 3c (Pedro, 2026-11-19: one count, filters inside): the lines count under "Waiting for you".
+    assert 'href="/waiting">Waiting for you</a>' in hub.get("/").text
     document = statement(session)
     t1, t2 = line(session, document), line(session, document, "SECOND")
     html = hub.get("/inbox").text
-    assert '<a href="/to-check">To check (2)</a>' in html and '<a href="/inbox">Inbox</a>' in html   # Inbox count unchanged
+    assert 'href="/waiting">Waiting for you (2)</a>' in html and "To check (" not in html.split("<main")[0]
     to_check.confirm(session, t1.id, "Rute")
     to_check.confirm(session, t2.id, "Rute")
-    assert 'href="/to-check"' not in hub.get("/inbox").text
+    assert 'href="/waiting">Waiting for you</a>' in hub.get("/inbox").text
 
 
 # ------------------------------------------------------------------ pressing the buttons ---
