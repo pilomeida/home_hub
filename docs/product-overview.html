@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home &amp; Family Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f3ee; --card:#ffffff; --ink:#1f2328; --muted:#646b73; --line:#e3ddd3;
+  --money:#2f7d5b; --money-bg:#e3f2ea;
+  --health:#b0413e; --health-bg:#f8e4e2;
+  --house:#b7791f; --house-bg:#fbefd9;
+  --ins:#3b5ba5; --ins-bg:#e3e9f7;
+  --ai:#6d4bb3; --ai-bg:#ece5f8;
+  --low:#4a9d6f; --mid:#d39b2a; --high:#b0413e;
+  --accent:#1f2328;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181b; --card:#1f2226; --ink:#ece9e4; --muted:#9aa1a9; --line:#30343a;
+    --money:#5cc493; --money-bg:#1d3329; --health:#e57b77; --health-bg:#3a2221;
+    --house:#e3a94a; --house-bg:#3a2e17; --ins:#7f9be0; --ins-bg:#1f2a44;
+    --ai:#a98ae6; --ai-bg:#2b2340; --accent:#ece9e4;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16181b; --card:#1f2226; --ink:#ece9e4; --muted:#9aa1a9; --line:#30343a;
+  --money:#5cc493; --money-bg:#1d3329; --health:#e57b77; --health-bg:#3a2221;
+  --house:#e3a94a; --house-bg:#3a2e17; --ins:#7f9be0; --ins-bg:#1f2a44;
+  --ai:#a98ae6; --ai-bg:#2b2340; --accent:#ece9e4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;line-height:1.15;margin:0}
+h2{font-size:1.9rem;margin-bottom:.4rem}
+h3{font-size:1.15rem}
+section{padding:56px 0;border-top:1px solid var(--line)}
+.kicker{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:.5rem}
+.lede{color:var(--muted);max-width:680px;margin:.2rem 0 1.8rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+svg{max-width:100%;height:auto;display:block}
+svg text{font-family:Inter,system-ui,sans-serif;fill:var(--ink)}
+
+/* hero */
+header{padding:64px 0 48px}
+.hero{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center}
+@media(max-width:800px){.hero{grid-template-columns:1fr}}
+.hero h1{font-size:clamp(2.4rem,6vw,3.8rem)}
+.hero p{font-size:1.15rem;color:var(--muted);margin:1rem 0 1.4rem}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:.85rem;margin:0 6px 6px 0}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+/* stats */
+.stat{text-align:left}
+.stat b{display:block;font-family:Fraunces,serif;font-size:2.3rem;line-height:1}
+.stat span{color:var(--muted);font-size:.9rem}
+
+/* category cards */
+.cat{border-top:6px solid var(--c);}
+.cat .ic{width:44px;height:44px;border-radius:12px;background:var(--cbg);display:grid;place-items:center;margin-bottom:12px}
+.cat .ic svg{width:24px;height:24px;stroke:var(--c);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.tag{font-size:.78rem;padding:3px 9px;border-radius:999px;background:var(--cbg);color:var(--c);font-weight:500}
+.cat ul{padding-left:18px;margin:.6rem 0 0;color:var(--muted);font-size:.92rem}
+
+/* privacy ladder */
+.ladder{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:700px){.ladder{grid-template-columns:1fr}}
+.rung{border-radius:16px;padding:18px;color:#fff}
+.rung h3{color:#fff}
+.rung small{opacity:.9;display:block;margin-top:6px}
+.rung .lock{font-size:1.6rem}
+
+/* pages map */
+.page{display:flex;gap:12px;align-items:flex-start}
+.page .sq{flex:none;width:36px;height:36px;border-radius:10px;background:var(--cbg,var(--ai-bg));color:var(--c,var(--ai));display:grid;place-items:center;font-weight:700}
+.page p{margin:2px 0 0;color:var(--muted);font-size:.9rem}
+
+/* progress */
+.bar{height:12px;border-radius:999px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c)}
+.wl{display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center}
+.wl .lab{font-weight:600}
+.wl .n{color:var(--muted);font-size:.85rem}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;color:var(--muted);margin-top:10px}
+footer{padding:32px 0 56px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <div class="hero">
+    <div>
+      <div class="kicker">Product overview · 2026-11-17</div>
+      <h1>Home &amp; Family Hub</h1>
+      <p>The family's private filing cabinet that reads its own mail. Every bill, bank line, lab result and warranty lands in one place, gets recognised, filed and checked — and the family can simply ask it questions.</p>
+      <span class="pill"><span class="dot" style="background:var(--money)"></span>Live at hub.cdafamily.casa</span>
+      <span class="pill">🔒 Behind Cloudflare Access</span>
+      <span class="pill">🇪🇺 Privacy levels per paper</span>
+    </div>
+    <!-- hero illustration: papers flowing into a house -->
+    <svg viewBox="0 0 420 300" role="img" aria-label="Papers from email, Telegram, bank and upload flowing into the Hub">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+      <g font-size="12" font-weight="500">
+        <rect x="6" y="18" width="104" height="42" rx="10" fill="var(--card)" stroke="var(--line)"/><text x="58" y="44" text-anchor="middle">✉️ Email</text>
+        <rect x="6" y="84" width="104" height="42" rx="10" fill="var(--card)" stroke="var(--line)"/><text x="58" y="110" text-anchor="middle">💬 Telegram</text>
+        <rect x="6" y="150" width="104" height="42" rx="10" fill="var(--card)" stroke="var(--line)"/><text x="58" y="176" text-anchor="middle">🏦 Bank feed</text>
+        <rect x="6" y="216" width="104" height="42" rx="10" fill="var(--card)" stroke="var(--line)"/><text x="58" y="242" text-anchor="middle">⬆️ Upload</text>
+      </g>
+      <g stroke="var(--muted)" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+        <path d="M112 39 C170 39 170 130 222 140"/><path d="M112 105 C160 105 170 140 222 146"/>
+        <path d="M112 171 C160 171 170 152 222 152"/><path d="M112 237 C170 237 170 165 222 158"/>
+      </g>
+      <path d="M232 128 L320 64 L408 128 V270 H232 Z" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="250" y="146" width="66" height="50" rx="8" fill="var(--money-bg)"/><text x="283" y="177" text-anchor="middle" font-size="12" style="fill:var(--money)" font-weight="600">Money</text>
+      <rect x="324" y="146" width="66" height="50" rx="8" fill="var(--health-bg)"/><text x="357" y="177" text-anchor="middle" font-size="12" style="fill:var(--health)" font-weight="600">Health</text>
+      <rect x="250" y="204" width="66" height="50" rx="8" fill="var(--house-bg)"/><text x="283" y="235" text-anchor="middle" font-size="12" style="fill:var(--house)" font-weight="600">House</text>
+      <rect x="324" y="204" width="66" height="50" rx="8" fill="var(--ins-bg)"/><text x="357" y="235" text-anchor="middle" font-size="12" style="fill:var(--ins)" font-weight="600">Insurance</text>
+      <circle cx="320" cy="108" r="16" fill="var(--ai-bg)" stroke="var(--ai)"/><text x="320" y="113" text-anchor="middle" font-size="14">✦</text>
+    </svg>
+  </div>
+</header>
+
+<section class="wrap">
+  <div class="kicker">At a glance</div>
+  <div class="grid g4">
+    <div class="card stat"><b>4</b><span>areas of family life, each with its own pages</span></div>
+    <div class="card stat"><b>20+</b><span>kinds of paper it recognises and reads</span></div>
+    <div class="card stat"><b>5,477</b><span>bank lines on file, every one tied to its statement</span></div>
+    <div class="card stat"><b>3×</b><span>a day the bank accounts sync by themselves</span></div>
+    <div class="card stat"><b>4</b><span>ways a paper can arrive: email, Telegram, bank, upload</span></div>
+    <div class="card stat"><b>3</b><span>privacy levels deciding what the AI may read</span></div>
+    <div class="card stat"><b>8</b><span>background jobs running on their own schedule</span></div>
+    <div class="card stat"><b>2,079</b><span>automatic tests that must pass before every release</span></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">How it works</div>
+  <h2>From a paper to an answer</h2>
+  <p class="lede">Every paper takes the same road, whichever door it came through. A person always has the last word on anything the Hub isn't sure of.</p>
+  <div class="card">
+    <svg viewBox="0 0 1000 250" role="img" aria-label="Six steps: arrives, recognised, privacy level, read and checked, filed, ask and reminders">
+      <defs><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+      <g stroke="var(--muted)" stroke-width="2" marker-end="url(#ah2)">
+        <line x1="148" y1="80" x2="180" y2="80"/><line x1="318" y1="80" x2="350" y2="80"/><line x1="488" y1="80" x2="520" y2="80"/>
+        <line x1="658" y1="80" x2="690" y2="80"/><line x1="828" y1="80" x2="860" y2="80"/>
+      </g>
+      <g font-size="13">
+        <g><circle cx="80" cy="80" r="56" fill="var(--card)" stroke="var(--line)" stroke-width="2"/><text x="80" y="76" text-anchor="middle" font-size="26">📥</text><text x="80" y="104" text-anchor="middle" font-weight="600">Arrives</text>
+          <text x="80" y="165" text-anchor="middle" fill="var(--muted)" style="fill:var(--muted)">Email, Telegram,</text><text x="80" y="183" text-anchor="middle" style="fill:var(--muted)">bank feed or upload.</text><text x="80" y="201" text-anchor="middle" style="fill:var(--muted)">Duplicates caught.</text></g>
+        <g><circle cx="250" cy="80" r="56" fill="var(--ai-bg)" stroke="var(--ai)" stroke-width="2"/><text x="250" y="76" text-anchor="middle" font-size="26">🔎</text><text x="250" y="104" text-anchor="middle" font-weight="600">Recognised</text>
+          <text x="250" y="165" text-anchor="middle" style="fill:var(--muted)">Which area and kind?</text><text x="250" y="183" text-anchor="middle" style="fill:var(--muted)">Suggested on the</text><text x="250" y="201" text-anchor="middle" style="fill:var(--muted)">Inbox; you approve.</text></g>
+        <g><circle cx="420" cy="80" r="56" fill="var(--card)" stroke="var(--high)" stroke-width="2"/><text x="420" y="76" text-anchor="middle" font-size="26">🔒</text><text x="420" y="104" text-anchor="middle" font-weight="600">Privacy level</text>
+          <text x="420" y="165" text-anchor="middle" style="fill:var(--muted)">Low, Mid or High.</text><text x="420" y="183" text-anchor="middle" style="fill:var(--muted)">No level = nothing</text><text x="420" y="201" text-anchor="middle" style="fill:var(--muted)">may read it.</text></g>
+        <g><circle cx="590" cy="80" r="56" fill="var(--ai-bg)" stroke="var(--ai)" stroke-width="2"/><text x="590" y="76" text-anchor="middle" font-size="26">📖</text><text x="590" y="104" text-anchor="middle" font-weight="600">Read &amp; checked</text>
+          <text x="590" y="165" text-anchor="middle" style="fill:var(--muted)">Amounts, dates, results.</text><text x="590" y="183" text-anchor="middle" style="fill:var(--muted)">Statements must add up;</text><text x="590" y="201" text-anchor="middle" style="fill:var(--muted)">doubts go to "To check".</text></g>
+        <g><circle cx="760" cy="80" r="56" fill="var(--money-bg)" stroke="var(--money)" stroke-width="2"/><text x="760" y="76" text-anchor="middle" font-size="26">🗂️</text><text x="760" y="104" text-anchor="middle" font-weight="600">Filed</text>
+          <text x="760" y="165" text-anchor="middle" style="fill:var(--muted)">Bank lines, bills,</text><text x="760" y="183" text-anchor="middle" style="fill:var(--muted)">health records, items —</text><text x="760" y="201" text-anchor="middle" style="fill:var(--muted)">plus wiki facts.</text></g>
+        <g><circle cx="920" cy="80" r="56" fill="var(--card)" stroke="var(--accent)" stroke-width="2"/><text x="920" y="76" text-anchor="middle" font-size="26">💡</text><text x="920" y="104" text-anchor="middle" font-weight="600">Useful</text>
+          <text x="920" y="165" text-anchor="middle" style="fill:var(--muted)">Ask questions,</text><text x="920" y="183" text-anchor="middle" style="fill:var(--muted)">to-dos, reminders,</text><text x="920" y="201" text-anchor="middle" style="fill:var(--muted)">Telegram nudges.</text></g>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">The four areas</div>
+  <h2>What it looks after</h2>
+  <p class="lede">Each area knows its own kinds of paper: how to read them, what to file them as, and how private they are.</p>
+  <div class="grid g2">
+    <div class="card cat" style="--c:var(--money);--cbg:var(--money-bg)">
+      <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></div>
+      <h3>Money &amp; Bills</h3>
+      <ul>
+        <li>Santander Totta, card and Revolut sync at 07:30, 13:00, 18:30 (Lisbon)</li>
+        <li>Every line filed on a 3-level spending tree (Food › Groceries › Supermarket)</li>
+        <li>Budgets to watch against; <b>Coming up</b>: what's due in the next 3 months</li>
+        <li>Loans &amp; savings, with red-flag alerts; utility use charted (electricity, water, telecom)</li>
+        <li>Payments matched by Multibanco entity number, not by name</li>
+        <li>Daily cash check: the balance must match the bank, or it says so</li>
+      </ul>
+      <div class="tags"><span class="tag">Bill</span><span class="tag">Statement</span><span class="tag">Positions</span><span class="tag">Loan history</span></div>
+    </div>
+    <div class="card cat" style="--c:var(--health);--cbg:var(--health-bg)">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.5-9 9-9 9z"/></svg></div>
+      <h3>Health</h3>
+      <ul>
+        <li>Upload asks only for the file — the Hub works out who and what</li>
+        <li>Records by person, by body area and by topic; appointments</li>
+        <li>Read twice and checked, benchmarked for getting it right first time</li>
+        <li>Always the highest privacy level, by design</li>
+      </ul>
+      <div class="tags"><span class="tag">Lab result</span><span class="tag">Imaging</span><span class="tag">Medical report</span><span class="tag">Prescription</span><span class="tag">Referral</span><span class="tag">Medical bill</span><span class="tag">Claim statement</span><span class="tag">Vaccination</span><span class="tag">Appointment</span></div>
+    </div>
+    <div class="card cat" style="--c:var(--house);--cbg:var(--house-bg)">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></div>
+      <h3>House</h3>
+      <ul>
+        <li>Items and rooms, each with its documents</li>
+        <li>Warranty end date read from the invoice</li>
+        <li>A renewal to-do appears 21 days before a warranty runs out</li>
+      </ul>
+      <div class="tags"><span class="tag">Appliance</span><span class="tag">Outdoor gear</span><span class="tag">Warranty invoice</span><span class="tag">Maintenance log</span><span class="tag">Floor plan</span><span class="tag">Ownership</span></div>
+    </div>
+    <div class="card cat" style="--c:var(--ins);--cbg:var(--ins-bg)">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg></div>
+      <h3>Insurance</h3>
+      <ul>
+        <li>Policies with what they cover (home, car, health, life)</li>
+        <li>Premium notices filed once as bills, shown on the policy card — never counted twice</li>
+      </ul>
+      <div class="tags"><span class="tag">Policy</span><span class="tag">Claim</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">Privacy</div>
+  <h2>Three levels, set per kind of paper</h2>
+  <p class="lede">Every AI call goes through one gateway, and every call must carry a level. If it doesn't, it is refused — the Hub fails closed. A nightly self-test proves the locks still hold.</p>
+  <div class="ladder">
+    <div class="rung" style="background:var(--low)"><div class="lock">🔓</div><h3>House Low</h3><small>Everyday papers. Cheapest suitable model.</small></div>
+    <div class="rung" style="background:var(--mid)"><div class="lock">🔐</div><h3>House Mid</h3><small>Only providers that keep no data, in the US or EU.</small></div>
+    <div class="rung" style="background:var(--high)"><div class="lock">🔒</div><h3>House High</h3><small>Privatemode only (encrypted). No route available = blocked, never downgraded. Health lives here.</small></div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card"><h3>📭 No level yet?</h3><p style="color:var(--muted);margin:.4rem 0 0">Nothing may read it. You set it on the Privacy page.</p></div>
+    <div class="card"><h3>🔗 Bank lines</h3><p style="color:var(--muted);margin:.4rem 0 0">Take their statement's level — no line without its paper.</p></div>
+    <div class="card"><h3>🧪 Tripwires</h3><p style="color:var(--muted);margin:.4rem 0 0">Tests fail if any new reader skips the privacy check.</p></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">The pages</div>
+  <h2>What the family sees</h2>
+  <p class="lede">One menu; counters appear only when something is waiting.</p>
+  <div class="grid g3">
+    <div class="card page"><div class="sq">⌂</div><div><b>Overview</b><p>Spending by group, next 30 days, open to-dos, anything needing attention.</p></div></div>
+    <div class="card page" style="--c:var(--ai);--cbg:var(--ai-bg)"><div class="sq">✦</div><div><b>Ask</b><p>Chat across every area, with sources cited; good answers can be saved to the wiki.</p></div></div>
+    <div class="card page"><div class="sq">📥</div><div><b>Inbox</b><p>New papers with the Hub's suggestion; approve or discard. Also "Same person?".</p></div></div>
+    <div class="card page"><div class="sq">❓</div><div><b>To check</b><p>Readings the Hub isn't sure of, with the evidence.</p></div></div>
+    <div class="card page"><div class="sq">📚</div><div><b>Wiki</b><p>Standing facts kept up to date from the papers; old facts superseded, never deleted.</p></div></div>
+    <div class="card page"><div class="sq">✓</div><div><b>To-Dos</b><p>Due-date list fed by bills, warranties and reminders.</p></div></div>
+    <div class="card page"><div class="sq">🔒</div><div><b>Privacy</b><p>Choose the level for each kind of paper.</p></div></div>
+    <div class="card page"><div class="sq">⏱</div><div><b>Scheduled jobs</b><p>See and change when each background job runs.</p></div></div>
+    <div class="card page"><div class="sq">⚠</div><div><b>Problems</b><p>Anything that failed out of sight: what, why, and what to do.</p></div></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">Running by itself</div>
+  <h2>A day in the Hub's life</h2>
+  <p class="lede">Eight background jobs, each with a plain description and an editable schedule. Times in Lisbon.</p>
+  <div class="card">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="24-hour timeline of background jobs">
+      <line x1="40" y1="60" x2="960" y2="60" stroke="var(--line)" stroke-width="2"/>
+      <g font-size="11" text-anchor="middle" style="fill:var(--muted)">
+        <text x="40" y="45" style="fill:var(--muted)">00:00</text><text x="270" y="45" style="fill:var(--muted)">06:00</text><text x="500" y="45" style="fill:var(--muted)">12:00</text><text x="730" y="45" style="fill:var(--muted)">18:00</text><text x="960" y="45" style="fill:var(--muted)">24:00</text>
+      </g>
+      <g stroke="var(--line)"><line x1="270" y1="55" x2="270" y2="280"/><line x1="500" y1="55" x2="500" y2="280"/><line x1="730" y1="55" x2="730" y2="280"/></g>
+      <!-- continuous jobs -->
+      <g font-size="12" font-weight="500">
+        <text x="40" y="92">Mailbox check · every 10 min</text>
+        <g fill="var(--ai)"><rect x="40" y="100" width="920" height="10" rx="5" opacity=".25"/></g>
+        <text x="40" y="138">Phone notices · every 15 min (Telegram, once per issue)</text>
+        <rect x="40" y="146" width="920" height="10" rx="5" fill="var(--ins)" opacity=".25"/>
+        <text x="40" y="184">Bank sync · 3 times a day</text>
+        <g fill="var(--money)"><circle cx="327" cy="196" r="9"/><circle cx="538" cy="196" r="9"/><circle cx="749" cy="196" r="9"/></g>
+        <g font-size="10" text-anchor="middle"><text x="327" y="222">07:30</text><text x="538" y="222">13:00</text><text x="749" y="222">18:30</text></g>
+        <text x="40" y="252">Nightly: Backup (database + every paper, 30 days kept) · Privacy self-test</text>
+        <g fill="var(--high)"><circle cx="90" cy="268" r="8"/><circle cx="130" cy="268" r="8" fill="var(--house)"/></g>
+      </g>
+    </svg>
+    <div class="legend"><span>Also on their own schedule: <b>Statement reminder</b> (monthly), <b>Things to check</b> nudge, <b>Wiki check</b> (weekly health check of the wiki).</span></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">How it was built</div>
+  <h2>Five months, 436 changes</h2>
+  <p class="lede">Started 2026-06-20. Each change shipped only after the full test suite passed.</p>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Changes per month</h3>
+      <svg viewBox="0 0 460 230" role="img" aria-label="Commits per month: June 83, August 135, September 92, October 101, November 25 so far">
+        <g font-size="12">
+          <!-- scale: 135 -> 150px -->
+          <rect x="30"  y="98"  width="56" height="92"  rx="6" fill="var(--ai)" opacity=".75"/><text x="58" y="90" text-anchor="middle" font-weight="600">83</text><text x="58" y="210" text-anchor="middle" style="fill:var(--muted)">Jun</text>
+          <rect x="110" y="190" width="56" height="0"  rx="6" fill="var(--ai)"/><text x="138" y="182" text-anchor="middle" style="fill:var(--muted)">–</text><text x="138" y="210" text-anchor="middle" style="fill:var(--muted)">Jul</text>
+          <rect x="190" y="40"  width="56" height="150" rx="6" fill="var(--ai)"/><text x="218" y="32" text-anchor="middle" font-weight="600">135</text><text x="218" y="210" text-anchor="middle" style="fill:var(--muted)">Aug</text>
+          <rect x="270" y="88"  width="56" height="102" rx="6" fill="var(--ai)" opacity=".85"/><text x="298" y="80" text-anchor="middle" font-weight="600">92</text><text x="298" y="210" text-anchor="middle" style="fill:var(--muted)">Sep</text>
+          <rect x="350" y="78"  width="56" height="112" rx="6" fill="var(--ai)" opacity=".85"/><text x="378" y="70" text-anchor="middle" font-weight="600">101</text><text x="378" y="210" text-anchor="middle" style="fill:var(--muted)">Oct</text>
+          <rect x="430" y="162" width="24" height="28"  rx="6" fill="var(--ai)" opacity=".5"/><text x="442" y="154" text-anchor="middle" font-weight="600">25</text><text x="442" y="210" text-anchor="middle" style="fill:var(--muted)">Nov</text>
+        </g>
+        <line x1="20" y1="190" x2="460" y2="190" stroke="var(--line)"/>
+      </svg>
+    </div>
+    <div class="card">
+      <h3>Milestones</h3>
+      <svg viewBox="0 0 460 260" role="img" aria-label="Milestone timeline">
+        <line x1="24" y1="12" x2="24" y2="250" stroke="var(--line)" stroke-width="3"/>
+        <g font-size="12">
+          <circle cx="24" cy="20" r="7" fill="var(--money)"/><text x="44" y="24"><tspan font-weight="600">06-20</tspan>  Bills, statements, dashboard, to-dos</text>
+          <circle cx="24" cy="58" r="7" fill="var(--money)"/><text x="44" y="62"><tspan font-weight="600">09-14</tspan>  45 of 49 old bank statements read in</text>
+          <circle cx="24" cy="96" r="7" fill="var(--ai)"/><text x="44" y="100"><tspan font-weight="600">09-27</tspan>  House, Inbox, Ask live; Gmail + Telegram</text>
+          <circle cx="24" cy="134" r="7" fill="var(--money)"/><text x="44" y="138"><tspan font-weight="600">10-05</tspan>  Bank auto-sync; spending tree, budgets, loans</text>
+          <circle cx="24" cy="172" r="7" fill="var(--high)"/><text x="44" y="176"><tspan font-weight="600">10-15</tspan>  Privacy levels + Privatemode; Problems page</text>
+          <circle cx="24" cy="210" r="7" fill="var(--health)"/><text x="44" y="214"><tspan font-weight="600">10-16</tspan>  Health area live</text>
+          <circle cx="24" cy="248" r="7" fill="var(--house)"/><text x="44" y="252"><tspan font-weight="600">11-05</tspan>  Coming up; one registry of people &amp; things</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="kicker">Where it stands</div>
+  <h2>The rebuild, in four parts</h2>
+  <p class="lede">After the 2026-10-28 architecture review, the work was ordered safety first, then the foundation, then shared functions, then clean-up.</p>
+  <div class="card">
+    <div class="wl">
+      <span class="lab">A · Safety</span><div class="bar" style="--c:var(--money)"><i style="width:100%"></i></div><span class="n">backups, test gate, fail-closed privacy</span>
+      <span class="lab">B · Foundation</span><div class="bar" style="--c:var(--money)"><i style="width:90%"></i></div><span class="n">7 of 8 done · subjects registry half-way</span>
+      <span class="lab">C · Functions</span><div class="bar" style="--c:var(--house)"><i style="width:3%"></i></div><span class="n">next: one review queue, one memory of answers</span>
+      <span class="lab">D · Clean-up</span><div class="bar" style="--c:var(--line)"><i style="width:0%"></i></div><span class="n">not started</span>
+    </div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card"><h3>🔜 Coming next</h3><p style="color:var(--muted);margin:.4rem 0 0">Wiki facts linked to people and things; one "Waiting for you" count for every review.</p></div>
+    <div class="card"><h3>📱 Phone notices</h3><p style="color:var(--muted);margin:.4rem 0 0">Bank access expired, a job keeps failing, a bill due in 3 days, a new loan red flag — sent once.</p></div>
+    <div class="card"><h3>🧭 Always</h3><p style="color:var(--muted);margin:.4rem 0 0">Every message says what didn't happen, why, and what you can do.</p></div>
+  </div>
+</section>
+
+<footer class="wrap">
+  Home &amp; Family Hub · github.com/pilomeida/home_hub · figures from the code and project docs as of 2026-11-17 (bank-line count from 2026-11-04).
+</footer>
+</body>
+</html>
