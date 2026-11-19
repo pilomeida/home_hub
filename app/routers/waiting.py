@@ -17,12 +17,16 @@ router = APIRouter(prefix="/waiting", tags=["waiting"])
 
 
 @router.get("")
-async def waiting_page(request: Request, area: Optional[str] = None, session: Session = Depends(get_session)):
+async def waiting_page(request: Request, area: Optional[str] = None, page: int = 1,
+                       session: Session = Depends(get_session)):
     area = area if area in review.AREAS else None
-    items = review.waiting(session, area)
+    page = max(1, page)
+    items = review.waiting(session, area, offset=(page - 1) * review.PAGE, limit=review.PAGE)
+    counts = review.area_counts(session)
+    total = counts.get(area, 0) if area else sum(counts.values())
     return templates.TemplateResponse(request, "waiting/page.html", {
-        "cards": [review.card(i) for i in items], "area": area, "areas": review.AREAS,
-        "counts": review.area_counts(session)})
+        "cards": [review.card(i) for i in items], "area": area, "areas": review.AREAS, "counts": counts,
+        "page": page, "pages": max(1, -(-total // review.PAGE))})
 
 
 @router.post("/{item_id}")

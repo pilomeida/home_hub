@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 3a (Waiting for you, first producer) deploying; next: 3b, moving the other review points onto it.
+**Now (2026-11-19):** step 3b (To-check, statements, merchants on the queue) deploying; next: the Health queues and "Same person?".
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -81,7 +81,10 @@ Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).
   "Ask me in a week" snooze of 7 days, "Remember this answer" ticked by default) and its count in the menu are live.
   First thing moved onto it: step 2's AI answers saved switched off (the engine opens the item the moment it saves
   one; "Yes" files the waiting entries and, remembered, makes it a person's rule; "No" leaves them in Needs review).
-  Left: b (Needs Review merchants, To-check lines, the Health queues, Inbox "Same person?") and c (the separate
+  ◐ b, 2026-11-19 (Claude): To-check lines, statements that don't add up and Needs Review's unconfirmed merchants are
+  on the queue too (answered there, or on their own page, which closes the item with that answer's who and when);
+  one question per thing (a merchant whose AI guess is waiting is not asked twice); 50 items a page.
+  Left: the Health queues (areas, people, topics, outline confirmation) and Inbox "Same person?"; c (the separate
   counters go once their queues are moved).
 
 ### Step 4. Statements against the bank feed, then the missing history (C5) · M

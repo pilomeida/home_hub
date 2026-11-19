@@ -55,9 +55,14 @@ def _waiting_query(now: datetime, area: Optional[str] = None):
     return q.where(ReviewItem.area == area) if area else q
 
 
-def waiting(session: Session, area: Optional[str] = None, now: Optional[datetime] = None) -> list[ReviewItem]:
+PAGE = 50
+
+
+def waiting(session: Session, area: Optional[str] = None, now: Optional[datetime] = None, *,
+            offset: int = 0, limit: Optional[int] = None) -> list[ReviewItem]:
     sync(session)
-    return list(session.exec(_waiting_query(now or datetime.utcnow(), area).order_by(ReviewItem.created_at)))
+    q = _waiting_query(now or datetime.utcnow(), area).order_by(ReviewItem.created_at, ReviewItem.id).offset(offset)
+    return list(session.exec(q.limit(limit) if limit else q))
 
 
 def count(session: Session, now: Optional[datetime] = None) -> int:
@@ -173,7 +178,150 @@ def _answer_ai_rule(session: Session, item: ReviewItem, answer: str, remember: b
 
 
 HANDLERS["ai_rule"] = _answer_ai_rule
-PRODUCERS: list[Callable[[Session], None]] = [_ai_rules]
+
+
+# --- moved queues: each keeps in step with the page it came from ------------------------------------------------
+
+def _open_refs(session: Session, kind: str) -> set[str]:
+    return set(session.exec(select(ReviewItem.ref).where(ReviewItem.kind == kind, ReviewItem.status.in_(OPEN))))
+
+
+def _close_gone(session: Session, kind: str, still_open: set[str], stamp: Callable[[str], tuple]) -> None:
+    """Items whose thing was decided elsewhere (its own page, a script) close with that decision's who and when."""
+    for item in session.exec(select(ReviewItem).where(ReviewItem.kind == kind, ReviewItem.status.in_(OPEN))):
+        if item.ref not in still_open:
+            status, by, at = stamp(item.ref)
+            item.status, item.decided_by, item.decided_at = status, by or "decided elsewhere", at or datetime.utcnow()
+            item.answer = "decided on its own page"
+            session.add(item)
+
+
+def _to_check_lines(session: Session) -> None:
+    """Bank-statement lines the Hub was unsure about (decision D11/D17): held out of every total until answered."""
+    from app.models.document import Document
+    from app.models.transaction import Transaction
+    from app.services import to_check
+    held = session.exec(select(Transaction).where(Transaction.review_status == to_check.NEEDS_CHECK)).all()
+    refs, existing = set(), _open_refs(session, "to_check_line")
+    for t in held:
+        ref = f"txn:{t.id}"
+        refs.add(ref)
+        if ref in existing:
+            continue
+        when = to_check.line_date(t)
+        doc = session.get(Document, t.document_id)
+        open_item(session, area="money", kind="to_check_line", ref=ref,
+                  title=f"Is this bank line right? {t.description} · {to_check.money(t.amount)}"
+                        f"{' · ' + when.isoformat() if when else ''}",
+                  why=(t.review_reason or "The Hub was unsure it read this line correctly.")
+                      + " It is left out of every total until you answer.",
+                  evidence_url=f"/to-check#tc-line-{t.id}" if doc is not None else "/to-check",
+                  options=[{"value": APPROVE, "label": "It's right"},
+                           {"value": DISCARD, "label": "It isn't on the statement"}])
+
+    def stamp(ref: str) -> tuple:
+        t = session.get(Transaction, int(ref.split(":")[1]))
+        if t is None:
+            return DISCARDED, None, None
+        return (APPROVED if t.review_status != "rejected" else DISCARDED), t.checked_by, t.checked_at
+    _close_gone(session, "to_check_line", refs, stamp)
+
+
+def _answer_to_check_line(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.services import to_check
+    tid = int(item.ref.split(":")[1])
+    try:
+        (to_check.confirm if answer == APPROVE else to_check.reject)(session, tid, by)
+    except to_check.ToCheckError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED if answer == APPROVE else DISCARDED
+
+
+def _statement_mismatches(session: Session) -> None:
+    from app.models.document import Document
+    from app.models.transaction import StatementCheck
+    from app.services import to_check
+    open_checks = session.exec(select(StatementCheck).where(StatementCheck.status == "mismatch",
+                                                            StatementCheck.resolved_at.is_(None))).all()
+    refs = set()
+    for c in open_checks:
+        ref = f"doc:{c.document_id}"
+        refs.add(ref)
+        doc = session.get(Document, c.document_id)
+        open_item(session, area="money", kind="statement_mismatch", ref=ref,
+                  title=f"{doc.filename if doc else 'A statement'} doesn't add up",
+                  why=to_check.mismatch_sentence(c), evidence_url="/to-check",
+                  options=[{"value": APPROVE, "label": "Accept the difference"}])
+
+    def stamp(ref: str) -> tuple:
+        c = session.exec(select(StatementCheck).where(StatementCheck.document_id == int(ref.split(":")[1]))).first()
+        return (APPROVED, c.resolved_by, c.resolved_at) if c is not None else (DISCARDED, None, None)
+    _close_gone(session, "statement_mismatch", refs, stamp)
+
+
+def _answer_statement_mismatch(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.services import to_check
+    try:
+        to_check.accept_difference(session, int(item.ref.split(":")[1]), by)
+    except to_check.ToCheckError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED
+
+
+def _merchants(session: Session) -> None:
+    """Needs Review's new merchants: a merchant the Hub made that no person has confirmed yet."""
+    from app.models.category_node import CategoryNode
+    from app.models.merchant import Merchant
+    from app.services.taxonomy import path_label
+    rows = session.exec(select(Merchant).where(Merchant.confirmed == False, Merchant.merged_into_id.is_(None))).all()  # noqa: E712
+    from app.models.rule import Rule
+    refs, existing = set(), _open_refs(session, "merchant")
+    asked = {r.merchant for r in (session.get(Rule, int(x.split(":")[1])) for x in _open_refs(session, "ai_rule"))
+             if r is not None and r.merchant}                      # one question per thing: its AI answer is waiting
+    for m in rows:
+        ref = f"merchant:{m.id}"
+        if m.canonical_name in asked:
+            continue
+        refs.add(ref)
+        if ref in existing:
+            continue
+        node = session.get(CategoryNode, m.default_category_id) if m.default_category_id else None
+        known = node is not None and not node.slug.startswith("unsorted") and node.level == 3
+        open_item(session, area="money", kind="merchant", ref=ref,
+                  title=(f"{m.canonical_name}: is it {path_label(session, node)}?" if known
+                         else f"{m.canonical_name}: which category?"),
+                  why=("The Hub filed this new merchant itself; no one has confirmed it yet." if known else
+                       "The Hub couldn't tell what this new merchant is, so its entries wait in Needs review."),
+                  evidence_url="/financials/transactions/needs-review",
+                  options=[{"value": APPROVE, "label": "Yes, that's right"}] if known else [])
+
+    def stamp(ref: str) -> tuple:
+        m = session.get(Merchant, int(ref.split(":")[1]))
+        return (APPROVED if m is not None and m.confirmed else DISCARDED), None, None
+    _close_gone(session, "merchant", refs, stamp)
+
+
+def _answer_merchant(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.models.category_node import CategoryNode
+    from app.models.merchant import Merchant
+    from app.services.merchant_assign import assign_category
+    m = session.get(Merchant, int(item.ref.split(":")[1]))
+    node = session.get(CategoryNode, m.default_category_id) if m is not None and m.default_category_id else None
+    if m is None or node is None:
+        raise ReviewError("Nothing was changed.", "This merchant has no category to confirm any more.",
+                          "Choose its category on the Needs review page.")
+    assign_category(session, [m.id], node, refile_existing=False, confirm=True, by=by) if remember else None
+    m.confirmed = True
+    session.add(m)
+    return APPROVED
+
+
+HANDLERS["merchant"] = _answer_merchant
+HANDLERS["to_check_line"] = _answer_to_check_line
+HANDLERS["statement_mismatch"] = _answer_statement_mismatch
+PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants]
 
 
 @dataclass

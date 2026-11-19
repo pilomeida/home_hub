@@ -11,4 +11,7 @@
 {% for c in cards %}{% include "waiting/_item.html" %}{% else %}
 <p>Nothing is waiting for you{% if area %} in {{ areas[area] }}{% endif %}.</p>
 {% endfor %}
+{% if pages > 1 %}<p>Page {{ page }} of {{ pages }}
+  {% if page > 1 %}· <a href="/waiting?page={{ page - 1 }}{% if area %}&area={{ area }}{% endif %}">previous</a>{% endif %}
+  {% if page < pages %}· <a href="/waiting?page={{ page + 1 }}{% if area %}&area={{ area }}{% endif %}">next</a>{% endif %}</p>{% endif %}
 {% endblock %}
