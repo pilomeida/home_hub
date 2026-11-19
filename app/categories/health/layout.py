@@ -107,13 +107,23 @@ def read_lines(file_path: str) -> list[Line]:
 
 
 def _context(lines: list[Line]) -> list[tuple[str, str]]:
-    """For each line: the section and the heading it is printed under ("" when none)."""
+    """For each line: the section and the heading it is printed under ("" when none). A heading's block ends at a new
+    heading or section, a new page, or a wider gap than its rows have (two lines of the label's type: on the
+    benchmark sheet rows are 12-13.5 points apart and the first result after a block 14.2)."""
     section, heading, out = "", "", []
+    previous: Optional[Line] = None                 # the last line with a label at the left margin
     for line in lines:
+        labelled = bool(line.runs) and min(r.x for r in line.runs) < _LABEL_X
         if line.is_section:
             section, heading = line.text, ""
         elif line.is_heading:
             heading = _METHOD.sub("", line.text).strip()
+        elif labelled and heading and previous is not None:
+            size = next((r.size for r in sorted(line.runs, key=lambda r: r.x)), 7.0)
+            if previous.page != line.page or previous.y - line.y >= 2 * size:
+                heading = ""
+        if labelled:
+            previous = line
         out.append((section, heading))
     return out
 

@@ -13,6 +13,7 @@ SHEET = [
     (27, 668, 7.0, False, "Resultado ( IFCC )"), (231, 668, 7.8, False, "35"), (312, 668, 6.3, False, "mmol/mol"),
     (405, 666, 5.5, False, "20 - 42"),
     (27, 656, 7.0, False, "GME ( Glicémia Média Estimada )"), (231, 656, 7.8, False, "106"),
+    (27, 641.8, 7.0, False, "UREIA"), (231, 641.8, 7.8, False, "39"),           # 14.2 lower: after the block
     (264, 630, 8.8, True, "HEMATOLOGIA"),
     (27, 618, 7.0, False, "ERITROGRAMA"),
     (27, 606, 7.0, False, "RDW"), (231, 606, 7.8, False, "13,9"), (312, 606, 6.3, False, "%"),
@@ -43,12 +44,14 @@ def test_results_left_under_the_section_go_under_their_printed_heading(tmp_path)
     x = ExtractedHealth(measurements=[
         _m("Resultado (IFCC)", "Bioquimica", 35, "20 - 42", "mmol/mol"),
         _m("GME (Glicémia Média Estimada)", "Bioquimica", 106),
+        _m("Ureia", "Bioquimica", 39),
         _m("RDW", f"Hematologia{PATH_SEP}Hemograma{PATH_SEP}Eritrograma", 13.9, "=< 15,0", "%"),
     ])
     changed = layout.apply_layout(x, _pdf(tmp_path))
     paths = [m.group_path for m in x.measurements]
     assert paths[0] == paths[1] == f"Bioquimica{PATH_SEP}Hemoglobina glicada A1c"
-    assert paths[2] == f"Hematologia{PATH_SEP}Hemograma{PATH_SEP}Eritrograma"     # already deeper: left alone
+    assert paths[2] == "Bioquimica"                                    # printed after the block: under the section
+    assert paths[3] == f"Hematologia{PATH_SEP}Hemograma{PATH_SEP}Eritrograma"     # already deeper: left alone
     assert len(changed) == 2
 
 

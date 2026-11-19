@@ -98,7 +98,9 @@ adapt and test well).
   the fields a person typed or changed (`documents.person_fields_json`); the PDF's own layout is read with code
   (`app/categories/health/layout.py`: sections in bold, headings alone at the left margin, results with figures)
   and settles two things the model got wrong on the benchmark: results left under the section go under their
-  printed heading (A1c, CRP), and a reference the model changed is set back to the printed one (RDW "=< 15,0").
+  printed heading (A1c, CRP), and a reference the model changed is set back to the printed one (RDW "=< 15,0"). A heading's
+  block ends at a wider gap than its rows (the first version moved Ureia, AST… under A1c and Ionograma: caught by
+  the benchmark, fixed the same day).
   A history point printed on several papers shows once on a person's results (5b) while each paper keeps what it
   printed (Claude; Pedro may change). Left: narrative findings as a structure of their own; Pedro's corrections
   kept per provider; grey bands (pypdf gives no shading; needs another reader).
