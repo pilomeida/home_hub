@@ -22,7 +22,7 @@ dated; a slice that starts sets "Now"; a slice that lands is marked in its step 
 left), and a finished step moves to section 4. Every commit touching Hub code carries this file (a hook refuses
 one that does not; "PLAN-EXEMPT: <reason>" only for work no step covers). Rules in `CLAUDE.md`.
 
-**Running it without Pedro (2026-11-19).** `/goal execute PLAN.md` runs section 1's steps in order, 1 → 9, slice
+**Running it without Pedro (2026-11-19).** `/goal execute PLAN.md` runs section 1's steps in the order listed (1 → 5, then 10, then 6 → 9), slice
 by slice (the lettered items), with no input from Pedro. What it may do, what it decides, and when it stops:
 - **Authority.** Pedro's standing OK (2026-11-04) plus this section: commit, push and deploy each green slice; run
   one-off scripts on the server under the protocol below; refresh the dashboard when a step finishes.
@@ -49,7 +49,8 @@ by slice (the lettered items), with no input from Pedro. What it may do, what it
   outside its slice; a live balance, loan or budget total moves by more than a cent without the slice explaining
   it; anything would let a High or Health paper reach a lower route; a test would have to be weakened to pass; an
   AI step would cost more than €5 (the gateway's spend guard also refuses); the other session's uncommitted work
-  would be overwritten.
+  would be overwritten; a slice of step 10 would need a data-model or reader change, or a page would show less or
+  different data than before the redesign.
 - **Resuming:** the "Now" line is where a run picks up after a break or a context reset.
 
 **How a step is done.** Each step ships as green slices: tests, commit, deploy, then any one-off script on the server.
@@ -109,6 +110,59 @@ adapt and test well).
 - Done when: the same blood test from two labs lands on one line of Rute's results; every check returns the same shape;
   the benchmark passes on every case it holds.
 
+### Step 10. UI redesign, Option A (Pedro, 2026-11-19) · XL (nine slices; run after step 5, before step 6)
+Numbered 10 so no other step is renumbered; it is listed here because steps 6–8 add pages, and those should be built in
+the new look instead of redone (Claude, 2026-11-19; Pedro may change). Pedro chose Option A ("super clean and readable")
+and said tweaks will come from using it.
+- **Spec (read before any slice):** `docs/design/ux-workflow-and-screens.md` (workflow, menu, the chart rules);
+  `docs/design/mockups/option-a.html` and `chart-rules.html` (sample data; generator `_build/build_mockups.py`, whose
+  `make_scale` and chart functions are the reference for the scale rule); `docs/design-references/` (the 13 inspirations);
+  `Personal/brainstorms/2026-11-19-hub-ui-workflow-and-screens.md` (the reasoning and Pedro's exact words). Options B and
+  C are archived: do not build them. Light theme only; no gradients; no faces or avatars.
+- **What keeps this step from interfering with the others:**
+  - Presentation only, unless a slice says "new behaviour": templates, one stylesheet, one chart component. The same
+    queries, the same privacy reach (`app/privacy/reach.py`), the same routes and tables: a re-skinned page shows exactly
+    what it showed. No data-model change and no reader change in this step.
+  - A page that needs something a later step builds (a condition's page, visits, medication: step 7; a car, an ID, a
+    school paper: step 8; the wiki by subject under "What the Hub knows": step 6) is drawn with what exists today.
+    That later step builds its block with the new components. Those steps' "Done when" lines do not change.
+  - Each new behaviour is its own slice with its own tests; privacy tripwires for anything the AI reads.
+- **Each slice:** tests, commit with PLAN.md, deploy, then check the live page at desktop and phone width against
+  the mock-up (a screenshot, e.g. Playwright), health page answers, journal clean, Problems has nothing new. Every page
+  that is present today stays reachable, and old URLs keep working.
+- a. Foundation: design tokens (colour, type, spacing, radii), one stylesheet, shared components (card, button, chip,
+  tab, table, the three-part message, empty state) and **one chart component** (columns, history line, trendline,
+  horizontal bars) on one scale function: real axis values, floor computed from the data and capped at 1.5 times the real
+  difference (`MAX_EXAGGERATION`), the current month only as far as it has happened, past months with their full month
+  and the value by the same day. Tests: for every existing chart, built from the code that feeds its page, the cap
+  holds, no current-month value is past today, no forecast or budget is drawn. Every chart already on the Hub moves to it.
+- b. Shell: the menu (Home · Money · Health · Things · Papers · Coming up · Waiting for you (n)), the header (Ask/search,
+  Who chip showing Everyone, + Add a paper, the gear, a Problems dot only when something is wrong), the phone bottom bar
+  with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today.
+- c. Home: Ask box first; Money this month (Earnings and Spending, three months each, past months filled to the same day;
+  available balance after the bills due this month); Coming up with To-Dos; Waiting for you as four slim cards (area,
+  count, button). Earnings = incoming bank lines without the family's own transfers; available balance = cash balance
+  minus bills due this month (Claude, 2026-11-19; Pedro may change). The menu's Waiting count leaves out the unconfirmed
+  merchants, which show as their own line inside the queue (changes step 3's count; Claude; Pedro may change).
+- d. Money: one page, tabs Spending, Bills & due, Loans, Utilities, All lines; the headline row; the breakdown with its
+  trend. **New behaviour:** category history (any category at any level, a number of months; view columns, line,
+  trendline or bars).
+- e. Waiting for you: the grouped list; a paper card by card (paper left, what the Hub read right, keyboard shortcuts);
+  merchants as a bulk table with the best guess filled in. Existing behaviour, new look.
+- f. The rest, with what exists: Health (name tiles, no faces; a strip of follow-ups; a person's page with results and
+  the reference range, timeline), Things (house and items as today), Papers (everything filed; category chips; search),
+  Coming up with To-Dos as a tab, Problems and the gear's pages. Papers is the same list pattern as All lines (not drawn).
+- g. Ask: the answer card (one plain sentence, one matching visual, sources, Open the page / Save to wiki; no
+  suggested-question chips). **New behaviour:** three tiers of action (undoable with Undo; a confirm card for what
+  changes what the family sees; never from Ask: delete, privacy levels, bank connections) and a file attached to a
+  question (goes to the Inbox as a suggestion). Through the existing Ask tools; tripwire tests cover each.
+- h. Phone: Home, Ask, and **new behaviour** a light "approve a paper" card (the file, four key fields, Approve / Edit /
+  Later) for a paper uploaded on the run, using the Inbox's existing approval.
+- i. **New behaviour:** the Who chip works (Everyone / a person) on Papers, Coming up, Waiting for you and Ask; people
+  come from the subjects registry; it filters and hides nothing from anyone's login.
+- Done when: every desktop and phone screen of `option-a.html` exists live and matches it in layout and chart rules; the
+  family can do everything they could before; the privacy tripwires and the suite are green.
+
 ### Step 6. Wiki facts point at subjects, and answers agree (E3, with C7) · M
 - a. Wiki pages about a person, account, policy or thing carry its subject; entity keys come from the registry
   (B4's next step).
@@ -144,6 +198,8 @@ Reuse: sysadminsmedia/homebox's "a thing with typed fields and attachments" (AGP
   letters) move out of "Other papers" into their own kinds, each with a level on the Privacy page.
 - c. Vehicles: the car as a subject; insurance, inspection (IPO), road tax (IUC), service; reminders.
 - d. Education: school papers per child, diplomas; dates and fees into Coming up.
+- e. Pet (Pedro, 2026-11-19): a pet as a thing with a type, like the car: vet papers, vaccinations, insurance; reminders.
+  Built with step 10's components.
 - Done when: a passport is uploaded, read, and its expiry reminder appears on To-Dos and reaches the phone once.
 
 ### Step 9. What clean-up is left · S–M each
@@ -203,13 +259,6 @@ brackets); tick off here when done.
 - Tidy Health topics no paper uses any more; dates in insurance descriptions as yyyy-mm-dd.
 - Link Matias's future transfers to his loan (not every transfer is a loan: a rule a person confirms, after step 2).
 - Check the unexplained `matias` entry in the server's linger list.
-- **UI redesign, mock-ups only (Pedro, 2026-11-19).** The Hub's look is not attractive. Pedro sent 13 reference
-  dashboards; plan: save them under `docs/design-references/`, decide the screens and workflow from how the family
-  uses the Hub (interview in `Personal/brainstorms/2026-11-19-hub-ui-workflow-and-screens.md`), then draw 3 wireframe
-  options, each with coherent screens. No code until Pedro picks one; then it becomes a numbered step. Not part of
-  the autonomous run. ◐ 2026-11-19: references filed, UX call written (`docs/design/ux-workflow-and-screens.md`) and
-  three mock-up sheets drawn (`docs/design/mockups/`); waiting for Pedro to pick or mix. Open: light vs dark, a pet
-  category (a thing with a type), Papers page not yet drawn.
 
 ---
 
