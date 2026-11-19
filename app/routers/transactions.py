@@ -673,7 +673,8 @@ async def bulk_apply(request: Request, session: Session = Depends(get_session)):
                 session, keys, node, q=view["q"], node_slug=view["cat"], date_from=_date(view["date_from"]),
                 date_to=_date(view["date_to"]), refile_existing=refile,
                 remember=form.get("remember") in ("1", "on", "true"),
-                per_entry_merchants=form.get("per_entry") in ("1", "on", "true"), dry_run=not apply_now)
+                per_entry_merchants=form.get("per_entry") in ("1", "on", "true"), dry_run=not apply_now,
+                by=getattr(request.state, "user_email", None))
             n, labels, ids = report.groups, keys, []
         else:
             ids = sorted({int(v) for v in form.getlist("merchant_ids") if str(v).isdigit()})

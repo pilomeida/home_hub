@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 2 (one memory of past answers), slice a+b: the `rules` table and its one reader.
+**Now (2026-11-19):** step 2, slice a+b deploying (rules table, one reader, provider and recognition rules moved in).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -88,6 +88,11 @@ Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` 
   accurate above ~32 KB), and it gives no reasons, so the "why" comes from the Hub's facts. API still alpha.
 - Done when: confirming a merchant or approving in the Inbox writes one rule, and no batch pass overrides a person
   (tested).
+- ◐ 2026-11-19 (Claude): a, and b for two of the stores. The `rules` table and its one reader (`app/services/rules.py`:
+  person, then AI, then system; then priority; switched-off rules answer nothing) are in. The provider rules (filing
+  by bank text) and the recognition rules (sender, words, file name → kind of paper) moved into it by migration
+  d7f2b4a8c615 (the old tables stay, no longer read); the Privacy page and the Inbox "remember" write person rules.
+  Left: payment entities and the supermarket keyword list as system rules; confirming a merchant writes a rule; c, d, e.
 
 ### Step 3. One review queue: "Waiting for you" (C1) · L
 Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).

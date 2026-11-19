@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from app.llm_gateway import GatewayClient
 from app.models.category import Category
-from app.models.privacy import DocumentFingerprint
+from app.models.rule import Rule as DocumentFingerprint
 from app.privacy import recognise as rec
 from app.privacy import settings as ps
 from app.privacy.scope import current_scope, privacy_scope
@@ -31,7 +31,9 @@ def _pdf_with_text(text: str) -> bytes:
 
 
 def _rule(session, kind, pattern, category="financials", paper_kind="bill"):
-    session.add(DocumentFingerprint(kind=kind, pattern=pattern, category=category, paper_kind=paper_kind)); session.commit()
+    from app.services import rules
+    rules.remember(session, looks_at=kind, how="contains", pattern=pattern, category=category, paper_kind=paper_kind)
+    session.commit()
 
 
 def test_pdf_text_layer_is_read_and_non_text_files_give_nothing():
@@ -81,7 +83,7 @@ def test_remember_creates_each_rule_once(session):
     made = rec.remember(session, category="financials", paper_kind="bill", by="p@x", sender="Billing@Exemplo.pt", words=" Exemplo SA ")
     again = rec.remember(session, category="financials", paper_kind="bill", by="p@x", sender="billing@exemplo.pt", words="exemplo sa")
     assert len(made) == 2 and again == []
-    assert {(r.kind, r.pattern) for r in session.exec(select(DocumentFingerprint))} == {("sender", "billing@exemplo.pt"), ("words", "exemplo sa")}
+    assert {(r.looks_at, r.pattern) for r in session.exec(select(DocumentFingerprint))} == {("sender", "billing@exemplo.pt"), ("words", "exemplo sa")}
 
 
 # --- the scope -----------------------------------------------------------------

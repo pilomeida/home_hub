@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from app.models.merchant import Merchant
-from app.models.provider_rule import ProviderRule
+from app.models.rule import Rule as ProviderRule   # provider rules live in `rules` since PLAN step 2
 from app.models.transaction import TransactionType
 from app.services.provider_rules import (
     apply_to_providers, find_rule_node, list_provider_groups, provider_key,

@@ -67,7 +67,7 @@
   <thead><tr><th>Rule</th><th>Means it is</th><th>Used</th><th></th></tr></thead>
   <tbody>
   {% for r, name in rules %}
-  <tr><td>{{ kinds[r.kind] }}: <strong>{{ r.pattern }}</strong><div style="font-size:12px;color:#666;">{{ r.note }}</div></td>
+  <tr><td>{{ kinds[r.looks_at] }}: <strong>{{ r.pattern }}</strong><div style="font-size:12px;color:#666;">{{ r.note }}</div></td>
       <td>{{ name }}</td><td>{{ r.hits }}×</td>
       <td><form method="post" action="/privacy/rules/{{ r.id }}/delete"><button>Delete</button></form></td></tr>
   {% endfor %}

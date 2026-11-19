@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from app.models.category_node import CategoryNode
 from app.models.merchant import Merchant
-from app.models.provider_rule import ProviderRule
+from app.models.rule import DESCRIPTION, KEY, PERSON, Rule
 from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import auto_fits, file_transaction
 
@@ -31,7 +31,8 @@ def find_rule_node(session: Session, provider: Optional[str]) -> Optional[Catego
     key = provider_key(provider)
     if not key:
         return None
-    rule = session.exec(select(ProviderRule).where(ProviderRule.key == key)).first()
+    from app.services import rules     # the one memory of past answers (PLAN step 2): a person's rule wins
+    rule = rules.find(session, rules.SPENDING, {DESCRIPTION: provider})
     return session.get(CategoryNode, rule.node_id) if rule else None
 
 
@@ -113,7 +114,8 @@ def list_provider_groups(session: Session, q: str = "", node_slug: str = "", dat
                          page: int = 1) -> GroupPage:
     nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
     names = {m.id: m.canonical_name for m in session.exec(select(Merchant)).all()}
-    rules = {r.key for r in session.exec(select(ProviderRule)).all()}
+    rules = {r.pattern for r in session.exec(select(Rule).where(Rule.looks_at == DESCRIPTION, Rule.how == KEY,
+                                                                Rule.node_id.is_not(None), Rule.enabled == True)).all()}  # noqa: E712
     out = []
     for key, txns in group_transactions(filtered_transactions(session, q, node_slug, date_from, date_to)).items():
         if len(txns) < min_entries:
@@ -145,7 +147,7 @@ class ProviderApplyReport:
 def apply_to_providers(session: Session, keys: list[str], node: CategoryNode, *, q: str = "", node_slug: str = "",
                        date_from: Optional[date] = None, date_to: Optional[date] = None,
                        refile_existing: bool = True, remember: bool = True, per_entry_merchants: bool = False,
-                       dry_run: bool = False) -> ProviderApplyReport:
+                       dry_run: bool = False, by: Optional[str] = None) -> ProviderApplyReport:
     """File every entry whose provider key is in `keys` (within the same search/date/category filter
     the page shows) under `node`; optionally save a rule per key for future entries. Loan-linked entries
     never move. `per_entry_merchants` marks the entries' merchants as channels (by_provider)."""
@@ -181,12 +183,10 @@ def apply_to_providers(session: Session, keys: list[str], node: CategoryNode, *,
         if remember:
             report.rules_saved += 1
             if not dry_run:
-                rule = session.exec(select(ProviderRule).where(ProviderRule.key == key)).first()
-                if rule is None:
-                    session.add(ProviderRule(key=key, example=txns[0].description, node_id=node.id))
-                else:
-                    rule.node_id = node.id
-                    session.add(rule)
+                from app.services import rules
+                rules.remember(session, looks_at=DESCRIPTION, how=KEY, pattern=key, source=PERSON, by=by,
+                               node_id=node.id, example=txns[0].description,
+                               note="Remembered when entries were filed by their bank text")
     if not dry_run:
         session.commit()
     return report

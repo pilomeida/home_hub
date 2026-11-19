@@ -182,16 +182,16 @@ def test_card_offers_to_remember_and_names_the_original_sender(client, session):
 
 
 def test_approve_with_remember_creates_the_rules_and_does_not_leak_into_fields(client, session, inbox_documents_dir):
-    from app.models.privacy import DocumentFingerprint
+    from app.models.rule import Rule as DocumentFingerprint
     doc = _forwarded(session)
     client.post(f"/inbox/{doc.id}/approve", data={"domain": "house", "category": "manual", "item_name": "Boiler",
                                                     "remember": "1", "remember_words": "Exemplo SA"})
-    assert {(r.kind, r.pattern) for r in session.exec(select(DocumentFingerprint))} == {
+    assert {(r.looks_at, r.pattern) for r in session.exec(select(DocumentFingerprint))} == {
         ("sender", "billing@exemplo.pt"), ("words", "exemplo sa")}
 
 
 def test_approve_without_the_tick_remembers_nothing(client, session, inbox_documents_dir):
-    from app.models.privacy import DocumentFingerprint
+    from app.models.rule import Rule as DocumentFingerprint
     doc = _forwarded(session, "fw2")
     client.post(f"/inbox/{doc.id}/approve", data={"domain": "house", "category": "manual", "item_name": "Boiler"})
     assert session.exec(select(DocumentFingerprint)).all() == []

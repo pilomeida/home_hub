@@ -1,7 +1,8 @@
 """Recognising known, recurring documents WITHOUT any AI (decision D13).
 
-Rules are rows in document_fingerprints, readable and editable on the Privacy
-screen. A document is recognised only if every rule that matches it points at
+Rules are rows in `rules` (PLAN step 2: one memory of past answers; they were
+`document_fingerprints` until 2026-11-19) whose answer is a kind of paper, readable and
+editable on the Privacy screen. A document is recognised only if every rule that matches it points at
 the same (domain, category); if rules disagree it is NOT recognised and a
 human decides. Text comes only from places that cost nothing and send nothing:
 the file name, the email subject/caption, and a PDF's own text layer (never OCR,
@@ -19,7 +20,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.models.privacy import DocumentFingerprint
+from app.models.rule import CONTAINS, FILENAME, PERSON, SENDER, WORDS, Rule
 from app.privacy.settings import known_types
 
 KINDS = {
@@ -61,22 +62,29 @@ def original_sender(context_text: Optional[str]) -> str:
     return (parseaddr(raw)[1] or raw).lower()
 
 
-def _matches(rule: DocumentFingerprint, *, sender: str, haystack: str, filename: str) -> bool:
+def _matches(rule: Rule, *, sender: str, haystack: str, filename: str) -> bool:
     needle = rule.pattern.strip().lower()
     if not needle:
         return False
-    if rule.kind == "sender":
+    if rule.looks_at == SENDER:
         return needle in sender
-    if rule.kind == "words":
+    if rule.looks_at == WORDS:
         return needle in haystack
-    if rule.kind == "filename":
+    if rule.looks_at == FILENAME:
         return needle in filename
     return False
 
 
+def paper_kind_rules(session: Session) -> list[Rule]:
+    """The switched-on rules that say what kind of paper something is, oldest first."""
+    return list(session.exec(select(Rule).where(
+        Rule.enabled == True, Rule.looks_at.in_((SENDER, WORDS, FILENAME)),  # noqa: E712
+        Rule.category.is_not(None), Rule.paper_kind.is_not(None)).order_by(Rule.id)))
+
+
 def recognise(session: Session, *, filename: str, content: bytes, context_text: Optional[str]) -> Optional[Recognition]:
     valid = {(i.category, i.paper_kind) for i in known_types()}
-    rules = [r for r in session.exec(select(DocumentFingerprint)) if (r.category, r.paper_kind) in valid]
+    rules = [r for r in paper_kind_rules(session) if (r.category, r.paper_kind) in valid]
     if not rules:
         return None
     sender = original_sender(context_text)
@@ -91,23 +99,22 @@ def recognise(session: Session, *, filename: str, content: bytes, context_text: 
         session.add(r)
     session.commit()
     return Recognition(hits[0].category, hits[0].paper_kind,
-                       tuple(f"{KINDS[r.kind].split(' (')[0].lower()}: “{r.pattern}”" for r in hits))
+                       tuple(f"{KINDS[r.looks_at].split(' (')[0].lower()}: “{r.pattern}”" for r in hits))
 
 
 def remember(session: Session, *, category: str, paper_kind: str, by: Optional[str], sender: str = "",
-             words: str = "", note: str = "") -> list[DocumentFingerprint]:
-    """Create the rules a human asked to remember. Existing identical rules are not duplicated."""
+             words: str = "", note: str = "") -> list[Rule]:
+    """Create the rules a human asked to remember (a person's rules). Existing identical rules are not duplicated."""
+    from app.services import rules
     made = []
-    for kind, pattern in (("sender", sender.strip().lower()), ("words", words.strip().lower())):
+    for looks_at, pattern in ((SENDER, sender.strip().lower()), (WORDS, words.strip().lower())):
         if not pattern:
             continue
-        exists = session.exec(select(DocumentFingerprint).where(
-            DocumentFingerprint.kind == kind, DocumentFingerprint.pattern == pattern,
-            DocumentFingerprint.category == category, DocumentFingerprint.paper_kind == paper_kind)).first()
+        exists = session.exec(select(Rule).where(Rule.looks_at == looks_at, Rule.how == CONTAINS, Rule.pattern == pattern,
+                                                 Rule.category == category, Rule.paper_kind == paper_kind)).first()
         if exists is None:
-            rule = DocumentFingerprint(kind=kind, pattern=pattern, category=category, paper_kind=paper_kind,
-                                       note=note or "Remembered when filing a document", created_by=by)
-            session.add(rule)
-            made.append(rule)
+            made.append(rules.remember(session, looks_at=looks_at, how=CONTAINS, pattern=pattern, source=PERSON, by=by,
+                                       category=category, paper_kind=paper_kind,
+                                       note=note or "Remembered when filing a document"))
     session.commit()
     return made

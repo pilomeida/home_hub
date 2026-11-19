@@ -12,7 +12,8 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.llm_gateway import GatewayClient, GatewayError, get_gateway
 from app.privacy.jobs import PRIVACY_LABELS, QUALITY_LABELS, job_label
-from app.models.privacy import DocumentFingerprint
+from app.models.rule import Rule
+from app.privacy.recognise import paper_kind_rules
 from app.privacy import settings as ps
 from app.problems import Problem
 from app.privacy.recognise import KINDS
@@ -65,7 +66,7 @@ async def settings_page(request: Request, session: Session = Depends(get_session
         "jobs": jobs, "jobs_error": jobs_error, "saved_job": saved, "job_problem": problem,
         "privacy_labels": PRIVACY_LABELS, "quality_labels": QUALITY_LABELS,
         "rules": [(r, type_names.get((r.category, r.paper_kind), f"{r.category}/{r.paper_kind}"))
-                  for r in session.exec(select(DocumentFingerprint).order_by(DocumentFingerprint.id))],
+                  for r in paper_kind_rules(session)],
         "kinds": KINDS, "type_choices": [(f"{i.category}/{i.paper_kind}", f"{i.category_label} › {i.label}") for i in ps.known_types()],
     })
 
@@ -132,16 +133,18 @@ def add_rule(request: Request, kind: str = Form(...), pattern: str = Form(...), 
     domain, _, category = doc_type.partition("/")
     valid = {(i.category, i.paper_kind) for i in ps.known_types()}
     if kind in KINDS and pattern.strip() and (domain, category) in valid:
-        session.add(DocumentFingerprint(kind=kind, pattern=pattern.strip().lower(), category=domain, paper_kind=category,
-                                        note="Added on the Privacy page", created_by=_by(request)))
+        from app.models.rule import CONTAINS, PERSON
+        from app.services import rules
+        rules.remember(session, looks_at=kind, how=CONTAINS, pattern=pattern, source=PERSON, by=_by(request),
+                       category=domain, paper_kind=category, note="Added on the Privacy page")
         session.commit()
     return _back()
 
 
 @router.post("/rules/{rule_id}/delete")
 def delete_rule(rule_id: int, session: Session = Depends(get_session)):
-    rule = session.get(DocumentFingerprint, rule_id)
-    if rule is not None:
+    rule = session.get(Rule, rule_id)
+    if rule is not None and rule.category is not None:
         session.delete(rule)
         session.commit()
     return _back()

@@ -30,5 +30,6 @@ from app.models.schedule import JobRun, JobSchedule, ProblemEntry  # noqa: F401
 from app.models.notice import Notice  # noqa: F401
 from app.models.subject import Subject, SubjectKind, SubjectMatch  # noqa: F401
 from app.models.paper_text import PaperText  # noqa: F401
+from app.models.rule import Rule  # noqa: F401
 
 from app.models.health import HealthArea, HealthEntry, HealthEntryTag, HealthMeasurement, HealthOutlineProfile, HealthPerson, HealthTopic  # noqa: F401

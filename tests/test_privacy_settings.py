@@ -233,13 +233,13 @@ def test_this_screen_never_changes_the_shared_types_only_calls_the_own_pairing_e
 
 # --- recognition rules on the screen ------------------------------------------------
 
-from app.models.privacy import DocumentFingerprint  # noqa: E402
+from app.models.rule import Rule as DocumentFingerprint  # noqa: E402
 
 
 def test_rules_can_be_added_listed_and_deleted_on_the_screen(client, session, pairings):
     client.post("/privacy/rules", data={"kind": "sender", "pattern": " Billing@Exemplo.pt ", "doc_type": "financials/bill"})
     rule = session.exec(select(DocumentFingerprint)).one()
-    assert (rule.kind, rule.pattern, rule.category, rule.paper_kind) == ("sender", "billing@exemplo.pt", "financials", "bill")
+    assert (rule.looks_at, rule.pattern, rule.category, rule.paper_kind) == ("sender", "billing@exemplo.pt", "financials", "bill")
     page = client.get("/privacy").text
     assert "billing@exemplo.pt" in page and "Financials › Bill / invoice" in page
     client.post(f"/privacy/rules/{rule.id}/delete")
