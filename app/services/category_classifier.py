@@ -13,6 +13,7 @@ from typing import Optional, Sequence
 
 from app.categories.registry import implemented_categories
 from app.models.category import Category
+from app.services.reading import FileTooLargeError
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
 from app.llm_gateway import VISION_CLASSIFICATION, get_gateway
@@ -95,7 +96,10 @@ async def suggest_category_and_kind(
         return _empty("This file type can't be read automatically — please choose where it goes.")
 
     gw = gateway or get_gateway()
-    content = [build_content_block(file_path)]
+    try:
+        content = [build_content_block(file_path)]
+    except FileTooLargeError:
+        return _empty("This file is too big for the AI to read in one go — please choose where it goes.")
     user_text = "Classify this document as JSON."
     if context_text:
         user_text = f"Context from the sender:\n{context_text}\n\n{user_text}"

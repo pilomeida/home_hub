@@ -3,6 +3,8 @@
 import base64
 from pathlib import Path
 
+from app.services.reading import ReadingError, check_size
+
 _IMAGE_MEDIA_TYPES = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -11,7 +13,7 @@ _IMAGE_MEDIA_TYPES = {
 }
 
 
-class UnsupportedFileTypeError(Exception):
+class UnsupportedFileTypeError(ReadingError):
     pass
 
 
@@ -21,6 +23,9 @@ def build_content_block(file_path: str) -> dict:
     files."""
     path = Path(file_path)
     suffix = path.suffix.lower()
+    if suffix != ".pdf" and suffix not in _IMAGE_MEDIA_TYPES:
+        raise UnsupportedFileTypeError(f"Unsupported file type: {suffix}")
+    check_size(file_path)              # PLAN step 5a: refused before upload, with a plain reason
     data = base64.b64encode(path.read_bytes()).decode()
 
     if suffix == ".pdf":

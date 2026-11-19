@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice a: one reader interface.
+**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice b: lab values matched to known tests (5a done).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -71,7 +71,10 @@ D item names, that D item is done in the same step.
 Reuse: giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, young project:
 adapt and test well).
 - a. One reader interface: text from step 1, Portuguese numbers and dates (`1.234,56`, `dd/mm/aaaa`), a size guard,
-  one error type.
+  one error type. ✅ 2026-11-19 (`app/services/reading.py`: every reader's error is a `ReadingError`; files over
+  25 MB refused before upload with a plain reason; bill, statement, utility, Health, Other and warranty readers
+  understand `1.234,56` and `05/03/2025`). Benchmark before: 0/2, failures already there (headings under the
+  A1c and CRP blocks, one RDW reference, one Doppler conclusion and provider name): 5b and 5d's work.
 - b. Lab values: the reader returns the paper's own wording, value, unit and range; code matches the wording to a
   known test (exact alias, then near match, else a new test sent to the step-3 queue). Lab-sheet headings get the
   topic baseline written reports already have.

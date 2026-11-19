@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import json
-import math
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
@@ -21,6 +20,7 @@ from app.llm_gateway import (
 )
 from app.services.document_input import build_content_block
 from app.services.json_utils import strip_json_fences
+from app.services.reading import ReadingError, day, number
 
 _SYSTEM_PROMPT = """You extract structured billing data from a bill or bank \
 statement document. Respond with ONLY a JSON object, no prose, matching this \
@@ -65,7 +65,7 @@ _BILL_SCHEMA = {
 _EXTRACT_USER_PROMPT = "Extract the billing data as JSON."
 
 
-class ExtractionError(Exception):
+class ExtractionError(ReadingError):
     pass
 
 
@@ -82,9 +82,27 @@ class ExtractedBill:
 
 
 def _parse_date(value: Optional[str]) -> Optional[date]:
+    """A date the reading gave (ISO, or the paper's own dd/mm/aaaa); a value that is no date fails the reading."""
     if not value:
         return None
-    return date.fromisoformat(value)
+    parsed = day(value)
+    if parsed is None:
+        raise ValueError(f"{value!r} is not a valid date")
+    return parsed
+
+
+def _statement_day(value) -> date:
+    parsed = _parse_date(value)
+    if parsed is None:
+        raise ValueError("a statement line has no date")
+    return parsed
+
+
+def _required_number(value) -> float:
+    parsed = number(value)
+    if parsed is None:
+        raise ValueError(f"{value!r} is not a valid number")
+    return parsed
 
 
 async def extract_bill(file_path: str, gateway=None) -> ExtractedBill:
@@ -106,7 +124,7 @@ async def extract_bill(file_path: str, gateway=None) -> ExtractedBill:
         return ExtractedBill(
             provider=data["provider"],
             category_hint=data.get("category_hint", "other"),
-            amount=float(data.get("amount") or 0.0),
+            amount=number(data.get("amount")) or 0.0,
             currency=data.get("currency") or "EUR",
             due_date=_parse_date(data.get("due_date")),
             paid_date=_parse_date(data.get("paid_date")),
@@ -117,7 +135,7 @@ async def extract_bill(file_path: str, gateway=None) -> ExtractedBill:
         raise ExtractionError(f"Could not parse extraction response: {exc}") from exc
 
 
-class ClassificationError(Exception):
+class ClassificationError(ReadingError):
     pass
 
 
@@ -222,7 +240,7 @@ _STATEMENT_SCHEMA = {
 _STATEMENT_USER_PROMPT = "Extract every transaction as JSON."
 
 
-class StatementExtractionError(Exception):
+class StatementExtractionError(ReadingError):
     pass
 
 
@@ -252,13 +270,7 @@ def _optional_number(value) -> Optional[float]:
     """A number the statement may or may not print. Missing, null, text that is not a number, a
     boolean, NaN or infinity all mean "not printed" -- an unreadable optional figure must never
     fail the whole statement."""
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
+    return number(value)
 
 
 def _optional_page(value) -> Optional[int]:
@@ -297,9 +309,9 @@ async def extract_statement_transactions(file_path: str, gateway=None) -> Extrac
         data = json.loads(strip_json_fences(result.text))
         transactions = [
             ExtractedTransaction(
-                transaction_date=date.fromisoformat(item["date"]),
+                transaction_date=_statement_day(item["date"]),
                 description=item["description"],
-                amount=float(item["amount"]),
+                amount=_required_number(item["amount"]),
                 currency=item.get("currency") or "EUR",
                 transaction_type=item["type"],
                 category_hint=item.get("category_hint", "other_expense"),
@@ -364,7 +376,7 @@ _UTILITY_SCHEMA = {
 }
 
 
-class UtilityDetailExtractionError(Exception):
+class UtilityDetailExtractionError(ReadingError):
     pass
 
 
@@ -407,15 +419,15 @@ async def extract_utility_detail(
             billing_period_end=_parse_date(data.get("billing_period_end")),
             invoice_number=data.get("invoice_number"),
             consumption_value=(
-                float(data["consumption_value"]) if data.get("consumption_value") is not None else None
+                number(data.get("consumption_value"))
             ),
             consumption_unit=data.get("consumption_unit"),
-            energy_cost=(float(data["energy_cost"]) if data.get("energy_cost") is not None else None),
-            power_cost=(float(data["power_cost"]) if data.get("power_cost") is not None else None),
+            energy_cost=(number(data.get("energy_cost"))),
+            power_cost=(number(data.get("power_cost"))),
             fees_taxes_cost=(
-                float(data["fees_taxes_cost"]) if data.get("fees_taxes_cost") is not None else None
+                number(data.get("fees_taxes_cost"))
             ),
-            vat_cost=(float(data["vat_cost"]) if data.get("vat_cost") is not None else None),
+            vat_cost=(number(data.get("vat_cost"))),
         )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise UtilityDetailExtractionError(f"Could not parse utility detail response: {exc}") from exc

@@ -17,6 +17,7 @@ from app.models.document import Document
 from app.models.category import Category
 from app.models.todo import Todo
 from app.services.document_input import UnsupportedFileTypeError, build_content_block
+from app.services.reading import ReadingError, day
 from app.services.json_utils import strip_json_fences
 from app.services.todo_engine import upsert_document_todo
 from app.llm_gateway import VISION_EXTRACTION, get_gateway
@@ -46,7 +47,7 @@ _WARRANTY_SCHEMA = {
 }
 
 
-class WarrantyExtractionError(Exception):
+class WarrantyExtractionError(ReadingError):
     pass
 
 
@@ -81,11 +82,19 @@ async def extract_warranty_dates(file_path: str, gateway=None) -> WarrantyDates:
         data = json.loads(strip_json_fences(result.text))
         expiry, purchase = data["expiry_date"], data["purchase_date"]
         return WarrantyDates(
-            date.fromisoformat(expiry) if expiry else None,
-            date.fromisoformat(purchase) if purchase else None,
+            _strict_day(expiry), _strict_day(purchase),
         )
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise WarrantyExtractionError(f"Could not read the warranty dates: {exc}") from exc
+
+
+def _strict_day(value) -> Optional[date]:
+    if not value:
+        return None
+    parsed = day(value)
+    if parsed is None:
+        raise ValueError(f"{value!r} is not a valid date")
+    return parsed
 
 
 def _add_years(start: date, years: int) -> date:

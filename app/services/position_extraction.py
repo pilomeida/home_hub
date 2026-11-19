@@ -20,6 +20,7 @@ from typing import Optional
 from app.llm_gateway import VISION_EXTRACTION, get_gateway
 from app.services.document_input import build_content_block
 from app.services.json_utils import strip_json_fences
+from app.services.reading import ReadingError
 
 TOLERANCE = 0.02
 
@@ -27,7 +28,7 @@ COMPONENTS = ["capital", "interest", "insurance_life", "insurance_building"]
 BALANCE_KINDS = ["deposit", "investments_total", "loans_total", "card"]
 
 
-class PositionExtractionError(Exception):
+class PositionExtractionError(ReadingError):
     pass
 
 

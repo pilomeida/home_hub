@@ -23,9 +23,10 @@ from app.models.category import Category
 from app.privacy.tiers import Tier
 from app.services.document_input import build_content_block, is_model_readable
 from app.services.json_utils import strip_json_fences
+from app.services.reading import ReadingError, day, number
 
 
-class HealthExtractionError(Exception):
+class HealthExtractionError(ReadingError):
     pass
 
 
@@ -179,20 +180,7 @@ _SCHEMA = {
 }
 
 
-def _date(value) -> Optional[date]:
-    try:
-        return date.fromisoformat(str(value)[:10]) if value else None
-    except ValueError:
-        return None
-
-
-def _num(value) -> Optional[float]:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+_date, _num = day, number        # the shared reading block (step 5a): "5,2" and "05/03/2025" are understood too
 
 
 def _text(value) -> Optional[str]:

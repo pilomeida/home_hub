@@ -7,16 +7,16 @@ language (Pedro, 2026-11-19, step 6). Prompts adapted from icereed/paperless-gpt
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
 from app.llm_gateway import VISION_EXTRACTION, get_gateway
 from app.services.document_input import build_content_block
-from app.services.json_utils import strip_json_fences
+from app.services.reading import ReadingError, cut_text, day, json_object
 
 _MAX_TEXT = 30_000
+_CUT_NOTE = "\n\n[The paper is longer: only its beginning is given.]"
 
 _SYSTEM = """You read one household paper that fits none of the household's usual areas (a contract, a letter, a
 certificate, a receipt, a notice...). Return ONLY a JSON object:
@@ -34,7 +34,7 @@ _SCHEMA = {"type": "object", "properties": {
     "about": {"type": ["string", "null"]}, "summary": {"type": ["string", "null"]}}}
 
 
-class OtherReadingError(Exception):
+class OtherReadingError(ReadingError):
     pass
 
 
@@ -46,25 +46,18 @@ class OtherReading:
     summary: str
 
 
-def _iso(value) -> Optional[date]:
-    try:
-        return date.fromisoformat(str(value)[:10]) if value else None
-    except ValueError:
-        return None
+_iso = day
 
 
 async def read_other_paper(file_path: str, text: Optional[str], *, gateway=None) -> OtherReading:
     gw = gateway or get_gateway()
     if text:
-        user, attachments = "The paper's text, taken from its PDF:\n\n" + text[:_MAX_TEXT] + "\n\nRead it as JSON.", None
+        body, cut = cut_text(text, _MAX_TEXT)
+        user = "The paper's text, taken from its PDF:\n\n" + body + (_CUT_NOTE if cut else "") + "\n\nRead it as JSON."
+        attachments = None
     else:
         user, attachments = "Read this paper as JSON.", [await asyncio.to_thread(build_content_block, file_path)]
     result = await gw.run(VISION_EXTRACTION, _SYSTEM, user, attachments=attachments, response_schema=_SCHEMA)
-    try:
-        data = json.loads(strip_json_fences(result.text))
-        if not isinstance(data, dict):
-            raise ValueError("not an object")
-    except (ValueError, TypeError) as exc:
-        raise OtherReadingError(f"Could not parse the reading: {exc}") from exc
+    data = json_object(result.text, error=OtherReadingError)
     clean = {k: " ".join(str(data.get(k) or "").split()) for k in ("title", "about", "summary")}
     return OtherReading(clean["title"][:120], _iso(data.get("date")), clean["about"][:120], clean["summary"][:1500])
