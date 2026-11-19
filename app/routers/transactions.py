@@ -453,6 +453,8 @@ async def confirm_merchant(request: Request, merchant_id: int, session: Session 
         # too. Loan-linked entries, transfers and credits that are no refund are never moved.
         assign_category(session, [merchant.id], node,
                         refile_existing=form.get("refile_existing") in ("1", "on", "true"), confirm=False)
+        from app.services import rules     # one memory of past answers (PLAN step 2): the person's answer is kept
+        rules.remember_merchant(session, merchant, node, by=getattr(request.state, "user_email", None))
     if new_nature:
         merchant.default_nature = Nature(new_nature)
 

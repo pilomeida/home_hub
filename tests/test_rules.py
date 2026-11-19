@@ -80,3 +80,47 @@ def test_recognition_reads_paper_kind_rules_from_the_same_table(session):
     found = recognise.recognise(session, filename="x.pdf", content=b"", context_text="Originally from: faturas@edp.pt")
     assert (found.category, found.paper_kind) == ("financials", "bill")
     assert rules.find(session, rules.PAPER_KIND, {"sender": "faturas@edp.pt"}).hits == 1
+
+
+# --- done when (step 2): confirming a merchant writes one rule, and no batch pass overrides a person ----------
+
+def test_confirming_a_merchant_writes_one_rule_and_a_batch_pass_keeps_it(session):
+    from app.models.merchant import Merchant
+    from app.services.merchant_assign import assign_category
+    from app.services.merchant_reconcile import reconcile_merchants
+    ensure_taxonomy(session)
+    m = _merchant(session, "Padaria Central", REST)
+    t1 = _t(session, m, REST, description="COMPRA 3315 PADARIA CENTRAL")
+    assign_category(session, [m.id], get_node(session, "food.groceries.butcher-fish-bakery"), by="rute@example.com")
+    assign_category(session, [m.id], get_node(session, "food.groceries.butcher-fish-bakery"), by="rute@example.com")
+    [rule] = session.exec(select(Rule)).all()                                           # one rule, not two
+    assert (rule.looks_at, rule.pattern, rule.source, rule.approved_by) == (
+        "counterparty", "padaria central", PERSON, "rute@example.com")
+    # A batch pass that would follow where most entries sit cannot move it back.
+    stray = session.get(Merchant, m.id)
+    stray.default_category_id, stray.confirmed = get_node(session, REST).id, False   # e.g. an old relabel script
+    session.add(stray)
+    for _ in range(3):
+        _t(session, m, REST, description="COMPRA 3315 PADARIA CENTRAL")
+    session.commit()
+    reconcile_merchants(session, dry_run=False)
+    session.refresh(t1)
+    assert t1.category_id == get_node(session, "food.groceries.butcher-fish-bakery").id
+
+
+def test_a_new_line_follows_the_persons_counterparty_rule_over_the_merchants_stored_default(session):
+    import asyncio
+    from app.models.transaction import Transaction
+    from app.models.document import Document, DocumentSource
+    from app.services.classification_engine import classify_transaction
+    ensure_taxonomy(session)
+    m = _merchant(session, "Padaria Central", REST)
+    m.confirmed = True
+    rules.remember_merchant(session, m, get_node(session, "food.groceries.butcher-fish-bakery"), by="p@x")
+    session.commit()
+    doc = Document(filename="s.pdf", file_path="/tmp/s.pdf", content_hash="h-new", source=DocumentSource.MANUAL)
+    session.add(doc); session.commit()
+    t = Transaction(document_id=doc.id, description="Padaria Central", amount=3.2, transaction_type=TransactionType.DEBIT)
+    session.add(t); session.commit()
+    asyncio.run(classify_transaction(session, t))
+    assert t.category_id == get_node(session, "food.groceries.butcher-fish-bakery").id

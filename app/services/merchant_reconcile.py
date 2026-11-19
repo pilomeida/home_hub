@@ -36,9 +36,15 @@ def _is_unsorted(node) -> bool:
 
 def _pick_target(session: Session, merchant: Merchant, txns: list[Transaction],
                  nodes: dict[int, CategoryNode]):
+    # The supermarket list is Pedro's own ruling (2026-10-07: those chains are always supermarket), so it ranks as a
+    # person's answer; then a person's rule for this counterparty (PLAN step 2), then a confirmed merchant's default.
     slug = keyword_node_slug(merchant.canonical_name, *(t.description for t in txns))
     if slug:
         return get_node(session, slug)
+    from app.services import rules
+    person = rules.person_spending_rule(session, counterparty=merchant.canonical_name)
+    if person is not None and person.node_id in nodes:
+        return nodes[person.node_id]
     default = nodes.get(merchant.default_category_id) if merchant.default_category_id else None
     if merchant.confirmed and not _is_unsorted(default):
         return default

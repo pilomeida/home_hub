@@ -99,5 +99,29 @@ def remember(session: Session, *, looks_at: str, how: str, pattern: str, source:
     return rule
 
 
-__all__ = ["SPENDING", "MERCHANT", "PAPER_KIND", "PERSON", "AI", "SYSTEM", "CONTAINS", "EXACT", "KEY", "PREFIX",
+def remember_merchant(session: Session, merchant, node, *, by: Optional[str] = None) -> Optional[Rule]:
+    """A person confirmed this counterparty's spending leaf: one person's rule (counterparty -> leaf), replacing any
+    earlier answer for it. Money coming in keeps its own default on the merchant (a client's payment is income, a
+    benefit is not a tax), so only outflow leaves are remembered here. Does not commit."""
+    from app.models.rule import COUNTERPARTY
+    if node is None or node.kind == "in" or node.slug.startswith("unsorted") or not merchant.canonical_name:
+        return None
+    return remember(session, looks_at=COUNTERPARTY, how=EXACT, pattern=merchant.canonical_name, source=PERSON, by=by,
+                    node_id=node.id, merchant=merchant.canonical_name, example=merchant.canonical_name,
+                    note="Remembered when a person confirmed this merchant's category")
+
+
+def person_spending_rule(session: Session, *, description: Optional[str] = None,
+                         counterparty: Optional[str] = None) -> Optional[Rule]:
+    """A person's spending answer for a bank line: by its bank text first (the more specific), then by its
+    counterparty. Only person rules: the caller falls back to its own defaults, never above a person."""
+    from app.models.rule import COUNTERPARTY, DESCRIPTION
+    for facts in ({DESCRIPTION: description}, {COUNTERPARTY: counterparty}):
+        hit = next((r for r in candidates(session, SPENDING, facts) if r.source == PERSON), None)
+        if hit is not None:
+            return hit
+    return None
+
+
+__all__ = ["remember_merchant", "person_spending_rule", "SPENDING", "MERCHANT", "PAPER_KIND", "PERSON", "AI", "SYSTEM", "CONTAINS", "EXACT", "KEY", "PREFIX",
            "REGEX", "find", "candidates", "matches", "ordered", "remember"]

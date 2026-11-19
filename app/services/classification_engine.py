@@ -275,7 +275,13 @@ async def classify_transaction(
     # channel merchant (by_provider) has no default to apply: its entries wait for a rule or for review.
     rule_filed = False
     if not loan_filed:
-        rule_node = find_rule_node(session, transaction.description)
+        # One memory of past answers (PLAN step 2): a person's rule, by bank text then by counterparty, comes
+        # before any AI or system answer and before the merchant's stored default.
+        from app.services import rules
+        person = rules.person_spending_rule(session, description=transaction.description,
+                                            counterparty=merchant.canonical_name)
+        rule_node = session.get(CategoryNode, person.node_id) if person is not None else find_rule_node(
+            session, transaction.description)
         if rule_node is not None and provider_fits(session, transaction, rule_node):
             file_transaction(session, transaction, rule_node)
             rule_filed = True

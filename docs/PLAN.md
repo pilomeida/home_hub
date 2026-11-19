@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 2, slice a+b deploying (rules table, one reader, provider and recognition rules moved in).
+**Now (2026-11-19):** step 2, merchant confirmations write rules (deploying); next: entities and the supermarket list into the table.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -92,7 +92,13 @@ Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` 
   person, then AI, then system; then priority; switched-off rules answer nothing) are in. The provider rules (filing
   by bank text) and the recognition rules (sender, words, file name → kind of paper) moved into it by migration
   d7f2b4a8c615 (the old tables stay, no longer read); the Privacy page and the Inbox "remember" write person rules.
-  Left: payment entities and the supermarket keyword list as system rules; confirming a merchant writes a rule; c, d, e.
+  ◐ 2026-11-19 (Claude): confirming a merchant writes one person's rule (counterparty → spending leaf; money-in
+  defaults stay on the merchant); a new bank line takes a person's rule (bank text, then counterparty) before the
+  merchant's stored default, and the merchant consistency pass cannot move it back (tested). The supermarket list is
+  Pedro's own ruling (2026-10-07), so it keeps its place above a confirmed merchant and moves in as a person's rule,
+  not a system one. "Approving in the Inbox writes one rule" is read as: with "Remember this" ticked, one rule per
+  thing remembered, as today (Claude, 2026-11-19; Pedro may change). Left: payment entities and the supermarket list
+  into the table; c, d, e.
 
 ### Step 3. One review queue: "Waiting for you" (C1) · L
 Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).

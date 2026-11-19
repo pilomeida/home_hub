@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 
 from sqlalchemy import func
+from typing import Optional
+
 from sqlmodel import Session, select
 
 from app.models.category_node import CategoryNode
@@ -21,7 +23,7 @@ class AssignReport:
 
 def assign_category(session: Session, merchant_ids: list[int], node: CategoryNode, *,
                     refile_existing: bool = True, confirm: bool = True,
-                    dry_run: bool = False) -> AssignReport:
+                    dry_run: bool = False, by: Optional[str] = None) -> AssignReport:
     """Make `node` the merchants' category. The default always changes (so future entries follow).
     Unsorted entries are filed; with refile_existing, entries filed elsewhere move too. Loan-linked
     entries and TRANSFERs never move; a credit moves only where auto_fits allows (refund rule)."""
@@ -37,6 +39,8 @@ def assign_category(session: Session, merchant_ids: list[int], node: CategoryNod
                 merchant.default_category_id = node.id
             if confirm:
                 merchant.confirmed = True
+                from app.services import rules     # a person's answer becomes a rule (PLAN step 2)
+                rules.remember_merchant(session, merchant, node, by=by)
             session.add(merchant)
         # keeps held rows: filing a merchant's history; a held line must carry the right category once a person confirms it
         for t in session.exec(select(Transaction).where(Transaction.merchant_id == merchant.id)).all():
