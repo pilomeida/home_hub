@@ -76,7 +76,7 @@ async def test_a_new_money_kind_is_a_spec_change_only(session, monkeypatch, tmp_
     from app.services.paper_uses import filed_as
     from tests.test_financials_handler import _make_document
 
-    card = KindSpec("card_statement", "Card statement", "A credit card's monthly statement.", suggested_tier=Tier.MID,
+    card = KindSpec("fuel_card_statement", "Fuel card statement", "A fuel card's monthly statement.", suggested_tier=Tier.MID,
                     reader=money.read_statement, files_as=frozenset({FiledAs.MONEY}))
     spec = get_spec(Category.FINANCIALS)
     grown = dataclasses.replace(spec, kinds=spec.kinds + (card,))
@@ -90,7 +90,7 @@ async def test_a_new_money_kind_is_a_spec_change_only(session, monkeypatch, tmp_
     monkeypatch.setattr(money, "extract_statement_transactions", read)
 
     document = _make_document(session, tmp_path, filename="card-2026-10.pdf", content_hash="card-1")
-    document.category, document.paper_kind = Category.FINANCIALS, "card_statement"
+    document.category, document.paper_kind = Category.FINANCIALS, "fuel_card_statement"
     session.add(document); session.commit()
 
     result = await money.process_financials_document(session, document)
@@ -100,7 +100,7 @@ async def test_a_new_money_kind_is_a_spec_change_only(session, monkeypatch, tmp_
     assert [(t.description, t.amount) for t in lines] == [("GALP MAFRA", 61.2)]
     assert session.exec(select(StatementCheck).where(StatementCheck.document_id == document.id)).first() is not None
     assert filed_as(result) == {"money"}
-    assert {(i.category, i.paper_kind): i.suggested for i in ps.known_types()}[("financials", "card_statement")] == Tier.MID
+    assert {(i.category, i.paper_kind): i.suggested for i in ps.known_types()}[("financials", "fuel_card_statement")] == Tier.MID
 
 
 def test_no_handler_branches_on_the_kind_when_reading():

@@ -9,3 +9,4 @@ class FinancialsKind(str, Enum):
     STATEMENT = "statement"
     POSITIONS = "statement_positions"
     LOAN_HISTORY = "loan_history"
+    CARD_STATEMENT = "card_statement"    # PLAN step 4b: a credit card's monthly statement, through the intake

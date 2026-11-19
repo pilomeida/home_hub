@@ -10,7 +10,8 @@ from app.categories.base import (
 from app.categories.financials.ask import FINANCIALS_ASK_TOOLS
 from app.categories.financials.kinds import FinancialsKind
 from app.categories.financials.handler import (
-    FinancialsHandler, read_bill, read_loan_history, read_statement, read_statement_positions,
+    FinancialsHandler, read_bill, read_card_statement_document, read_loan_history, read_statement,
+    read_statement_positions,
 )
 from app.categories.financials.overview import financials_overview_card
 from app.models.account import Account
@@ -46,7 +47,7 @@ SPEC = CategorySpec(
         ),
         KindSpec(
             FinancialsKind.STATEMENT.value, "Bank statement",
-            "A bank or card account statement listing many transactions.",
+            "A bank account statement listing many transactions.",
             suggested_tier=Tier.MID, reader=read_statement, files_as=frozenset({FiledAs.MONEY}),
         ),
         KindSpec(
@@ -60,6 +61,12 @@ SPEC = CategorySpec(
             "An online-banking printout of one loan's instalment movements.",
             classifiable=False,
             suggested_tier=Tier.MID, reader=read_loan_history, files_as=frozenset({FiledAs.LOANS}),
+        ),
+        KindSpec(
+            FinancialsKind.CARD_STATEMENT.value, "Credit card statement",
+            "A credit card's monthly statement (Extrato de Conta-Cartão): its opening and closing balance and the "
+            "card's purchases, payments and fees.",
+            suggested_tier=Tier.MID, reader=read_card_statement_document, files_as=frozenset({FiledAs.MONEY}),
         ),
     ),
     fields=(

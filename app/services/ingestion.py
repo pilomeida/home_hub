@@ -143,9 +143,21 @@ def mark_needs_attention(session: Session, document: Document, reason: str) -> D
     return document
 
 
+def _unwrapped(incoming: IncomingFile) -> IncomingFile:
+    """A bank-site PDF wrapped in a Java byte[] header is stored as the clean PDF, whatever the channel (PLAN step
+    4b), so its content hash matches a clean copy and its text can be read. Anything else is left as it came."""
+    if not incoming.filename.lower().endswith(".pdf") or incoming.content.startswith(b"%PDF-"):
+        return incoming
+    from dataclasses import replace
+    from app.services.pdf_bytes import inspect_pdf
+    clean, _stripped, _problem = inspect_pdf(incoming.content)
+    return replace(incoming, content=clean) if clean is not None else incoming
+
+
 def receive_file(
     session: Session, incoming: IncomingFile, initial_status: DocumentStatus = DocumentStatus.PENDING
 ) -> ReceiveResult:
+    incoming = _unwrapped(incoming)
     digest = content_hash(incoming.content)
     existing = find_existing_document_by_hash(session, digest)
     if existing is not None:

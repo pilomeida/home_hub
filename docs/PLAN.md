@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 4a (statement lines against feed lines) deploying; next: 4b, card statements and the Loans upload through the same intake.
+**Now (2026-11-19):** step 4b (card statements through the intake, wrapper stripped everywhere) deploying; next: 4c, re-reading the missing history.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -82,9 +82,12 @@ Reuse: actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MI
   date within 3 days, one-to-one) is kept but settled by its feed line, so it shows dimmed with a link to the bank
   entry and counts once; a checked line is never changed; such a line no longer takes a bill from its feed twin
   (`app/services/feed_overlap.py`). Matching by the bank's id first is moot here: a statement printed on paper
-  carries no bank id. A live dry run of bill matching gave the same pairs before and after (0 pending). Left: b
-  (Loans upload and card statements through the same intake; PDF wrapper on every channel; Rute's card statement by
-  Telegram), c.
+  carries no bank id. A live dry run of bill matching gave the same pairs before and after (0 pending).
+  ✅ b, 2026-11-19 (Claude): a new Money kind, "Credit card statement", whose reader is the card-statement logic the
+  script used (checked to the cent, only new lines stored, the card being the account chosen when filing; with no
+  card it waits with a three-part message), so a card statement comes in by upload, email or Telegram and is approved
+  in the Inbox like any paper (tested: Rute's statement by Telegram). The Loans upload already used the intake. The
+  bank-download wrapper is now stripped in `receive_file`, the one door every channel uses. Left: c.
 
 ### Step 5. Shared reading blocks, Health first (C4, with Health "first time right") · L
 Reuse: giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, young project:

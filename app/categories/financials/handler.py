@@ -327,6 +327,40 @@ async def _read_positions(session: Session, document: Document, processor) -> Do
     return document
 
 
+CARD_NO_ACCOUNT = ("the Hub doesn't know which card this statement belongs to. Choose the card's account in the "
+                   "paper's details, then read it again")
+
+
+async def read_card_statement_document(session: Session, document: Document) -> Document:
+    """A credit card's monthly statement, through the same intake as every paper (PLAN step 4b): read from the
+    PDF's own text, refused unless its lines add up to its own balances to the cent, and only the lines the card
+    does not hold yet are stored (app/services/card_figures.py)."""
+    import asyncio
+    from app.services import card_figures
+    if document.account_id is None:
+        return mark_needs_attention(session, document, CARD_NO_ACCOUNT)
+    try:
+        statement = await asyncio.to_thread(card_figures.read_card_statement, document.file_path)
+    except Exception as exc:                  # not a card statement, or it does not add up: stored nothing
+        return mark_needs_attention(session, document, f"the card statement couldn't be read: {exc}")
+    todo, _redates = card_figures.reconcile(session, document.account_id, statement.lines)
+    added = card_figures.add_lines(session, document.account_id, todo, document_id=document.id) if todo else 0
+    fields = load_fields(document)
+    fields.update({"statement_number": str(statement.number), "issued": statement.issued.isoformat(),
+                   "opening_balance": f"{statement.opening:.2f}", "closing_balance": f"{statement.closing:.2f}"})
+    document.fields_json = dump_fields(fields)
+    document.status, document.failure_reason = DocumentStatus.PROCESSED, None
+    session.add(document)
+    session.commit()
+    from app.models.wiki import WikiOperation
+    from app.services.wiki_store import append_log
+    append_log(session, WikiOperation.INGEST, f"{document.filename}: card statement {statement.number}, "
+               f"{len(statement.lines)} line(s), {added} new, checked to the cent", document_id=document.id)
+    reconcile_quietly(session)
+    session.refresh(document)
+    return document
+
+
 async def read_statement(session: Session, document: Document) -> Document:
     # Transactions (and any brand-new Merchants) committed so far in this
     # attempt — tracked so that if a later line item fails (e.g. a bad
