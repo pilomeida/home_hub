@@ -15,6 +15,8 @@ only here, so "domain IS NOT NULL" means "finalized"."""
 
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Mapping, Optional
@@ -273,6 +275,21 @@ async def finalize_document(session: Session, document: Document, classification
     return await _file_under(session, document, validated)
 
 
+def person_fields(document: Document) -> list[str]:
+    """The keys of the fields a person typed or changed on this paper."""
+    try:
+        keys = json.loads(document.person_fields_json or "[]")
+    except ValueError:
+        return []
+    return [str(k) for k in keys] if isinstance(keys, list) else []
+
+
+def kept_on_reread(document: Document) -> str:
+    """The fields JSON a paper starts from when it is read again: only what a person typed or changed."""
+    fields, keep = load_fields(document), set(person_fields(document))
+    return dump_fields({k: v for k, v in fields.items() if k in keep})
+
+
 async def update_document_fields(
     session: Session, document: Document, raw_fields: Mapping[str, Any]
 ) -> Document:
@@ -284,6 +301,9 @@ async def update_document_fields(
     previous = load_fields(document)
     fields = validate_fields(session, spec, document.paper_kind, media_kind_for(document.filename), raw_fields)
     document.fields_json = dump_fields(fields)
+    changed = {k for k in set(fields) | set(previous) if fields.get(k) != previous.get(k)}
+    if changed:                                            # a person's edit: kept when the paper is read again
+        document.person_fields_json = json.dumps(sorted(set(person_fields(document)) | changed))
     session.add(document)
     session.commit()
     session.refresh(document)

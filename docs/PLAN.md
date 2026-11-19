@@ -94,7 +94,14 @@ adapt and test well).
 - d. Health reading, from the agreed "first time right" list: read the PDF's structure with code (positions, fonts,
   grey bands) so the model only interprets; learn each provider once (a profile Pedro confirms, his corrections kept
   for that provider); narrative findings get a structure of their own instead of long text in a result; "Read again"
-  keeps fields a person edited; a history point printed on several papers is stored once.
+  keeps fields a person edited; a history point printed on several papers is stored once. ◐ 2026-11-19: "Read again" keeps
+  the fields a person typed or changed (`documents.person_fields_json`); the PDF's own layout is read with code
+  (`app/categories/health/layout.py`: sections in bold, headings alone at the left margin, results with figures)
+  and settles two things the model got wrong on the benchmark: results left under the section go under their
+  printed heading (A1c, CRP), and a reference the model changed is set back to the printed one (RDW "=< 15,0").
+  A history point printed on several papers shows once on a person's results (5b) while each paper keeps what it
+  printed (Claude; Pedro may change). Left: narrative findings as a structure of their own; Pedro's corrections
+  kept per provider; grey bands (pypdf gives no shading; needs another reader).
 - e. The benchmark grows with each provider Pedro supplies (see section 2); every reader change is run through
   `scripts/health_benchmark.py run` before and after.
 - Done when: the same blood test from two labs lands on one line of Rute's results; every check returns the same shape;

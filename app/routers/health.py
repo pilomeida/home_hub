@@ -24,6 +24,7 @@ from app.models.category import Category
 from app.models.health import HealthArea, HealthEntry, HealthMeasurement, HealthTopic
 from app.problems import HEALTH_BILL_NEXT_STEP, Problem, file_notices, is_health_bill_refusal, record_problem
 from app.services.ingestion import (
+    kept_on_reread,
     Classification, IncomingFile, file_for_later, finalize_document, mark_needs_attention, update_document_fields,
 )
 from app.services.paper_uses import PaperInUse
@@ -201,7 +202,8 @@ async def upload(request: Request, background_tasks: BackgroundTasks, session: S
 
 async def prepare_reread(session: Session, document: Document) -> None:
     """The steps behind "Read again": take back everything read from a filed paper (calendar entry, wiki claims,
-    results, tags), clear its fields so they start again from the new reading, and mark it pending."""
+    results, tags), clear the fields the reader filled so they start again from the new reading (the ones a person
+    typed or changed stay), and mark it pending."""
     if document.paper_kind in LEGACY_KINDS:       # checked first: nothing may be withdrawn from a paper that cannot be read
         raise HTTPException(status_code=409, detail={
             "what": "Not read again.", "why": "Health no longer reads bills, so there is nothing to read it with.",
@@ -209,7 +211,7 @@ async def prepare_reread(session: Session, document: Document) -> None:
     if document.status == DocumentStatus.PROCESSED:
         await spec_for_health().handler.withdraw(session, document)
         await withdraw_from_wiki(session, document, description=f"{document.filename} read again")
-        document.fields_json = "{}"
+        document.fields_json = kept_on_reread(document)     # what a person typed stays (step 5d); the rest is read again
     elif document.status not in (DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION):
         raise HTTPException(status_code=409, detail={
             "what": "Not read again.", "why": "This paper was deleted, so there is nothing to read.",

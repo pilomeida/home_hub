@@ -44,6 +44,8 @@ class Document(RefusesUnknownFields, SQLModel, table=True):
     # (additive-only migrations; migration 3b7e9c1d2f40 copied it here).
     paper_kind: Optional[str] = Field(default=None, sa_column=Column("category", AutoString, index=True))
     fields_json: str = Field(default="{}")
+    # The fields a person typed or changed (JSON list of keys): "Read again" keeps them (PLAN step 5d).
+    person_fields_json: str = Field(default="[]")
     category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))   # the model's category (column still `domain`)
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None

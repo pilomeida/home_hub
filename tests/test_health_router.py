@@ -376,3 +376,25 @@ async def test_preparing_a_reread_of_a_deleted_paper_is_refused_in_three_parts(s
     with pytest.raises(HTTPException) as exc:
         await prepare_reread(session, doc)
     assert exc.value.status_code == 409 and set(exc.value.detail) == {"what", "why", "next_step"}
+
+
+@pytest.mark.asyncio
+async def test_read_again_keeps_what_a_person_typed_and_reads_the_rest_afresh(client, session):
+    """PLAN step 5d: "Read again" keeps fields a person edited."""
+    import json
+    from app.categories.fields import load_fields
+    from app.models.document import DocumentStatus
+    from app.routers.health import prepare_reread
+    doc = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), "test", ["Eyes"], name="eye.pdf")
+    doc.status = DocumentStatus.PROCESSED
+    session.add(doc)
+    session.commit()
+    fields = load_fields(doc)
+    fields["provider"] = "Clínica do Olhar"                          # the person corrects the provider on the page
+    r = client.post(f"/health/documents/{doc.id}/fields", data=fields, follow_redirects=False)
+    assert r.status_code == 303
+    session.refresh(doc)
+    assert json.loads(doc.person_fields_json) == ["provider"]
+    await prepare_reread(session, doc)
+    session.refresh(doc)
+    assert load_fields(doc) == {"provider": "Clínica do Olhar"}       # only the person's field; the rest is read again

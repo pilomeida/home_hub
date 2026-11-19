@@ -11,6 +11,7 @@ import json
 from typing import Optional, Sequence
 
 from app.categories.health import extraction as ex
+from app.categories.health.layout import apply_layout
 from app.categories.health.checks import MAX_LINES_TO_ASK, CheckReport, check_reading, compare_readings, unresolved_notes
 from app.llm_gateway import HEALTH_EXTRACTION, get_gateway
 from app.privacy.tiers import Tier
@@ -56,6 +57,13 @@ async def _second_look(x: ex.ExtractedHealth, lines: Sequence[str], gateway) -> 
         x.details = (x.details + "\n" + more).strip()
 
 
+async def _laid_out(reading, file_path: str) -> ex.ExtractedHealth:
+    """A reading with the paper's own layout applied, so two readings are compared on the same footing."""
+    y = await reading
+    await ex.asyncio.to_thread(apply_layout, y, file_path)
+    return y
+
+
 async def read_health_document(
     file_path: str, paper_kind: Optional[str], *, existing_areas: Sequence[str] = (),
     existing_conditions: Sequence[str] = (), gateway=None, guidance: str = "", second_read: bool = True,
@@ -65,6 +73,7 @@ async def read_health_document(
                                          existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
     if x.is_bill:                                             # refused by the caller: nothing to check or compare, no more reads
         return x
+    await ex.asyncio.to_thread(apply_layout, x, file_path)    # what the PDF's own layout settles (step 5d)
     source = await ex.asyncio.to_thread(ex.paper_text, file_path)       # None for a scan or photo: nothing to check against
     report: CheckReport = check_reading(x, source)
     doubts: list[Doubt] = []
@@ -78,8 +87,9 @@ async def read_health_document(
     doubts += from_health(report, had_text=bool(source)).doubts
     if second_read:                                           # every paper is read twice, independently (shared step)
         doubts += await read_twice(
-            lambda: ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
-                                               existing_conditions=existing_conditions, gateway=gw, guidance=guidance),
+            lambda: _laid_out(ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
+                                                         existing_conditions=existing_conditions, gateway=gw,
+                                                         guidance=guidance), file_path),
             lambda y: compare_readings(x, y))
     x.check = from_doubts(doubts, checked=bool(source) or second_read)     # the one check-result shape (step 5c)
     x.check_notes = x.check.notes(MAX_NOTES)

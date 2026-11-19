@@ -1,0 +1,68 @@
+"""PLAN step 5d: the paper's structure read with code; the model only interprets."""
+
+from app.categories.health import layout
+from app.categories.health.extraction import ExtractedHealth, ExtractedMeasurement
+from app.categories.health.text import PATH_SEP
+from tests.fakes.text_pdf import placed_pdf_bytes
+
+# A lab sheet laid out like Cintramédica's: bold sections, headings alone at the left margin, results with their
+# value, unit and reference in columns to the right (the reference in smaller type, on a slightly lower baseline).
+SHEET = [
+    (264, 700, 8.8, True, "BIOQUIMICA"),
+    (27, 680, 7.0, False, "HEMOGLOBINA GLICADA A1c"), (110, 680, 5.5, False, "( Mét.Electrof. capilar )"),
+    (27, 668, 7.0, False, "Resultado ( IFCC )"), (231, 668, 7.8, False, "35"), (312, 668, 6.3, False, "mmol/mol"),
+    (405, 666, 5.5, False, "20 - 42"),
+    (27, 656, 7.0, False, "GME ( Glicémia Média Estimada )"), (231, 656, 7.8, False, "106"),
+    (264, 630, 8.8, True, "HEMATOLOGIA"),
+    (27, 618, 7.0, False, "ERITROGRAMA"),
+    (27, 606, 7.0, False, "RDW"), (231, 606, 7.8, False, "13,9"), (312, 606, 6.3, False, "%"),
+    (415, 604, 5.5, False, "=< 15,0"),
+]
+
+
+def _m(test, path, value, reference=None, unit=None):
+    return ExtractedMeasurement(test, value, None, unit, None, None, None, False, "", group_path=path,
+                                reference_text=reference)
+
+
+def _pdf(tmp_path, items=SHEET):
+    p = tmp_path / "lab.pdf"
+    p.write_bytes(placed_pdf_bytes(items))
+    return str(p)
+
+
+def test_lines_sections_and_headings_are_read_from_the_pdf(tmp_path):
+    lines = layout.read_lines(_pdf(tmp_path))
+    kinds = [("S" if l.is_section else "H" if l.is_heading else "-", l.text) for l in lines]
+    assert kinds[0] == ("S", "BIOQUIMICA")
+    assert kinds[1][0] == "H" and kinds[1][1].startswith("HEMOGLOBINA GLICADA A1c")
+    assert ("-", "RDW 13,9 % =< 15,0") in kinds                       # the smaller reference joins its line
+
+
+def test_results_left_under_the_section_go_under_their_printed_heading(tmp_path):
+    x = ExtractedHealth(measurements=[
+        _m("Resultado (IFCC)", "Bioquimica", 35, "20 - 42", "mmol/mol"),
+        _m("GME (Glicémia Média Estimada)", "Bioquimica", 106),
+        _m("RDW", f"Hematologia{PATH_SEP}Hemograma{PATH_SEP}Eritrograma", 13.9, "=< 15,0", "%"),
+    ])
+    changed = layout.apply_layout(x, _pdf(tmp_path))
+    paths = [m.group_path for m in x.measurements]
+    assert paths[0] == paths[1] == f"Bioquimica{PATH_SEP}Hemoglobina glicada A1c"
+    assert paths[2] == f"Hematologia{PATH_SEP}Hemograma{PATH_SEP}Eritrograma"     # already deeper: left alone
+    assert len(changed) == 2
+
+
+def test_a_reference_the_reading_changed_is_set_back_to_what_is_printed(tmp_path):
+    x = ExtractedHealth(measurements=[_m("RDW", f"Hematologia{PATH_SEP}Eritrograma", 13.9, ">= 15,0", "%")])
+    changed = layout.apply_layout(x, _pdf(tmp_path))
+    m = x.measurements[0]
+    assert m.reference_text == "=< 15,0" and (m.ref_low, m.ref_high) == (None, 15.0)
+    assert changed == ["RDW: reference >= 15,0 corrected to =< 15,0, as printed"]
+
+
+def test_a_reference_already_as_printed_and_a_scan_are_left_alone(tmp_path):
+    x = ExtractedHealth(measurements=[_m("RDW", f"Hematologia{PATH_SEP}Eritrograma", 13.9, "=< 15,0", "%")])
+    assert layout.apply_layout(x, _pdf(tmp_path)) == []
+    img = tmp_path / "scan.png"
+    img.write_bytes(b"\x89PNG\r\n")
+    assert layout.apply_layout(x, str(img)) == [] and layout.read_lines(str(img)) == []
