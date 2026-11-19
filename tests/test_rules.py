@@ -124,3 +124,34 @@ def test_a_new_line_follows_the_persons_counterparty_rule_over_the_merchants_sto
     session.add(t); session.commit()
     asyncio.run(classify_transaction(session, t))
     assert t.category_id == get_node(session, "food.groceries.butcher-fish-bakery").id
+
+
+# --- c. an AI answer below the bar is saved switched off and waits for a person --------------------------------
+
+def _classify_new(session, text, confidence):
+    import asyncio
+    import json
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import classify_transaction
+    from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
+    ensure_taxonomy(session)
+    reply = {"canonical_name": "Loja Nova", "node_slug": REST, "nature": "discretionary", "confidence": confidence}
+    doc = Document(filename="s.pdf", file_path="/tmp/s.pdf", content_hash=f"h-{text}", source=DocumentSource.MANUAL)
+    session.add(doc); session.commit()
+    t = Transaction(document_id=doc.id, description=text, amount=12.0, transaction_type=TransactionType.DEBIT)
+    session.add(t); session.commit()
+    asyncio.run(classify_transaction(session, t, gateway=FakeGateway([gateway_text_result(json.dumps(reply))])))
+    session.commit()
+    return t, session.exec(select(Rule).where(Rule.source == AI)).one()
+
+
+def test_a_doubtful_ai_answer_is_saved_switched_off_and_the_line_waits_for_review(session, levels_not_binding):
+    t, rule = _classify_new(session, "LOJA NOVA LDA", 0.55)
+    assert (rule.enabled, rule.confidence, rule.node_id) == (False, 0.55, get_node(session, REST).id)
+    assert t.category_id == get_node(session, UNSORTED_SLUG).id
+
+
+def test_a_sure_ai_answer_is_saved_switched_on_and_files_the_line(session, levels_not_binding):
+    t, rule = _classify_new(session, "LOJA NOVA LDA", 0.93)
+    assert rule.enabled and t.category_id == get_node(session, REST).id

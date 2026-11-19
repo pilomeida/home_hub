@@ -63,7 +63,8 @@ Never the product, fund, action or channel: a subscription to Santander's \
 Aforro PPR fund is merchant 'Santander'; 'Transfer to Matias Almeida' is \
 'Matias Almeida'. What it is for belongs in node_slug.",
   "node_slug": "the single best category slug from the list below",
-  "nature": "essential or discretionary"
+  "nature": "essential or discretionary",
+  "confidence": "a number from 0 to 1: how sure you are that node_slug is right"
 }
 
 Choose the single best node_slug from this list (and nothing else):
@@ -96,6 +97,7 @@ def _merchant_schema(slugs: list[str]) -> dict:
             "canonical_name": {"type": "string"},
             "node_slug": {"type": "string", "enum": slugs},
             "nature": {"type": "string", "enum": ["essential", "discretionary"]},
+            "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},   # optional: PLAN step 2c
         },
     }
 
@@ -114,6 +116,11 @@ class ResolvedMerchant:
     canonical_name: str
     node_slug: str
     nature: Nature
+    confidence: Optional[float] = None     # the AI's own, when it states one (None: a rule, or not stated)
+
+
+# PLAN step 2c (default taken 2026-11-19): an AI answer below this is saved switched off and waits for a person.
+AI_RULE_BAR = 0.8
 
 
 def candidate_slugs(session: Session) -> list[str]:
@@ -123,8 +130,8 @@ def candidate_slugs(session: Session) -> list[str]:
 
 async def ask_merchant_llm(
     raw_provider: str, slugs: list[str], gateway=None, is_credit: Optional[bool] = None,
-    best_guess: bool = False,
-) -> tuple[str, str, Nature]:
+    best_guess: bool = False, with_confidence: bool = False,
+) -> tuple:
     """The gateway half of merchant resolution: NO database access, so callers may
     run many of these concurrently. Returns (canonical_name, node_slug, nature)."""
     if not slugs:
@@ -152,7 +159,12 @@ async def ask_merchant_llm(
         node_slug = data["node_slug"]
         if node_slug not in slugs:
             raise ValueError(f"unknown node_slug {node_slug!r}")
-        return data["canonical_name"], node_slug, Nature(data["nature"])
+        answer = (data["canonical_name"], node_slug, Nature(data["nature"]))
+        if with_confidence:
+            raw = data.get("confidence")
+            confidence = min(max(float(raw), 0.0), 1.0) if isinstance(raw, (int, float)) else None
+            return (*answer, confidence)
+        return answer
     except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise MerchantResolutionError(f"Could not resolve merchant: {exc}") from exc
 
@@ -164,13 +176,9 @@ async def resolve_merchant_via_llm(
     merchant name, category-tree leaf, and nature. Called only when the rules
     tier (normalize_provider + a Merchant lookup) finds no existing match.
     The session supplies the leaf slugs the model may choose from."""
-    name, node_slug, nature = await ask_merchant_llm(
-        raw_provider, candidate_slugs(session), gateway=gateway, is_credit=is_credit)
-    return ResolvedMerchant(
-        canonical_name=name,
-        node_slug=node_slug,
-        nature=nature,
-    )
+    name, node_slug, nature, confidence = await ask_merchant_llm(
+        raw_provider, candidate_slugs(session), gateway=gateway, is_credit=is_credit, with_confidence=True)
+    return ResolvedMerchant(canonical_name=name, node_slug=node_slug, nature=nature, confidence=confidence)
 
 
 @dataclass
@@ -222,9 +230,22 @@ async def classify_transaction(
             session.flush()
             merchant = existing
         else:
+            doubtful = resolved.confidence is not None and resolved.confidence < AI_RULE_BAR
+            if resolved.confidence is not None:
+                # The AI's answer is remembered as an AI rule (PLAN step 2c): below the bar it is saved switched off,
+                # and the merchant waits in Needs Review instead of being filed on a doubtful guess.
+                from app.models.rule import AI as AI_SOURCE, COUNTERPARTY, EXACT
+                from app.services import rules
+                rules.remember(session, looks_at=COUNTERPARTY, how=EXACT, pattern=resolved.canonical_name,
+                               source=AI_SOURCE, node_id=get_node(session, resolved.node_slug).id,
+                               merchant=resolved.canonical_name, confidence=resolved.confidence,
+                               enabled=not doubtful, example=transaction.description,
+                               note=f"Suggested by the AI ({resolved.confidence:.0%} sure)")
+            if doubtful:
+                resolved_node_slug = UNSORTED_SLUG
             merchant = Merchant(
                 canonical_name=resolved.canonical_name,
-                default_category_id=get_node(session, resolved.node_slug).id,
+                default_category_id=get_node(session, resolved_node_slug).id,
                 default_nature=resolved.nature,
                 normalized_key=normalized_key,
                 by_provider=is_multi_purpose(resolved.canonical_name),
