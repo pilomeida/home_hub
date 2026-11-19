@@ -1,5 +1,7 @@
 # Conditions, Visits and Medication: Master Plan
 
+> **2026-11-19: tracking moved to `docs/PLAN.md`, step 7.** Phases 1 and 1B are done; this file stays as the design and data model for phases 2–5.
+
 > **For agentic workers:** This is the map. Each phase below becomes its own detailed plan (same folder, `2026-10-19-conditions-N-*.md`) and ships working software on its own. Phase 1 is already written in full. Write the next phase's plan only when the previous one has landed, because its code depends on what the earlier one actually produced. REQUIRED SUB-SKILL for each detailed plan: superpowers:subagent-driven-development (recommended) or superpowers:executing-plans.
 
 **Goal:** Give every long-running condition of a family member its own page where papers, visits, hand-made notes, medication and the next follow-up come together, and make each health paper say why it was made and show its structure as the paper prints it.

@@ -1,5 +1,7 @@
 # Phase (d) plan — tiers in the Hub, recognising documents, extraction (draft 2026-10-15)
 
+> **Built 2026-10-15; retired 2026-11-19.** What was left is in `docs/PLAN.md`.
+
 Order matters: each step ships working on its own and leaves the live Hub unchanged until a type is configured.
 
 1. **Type settings in the database + admin screen** (D12). Tables: `document_type_settings(domain, category, tier, redact, updated_by, updated_at)` and a change log. `tier_for` reads the table (cached), no code dict. Screen under Settings: one row per type, tier dropdown, redact switch, "not set" banner.

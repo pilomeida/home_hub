@@ -30,41 +30,8 @@ Newest first. Technical choices are Claude's; Pedro decides only what he sees/do
 - **Insurance (Mid)** keeps the policy, its terms, premium notices and renewal letters.
 - **Health (High)** takes reimbursement and claim statements, medical bills, results, prescriptions, referrals, vaccinations and appointment letters. The Insurance health category says so in its description: a reimbursement statement is not an Insurance document.
 
-## Backlog (open, per Pedro)
-- Backups of health data: they must follow the document and data tiers; a separate discussion.
-- Share a person's records with a doctor (export).
-- Hard deletion of the stored file. Withdrawing everything derived and hiding the record is built; "raw sources are immutable" stays.
-- **New document categories (Pedro, 2026-10-18).** Contracts, bank letters and diplomas each get their own category (and a level on the Privacy page), instead of being forced into Financials or House. Waiting in the Inbox for them, so nothing is lost: contracts = `RC.pdf` (telecom subscription contract), the Service Agreement and the NDA (papers 144, 169, 170); bank letters = the three Handelsbanken FATCA/CRS letters (165, 166, 167); diploma = the education diploma photo (164). Still waiting for a decision from Pedro, not part of this item: the AEG appliances invoice (100), the social-security notification (160), the IRS receipt (168) and the paid 2022 IUC notice (161).
-
-### Health reading: first time right (plan agreed 2026-10-16; checks and benchmark built, the rest open)
-Order recommended by Claude and accepted by Pedro: checks + benchmark first (done), then 3, then 4.
-1. **More benchmark cases from other providers.** Pedro to put 3-5 papers from different providers in a folder (another lab, a clinic letter, a prescription, an insurer statement, a scan or photo), with the expected output where he has it. Today the benchmark (`data/health_benchmark/`, on the VPS, git-ignored; run with `scripts/health_benchmark.py run`) holds one reviewed case, `cintramedica-lab-2024-11` (promoted from paper 199 on 2026-10-19, Pedro approved). Still to do: add paper 200 (neuro report) as the second case once Pedro has reviewed its page.
-2. **Read twice and flag disagreements** (two parallel reads, same wall time ~35 s): two runs on the same paper already differed on a few ambiguous rows (GME under "Hemoglobina glicada A1c" or not; a heading prefixed to a test name, now normalised in code). Also the only check available for scans and photos, which have no text layer to compare with (paper 200 is one).
-3. **Read the PDF's structure with code, not the model**: positions, fonts and the grey band shapes give rows and headings; the model then only interprets (kind, summary, areas). The text layer of lab PDFs is scrambled (references land above their values) and carries no heading cue, which is why the page images are sent too.
-4. **Learn each provider once**: a small profile (headings, columns, how references and earlier results are printed) confirmed by Pedro once, reused for later papers; corrections Pedro makes on a paper are remembered for that provider.
-5. **Narrative reports** (imaging, consultation letters): findings are stored as "results" with long text in the value; consider a findings structure of their own. The neuro report's first finding carries its "Triplex carotídeo" heading in its name.
-6. **Areas and conditions are written in the paper's language** (summary and new names follow the paper); the existing list was English. Decide whether the area vocabulary should be one language; papers 199 and 200 have proposed areas and people still to approve on /health/areas and /health/people.
-7. **Read again keeps nothing typed**: for a paper already read, "Read again" clears its fields and rebuilds them from the new reading (warned on the button). Consider keeping fields a person edited.
-8. **Wiki language**: the wiki guidance for Health is English while summaries are now in the paper's language.
-9. **A history point printed on several papers** is stored once per paper; Ask de-duplicates them, other views do not.
-- **Paper context, outline and numbers (2026-10-19).** Built (not yet deployed until Pedro orders it): the four context fields and the "Why this was done" box, the reader prompt for sections with chapters, prose conclusions and every number per section, and `scripts/reread_health.py`. Still to do: re-read papers 199 and 200 on the VPS and let Pedro check paper 200's page; add paper 200 as the second benchmark case once he calls it right. Paper 200 has no text layer, so its numbers are not cross-checked against the paper. Plan: `docs/superpowers/plans/2026-10-19-conditions-1-reader-and-context.md`; next phases: `...-conditions-master-plan.md`.
-- **Topic baseline for lab sheets.** Written reports get topics now (Phase 1B). Give lab-sheet headings the same baseline later; sheet results are still threaded by exact heading + test + unit keys.
-- **Read twice for lab sheets with a text layer** is not done: the check against the paper's own text covers them. Add it if sheets with a text layer show silent misreadings.
-- **Ask tools for topics, visits and medication** belong to Phase 5 (they must go through `app/privacy/reach.py` and carry tier High).
-
-### Inbox and channels
-- **Categories for contracts, bank letters and diplomas** (item above). Four more papers wait for Pedro's decision: AEG appliances invoice (100, needs an item name), social-security notification (160), IRS receipt (168), the paid 2022 IUC notice (161, returned to the Inbox).
-- **Spreadsheet attachments are dropped silently**: the Via Verde email carried `EXTRACTO_….csv`; the Hub takes only PDFs, photos and short videos and does not list a refused file type under "Not added". Decide: list it, or accept CSV.
-- **Decorative-image filter applies to email only** (rules: tiny, banner-shaped, small and embedded in the body, small and named like a logo). Telegram is excluded on purpose. Check on the next real email that a signature logo is listed under "Not added" and a real photo is kept.
-- **Insurance papers are filed by typed details only**: the booklets (CPAP/CGAP, 48-59 pages) are not read. Pedro to say if their content should be.
-- **The model writes a provider's name differently from one paper to the next** ("amigo (Vodafone)" / "amigo (Vodafone Portugal)"); the duplicate check now tolerates it, but each variant still creates its own merchant until merged.
-
-### Money and system housekeeping
-- **Four older bank statements need attention** (documents 2, 22, 33, 51): `'atm_withdrawal'` and `'insurance'` are not valid TransactionType values (two extraction bugs), one hit an old API error, one an empty credit balance. Not touched this session.
-- **Test database does not enforce foreign keys** (only the opt-in `fk_session` fixture does), which is how the Health delete-order bug passed its tests; consider making `engine` enforce them.
-- **Gateway job `health_extraction` was added by direct database write** (the admin API sits behind Cloudflare Access); if the gateway database is rebuilt from seeds it must be recreated (steps in `docs/SYSADMIN.md`).
-- **Privacy (carried from earlier sessions)**: configure /privacy, decide "Levels are binding" and "Hide personal details", Novita veto, Privatemode extras (speech-to-text adapter, more model rows, FX refresh), Google Calendar set-up for Health appointments (`docs/SYSADMIN.md`, "Google Calendar").
-- **Another session's bank work** (`bankapi/client.py`, `messages.py`, `sync.py`) is uncommitted in the shared working tree; its balance migration `b8d4f6a0c325` was shipped by this session on 2026-10-18 (see the commit message).
+## Backlog
+Moved to `docs/PLAN.md` on 2026-11-19 (the Hub's only plan). This file keeps decisions only.
 
 ## 2026-10-15 — D16. Ask and the wiki check under levels (built; coordinator's rules, Claude's mechanism)
 Closes known gap (1) of D13. **Only when "Levels are binding" is on; with it off both behave, and send, exactly as before (checked byte-for-byte against the previous code).**

@@ -277,8 +277,8 @@ The wording is also fragile. Routers raise bare strings that `problems.py:218-26
 
 ## 4. Questions only Pedro can answer
 Answered 2026-11-03: Insurance is a category of its own; bank lines take no privacy level of their own (they
-inherit the statement's); Matias is parked in the backlog; Emanuel's 15,000 is to be brought in properly (work-list
-Backlog). Budgets and commitments both stay, with distinct jobs: a budget is a planned maximum to monitor
+inherit the statement's); Matias is parked in the backlog; Emanuel's 15,000 is to be brought in properly (PLAN.md, section 2).
+Budgets and commitments both stay, with distinct jobs: a budget is a planned maximum to monitor
 against, a commitment is a known coming spend for cash flow (work-list B3b). The first four phone notices are
 agreed: bank access expired, a job that keeps failing, a bill due within 3 days, a new loan red flag (work-list C6).
 
