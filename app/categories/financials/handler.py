@@ -327,6 +327,24 @@ async def _read_positions(session: Session, document: Document, processor) -> Do
     return document
 
 
+_MONEY_IN = ("credit", "deposit", "refund", "income", "salary", "received", "receipt", "interest_earned", "cashback",
+             "reimburse", "inflow", "incoming")
+
+
+def line_type(raw: str) -> TransactionType:
+    """A statement line's direction. The reader sometimes names it in its own words ('atm_withdrawal', 'insurance':
+    documents 22 and 33 were refused whole for it); those are mapped from the words instead of failing the statement
+    (PLAN step 4c). The statement's own add-up check (decision D17) still catches a wrong guess."""
+    word = (raw or "").strip().lower()
+    try:
+        return TransactionType(word)
+    except ValueError:
+        pass
+    if "transfer" in word:
+        return TransactionType.TRANSFER
+    return TransactionType.CREDIT if any(w in word for w in _MONEY_IN) else TransactionType.DEBIT
+
+
 CARD_NO_ACCOUNT = ("the Hub doesn't know which card this statement belongs to. Choose the card's account in the "
                    "paper's details, then read it again")
 
@@ -380,7 +398,7 @@ async def read_statement(session: Session, document: Document) -> Document:
             transaction = Transaction(
                 document_id=document.id,
                 description=item.description,
-                transaction_type=TransactionType(item.transaction_type.strip().lower()),
+                transaction_type=line_type(item.transaction_type),
                 amount=abs(item.amount),
                 currency=item.currency,
                 paid_date=item.transaction_date,

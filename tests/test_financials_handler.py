@@ -299,10 +299,10 @@ async def test_ingest_statement_marks_needs_attention_on_extraction_failure(sess
 
 
 @pytest.mark.asyncio
-async def test_ingest_statement_marks_needs_attention_on_bad_transaction_type_value(session, monkeypatch, tmp_path):
-    """A transaction_type value outside debit/credit/transfer (an LLM
-    mistake) must degrade to needs_attention, not crash the request — and
-    must not leave a partially-committed set of transactions behind."""
+async def test_ingest_statement_marks_needs_attention_on_a_line_that_cannot_be_stored(session, monkeypatch, tmp_path):
+    """A line the reader returned broken (here: no amount) must degrade to needs_attention, not crash the
+    request -- and must not leave a partially-committed set of transactions behind. (A line type in the reader's
+    own words is no longer such a line: PLAN step 4c maps it, see test_feed_overlap.py.)"""
     document = _make_document(session, tmp_path, filename="weird-statement.pdf", content_hash="hash-stmt-4")
 
     extracted = ExtractedStatement(
@@ -314,7 +314,7 @@ async def test_ingest_statement_marks_needs_attention_on_bad_transaction_type_va
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 6), description="MYSTERY LINE",
-                amount=10.0, currency="EUR", transaction_type="not-a-real-type", category_hint="other_expense",
+                amount=None, currency="EUR", transaction_type="debit", category_hint="other_expense",
             ),
         ],
     )
@@ -899,7 +899,7 @@ async def test_ingest_statement_calls_classify_transaction_per_line_item(session
 async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session, monkeypatch, tmp_path):
     """Regression test for a reviewer-found gap: if an early line item
     resolves to a brand-new Merchant via classify_transaction's LLM
-    fallback, and a later line item then fails (bad transaction_type), the
+    fallback, and a later line item then fails (a broken line), the
     whole statement's needs_attention cleanup must also remove that
     brand-new Merchant — otherwise it survives with zero transactions
     referencing it and shows up as a phantom, unactionable entry in the
@@ -920,7 +920,7 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 6), description="MYSTERY LINE",
-                amount=10.0, currency="EUR", transaction_type="not-a-real-type", category_hint="other_expense",
+                amount=None, currency="EUR", transaction_type="debit", category_hint="other_expense",
             ),
         ],
     )
@@ -979,8 +979,8 @@ async def test_failed_statement_cleanup_keeps_informal_ledger_entries(fk_session
     extracted = ExtractedStatement(statement_period="2026-07", transactions=[
         ExtractedTransaction(transaction_date=_date(2026, 7, 5), description="TRF SEPA+ P/ TEST PERSON", amount=40.0,
                              currency="EUR", transaction_type="debit", category_hint="other_expense"),
-        ExtractedTransaction(transaction_date=_date(2026, 7, 6), description="MYSTERY LINE", amount=10.0,
-                             currency="EUR", transaction_type="not-a-real-type", category_hint="other_expense"),
+        ExtractedTransaction(transaction_date=_date(2026, 7, 6), description="MYSTERY LINE", amount=None,
+                             currency="EUR", transaction_type="debit", category_hint="other_expense"),
     ])
 
     async def fake_extract(file_path, gateway=None):

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 4b (card statements through the intake, wrapper stripped everywhere) deploying; next: 4c, re-reading the missing history.
+**Now (2026-11-19):** step 4c: re-reading statements 2, 22, 33, 51 on the server.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -87,7 +87,11 @@ Reuse: actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MI
   script used (checked to the cent, only new lines stored, the card being the account chosen when filing; with no
   card it waits with a three-part message), so a card statement comes in by upload, email or Telegram and is approved
   in the Inbox like any paper (tested: Rute's statement by Telegram). The Loans upload already used the intake. The
-  bank-download wrapper is now stripped in `receive_file`, the one door every channel uses. Left: c.
+  bank-download wrapper is now stripped in `receive_file`, the one door every channel uses.
+  ◐ c, 2026-11-19 (Claude): documents 22 and 33 had been refused whole because the reader named a line's type in its
+  own words ("atm_withdrawal", "insurance"); such a type is now mapped from its words (the add-up check still catches
+  a wrong guess). Re-reading the four on the server with `scripts/reread_statements.py` (only statements holding no
+  lines yet).
 
 ### Step 5. Shared reading blocks, Health first (C4, with Health "first time right") · L
 Reuse: giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, young project:

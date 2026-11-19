@@ -116,3 +116,12 @@ def test_a_statement_line_the_feed_holds_does_not_take_a_bill_from_its_feed_twin
     reconcile_documents(session)
     session.refresh(bill)
     assert bill.settled_by_id == feed.id                   # the bill is paid by the feed line, the one that counts
+
+
+def test_a_line_type_in_the_readers_own_words_no_longer_refuses_the_whole_statement():
+    from app.categories.financials.handler import line_type
+    assert line_type("atm_withdrawal") == TransactionType.DEBIT          # document 22
+    assert line_type("insurance") == TransactionType.DEBIT               # document 33
+    assert line_type("Credit") == TransactionType.CREDIT
+    assert line_type("salary_received") == TransactionType.CREDIT
+    assert line_type("bank_transfer") == TransactionType.TRANSFER
