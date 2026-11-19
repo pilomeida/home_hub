@@ -20,35 +20,24 @@
         {% endfor %}
       </div>
     </div>
-    <div class="fc-cashflow">
-      {% for month in chart.months %}
-      {% set income_pct = (month.income / chart.max_value * 100) if chart.max_value else 0 %}
-      {% set expense_pct = (month.expense / chart.max_value * 100) if chart.max_value else 0 %}
-      <div class="fc-cf-col" title="{{ month.label }}: income €{{ '{:,.0f}'.format(month.income) }} / expense €{{ '{:,.0f}'.format(month.expense) }}">
-        <div class="fc-cf-bars">
-          <div class="fc-cf-bar income" style="height: {{ income_pct }}%;"></div>
-          <div class="fc-cf-bar expense" style="height: {{ expense_pct }}%;"></div>
-        </div>
-        <div class="fc-cf-month">{{ month.label }}</div>
-      </div>
-      {% endfor %}
+    <div class="chart-pair">
+      <div><div class="chart-title">Income</div>{{ charts.columns(charts_items(chart, 'income'), kind='e', w=560, h=200, title="Income per month") }}</div>
+      <div><div class="chart-title">Expenses</div>{{ charts.columns(charts_items(chart, 'expense'), kind='s', w=560, h=200, title="Expenses per month") }}</div>
     </div>
-    <div class="fc-cf-legend">
-      <span><i style="background:#1f8a4c"></i>Income</span>
-      <span><i style="background:#c0392b"></i>Expenses</span>
-    </div>
+    <p class="hint">A past month: the whole month (pale) and the same month up to day {{ day_of_month() }} (solid). This month: only what has happened so far.</p>
   </div>
 
   <div class="fc-section">
     <div class="fc-section-title">
       <span>Where it went — vs {{ range_label }} average</span>
     </div>
+    <div class="chart-narrow">{{ charts.bars(category_bars(rows), w=640, title="Spending by group: this month so far, last month in full") }}</div>
     <div class="fc-cat-table">
       <div class="fc-cat-head"><div>Category</div><div></div><div style="text-align:right">Current</div><div style="text-align:right">{{ range_label }} avg</div><div style="text-align:right">Δ</div></div>
       {% for row in rows %}
       <a class="fc-cat-row" href="{{ row.drill_down_url }}">
         <div class="fc-cat-name">{{ row.category }}</div>
-        <div class="fc-cat-track"><div class="fc-cat-fill" style="width: {{ row.bar_pct }}%;"></div></div>
+        <div></div>
         <div class="fc-cat-val">€{{ "{:,.0f}".format(row.current_value) }}</div>
         <div class="fc-cat-avg">€{{ "{:,.0f}".format(row.rolling_avg_value) }}</div>
         <div class="fc-cat-delta {{ 'up' if row.delta_pct and row.delta_pct > 0 else 'down' if row.delta_pct and row.delta_pct < 0 else '' }}">{{ "{:+.1f}%".format(row.delta_pct) if row.delta_pct is not none else "—" }}</div>

@@ -65,4 +65,4 @@ def test_electricity_tab_renders_charts(client, session):
     assert "2026-07" in response.text
     assert "401" in response.text
     assert "Consumption per month" in response.text
-    assert "chart-bar-fill" in response.text
+    assert '<svg viewBox="0 0 640 200" class="chart"' in response.text   # the one chart component (step 10a)

@@ -42,5 +42,39 @@ templates.env.filters["friendly_reason"] = friendly_reason
 templates.env.filters["lisbon"] = lisbon_datetime
 templates.env.filters["humanize_key"] = humanize_key
 templates.env.globals["claim_label"] = claim_label
+from app.ui import charts as _charts  # noqa: E402
+templates.env.globals["charts"] = _charts       # the one chart component (PLAN step 10a)
+
+
+def _category_bars(rows):
+    return [_charts.Bar(r.category, r.current_value, getattr(r, "last_month_value", 0.0), r.drill_down_url) for r in rows]
+
+
+def _day_of_month() -> int:
+    from datetime import date
+    return date.today().day
+
+
+from app.services.overview_charts import cash_flow_items as _cash_flow_items  # noqa: E402
+templates.env.globals["charts_items"] = _cash_flow_items
+templates.env.globals["category_bars"] = _category_bars
+templates.env.globals["day_of_month"] = _day_of_month
 templates.env.filters["display_date"] = display_date
 templates.env.filters["display_datetime"] = display_datetime
+
+
+def _utility_items(rows):
+    """A utility series' rows (period label, value or None) as columns; the periods are whole bills, none current."""
+    return [_charts.Item(str(label), float(value)) for label, value in rows if value is not None]
+
+
+def _utility_format(unit: str = "", precision: int = 2):
+    unit = unit or ""
+
+    def fmt(v):
+        return f"{v:,.{precision}f}{unit}"
+    return fmt
+
+
+templates.env.globals["utility_items"] = _utility_items
+templates.env.globals["utility_format"] = _utility_format

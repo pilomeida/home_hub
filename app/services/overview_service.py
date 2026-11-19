@@ -27,6 +27,8 @@ from app.services.overview_charts import (  # noqa: F401 -- re-exported helper r
     TrendChart,
     build_cash_flow_chart,
     build_trend_chart,
+    same_day,
+    trend_items,
     _complete_months_before,
 )
 
@@ -72,6 +74,28 @@ def _monthly_flow_totals(session: Session, today: date) -> tuple[dict[str, float
     return income, expense
 
 
+def _same_day_flow_totals(session: Session, today: date) -> tuple[dict[str, float], dict[str, float]]:
+    """Like `_monthly_flow_totals`, each month counted only up to today's day of the month (PLAN step 10a: a past month
+    is compared like for like with the month so far). The current month is the same as its month-to-date total."""
+    cutoff = _month_start(today) - timedelta(days=31 * (_TREND_MONTHS_BACK + 1))
+    statement = select(Transaction).where(
+        Transaction.paid_date >= cutoff, Transaction.paid_date <= today, Transaction.counts(),
+    )
+    income: dict[str, float] = {}
+    expense: dict[str, float] = {}
+    for t in session.exec(statement):
+        if t.paid_date is None:
+            continue
+        key = _month_key(t.paid_date)
+        if t.paid_date > same_day(key, today):
+            continue
+        if t.transaction_type == TransactionType.CREDIT:
+            income[key] = income.get(key, 0.0) + t.amount
+        elif t.transaction_type == TransactionType.DEBIT:
+            expense[key] = expense.get(key, 0.0) + t.amount
+    return income, expense
+
+
 def _mtd_and_complete(monthly: dict[str, float], today: date) -> tuple[float, dict[str, float]]:
     current_key = _month_key(today)
     mtd = monthly.get(current_key, 0.0)
@@ -101,6 +125,13 @@ def get_flow_kpis(
     all_periods = set(income_complete) | set(expense_complete)
     net_complete = {p: income_complete.get(p, 0.0) - expense_complete.get(p, 0.0) for p in all_periods}
     net_mtd = income_mtd - expense_mtd
+    income_by, expense_by = _same_day_flow_totals(session, today)
+    net_by = {p: income_by.get(p, 0.0) - expense_by.get(p, 0.0) for p in set(income_by) | set(expense_by)}
+
+    def chart(full_complete, by_day, mtd):
+        built = build_trend_chart(full_complete, today, mtd)
+        built.items = trend_items(full_complete, by_day, today, mtd) if built.has_data else []
+        return built
 
     month_start = _month_start(today).isoformat()
     today_iso = today.isoformat()
@@ -109,17 +140,17 @@ def get_flow_kpis(
         KpiCard(
             label="Income", value=income_mtd, color="green",
             drill_down_url=f"/financials/transactions?transaction_type=credit&date_from={month_start}&date_to={today_iso}",
-            chart=build_trend_chart(income_complete, today, income_mtd),
+            chart=chart(income_complete, income_by, income_mtd),
         ),
         KpiCard(
             label="Expenses", value=expense_mtd, color="red",
             drill_down_url=f"/financials/transactions?transaction_type=debit&date_from={month_start}&date_to={today_iso}",
-            chart=build_trend_chart(expense_complete, today, expense_mtd),
+            chart=chart(expense_complete, expense_by, expense_mtd),
         ),
         KpiCard(
             label="Net flow", value=net_mtd, color="green",
             drill_down_url=f"/financials/transactions?date_from={month_start}&date_to={today_iso}",
-            chart=build_trend_chart(net_complete, today, net_mtd),
+            chart=chart(net_complete, net_by, net_mtd),
         ),
     ]
 
@@ -192,6 +223,9 @@ def get_cash_kpi(session: Session, today: date) -> KpiCard:
         if any(t.paid_date and t.paid_date <= _month_end(period) for t in transactions)
     }
     chart = build_trend_chart(monthly, today, now_value)
+    if chart.has_data:                       # each month's balance at its end (tinted) and on today's day (solid)
+        by_day = {p: _cash_balance_as_of(transactions, same_day(p, today)) for p in monthly}
+        chart.items = trend_items(monthly, by_day, today, now_value)
     return KpiCard(
         label="Cash", value=now_value, color="green", drill_down_url="/financials/transactions", chart=chart,
         caption="Net tracked flow since first statement — not a live bank balance",
@@ -306,6 +340,7 @@ class CategoryComparisonRow:
     delta_pct: Optional[float]
     bar_pct: float
     drill_down_url: str
+    last_month_value: float = 0.0     # the last complete month in full: the tinted track of its bar (step 10a)
 
 
 def get_category_comparison(
@@ -356,6 +391,7 @@ def get_category_comparison(
             continue
         delta_pct = round((current_value - rolling_avg) / rolling_avg * 100.0, 1) if rolling_avg else None
         computed.append((cat, current_value, rolling_avg, delta_pct))
+    last_key = _complete_months_before(today, 1)[0]
 
     computed.sort(key=lambda r: r[1], reverse=True)
     max_value = max((r[1] for r in computed), default=0.0)
@@ -368,6 +404,7 @@ def get_category_comparison(
             delta_pct=delta_pct,
             bar_pct=round(current_value / max_value * 100.0, 1) if max_value else 0.0,
             drill_down_url=f"/financials/transactions?category_node={cat}&date_from={month_start}&date_to={today_iso}",
+            last_month_value=round(per_month_category.get((last_key, cat), 0.0), 2),
         )
         for cat, current_value, rolling_avg, delta_pct in computed
     ]
@@ -524,7 +561,8 @@ def get_period_dependent_data(
     two are re-rendered together on every pill click so 'Where it went'
     always reflects the same period as the chart above it."""
     income_monthly, expense_monthly = _monthly_flow_totals(session, today)
-    chart = build_cash_flow_chart(income_monthly, expense_monthly, range_key, today)
+    income_by, expense_by = _same_day_flow_totals(session, today)
+    chart = build_cash_flow_chart(income_monthly, expense_monthly, range_key, today, income_by, expense_by)
     rows = get_category_comparison(session, today, rolling_months=_resolve_lookback_months(range_key, today))
     return chart, rows
 
@@ -554,7 +592,9 @@ def get_overview_data(
     narrative = get_narrative_insight(category_rows) if today.day > 3 else None
 
     income_monthly, expense_monthly = _monthly_flow_totals(session, today)
-    cash_flow_chart = build_cash_flow_chart(income_monthly, expense_monthly, cash_flow_range, today)
+    income_by, expense_by = _same_day_flow_totals(session, today)
+    cash_flow_chart = build_cash_flow_chart(income_monthly, expense_monthly, cash_flow_range, today,
+                                            income_by, expense_by)
     table_category_rows = get_category_comparison(
         session, today, rolling_months=_resolve_lookback_months(cash_flow_range, today)
     )

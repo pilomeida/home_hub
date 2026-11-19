@@ -1,18 +1,13 @@
+{# One utility series through the one chart component (PLAN step 10a): a column per billing period, on the shared
+   scale rule (real axis values, floor from the data, never exaggerated). A period with no value is left out. #}
 {% macro bar_chart(title, chart, unit='', precision=2) %}
-<div class="chart">
+<div class="chart-block">
   <h3>{{ title }}</h3>
-  {% for label, value in chart.rows %}
-  <div class="chart-row">
-    <span class="chart-label">{{ label }}</span>
-    <div class="chart-bar-track">
-      {% if value is not none and chart.max %}
-      {% set raw_pct = value / chart.max * 100 %}
-      {% set width_pct = [[raw_pct, 100] | min, 0] | max %}
-      <div class="chart-bar-fill" style="width: {{ width_pct | round(1) }}%;"></div>
-      {% endif %}
-    </div>
-    <span class="chart-value">{{ ("%." ~ precision ~ "f")|format(value) if value is not none else "—" }}{{ unit }}</span>
-  </div>
-  {% endfor %}
+  {% set items = utility_items(chart.rows) %}
+  {% if items %}
+  {{ charts.columns(items, kind='s', fmt=utility_format(unit, precision), w=640, h=200, title=title) }}
+  {% else %}
+  <p class="hint">Nothing recorded yet.</p>
+  {% endif %}
 </div>
 {% endmacro %}

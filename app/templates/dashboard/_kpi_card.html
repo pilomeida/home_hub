@@ -5,37 +5,8 @@
   {% if card.caption %}
   <div class="fc-card-caption">{{ card.caption }}</div>
   {% endif %}
-  {% if card.chart.has_data %}
-  <div class="fc-bars">
-    <div class="fc-bars-highlight"></div>
-    {% if card.chart.bidirectional %}
-    <div class="fc-bar-area bidirectional">
-      <div class="fc-bidirectional-zero-line"></div>
-      {% for point in card.chart.points %}
-      <div class="fc-bar-slot" title="{{ point.label }}: €{{ '{:,.0f}'.format(point.value) }}">
-        <div class="fc-bar-zone-up">
-          {% if point.direction == 'up' %}<div class="fc-bar {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 20) | round(1) }}px;"></div>{% endif %}
-        </div>
-        <div class="fc-bar-zone-down">
-          {% if point.direction == 'down' %}<div class="fc-bar red {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 20) | round(1) }}px;"></div>{% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="fc-bar-area">
-      {% for point in card.chart.points %}
-      <div class="fc-bar-slot" title="{{ point.label }}: €{{ '{:,.0f}'.format(point.value) }}">
-        <div class="fc-bar {{ 'red' if card.color == 'red' else '' }} {{ 'outline' if point.is_now else '' }}" style="height: {{ (point.height_pct / 100 * 28) | round(1) }}px;"></div>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="fc-bars-zero-line"></div>
-    {% endif %}
-    <div class="fc-bar-plabels">
-      {% for point in card.chart.points %}<div class="fc-bar-plabel">{{ point.label }}</div>{% endfor %}
-    </div>
-  </div>
+  {% if card.chart.has_data and card.chart.items %}
+  <div class="fc-chart">{{ charts.columns(card.chart.items, kind=('e' if card.color == 'green' else 's'), w=300, h=180, title=card.label ~ ": this month so far, and the average month (full, and by today's day)") }}</div>
   {% else %}
   <div class="fc-no-history">No history tracked yet</div>
   {% endif %}

@@ -47,6 +47,7 @@ class TrendChart:
     points: list[TrendPoint] = field(default_factory=list)
     bidirectional: bool = False
     has_data: bool = False
+    items: list = field(default_factory=list)     # what the one chart component draws (PLAN step 10a)
 
 
 def build_trend_chart(
@@ -119,6 +120,9 @@ class CashFlowMonth:
     label: str
     income: float
     expense: float
+    income_by_day: Optional[float] = None     # the month up to the same day of the month as today (step 10a)
+    expense_by_day: Optional[float] = None
+    current: bool = False
 
 
 @dataclass
@@ -133,6 +137,8 @@ def build_cash_flow_chart(
     monthly_expense: dict[str, float],
     range_key: str,
     today: date,
+    income_by_day: Optional[dict[str, float]] = None,
+    expense_by_day: Optional[dict[str, float]] = None,
 ) -> CashFlowChart:
     range_key = range_key if range_key in _VALID_RANGES else "12m"
     if range_key == "ytd":
@@ -140,9 +146,58 @@ def build_cash_flow_chart(
     else:
         periods = _last_n_months_including_current(today, _RANGE_MONTHS[range_key])
 
+    current = f"{today.year:04d}-{today.month:02d}"
     months = [
-        CashFlowMonth(label=p, income=monthly_income.get(p, 0.0), expense=monthly_expense.get(p, 0.0))
+        CashFlowMonth(label=p, income=monthly_income.get(p, 0.0), expense=monthly_expense.get(p, 0.0),
+                      income_by_day=(income_by_day or {}).get(p, 0.0) if income_by_day is not None else None,
+                      expense_by_day=(expense_by_day or {}).get(p, 0.0) if expense_by_day is not None else None,
+                      current=p == current)
         for p in periods
     ]
     max_value = max([m.income for m in months] + [m.expense for m in months] + [0.0])
     return CashFlowChart(months=months, max_value=max_value, range_key=range_key)
+
+
+# --- the chart rule's month data (PLAN step 10a) -----------------------------------------------------------------
+
+def same_day(period: str, today: date) -> date:
+    """The day of `period` ('YYYY-MM') with today's day of the month (its last day when the month is shorter)."""
+    import calendar
+    year, month = (int(p) for p in period.split("-"))
+    return date(year, month, min(today.day, calendar.monthrange(year, month)[1]))
+
+
+def trend_items(full_complete: dict[str, float], by_day_complete: dict[str, float], today: date, mtd_value: float):
+    """The trend card's columns for the one chart component: Now (this month so far, nothing past today) and the
+    averages over the last 1, 3, 6, 12, 18 and 24 complete months, each a full month (tinted) with the same months'
+    value by today's day of the month (solid). The same values as `build_trend_chart`, plus the like-for-like part."""
+    from app.ui.charts import Item
+    items = [Item("Now", round(mtd_value, 2), current=True)]
+    for n in _HORIZONS:
+        periods = [p for p in _complete_months_before(today, n) if p in full_complete]
+        if not periods:
+            continue
+        full = sum(full_complete[p] for p in periods) / len(periods)
+        by = sum(by_day_complete.get(p, 0.0) for p in periods) / len(periods)
+        items.append(Item(_HORIZON_LABELS[n], round(by, 2), full=round(full, 2)))
+    return items
+
+
+def cash_flow_items(chart: "CashFlowChart", which: str):
+    """One side of the cash flow (income or expense) as columns: each past month full with its same-day part, the
+    current month so far only."""
+    from app.ui.charts import Item
+    out = []
+    for m in chart.months:
+        full = getattr(m, which)
+        by = getattr(m, f"{which}_by_day")
+        import calendar
+        label, sub = m.label, ""
+        if len(m.label) == 7:
+            label = calendar.month_abbr[int(m.label[5:7])]
+            sub = m.label[:4] if (not out or m.label.endswith("-01")) else ""
+        if m.current:
+            out.append(Item(label, round(full, 2), current=True, sub=sub))
+        else:
+            out.append(Item(label, round(by if by is not None else full, 2), full=round(full, 2), sub=sub))
+    return out

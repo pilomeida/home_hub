@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 10 (UI redesign, Option A), slice a (step 5 done: in section 4).
+**Now (2026-11-19):** step 10 (UI redesign, Option A), slice b: the shell (10a done).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -93,7 +93,12 @@ and said tweaks will come from using it.
   horizontal bars) on one scale function: real axis values, floor computed from the data and capped at 1.5 times the real
   difference (`MAX_EXAGGERATION`), the current month only as far as it has happened, past months with their full month
   and the value by the same day. Tests: for every existing chart, built from the code that feeds its page, the cap
-  holds, no current-month value is past today, no forecast or budget is drawn. Every chart already on the Hub moves to it.
+  holds, no current-month value is past today, no forecast or budget is drawn. Every chart already on the Hub moves to it. ✅ 2026-11-19 (`app/ui/charts.py`: `make_scale`, columns, history line with
+  trendline and reference band, horizontal bars; `app/static/hub.css`: Option A tokens, card, button, chip, tab,
+  table, three-part message, empty state, and base.html's rules moved in unchanged). The Overview's trend cards,
+  cash flow (now Income and Expenses side by side, each past month full and up to today's day), "Where it went" (this
+  month so far on last month in full) and the Utilities series all draw through it; negative values (net flow) span
+  zero. 316 tests.
 - b. Shell: the menu (Home · Money · Health · Things · Papers · Coming up · Waiting for you (n)), the header (Ask/search,
   Who chip showing Everyone, + Add a paper, the gear, a Problems dot only when something is wrong), the phone bottom bar
   with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today.
