@@ -58,6 +58,38 @@ def guidance(session: Session, limit: int = 6, max_chars: int = 3000) -> str:
     return "\n".join(kept)
 
 
+# Words that name what kind of place a provider is, not which one: left out when telling providers apart.
+_PLACE_WORDS = frozenset({"hospital", "hospitalar", "unidade", "local", "saude", "centro", "laboratorio", "clinica",
+                          "servico", "departamento", "analises", "clinicas", "e", "p", "epe", "sa", "lda", "norte",
+                          "sul", "lisboa", "porto", "medica", "medico", "grupo", "cuf"})
+
+
+def confirmed_providers(session: Session) -> list[str]:
+    """The provider names a person confirmed (with a paper's outline), newest first."""
+    rows = session.exec(select(HealthOutlineProfile).order_by(HealthOutlineProfile.confirmed_at.desc())).all()
+    out: list[str] = []
+    for p in rows:
+        if p.provider and p.provider not in out:
+            out.append(p.provider)
+    return out
+
+
+def _distinctive(name: str) -> set[str]:
+    from app.services.names import name_tokens
+    return {t for t in name_tokens(name) if t not in _PLACE_WORDS and len(t) > 1}
+
+
+def known_provider(read: Optional[str], confirmed: list[str]) -> Optional[str]:
+    """The confirmed name of the provider a reading names, learnt once (PLAN step 5d): every distinctive word of a
+    confirmed name ("Santa Maria") is in the reading's ("Laboratório de Hemodinâmica Cerebral, ... Hospital de Santa
+    Maria"). None when no confirmed provider fits, or when more than one does (then the reading stands)."""
+    if not read:
+        return None
+    words = set(_distinctive(read))
+    fits = [c for c in confirmed if _distinctive(c) and _distinctive(c) <= words]
+    return fits[0] if len(fits) == 1 else None
+
+
 class OutlineError(Exception):
     def __init__(self, problem: Problem, status: int = 400):
         super().__init__(problem.text)

@@ -95,6 +95,7 @@ async def _laid_out(reading, file_path: str) -> ex.ExtractedHealth:
 async def read_health_document(
     file_path: str, paper_kind: Optional[str], *, existing_areas: Sequence[str] = (),
     existing_conditions: Sequence[str] = (), gateway=None, guidance: str = "", second_read: bool = True,
+    known_providers: Sequence[str] = (),
 ) -> ex.ExtractedHealth:
     gw = gateway or get_gateway()
     x = await ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
@@ -102,6 +103,8 @@ async def read_health_document(
     if x.is_bill:                                             # refused by the caller: nothing to check or compare, no more reads
         return x
     await ex.asyncio.to_thread(_settle, x, file_path)         # what the PDF's own layout settles (step 5d)
+    from app.categories.health.outlines import known_provider
+    x.provider = known_provider(x.provider, list(known_providers)) or x.provider     # a provider learnt once
     source = await ex.asyncio.to_thread(ex.paper_text, file_path)       # None for a scan or photo: nothing to check against
     report: CheckReport = check_reading(x, source)
     doubts: list[Doubt] = []

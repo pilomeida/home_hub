@@ -107,7 +107,10 @@ adapt and test well).
   (55/55, it failed every run before); the Doppler (a scan) fails differently each run: the "Conclusões" wrapper
   heading, one conclusion cut short, the hospital's long name. Those are the narrative-findings and provider items left.
   Then: a wrapper heading ("Conclusões") is dropped from every reading, as topics already do; a written finding one
-  reading cut short is completed from the other reading when it is the start of it.
+  reading cut short is completed from the other reading when it is the start of it. A provider is learnt once: a reading
+  whose provider has every distinctive word of a name a person confirmed (with its outline) takes that name. The
+  benchmark now reads as the Hub does, with the confirmed topics, outlines and providers (`--fresh` without them;
+  Claude, 2026-11-19; Pedro may change: the Doppler's own outline is among those confirmed).
   A history point printed on several papers shows once on a person's results (5b) while each paper keeps what it
   printed (Claude; Pedro may change). Left: narrative findings as a structure of their own; Pedro's corrections
   kept per provider; grey bands (pypdf gives no shading; needs another reader).

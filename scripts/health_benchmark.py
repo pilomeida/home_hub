@@ -2,6 +2,8 @@
 
 Run on the VPS (it needs the gateway), from the app folder, as the app's user:
     python scripts/health_benchmark.py run [--case NAME]      # exit code 1 if any case fails
+    python scripts/health_benchmark.py run --fresh            # without what the Hub has learnt (outlines, providers)
+A run reads like the Hub does (step 5d): with the topics, outlines and providers a person confirmed.
     python scripts/health_benchmark.py promote DOCUMENT_ID NAME    # make a paper in the Hub a benchmark case
 The papers live in data/health_benchmark/ (git-ignored: real health papers). Every reading goes out at house_high."""
 
@@ -20,16 +22,28 @@ from app.categories.health import benchmark  # noqa: E402
 from app.categories.health.reading import read_health_document  # noqa: E402
 
 
-async def _run(only):
+def _what_the_hub_knows(fresh: bool) -> dict:
+    """What the Health reader is given in production (app/categories/health/handler.py), or nothing with --fresh."""
+    if fresh:
+        return {}
+    from app.categories.health import areas, outlines
+    with Session(engine) as session:
+        return {"existing_areas": areas.names_for_prompt(session, "area"),
+                "existing_conditions": areas.names_for_prompt(session, "condition"),
+                "guidance": outlines.guidance(session), "known_providers": outlines.confirmed_providers(session)}
+
+
+async def _run(only, fresh=False):
     cases = benchmark.load_cases(only=only)
     if not cases:
         print("No benchmark cases (data/health_benchmark/<case>/paper.* + expected.json).")
         return 2
     failed = 0
+    known = _what_the_hub_knows(fresh)
     for name, paper, expected in cases:
         started = time.time()
         try:
-            actual = await read_health_document(str(paper), None)
+            actual = await read_health_document(str(paper), None, **known)
         except Exception as exc:                      # a case that cannot be read is a failure, not a crash
             print(f"FAIL {name}: could not be read: {type(exc).__name__}: {exc}")
             failed += 1
@@ -52,6 +66,7 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run")
     run.add_argument("--case")
+    run.add_argument("--fresh", action="store_true")
     promote = sub.add_parser("promote")
     promote.add_argument("document_id", type=int)
     promote.add_argument("name")
@@ -61,7 +76,7 @@ def main():
             folder = benchmark.promote(session, args.document_id, args.name)
         print(f"Written to {folder}. Check expected.json against the paper, then set \"reviewed\": true.")
         return 0
-    return asyncio.run(_run(args.case))
+    return asyncio.run(_run(args.case, args.fresh))
 
 
 if __name__ == "__main__":

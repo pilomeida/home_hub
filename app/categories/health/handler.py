@@ -27,7 +27,7 @@ class HealthHandler(CategoryHandler):
             document.file_path, document.paper_kind,
             existing_areas=areas_svc.names_for_prompt(session, "area"),
             existing_conditions=areas_svc.names_for_prompt(session, "condition"),
-            guidance=outlines.guidance(session))
+            guidance=outlines.guidance(session), known_providers=outlines.confirmed_providers(session))
         if extracted.is_bill:               # a bill, receipt or reimbursement statement belongs under Bills, not Health
             raise HealthExtractionError(
                 "This looks like a bill or receipt, so it is not filed under Health. "

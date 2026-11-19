@@ -99,3 +99,15 @@ def test_a_report_drops_its_wrapper_heading_and_a_cut_short_finding_is_completed
     sheet = ExtractedHealth(layout="sheet", measurements=[_m("Glucose", f"Resultados{PATH_SEP}Bioquímica", 90)])
     drop_wrappers(sheet)
     assert sheet.measurements[0].group_path == "Bioquímica"                       # same rule as topics, any layout
+
+
+def test_a_provider_is_learnt_once_from_the_confirmed_names():
+    from app.categories.health.outlines import known_provider
+    hsm = "Hospital de Santa Maria, Unidade Local de Saúde de Santa Maria, E.P.E."
+    lab = "Laboratório de Análises Clínicas Cintramédica"
+    read = ("Laboratório de Hemodinâmica Cerebral, Serviço de Neurologia, Unidade Local de Saúde de Santa Maria, "
+            "E.P.E. - Hospital de Santa Maria")
+    assert known_provider(read, [hsm, lab]) == hsm
+    assert known_provider("Cintramédica Mafra", [hsm, lab]) == lab
+    assert known_provider("Hospital da Luz", [hsm, lab]) is None
+    assert known_provider("Hospital de Santa Maria", ["Hospital de Santa Maria", "Clínica Santa Maria"]) is None  # two fit
