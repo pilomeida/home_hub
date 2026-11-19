@@ -175,6 +175,7 @@ brackets); tick off here when done.
 | Tier for the Privatemode rows gpt-oss-120b and deepseek-ocr-2 (2026-10-15) | More High models |
 | Google Calendar set-up for Health appointments (`docs/SYSADMIN.md`, "Google Calendar") | Step 7c bookings |
 | Matias's loan: reconcile where it stands (he parked it, 2026-11-03) | — |
+| The live smoke test together: a Telegram upload, an emailed bill, approve, discard, a duplicate, a stranger's message; and a few real Ask questions (2026-10-28) | Confidence in the channels |
 
 ---
 
@@ -191,7 +192,10 @@ brackets); tick off here when done.
 - Known behaviours kept on purpose: bulk-classify totals include held lines; a bank printing only daily balances flags
   the whole broken day; statements with no balances stay "unverified".
 - Check on the next real email that a signature logo lands under "Not added" and a real photo is kept.
-- A web-upload retry queue.
+- A web-upload retry queue; a plain message when an upload is over 100 MB, checked before it is sent.
+- Tidy Health topics no paper uses any more; dates in insurance descriptions as yyyy-mm-dd.
+- Link Matias's future transfers to his loan (not every transfer is a loan: a rule a person confirms, after step 2).
+- Check the unexplained `matias` entry in the server's linger list.
 
 ---
 
