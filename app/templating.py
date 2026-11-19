@@ -32,6 +32,8 @@ from app.problems import open_count as _open_problem_count  # noqa: E402
 templates.env.globals["open_problem_count"] = _open_problem_count
 from app.services.to_check import menu_count as _to_check_count  # noqa: E402
 templates.env.globals["to_check_count"] = _to_check_count
+from app.services.review import menu_count as _waiting_count  # noqa: E402
+templates.env.globals["waiting_count"] = _waiting_count
 
 # Shared presentation filters (app/services/presentation.py) -- the one
 # place a technical failure reason, an internal claim key, or a raw

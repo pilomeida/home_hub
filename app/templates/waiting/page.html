@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Waiting for you{% endblock %}
+{% block content %}
+<h1>Waiting for you</h1>
+<nav class="subnav">
+  <a href="/waiting"{% if not area %} class="active"{% endif %}>All ({{ counts.values()|sum }})</a>
+  {% for key, label in areas.items() %}{% if counts.get(key) %}
+  <a href="/waiting?area={{ key }}"{% if area == key %} class="active"{% endif %}>{{ label }} ({{ counts[key] }})</a>
+  {% endif %}{% endfor %}
+</nav>
+{% for c in cards %}{% include "waiting/_item.html" %}{% else %}
+<p>Nothing is waiting for you{% if area %} in {{ areas[area] }}{% endif %}.</p>
+{% endfor %}
+{% endblock %}

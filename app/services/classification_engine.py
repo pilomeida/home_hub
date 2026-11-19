@@ -240,11 +240,14 @@ async def classify_transaction(
                 # and the merchant waits in Needs Review instead of being filed on a doubtful guess.
                 from app.models.rule import AI as AI_SOURCE, COUNTERPARTY, EXACT
                 from app.services import rules
-                rules.remember(session, looks_at=COUNTERPARTY, how=EXACT, pattern=resolved.canonical_name,
-                               source=AI_SOURCE, node_id=get_node(session, resolved.node_slug).id,
-                               merchant=resolved.canonical_name, confidence=resolved.confidence,
-                               enabled=not doubtful, example=transaction.description,
-                               note=f"Suggested by the AI ({resolved.confidence:.0%} sure)")
+                ai_rule = rules.remember(session, looks_at=COUNTERPARTY, how=EXACT, pattern=resolved.canonical_name,
+                                         source=AI_SOURCE, node_id=get_node(session, resolved.node_slug).id,
+                                         merchant=resolved.canonical_name, confidence=resolved.confidence,
+                                         enabled=not doubtful, example=transaction.description,
+                                         note=f"Suggested by the AI ({resolved.confidence:.0%} sure)")
+                if doubtful:                       # it waits for a person on "Waiting for you" (PLAN step 3)
+                    from app.services.review import ai_rule_item
+                    ai_rule_item(session, ai_rule)
             if doubtful:
                 resolved_node_slug = UNSORTED_SLUG
             merchant = Merchant(

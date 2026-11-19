@@ -295,6 +295,7 @@
     <a href="/">Overview</a>
     <a href="/ask">Ask</a>
     <a href="/inbox">Inbox</a>
+    {% set n_waiting = waiting_count() %}<a href="/waiting">Waiting for you{% if n_waiting %} ({{ n_waiting }}){% endif %}</a>
     {% set n_check = to_check_count() %}{% if n_check %}<a href="/to-check">To check ({{ n_check }})</a>{% endif %}
     {% for spec in category_nav() %}
     <div class="nav-group">

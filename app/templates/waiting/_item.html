@@ -1,0 +1,9 @@
+<div class="domain-card" id="review-{{ c.item.id }}" style="margin-bottom:12px">
+  <div><span class="badge">{{ c.area_label }}</span> <strong>{{ c.item.title }}</strong></div>
+  <p style="margin:6px 0">{{ c.item.why }}{% if c.item.evidence_url %} <a href="{{ c.item.evidence_url }}">See it</a>{% endif %}</p>
+  <form hx-post="/waiting/{{ c.item.id }}" hx-target="#review-{{ c.item.id }}" hx-swap="outerHTML">
+    {% for o in c.options %}<button type="submit" name="answer" value="{{ o.value }}">{{ o.label }}</button> {% endfor %}
+    <button type="submit" name="answer" value="snooze">Ask me in a week</button>
+    <label style="margin-left:8px"><input type="checkbox" name="remember" value="1" checked> Remember this answer</label>
+  </form>
+</div>

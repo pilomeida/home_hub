@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 3 (one review queue, "Waiting for you"), slice a: the `review_items` table.
+**Now (2026-11-19):** step 3a (Waiting for you, first producer) deploying; next: 3b, moving the other review points onto it.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -77,6 +77,12 @@ Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).
 - c. One "Waiting for you" count in the menu, replacing the separate counters; the page filters by area (Money,
   Health, Inbox…) (Pedro, 2026-11-19: one count, filters inside).
 - Done when: one count, and every decision stamps who and when.
+- ◐ a, 2026-11-19 (Claude): the `review_items` table, the "Waiting for you" page (`/waiting`, filters by area, an
+  "Ask me in a week" snooze of 7 days, "Remember this answer" ticked by default) and its count in the menu are live.
+  First thing moved onto it: step 2's AI answers saved switched off (the engine opens the item the moment it saves
+  one; "Yes" files the waiting entries and, remembered, makes it a person's rule; "No" leaves them in Needs review).
+  Left: b (Needs Review merchants, To-check lines, the Health queues, Inbox "Same person?") and c (the separate
+  counters go once their queues are moved).
 
 ### Step 4. Statements against the bank feed, then the missing history (C5) · M
 Reuse: actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MIT, the idea ported).
