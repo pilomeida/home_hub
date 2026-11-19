@@ -14,13 +14,43 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** nothing in progress. Next: step 1, search over papers and "Other paper".
+**Now (2026-11-19):** nothing in progress. Next: step 1, search over papers and "Other papers".
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
 dated; a slice that starts sets "Now"; a slice that lands is marked in its step (✅ date and commit, or ◐ with what is
 left), and a finished step moves to section 4. Every commit touching Hub code carries this file (a hook refuses
 one that does not; "PLAN-EXEMPT: <reason>" only for work no step covers). Rules in `CLAUDE.md`.
+
+**Running it without Pedro (2026-11-19).** `/goal execute PLAN.md` runs section 1's steps in order, 1 → 9, slice
+by slice (the lettered items), with no input from Pedro. What it may do, what it decides, and when it stops:
+- **Authority.** Pedro's standing OK (2026-11-04) plus this section: commit, push and deploy each green slice; run
+  one-off scripts on the server under the protocol below; refresh the dashboard when a step finishes.
+- **Each slice:** tests first (test data from the production path; privacy tripwires for any new reader), the
+  targeted tests green, commit with PLAN.md updated, deploy (`git subtree push --prefix="Home & Family" home_hub main`;
+  the suite gates it), then check the live Hub: health page answers, journal clean, Problems page has nothing new.
+- **Server scripts** (filling text, re-reading statements, merging pages): the nightly backup plus a named copy
+  first; a dry run whose output is read; apply only when it changes nothing outside the slice's scope; check after;
+  record counts in the step.
+- **Decides on its own** every technical choice, recorded in the step as "(Claude, date)". Defaults already taken:
+  FTS5 with diacritics folded (Portuguese); a paper with no text is read by the AI at its own level, in batches; AI
+  rules below confidence 0.8 are saved switched off; review items snooze for 7 days; statement-to-feed matching
+  within 3 days; lab test names: exact alias, then a near match of at least 0.9 (Python's difflib, no new
+  dependency); Identity papers suggested High, contracts, letters, vehicles and education Mid; expiry reminders 60
+  days ahead for passports and ID cards, 30 days for the rest; Health follow-up to-dos 14 days ahead.
+- **Pedro's answers that set what the family sees** are written into steps 1, 3 and 6 (2026-11-19). A new question
+  of that kind that is not answered here: take the choice that follows the existing pages, record it as "(Claude,
+  date; Pedro may change)", and list it at the end of the run.
+- **Not in the run:** step 2f (jev). Section 2 does not block: step 5 aims at the two benchmark cases on file
+  (`cintramedica-lab-2024-11`, `hsm-doppler-2026-03`) and takes more when Pedro sends them; step 7c is built without
+  the calendar. The files step 4c re-reads are on the server (documents 2, 22, 33; Revolut 2022-08 → 2026-08 is
+  document 51).
+- **Stops and asks Pedro only when:** a deploy or migration fails twice; a dry run would change or remove data
+  outside its slice; a live balance, loan or budget total moves by more than a cent without the slice explaining
+  it; anything would let a High or Health paper reach a lower route; a test would have to be weakened to pass; an
+  AI step would cost more than €5 (the gateway's spend guard also refuses); the other session's uncommitted work
+  would be overwritten.
+- **Resuming:** the "Now" line is where a run picks up after a break or a context reset.
 
 **How a step is done.** Each step ships as green slices: tests, commit, deploy, then any one-off script on the server.
 "Done when" names what a test shows. IDs in brackets are the old work list's (A–E), so code comments saying
@@ -37,7 +67,7 @@ accuracy work, then Health reading, subjects in the wiki, Health conditions (a c
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
 
-### Step 1. Search over papers, and "Other paper" for anything else (E2) · L
+### Step 1. Search over papers, and "Other papers" for anything else (E2) · L
 Reuse: icereed/paperless-gpt `default_prompts/` (MIT: title, date and kind prompts); paperless-ngx's "the PDF's own
 text first" (idea).
 - a. A text layer for every paper: `paper_texts` (paper, text, how it was got: `pdf_text` or `ai_read`), filled at
@@ -45,11 +75,12 @@ text first" (idea).
   it for the papers on file.
 - b. Search: SQLite FTS5 over that text plus title and fields; `search_papers` replaces the word-match in Ask's
   `find_sources`, inside `reachable_scope` (tripwire test).
-- c. The catch-all kind "Other paper" (its own category, suggested Mid): its reader writes title, date, summary and
+- c. The catch-all "Other papers" (its own category, named by Pedro 2026-11-19; suggested Mid): its reader writes title, date, summary and
   who or what it is about. The Inbox offers it when nothing else fits. The papers waiting in the Inbox for a category
   (contracts 144, 169, 170; bank letters 165–167; diploma 164) can be filed here now and moved when step 8 gives them
   their own.
-- d. A search box on the menu: results with the paper, its level and the line that matched.
+- d. A search box in the top menu of every page (Pedro, 2026-11-19); results open on their own page with the paper,
+  its level and the line that matched.
 - e. A file type the Hub does not take (the Via Verde CSV) is listed under "Not added" instead of dropped silently.
 - Done when: an unknown paper is uploaded, approved and found by a word inside it, from the page and from Ask; a High
   paper never reaches a lower call.
@@ -68,7 +99,8 @@ Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` 
   uploads go through the same recognition.
 - e. A provider written two ways ("amigo (Vodafone)", "amigo (Vodafone Portugal)") resolves through a rule to one
   merchant instead of making a new one each time.
-- f. Optional, after a–e: benchmark jev (typed answers with probabilities, on OpenRouter) against the current pairing
+- f. Optional, not part of an autonomous run (a new adapter in the gateway repository and a new paid service):
+  benchmark jev (typed answers with probabilities, on OpenRouter) against the current pairing
   on two or three narrow decisions (kind of paper, spending leaf, which bank line paid a bill): accuracy, EUR, speed;
   keep, try or drop. It would be a new llmsel adapter, Low and Mid only, deciding on facts already read (less
   accurate above ~32 KB), and it gives no reasons, so the "why" comes from the Hub's facts. API still alpha.
@@ -82,7 +114,8 @@ Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).
 - b. Move the review points onto it one by one: Needs Review (1,430 merchants unconfirmed on 2026-10-28), To-check
   lines, the Health queues (areas, people, topics, outline confirmation), Inbox "Same person?", step 2's waiting
   rules.
-- c. One "Waiting for you" count in the menu, replacing the separate counters.
+- c. One "Waiting for you" count in the menu, replacing the separate counters; the page filters by area (Money,
+  Health, Inbox…) (Pedro, 2026-11-19: one count, filters inside).
 - Done when: one count, and every decision stamps who and when.
 
 ### Step 4. Statements against the bank feed, then the missing history (C5) · M
@@ -122,8 +155,9 @@ adapt and test well).
 - b. One provider written two ways becomes one subject with aliases, so its facts stop flip-flopping; the two Telecom
   pages (Amigo, Vodafone Portugal) merge, and the duplicate keys (provider/Provider, category/Category) fold together.
 - c. (C7) The same spending question gives the same number on the Overview, Ask and the budget; the wiki's names are
-  per category; the orphan check is fixed while links are rare. One language for wiki guidance and Health areas
-  (today summaries follow the paper's language, the guidance is English).
+  per category; the orphan check is fixed while links are rare. Language (Pedro, 2026-11-19): areas, topics and
+  wiki guidance in English; each paper's own summary and wording stay in its language, shown as printed. Existing
+  Portuguese area and topic names get English names, the Portuguese kept as an alias.
 - Done when: Rute's facts are found from her subject, whichever page holds them; Amigo's provider fact keeps one value
   across bills.
 
@@ -147,7 +181,7 @@ Reuse: sysadminsmedia/homebox's "a thing with typed fields and attachments" (AGP
 - a. Identity & Legal: ID card, passport, driving licence, residence papers, wills; holder (a subject), number,
   expiry; a reminder before expiry; suggested High.
 - b. Contracts and letters: contracts (telecom, service agreement, NDA) and bank letters (the Handelsbanken FATCA/CRS
-  letters) move out of "Other paper" into their own kinds, each with a level on the Privacy page.
+  letters) move out of "Other papers" into their own kinds, each with a level on the Privacy page.
 - c. Vehicles: the car as a subject; insurance, inspection (IPO), road tax (IUC), service; reminders.
 - d. Education: school papers per child, diplomas; dates and fees into Coming up.
 - Done when: a passport is uploaded, read, and its expiry reminder appears on To-Dos and reaches the phone once.
@@ -177,11 +211,11 @@ brackets); tick off here when done.
 | Approve the proposed Health areas, people and topics from papers 199 and 200 (2026-10-28) | Moves into the step-3 queue once built |
 | Payee names for the numbers in `docs/unnamed-payment-entities.md` (2026-10-28) | Step 2 rules |
 | Configure `/privacy`; decide "Levels are binding" and "Hide personal details"; whether Ask and the wiki check may read High papers (2026-10-15) | Levels enforced everywhere |
-| Four Inbox papers: AEG appliances invoice (100, needs an item name), social-security notification (160), IRS receipt (168), paid 2022 IUC notice (161) (2026-10-18) | Filing; step 1 can take them as "Other paper" |
+| Four Inbox papers: AEG appliances invoice (100, needs an item name), social-security notification (160), IRS receipt (168), paid 2022 IUC notice (161) (2026-10-18) | Filing; step 1 can take them as "Other papers" |
 | Whether the insurance booklets (CPAP/CGAP, 48–59 pages) should be read, not just filed (2026-10-18) | — |
 | Re-point the gateway's `hub/classification` pairing to a cheap model (reclassify ~1 min per merchant) (2026-10-06) | Faster sorting |
 | Tier for the Privatemode rows gpt-oss-120b and deepseek-ocr-2 (2026-10-15) | More High models |
-| Google Calendar set-up for Health appointments (`docs/SYSADMIN.md`, "Google Calendar") | Step 7c bookings |
+| Google Calendar set-up for Health appointments (`docs/SYSADMIN.md`, "Google Calendar") | Step 7c bookings reach the calendar (7c is built without it) |
 | Matias's loan: reconcile where it stands (he parked it, 2026-11-03) | — |
 | The live smoke test together: a Telegram upload, an emailed bill, approve, discard, a duplicate, a stranger's message; and a few real Ask questions (2026-10-28) | Confidence in the channels |
 
