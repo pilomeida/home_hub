@@ -123,5 +123,24 @@ def person_spending_rule(session: Session, *, description: Optional[str] = None,
     return None
 
 
-__all__ = ["remember_merchant", "person_spending_rule", "SPENDING", "MERCHANT", "PAPER_KIND", "PERSON", "AI", "SYSTEM", "CONTAINS", "EXACT", "KEY", "PREFIX",
+def merchant_alias(session: Session, name: Optional[str]) -> Optional[str]:
+    """The counterparty this name is another spelling of (PLAN step 2e: "amigo (Vodafone Portugal)" ->
+    "Amigo (Vodafone)"), from a rule whose answer is a different merchant name; None when it is its own."""
+    from app.models.rule import COUNTERPARTY
+    for rule in candidates(session, MERCHANT, {COUNTERPARTY: name}):
+        if rule.merchant and rule.merchant.strip().lower() != (name or "").strip().lower():
+            return rule.merchant
+    return None
+
+
+def remember_alias(session: Session, spelling: str, merchant: str, *, by: Optional[str] = None) -> Optional[Rule]:
+    """A person said this spelling is that counterparty (a merge). Does not commit."""
+    from app.models.rule import COUNTERPARTY
+    if not spelling or spelling.strip().lower() == merchant.strip().lower():
+        return None
+    return remember(session, looks_at=COUNTERPARTY, how=EXACT, pattern=spelling, source=PERSON, by=by,
+                    merchant=merchant, example=spelling, note="Another spelling of this merchant (merged by a person)")
+
+
+__all__ = ["merchant_alias", "remember_alias", "remember_merchant", "person_spending_rule", "SPENDING", "MERCHANT", "PAPER_KIND", "PERSON", "AI", "SYSTEM", "CONTAINS", "EXACT", "KEY", "PREFIX",
            "REGEX", "find", "candidates", "matches", "ordered", "remember"]

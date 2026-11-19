@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 2c (doubtful AI answers saved switched off) deploying; next: d (a paper's kind decided once), e (one merchant for a provider written two ways).
+**Now (2026-11-19):** step 2e (one merchant for a provider written two ways) deploying; next: d (a paper's kind decided once).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -103,7 +103,11 @@ Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` 
   ◐ c, 2026-11-19 (Claude): the merchant AI now states how sure it is; a new merchant's AI answer is saved as an AI
   rule, switched off below 0.8, and then the merchant waits in Needs Review instead of being filed on a guess; an
   answer with no stated confidence keeps today's behaviour. Left: AI calls in batches with an index per item.
-  Left in step 2: payment entities and the supermarket list into the table; the rest of c; d; e.
+  ✅ e, 2026-11-19 (Claude): before a new merchant is made, the engine asks the rules whether the name is another
+  spelling of a known counterparty; merging merchants writes each merged spelling as a person's rule (tested with
+  "Amigo (Vodafone Portugal)" → "Amigo (Vodafone)"). The live Amigo / Amigo EasyPay / Vodafone Portugal merchants
+  are left as they are: their merge is step 6b's subject merge.
+  Left in step 2: payment entities and the supermarket list into the table; the rest of c; d.
 
 ### Step 3. One review queue: "Waiting for you" (C1) · L
 Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).

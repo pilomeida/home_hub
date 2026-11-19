@@ -221,6 +221,10 @@ async def classify_transaction(
                 is_credit=transaction.transaction_type == TransactionType.CREDIT,
             )
         resolved_node_slug = resolved.node_slug
+        from app.services import rules
+        alias = rules.merchant_alias(session, resolved.canonical_name)     # another spelling of a known counterparty
+        if alias:
+            resolved.canonical_name = alias
         existing = find_merchant_by_name(session, resolved.canonical_name)
         if existing is not None:
             # The counterparty is already known under another description: this text becomes an alias of

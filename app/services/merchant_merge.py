@@ -55,7 +55,7 @@ class MergeReport:
 
 
 def merge_merchants(session: Session, source_ids: list[int], target_id: int, *,
-                    new_name: Optional[str] = None, dry_run: bool = False) -> MergeReport:
+                    new_name: Optional[str] = None, dry_run: bool = False, by: Optional[str] = None) -> MergeReport:
     target = resolve_merchant(session, session.get(Merchant, target_id))
     if target is None:
         raise ValueError(f"merchant {target_id} not found")
@@ -81,8 +81,14 @@ def merge_merchants(session: Session, source_ids: list[int], target_id: int, *,
             session.add(earlier)
     if ids:
         session.execute(text(f"UPDATE transactions SET merchant_id = :t WHERE merchant_id IN ({marks})"), {"t": target.id})
+    old_target_name = target.canonical_name
     if new_name:
         target.canonical_name = new_name
         session.add(target)
+    # Each merged spelling is remembered as a person's rule (PLAN step 2e), so the AI naming it that way again
+    # finds this merchant instead of making a new one.
+    from app.services import rules
+    for spelling in {m.canonical_name for m in sources} | ({old_target_name} if new_name else set()):
+        rules.remember_alias(session, spelling, target.canonical_name, by=by)
     session.commit()
     return report

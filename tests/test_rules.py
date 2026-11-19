@@ -155,3 +155,38 @@ def test_a_doubtful_ai_answer_is_saved_switched_off_and_the_line_waits_for_revie
 def test_a_sure_ai_answer_is_saved_switched_on_and_files_the_line(session, levels_not_binding):
     t, rule = _classify_new(session, "LOJA NOVA LDA", 0.93)
     assert rule.enabled and t.category_id == get_node(session, REST).id
+
+
+# --- e. one merchant for a provider written two ways --------------------------------------------------------
+
+def test_a_provider_written_two_ways_resolves_to_one_merchant_through_a_rule(session, levels_not_binding):
+    from app.models.merchant import Merchant
+    ensure_taxonomy(session)
+    known = _merchant(session, "Amigo (Vodafone)", "housing.utilities.telecom", confirmed=True)
+    rules.remember_alias(session, "Amigo (Vodafone Portugal)", "Amigo (Vodafone)", by="p@x")
+    session.commit()
+    import asyncio, json
+    from app.models.document import Document, DocumentSource
+    from app.models.transaction import Transaction
+    from app.services.classification_engine import classify_transaction
+    from tests.fakes.fake_gateway import FakeGateway, gateway_text_result
+    reply = {"canonical_name": "Amigo (Vodafone Portugal)", "node_slug": "housing.utilities.telecom",
+             "nature": "essential", "confidence": 0.95}
+    doc = Document(filename="s.pdf", file_path="/tmp/s.pdf", content_hash="h-amigo", source=DocumentSource.MANUAL)
+    session.add(doc); session.commit()
+    t = Transaction(document_id=doc.id, description="AMIGO VODAFONE PT 0042", amount=15.0,
+                    transaction_type=TransactionType.DEBIT)
+    session.add(t); session.commit()
+    result = asyncio.run(classify_transaction(session, t, gateway=FakeGateway([gateway_text_result(json.dumps(reply))])))
+    assert result.merchant.id == known.id and not result.created_new_merchant
+    assert session.exec(select(Merchant).where(Merchant.merged_into_id.is_(None))).all() == [known]
+
+
+def test_merging_merchants_remembers_each_spelling(session):
+    from app.services.merchant_merge import merge_merchants
+    ensure_taxonomy(session)
+    keep = _merchant(session, "Amigo (Vodafone)")
+    other = _merchant(session, "Amigo EasyPay")
+    merge_merchants(session, [other.id], keep.id, by="pedro@example.com")
+    assert rules.merchant_alias(session, "AMIGO EASYPAY") == "Amigo (Vodafone)"
+    assert rules.merchant_alias(session, "Amigo (Vodafone)") is None
