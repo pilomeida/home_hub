@@ -39,9 +39,6 @@ def test_bill_schema_does_not_require_parser_defaulted_keys():
     _validate(extraction._BILL_SCHEMA, {"provider": "EDP"})
 
 
-# --- _CLASSIFICATION_SCHEMA: parser indexes document_type directly -------
-
-
 # --- _STATEMENT_SCHEMA: currency/category_hint defaulted by parser -------
 
 

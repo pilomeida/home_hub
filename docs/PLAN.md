@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 2d (a paper's kind decided once) deploying; next: payment entities and the supermarket list into the rules table.
+**Now (2026-11-19):** step 2, last two items (entities and supermarket list into `rules` with a merchant-key column; batched AI calls).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -112,7 +112,11 @@ Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` 
   upload with no kind gets the Inbox's own decision once (a person's recognition rule first, then the same
   classifier limited to Money & Bills). Health keeps its design: its reading proposes the kind
   (`reading_proposes_kind`).
-  Left in step 2: payment entities and the supermarket list into the table; AI calls in batches (rest of c).
+  Left in step 2 (◐, Claude 2026-11-19): (1) the payment entities and the supermarket list into the table. Both are
+  Pedro's rulings and already rank right (a person's rule on the bank text overrides either; the supermarket list
+  keeps its place above a confirmed merchant); moving them needs a merchant-key column on `rules` so the merchants
+  they made keep their keys. (2) AI calls in batches with an index per item (rest of c): one call per new merchant
+  today; batching means restructuring the bank sync's classification pass.
 
 ### Step 3. One review queue: "Waiting for you" (C1) · L
 Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).
