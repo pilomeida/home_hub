@@ -15,6 +15,7 @@ from app.categories.health import areas as areas_svc
 from app.categories.health.kinds import LEGACY_KINDS, LEGACY_LABELS
 from app.categories.health import browse, outlines, people as people_svc, store
 from app.categories.health import topics as topics_svc
+from app.categories.health import tests as tests_svc
 from app.categories.health.text import PATH_SEP, match_key, reference_for_display
 from app.categories.registry import document_url, get_spec
 from app.services.wiki_engine import withdraw_from_wiki
@@ -384,6 +385,19 @@ async def area_merge(request: Request, area_id: int, into: Optional[str] = Form(
 @router.get("/people")
 async def people_page(request: Request, session: Session = Depends(get_session)):
     return _people_page(request, session)
+
+
+@router.get("/people/{person_id}/results")
+async def person_results(request: Request, person_id: int, session: Session = Depends(get_session)):
+    """One person's lab results, one line per test whatever lab printed it (step 5b)."""
+    from app.models.health import HealthPerson
+    person = session.get(HealthPerson, person_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail={
+            "what": "Nothing to show.", "why": "That person is no longer listed (perhaps merged into someone else).",
+            "next_step": "Go back to People and open them from there."})
+    return templates.TemplateResponse(request, "health/results.html",
+                                      {"person": person, "lines": tests_svc.results_of(session, person_id)})
 
 
 @router.post("/people/{person_id}/confirm")

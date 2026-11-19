@@ -77,6 +77,7 @@ class HealthMeasurement(SQLModel, table=True):
     test: str
     test_key: str = Field(default="", index=True)
     topic_id: Optional[int] = Field(default=None, foreign_key="health_topics.id", index=True)
+    test_id: Optional[int] = Field(default=None, foreign_key="health_tests.id", index=True)   # the known test (step 5b)
     value: Optional[float] = None
     value_text: Optional[str] = None
     unit: Optional[str] = None
@@ -106,6 +107,36 @@ class HealthTopic(SQLModel, table=True):
     approved: bool = Field(default=False)
     merged_into_id: Optional[int] = Field(default=None, foreign_key="health_topics.id")
     similar_to_id: Optional[int] = Field(default=None, foreign_key="health_topics.id")   # "looks like X": a suggestion only
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HealthTest(SQLModel, table=True):
+    """A known lab test ("Hemoglobina" in g/dL), whatever wording each lab prints it with (PLAN step 5b). The same
+    test from two labs is one HealthTest, so it lands on one line of a person's results. A new one waits for a
+    person ("Waiting for you"): approve it as new, or say it is the test it looks like."""
+    __tablename__ = "health_tests"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    unit: Optional[str] = None
+    unit_key: str = Field(default="", index=True)
+    approved: bool = Field(default=False)
+    merged_into_id: Optional[int] = Field(default=None, foreign_key="health_tests.id")
+    similar_to_id: Optional[int] = Field(default=None, foreign_key="health_tests.id")    # "looks like X": a suggestion
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HealthTestAlias(SQLModel, table=True):
+    """One wording a paper printed for a test, in one unit: how the next paper's wording finds its test."""
+    __tablename__ = "health_test_aliases"
+    __table_args__ = (UniqueConstraint("wording_key", "unit_key", name="uq_health_test_aliases_wording_unit"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    test_id: int = Field(foreign_key="health_tests.id", index=True)
+    wording: str                                        # as printed, for display
+    wording_key: str = Field(index=True)
+    unit_key: str = Field(default="")
+    source: str = "system"                              # "system" (first seen / near match) | "person" (a merge)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

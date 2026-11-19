@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice b: lab values matched to known tests (5a done).
+**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice c: one check-result shape (5a, 5b done).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -74,10 +74,16 @@ adapt and test well).
   one error type. ✅ 2026-11-19 (`app/services/reading.py`: every reader's error is a `ReadingError`; files over
   25 MB refused before upload with a plain reason; bill, statement, utility, Health, Other and warranty readers
   understand `1.234,56` and `05/03/2025`). Benchmark before: 0/2, failures already there (headings under the
-  A1c and CRP blocks, one RDW reference, one Doppler conclusion and provider name): 5b and 5d's work.
+  A1c and CRP blocks, one RDW reference, one Doppler conclusion and provider name): 5b and 5d's work. Commit 39aa82a
+  (live bb54da6). Benchmark after: still 0/2, no new failure (the RDW reference, the Doppler conclusion and
+  provider name remain; the heading errors did not recur this run).
 - b. Lab values: the reader returns the paper's own wording, value, unit and range; code matches the wording to a
   known test (exact alias, then near match, else a new test sent to the step-3 queue). Lab-sheet headings get the
-  topic baseline written reports already have.
+  topic baseline written reports already have. ✅ 2026-11-19 (`app/categories/health/tests.py`, tables `health_tests` and
+  `health_test_aliases`; a person's results page, one line per test whatever lab printed it; sheets now get topics).
+  A new test that looks like one already listed waits on "Waiting for you" ("Same as X" or "A test of its own"); one
+  with nothing alike is simply added (Claude; Pedro may change: the PLAN said every new test is asked, which would
+  have been 65 questions for the first two lab sheets). Units never merge (% and 10^9/L stay two tests).
 - c. One check-result shape (verdict, doubtful items) for the statement add-up, positions, card and Health checks,
   flowing into step 3. Read-twice and the benchmark move into the shared block.
 - d. Health reading, from the agreed "first time right" list: read the PDF's structure with code (positions, fonts,

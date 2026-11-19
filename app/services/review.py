@@ -354,6 +354,56 @@ def _health(session: Session) -> None:
              url="/health/topics", label="Approve it")
 
 
+SAME = "same"
+
+
+def _health_tests(session: Session) -> None:
+    """A lab test the Hub had not seen (step 5b): approve it as new, or say it is the test it looks like."""
+    from app.models.health import HealthTest
+    rows = session.exec(select(HealthTest).where(HealthTest.approved == False,  # noqa: E712
+                                                 HealthTest.merged_into_id.is_(None))).all()
+    refs, existing = set(), _open_refs(session, "health_test")
+    for t in rows:
+        ref = f"health_test:{t.id}"
+        refs.add(ref)
+        if ref in existing:
+            continue
+        like = session.get(HealthTest, t.similar_to_id) if t.similar_to_id else None
+        unit = f" ({t.unit})" if t.unit else ""
+        options = [{"value": APPROVE, "label": "A test of its own"}]
+        if like is not None:
+            options.insert(0, {"value": SAME, "label": f"Same as {like.name}"})
+        open_item(session, area="health", kind="health_test", ref=ref, title=f"New lab test: {t.name}{unit}",
+                  why=("A lab sheet printed a test the Hub didn't know. Its results are kept either way; your answer "
+                       "decides whether they share a line with a test already listed."
+                       + (f" It looks like {like.name}." if like is not None else "")),
+                  evidence_url="/health/people", options=options)
+
+    def stamp(ref: str) -> tuple:
+        t = session.get(HealthTest, int(ref.split(":")[1]))
+        return (APPROVED if t is not None and (t.approved or t.merged_into_id) else DISCARDED), None, None
+    _close_gone(session, "health_test", refs, stamp)
+
+
+def _answer_health_test(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.categories.health import tests
+    from app.models.health import HealthTest
+    test_id = int(item.ref.split(":")[1])
+    try:
+        if answer == SAME:
+            t = session.get(HealthTest, test_id)
+            if t is None or t.similar_to_id is None:
+                raise ReviewError("Not merged.", "The test it looked like is no longer listed.",
+                                  "Choose “A test of its own”, or merge it later on the person's results page.")
+            tests.merge_tests(session, test_id, t.similar_to_id)
+        else:
+            tests.approve_test(session, test_id)
+    except tests.TestError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED
+
+
 def _answer_health(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
     from app.categories.health import areas, people, topics
     row_id = int(item.ref.split(":")[1])
@@ -404,11 +454,12 @@ def _answer_same_person(session: Session, item: ReviewItem, answer: str, remembe
 for _kind in ("health_area", "health_person", "health_topic"):
     HANDLERS[_kind] = _answer_health
 HANDLERS["same_person"] = _answer_same_person
+HANDLERS["health_test"] = _answer_health_test
 HANDLERS["merchant"] = _answer_merchant
 HANDLERS["to_check_line"] = _answer_to_check_line
 HANDLERS["statement_mismatch"] = _answer_statement_mismatch
 PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants,
-                                               _health, _same_person]
+                                               _health, _health_tests, _same_person]
 
 
 @dataclass

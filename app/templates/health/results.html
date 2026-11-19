@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ person.name }} — results{% endblock %}
+{% block content %}
+<p><a href="/health/people">← People</a></p>
+<h1>{{ person.name }}: lab results</h1>
+<p>One line per test, whichever lab printed it; the newest result first. A test the Hub has not seen before shows
+here straight away and is also asked about on “Waiting for you”.</p>
+<table class="review-table">
+  <thead><tr><th>Test</th><th>Latest</th><th>Reference</th><th>Earlier</th></tr></thead>
+  <tbody>
+  {% for line in lines %}
+  {% set p = line.latest %}
+  <tr>
+    <td>{{ line.test.name }}{% if line.test.unit %} <small>({{ line.test.unit }})</small>{% endif %}
+      {% if not line.test.approved %}<small> · new</small>{% endif %}</td>
+    <td>{% if p.out_of_range %}<strong class="needs-attention">{{ p.value }}</strong>{% else %}{{ p.value }}{% endif %}
+      <small>{{ p.date.isoformat() }}</small>
+      {% if p.document_id %}<a href="/health/documents/{{ p.document_id }}">paper</a>{% endif %}</td>
+    <td>{{ p.reference or "" }}</td>
+    <td>{% for q in line.points[1:6] %}{{ q.value }} <small>({{ q.date.isoformat() }})</small>{% if not loop.last %}, {% endif %}{% endfor %}
+      {% if line.points|length > 6 %}<small>… {{ line.points|length - 6 }} more</small>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="4">No lab results for {{ person.name }} yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

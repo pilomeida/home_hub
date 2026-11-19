@@ -97,9 +97,8 @@ def resolve_topic(session: Session, path: list[str]) -> Optional[HealthTopic]:
 
 
 def attach_topics(session: Session, entry: HealthEntry) -> None:
-    """Give each result of a written report the topic its headings name (none when it has no subject heading)."""
-    if entry.layout != "report":
-        return
+    """Give each result the topic its headings name (none when it has no heading). Written reports had this first;
+    lab sheets have it too since step 5b, so "Hematologia › Hemograma" is a topic like a report's "Eixo carotídeo"."""
     for m in session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all():
         topic = resolve_topic(session, topic_path(m.group_path))
         m.topic_id = topic.id if topic is not None else None

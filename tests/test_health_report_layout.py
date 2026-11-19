@@ -79,12 +79,14 @@ async def test_filing_a_report_attaches_each_row_to_its_deepest_topic(session, t
 
 
 @pytest.mark.asyncio
-async def test_a_sheet_gets_no_topics(session, tmp_path):
+async def test_a_sheet_gets_topics_from_its_headings_and_a_known_test(session, tmp_path):
+    """PLAN step 5b: lab-sheet headings get the topic baseline written reports have; each result gets its test."""
     doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result")
     entry = store.apply_extraction(session, doc, await _read(tmp_path, SHEET))
     assert entry.layout == "sheet"
-    assert [m.topic_id for m in _rows(session, entry)] == [None]
-    assert _topics(session) == []
+    rows = _rows(session, entry)
+    assert all(m.topic_id is not None for m in rows) and _topics(session)
+    assert all(m.test_id is not None for m in rows)
 
 
 @pytest.mark.asyncio

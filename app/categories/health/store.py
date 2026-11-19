@@ -121,7 +121,9 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
             group_path=m.group_path, position=m.position, reference_text=m.reference_text, method=m.method,
             is_previous=m.is_previous))
     session.commit()
-    topics_svc.attach_topics(session, entry)       # a written report's rows follow its headings into the baseline topics
+    topics_svc.attach_topics(session, entry)       # every paper's rows follow its headings into the baseline topics
+    from app.categories.health import tests as tests_svc
+    tests_svc.attach_tests(session, entry)         # a lab sheet's results find their known test (step 5b)
     areas_svc.set_tags(session, entry, extracted.areas, extracted.conditions)
     return sync_entry_from_fields(session, document)           # also counts the notes as "to check"
 

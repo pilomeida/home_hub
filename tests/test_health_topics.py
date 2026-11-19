@@ -63,13 +63,12 @@ def test_the_same_chapter_on_a_later_paper_shares_a_topic_and_the_thread_joins_t
     assert th["path"] == CAROTID and th["topic"].name == "Eixo Carotídeo direito"
 
 
-def test_attach_topics_leaves_a_sheet_alone_and_gives_no_topic_to_an_empty_path(session):
+def test_a_lab_sheet_gets_topics_too_and_an_empty_path_gets_none(session):
+    """PLAN step 5b: lab-sheet headings get the topic baseline written reports already have."""
     doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename="s.pdf")
     apply_extraction(session, doc, ExtractedHealth(person_name="Ana Lima", document_date=date(2026, 1, 1), summary="s",
                                                    measurements=[_m("LDL", 1.0, "Lípidos", date(2026, 1, 1))]))
-    entry = entry_for(session, doc.id)
-    t.attach_topics(session, entry)
-    assert _topics(session) == []
+    assert [x.name for x in _topics(session)] == ["Lípidos"]
     _, rep = _report(session, "Ana Lima", date(2026, 2, 1), [_m("LDL", 1.0, "", date(2026, 2, 1)),
                                                               _m("Nota", None, "Conclusões", date(2026, 2, 1))], "r.pdf")
     assert [m.topic_id for m in session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == rep.id)).all()] == [None, None]
