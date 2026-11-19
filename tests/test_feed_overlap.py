@@ -79,8 +79,10 @@ def test_one_feed_line_absorbs_one_statement_line_and_the_nearest_date_wins(sess
     acct = _account(session)
     near = _feed_line(session, acct, 10, 9.99, "NETFLIX")
     far = _feed_line(session, acct, 12, 9.99, "NETFLIX", ext="ref-x")
-    doc = feed_statement(session, acct.id, "Santander")
-    s1 = Transaction(document_id=doc.id + 0, description="NETFLIX", amount=9.99, transaction_type=TransactionType.DEBIT,
+    doc = Document(filename="extrato.pdf", file_path="/tmp/e.pdf", content_hash="h-e", source=DocumentSource.MANUAL,
+                   paper_kind="statement", account_id=acct.id)        # a paper statement, not the feed's own
+    session.add(doc); session.commit()
+    s1 = Transaction(document_id=doc.id, description="NETFLIX", amount=9.99, transaction_type=TransactionType.DEBIT,
                      paid_date=date(2026, 10, 11), account_id=acct.id)
     s2 = Transaction(document_id=doc.id, description="NETFLIX", amount=9.99, transaction_type=TransactionType.DEBIT,
                      paid_date=date(2026, 10, 11), account_id=acct.id)
@@ -95,7 +97,9 @@ def test_one_feed_line_absorbs_one_statement_line_and_the_nearest_date_wins(sess
 def test_a_line_a_person_checked_is_never_changed(session):
     acct = _account(session)
     _feed_line(session, acct, 10, 50.0, "EDP")
-    doc = feed_statement(session, acct.id, "Santander")
+    doc = Document(filename="extrato2.pdf", file_path="/tmp/e2.pdf", content_hash="h-e2", source=DocumentSource.MANUAL,
+                   paper_kind="statement", account_id=acct.id)
+    session.add(doc); session.commit()
     checked = Transaction(document_id=doc.id, description="EDP", amount=50.0, transaction_type=TransactionType.DEBIT,
                           paid_date=date(2026, 10, 10), account_id=acct.id, checked_by="rute@example.com")
     session.add(checked); session.commit()
@@ -125,3 +129,18 @@ def test_a_line_type_in_the_readers_own_words_no_longer_refuses_the_whole_statem
     assert line_type("Credit") == TransactionType.CREDIT
     assert line_type("salary_received") == TransactionType.CREDIT
     assert line_type("bank_transfer") == TransactionType.TRANSFER
+
+
+def test_a_long_statement_over_monthly_statements_shows_overlap_not_double_lines(session, monkeypatch, tmp_path):
+    acct = _account(session)
+    monthly = Document(filename="revolut-2026-10.pdf", file_path="/tmp/m.pdf", content_hash="h-m",
+                       source=DocumentSource.MANUAL, paper_kind="statement", account_id=acct.id)
+    session.add(monthly); session.commit()
+    old = Transaction(document_id=monthly.id, description="UBER", amount=8.4, transaction_type=TransactionType.DEBIT,
+                      paid_date=date(2026, 10, 14), account_id=acct.id)
+    session.add(old); session.commit()
+    before = _counted(session)
+    doc = _read_statement(session, acct, monkeypatch, tmp_path, [_line(14, 8.4, "Uber"), _line(15, 3.0, "Coffee")])
+    lines = {t.description: t for t in session.exec(select(Transaction).where(Transaction.document_id == doc.id))}
+    assert lines["Uber"].settled_by_id == old.id and lines["Coffee"].settled_by_id is None
+    assert _counted(session) == before + 1
