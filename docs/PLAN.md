@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 4c: re-reading statements 2, 22, 33, 51 on the server.
+**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice a: one reader interface.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -66,32 +66,6 @@ on it), then the memory of answers and the one review queue (every later step se
 accuracy work, then Health reading, subjects in the wiki, Health conditions (a condition is a subject), and new
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
-
-### Step 4. Statements against the bank feed, then the missing history (C5) · M
-Reuse: actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MIT, the idea ported).
-- a. Match a statement line to a feed line: by the bank's id first, then same amount and nearest date (a few days); on
-  a tie prefer the line with no bank id; never change a line a person has checked.
-- b. Overlapping periods show as overlap, never doubled. The Loans upload and card statements go through the same
-  intake (scope, duplicates, Problems); the PDF wrapper is stripped on every channel.
-- c. Re-read through it: Santander 2024-03 (no lines) and 2025-02 (one line), Revolut before 2024-01, and the four
-  older statements that need attention (documents 2, 22, 33, 51: two invalid line types, an old API error, an empty
-  credit balance). Before the 2025-10-10 baseline, so history and spending analysis only.
-- Done when: a statement for a feed period adds no double lines (tested on a real overlap), and Rute's card statement
-  can be sent by Telegram.
-- ◐ a, 2026-11-19 (Claude): a new statement line the feed already holds (same account, direction and amount, nearest
-  date within 3 days, one-to-one) is kept but settled by its feed line, so it shows dimmed with a link to the bank
-  entry and counts once; a checked line is never changed; such a line no longer takes a bill from its feed twin
-  (`app/services/feed_overlap.py`). Matching by the bank's id first is moot here: a statement printed on paper
-  carries no bank id. A live dry run of bill matching gave the same pairs before and after (0 pending).
-  ✅ b, 2026-11-19 (Claude): a new Money kind, "Credit card statement", whose reader is the card-statement logic the
-  script used (checked to the cent, only new lines stored, the card being the account chosen when filing; with no
-  card it waits with a three-part message), so a card statement comes in by upload, email or Telegram and is approved
-  in the Inbox like any paper (tested: Rute's statement by Telegram). The Loans upload already used the intake. The
-  bank-download wrapper is now stripped in `receive_file`, the one door every channel uses.
-  ◐ c, 2026-11-19 (Claude): documents 22 and 33 had been refused whole because the reader named a line's type in its
-  own words ("atm_withdrawal", "insurance"); such a type is now mapped from its words (the add-up check still catches
-  a wrong guess). Re-reading the four on the server with `scripts/reread_statements.py` (only statements holding no
-  lines yet).
 
 ### Step 5. Shared reading blocks, Health first (C4, with Health "first time right") · L
 Reuse: giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, young project:
@@ -162,6 +136,7 @@ Whatever the steps above did not already touch.
 | D7 | The test database enforces foreign keys everywhere, not only in `fk_session` (how the Health delete-order bug passed) |
 | D8 | (from step 2, 2026-11-19) The payment entities and the supermarket list move into `rules` as Pedro's person rules, with a merchant-key column so the merchants they made keep their keys; they already rank right, so nothing a family member sees changes |
 | D10 | (from step 3b, 2026-11-19) Health's outline confirmation onto "Waiting for you": it is a per-paper button today, with no list of papers waiting for it to adopt |
+| D11 | (from step 4c, 2026-11-19) Revolut before 2024-01: document 51 (2022-08 → 2026-08, 1.3 MB) is refused whole by the AI provider ("cannot succeed by retrying"). Read large statements in page chunks and keep only the lines before 2024-01 (later months are in the feed and the monthly statements); compare live totals before and after |
 | D9 | (from step 2c, 2026-11-19) AI calls in batches with an index per item: the bank sync's new-merchant pass sends one call per merchant today |
 
 ---
@@ -224,6 +199,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-10-28 | Billing is not Health (bills go to Bills); every Health paper read twice, differences flagged |
 | 2026-11-03 | **A1–A5** safety: nightly off-server backups and a snapshot before every migration; tests gate the deploy, pinned dependencies; privacy gate fails closed; failed presses show the three-part banner; notice bugs fixed. **C6** phone notices: bank access expired, a job failing, a bill due within 3 days, a new loan red flag; once each, one reminder, quiet at night |
 | 2026-11-03 → 11-05 | **B** foundation: glossary and renames (B1), the kind carries its level, reader and filing (B2), one spending tree (B3), Coming up (B3b), registry of subjects slice 1 (B4), bank lines take their statement's level (B5), every paper has a kind (B6), one copy of each paper and no voids (B7) |
+| 2026-11-19 | **Step 4 (C5)** statements against the bank feed (371d90c → f597040): a statement line the feed or another statement of the account already holds is kept but settled by its twin (dimmed, linked, counted once; checked lines untouched); a new Money kind "Credit card statement" through the normal intake (Rute's by Telegram, checked to the cent); the bank-download wrapper stripped on every channel; a line type in the reader's own words no longer refuses a statement. Re-read on the server: Santander 2024-03 (104 lines), 2025-02 (108), 2022-08 (1), all adding up; live totals unchanged (the only move was the 18:30 bank sync's five lines). Leftover D11 (document 51) in step 9 |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |
