@@ -110,7 +110,9 @@ adapt and test well).
   reading cut short is completed from the other reading when it is the start of it. A provider is learnt once: a reading
   whose provider has every distinctive word of a name a person confirmed (with its outline) takes that name. The
   benchmark now reads as the Hub does, with the confirmed topics, outlines and providers (`--fresh` without them;
-  Claude, 2026-11-19; Pedro may change: the Doppler's own outline is among those confirmed).
+  Claude, 2026-11-19; Pedro may change: the Doppler's own outline is among those confirmed). Benchmark (commit 5be65f0): run 1 passed both
+  cases; run 2 lost PSA's printed note from its reference, so a reference cut short is completed from the other
+  reading too.
   A history point printed on several papers shows once on a person's results (5b) while each paper keeps what it
   printed (Claude; Pedro may change). Left: narrative findings as a structure of their own; Pedro's corrections
   kept per provider; grey bands (pypdf gives no shading; needs another reader).

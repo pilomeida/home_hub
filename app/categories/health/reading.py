@@ -69,15 +69,22 @@ def drop_wrappers(x: ex.ExtractedHealth) -> None:
 
 
 def complete_from(x: ex.ExtractedHealth, y: ex.ExtractedHealth) -> None:
-    """Where one reading cut a written finding short and the other has it whole (the first is the start of the
-    second), the whole one is kept."""
+    """Where one reading cut a written finding or a reference short and the other has it whole (the first is the
+    start of the second), the whole one is kept."""
     from app.categories.health.text import match_key
-    longer = {(match_key(m.group_path), match_key(m.test)): m.value_text for m in y.measurements if m.value_text}
+
+    def key(m):
+        return (match_key(m.group_path), match_key(m.test), match_key(m.unit or ""), m.is_previous)
+    others = {key(m): m for m in y.measurements}
     for m in x.measurements:
-        other = longer.get((match_key(m.group_path), match_key(m.test)))
-        if m.value_text and other and len(other) > len(m.value_text) \
-                and match_key(other).startswith(match_key(m.value_text).rstrip(" .")):
-            m.value_text = other
+        other = others.get(key(m))
+        if other is None:
+            continue
+        for field in ("value_text", "reference_text"):
+            mine, theirs = getattr(m, field), getattr(other, field)
+            if mine and theirs and len(theirs) > len(mine) \
+                    and match_key(theirs).startswith(match_key(mine).rstrip(" .")):
+                setattr(m, field, theirs)
 
 
 def _settle(x: ex.ExtractedHealth, file_path: str) -> None:

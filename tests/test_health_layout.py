@@ -111,3 +111,15 @@ def test_a_provider_is_learnt_once_from_the_confirmed_names():
     assert known_provider("Cintramédica Mafra", [hsm, lab]) == lab
     assert known_provider("Hospital da Luz", [hsm, lab]) is None
     assert known_provider("Hospital de Santa Maria", ["Hospital de Santa Maria", "Clínica Santa Maria"]) is None  # two fit
+
+
+def test_a_reference_cut_short_is_completed_from_the_other_reading():
+    from app.categories.health.reading import complete_from
+    whole = "< 4,00 (Nota:Sensibilidade analítica 0,006ng/mL)"
+    x = ExtractedHealth(measurements=[_m("PSA total", "Marcadores", 0.5, "< 4,00", "ng/mL")])
+    y = ExtractedHealth(measurements=[_m("PSA total", "Marcadores", 0.5, whole, "ng/mL")])
+    complete_from(x, y)
+    assert x.measurements[0].reference_text == whole
+    z = ExtractedHealth(measurements=[_m("PSA total", "Marcadores", 0.5, "< 2,50", "ng/mL")])
+    complete_from(z, y)
+    assert z.measurements[0].reference_text == "< 2,50"                 # a different reference is not "completed"
