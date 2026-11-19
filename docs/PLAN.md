@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 1 a–e committed; deploying, then filling the text of the papers on file on the server.
+**Now (2026-11-19):** step 2 (one memory of past answers), slice a+b: the `rules` table and its one reader.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -66,35 +66,6 @@ on it), then the memory of answers and the one review queue (every later step se
 accuracy work, then Health reading, subjects in the wiki, Health conditions (a condition is a subject), and new
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
-
-### Step 1. Search over papers, and "Other papers" for anything else (E2) · L
-Reuse: icereed/paperless-gpt `default_prompts/` (MIT: title, date and kind prompts); paperless-ngx's "the PDF's own
-text first" (idea).
-- a. A text layer for every paper: `paper_texts` (paper, text, how it was got: `pdf_text` or `ai_read`), filled at
-  filing. pypdf text first; the AI reads the page only when there is no text, at the paper's own level. A script fills
-  it for the papers on file.
-- b. Search: SQLite FTS5 over that text plus title and fields; `search_papers` replaces the word-match in Ask's
-  `find_sources`, inside `reachable_scope` (tripwire test).
-- c. The catch-all "Other papers" (its own category, named by Pedro 2026-11-19; suggested Mid): its reader writes title, date, summary and
-  who or what it is about. The Inbox offers it when nothing else fits. The papers waiting in the Inbox for a category
-  (contracts 144, 169, 170; bank letters 165–167; diploma 164) can be filed here now and moved when step 8 gives them
-  their own.
-- d. A search box in the top menu of every page (Pedro, 2026-11-19); results open on their own page with the paper,
-  its level and the line that matched.
-- e. A file type the Hub does not take (the Via Verde CSV) is listed under "Not added" instead of dropped silently.
-- Done when: an unknown paper is uploaded, approved and found by a word inside it, from the page and from Ask; a High
-  paper never reaches a lower call.
-- Built 2026-11-19 (Claude): a–e in code, tests green (`tests/test_paper_search.py`, `tests/test_other_papers.py`, the
-  privacy world now carries paper text with sentinels, so every D16 test also covers search). Choices (Claude,
-  2026-11-19): the PDF's own text is kept at filing (pypdf, no AI); a paper with no text layer is read by the AI in
-  the hourly "Paper text" job, 10 a run, at the paper's own level (a High or Health paper always says High itself),
-  three tries then the Problems page; the job also rebuilds the index. A paper's score is how many of the words it
-  contains (title, kind, details or text, start-of-word match, accents folded), newest first. Other papers' reader
-  keeps what a person typed and fills only empty details, in the paper's own language; the Inbox offers Other papers
-  (never as a confident answer) when the classifier finds no fit. Search results are shown to every family member
-  like any other page (the level column says how private a paper is; levels govern the AI, not people) (Claude,
-  2026-11-19; Pedro may change). Telegram's
-  refused files are listed under "Not added" too, and so are email attachments over 25 MB.
 
 ### Step 2. One memory of past answers (C2, with C3) · L
 Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` (MIT).
@@ -223,6 +194,7 @@ brackets); tick off here when done.
 | Payee names for the numbers in `docs/unnamed-payment-entities.md` (2026-10-28) | Step 2 rules |
 | Configure `/privacy`; decide "Levels are binding" and "Hide personal details"; whether Ask and the wiki check may read High papers (2026-10-15) | Levels enforced everywhere |
 | Four Inbox papers: AEG appliances invoice (100, needs an item name), social-security notification (160), IRS receipt (168), paid 2022 IUC notice (161) (2026-10-18) | Filing; step 1 can take them as "Other papers" |
+| File the papers waiting for a category as **Other papers** from the Inbox (choose "Other papers › Other paper", leave the details empty: the Hub reads them): contracts 144, 169, 170; bank letters 165–167; diploma 164; and 160, 161, 168 above. The run's server permission did not allow approving Inbox papers for you (2026-11-19) | They become searchable and readable by Ask |
 | Whether the insurance booklets (CPAP/CGAP, 48–59 pages) should be read, not just filed (2026-10-18) | — |
 | Re-point the gateway's `hub/classification` pairing to a cheap model (reclassify ~1 min per merchant) (2026-10-06) | Faster sorting |
 | Tier for the Privatemode rows gpt-oss-120b and deepseek-ocr-2 (2026-10-15) | More High models |
@@ -249,6 +221,11 @@ brackets); tick off here when done.
 - Tidy Health topics no paper uses any more; dates in insurance descriptions as yyyy-mm-dd.
 - Link Matias's future transfers to his loan (not every transfer is a loan: a rule a person confirms, after step 2).
 - Check the unexplained `matias` entry in the server's linger list.
+- **UI redesign, mock-ups only (Pedro, 2026-11-19).** The Hub's look is not attractive. Pedro sent 13 reference
+  dashboards; plan: save them under `docs/design-references/`, decide the screens and workflow from how the family
+  uses the Hub (interview in `Personal/brainstorms/2026-11-19-hub-ui-workflow-and-screens.md`), then draw 3 wireframe
+  options, each with coherent screens. No code until Pedro picks one; then it becomes a numbered step. Not part of
+  the autonomous run.
 
 ---
 
@@ -261,4 +238,5 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-10-28 | Billing is not Health (bills go to Bills); every Health paper read twice, differences flagged |
 | 2026-11-03 | **A1–A5** safety: nightly off-server backups and a snapshot before every migration; tests gate the deploy, pinned dependencies; privacy gate fails closed; failed presses show the three-part banner; notice bugs fixed. **C6** phone notices: bank access expired, a job failing, a bill due within 3 days, a new loan red flag; once each, one reminder, quiet at night |
 | 2026-11-03 → 11-05 | **B** foundation: glossary and renames (B1), the kind carries its level, reader and filing (B2), one spending tree (B3), Coming up (B3b), registry of subjects slice 1 (B4), bank lines take their statement's level (B5), every paper has a kind (B6), one copy of each paper and no voids (B7) |
+| 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-17 | Hardening: a deploy that cannot back up stops plainly; nightly privacy self-test; to-dos with no house area. **E1** facts say when they were true; 8 Telecom and MetLife facts fixed |
