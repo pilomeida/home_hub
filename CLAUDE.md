@@ -26,6 +26,16 @@ line before starting any Hub work, and keep it true as you go, not at the end:
   (`~/.claude/hooks/hub-plan-guard.py`); "PLAN-EXEMPT: <reason>" in the message only for work no step covers.
 - The dashboard (https://claude.ai/artifact/FAy2A5HYWy4bqk6u5AsRTa) is refreshed from PLAN.md when a step finishes.
 
+## Running tests and the server (learned the hard way)
+- Run pytest from this folder (never from `tests/`: it writes stray files under `tests/app/`):
+  `CF_ACCESS_TEAM_DOMAIN= ~/.local/bin/pytest -q -p no:warnings tests/<file>.py` (the `.venv` has no pytest). The
+  full suite takes ~17 minutes locally; run it in the background, or let the deploy's test gate run it.
+- Watch a deploy: `gh run watch <id> --repo pilomeida/home_hub --exit-status`. An SSH "i/o timeout" in the deploy job
+  means the server is unreachable (it was once suspended for an unpaid bill), not a code fault: re-run the failed
+  job with `gh run rerun <id> --repo pilomeida/home_hub --failed` once `ssh root@167.233.51.113 true` answers.
+- On the server, scripts run as `cd /srv/home-hub/app && sudo -u home-hub /srv/home-hub/venv/bin/python scripts/...`
+  and git as `sudo -u home-hub git` (dubious ownership otherwise).
+
 ## Never
 - `git commit`/`git push` without explicit order (see the monorepo root CLAUDE.md).
 - A plan, backlog or to-do list anywhere but `docs/PLAN.md`.
