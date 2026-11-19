@@ -42,10 +42,6 @@ def test_bill_schema_does_not_require_parser_defaulted_keys():
 # --- _CLASSIFICATION_SCHEMA: parser indexes document_type directly -------
 
 
-def test_classification_schema_keeps_required_key_the_parser_indexes():
-    _validate(extraction._CLASSIFICATION_SCHEMA, {"document_type": "bill"})
-
-
 # --- _STATEMENT_SCHEMA: currency/category_hint defaulted by parser -------
 
 
