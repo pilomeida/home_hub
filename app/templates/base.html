@@ -20,6 +20,8 @@
     .nav-group { margin-bottom: 0.5rem; }
     .nav-group-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #999; margin: 0.75rem 0 0.35rem; }
     .nav-group a { padding-left: 0.5rem; }
+    .nav-search { margin-bottom: 0.75rem; } .nav-search input { width: 100%; box-sizing: border-box; padding: 0.3rem 0.4rem; }
+    mark { background: #fff1a8; padding: 0 1px; } @media (prefers-color-scheme: dark) { mark { background: #6b5d1a; color: inherit; } }
     main { flex: 1; padding: 1.5rem; }
     .field { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.75rem; max-width: 28rem; }
     .field small { color: #888; font-size: 0.75rem; }
@@ -287,6 +289,9 @@
 </head>
 <body>
   <nav>
+    <form action="/search" method="get" role="search" class="nav-search">
+      <input type="search" name="q" placeholder="Search papers" aria-label="Search papers" value="{{ request.query_params.get('q', '') if request and request.url.path == '/search' else '' }}">
+    </form>
     <a href="/">Overview</a>
     <a href="/ask">Ask</a>
     <a href="/inbox">Inbox</a>

@@ -134,3 +134,20 @@ def test_main_exits_cleanly_when_unconfigured(monkeypatch, capsys):
     monkeypatch.setattr(email_poller.settings, "HUB_IMAP_HOST", "")
     assert email_poller.main() == 0
     assert "not configured" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_an_email_carrying_only_a_csv_lists_it_under_not_added(engine, recorder):
+    from sqlmodel import select
+    from app.models.inbox_item import InboxSkip
+    msg = EmailMessage()
+    msg["From"], msg["Subject"], msg["Message-ID"] = "rute@example.com", "Via Verde", "<vv@x>"
+    msg.set_content("extrato")
+    msg.add_attachment(b"a;b\n1;2", maintype="text", subtype="csv", filename="ViaVerde.csv")
+    _, fake_receive = recorder
+    mailbox = FakeMailbox({b"1": msg.as_bytes()})
+    await poll_once(mailbox, lambda: Session(engine), ALLOWED, receive=fake_receive)
+    assert mailbox.moves == [(b"1", IGNORED_FOLDER)]
+    with Session(engine) as session:
+        [skip] = session.exec(select(InboxSkip)).all()
+    assert (skip.filename, skip.source, skip.reason) == ("ViaVerde.csv", "email", "file_type")

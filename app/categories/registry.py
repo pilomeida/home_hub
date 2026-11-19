@@ -19,6 +19,7 @@ _SPEC_MODULES: tuple[str, ...] = (
     "app.categories.house.spec",
     "app.categories.insurance.spec",
     "app.categories.health.spec",
+    "app.categories.other.spec",
 )
 
 _specs_cache: Optional[dict[Category, CategorySpec]] = None

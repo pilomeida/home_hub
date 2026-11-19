@@ -40,6 +40,25 @@ class JobDef:
     quiet_when_ok: bool = False
 
 
+async def _run_paper_text(session: Session, trigger: str) -> JobOutcome:
+    """PLAN step 1a: papers with no text get it (the PDF's own, else the AI reads them at their level, a few a run);
+    then the search index is rebuilt, so a change made outside the filing path is caught."""
+    from app.services.paper_search import read_missing_texts, rebuild_index
+    run = await read_missing_texts(session)
+    indexed = rebuild_index(session)
+    done = (f"{run.read} paper(s) given their text, {run.no_text} with no text to read (a video or a spreadsheet); "
+            f"{indexed} paper(s) searchable.")
+    if run.left:
+        done += f" {run.left} more wait for the next run (a few are read each time, to keep the cost low)."
+    if run.waiting_for_level:
+        done += (f" {run.waiting_for_level} paper(s) were not read because their kind has no privacy level yet; "
+                 f"set it on the Privacy page and they are read on the next run.")
+    if run.failed:
+        return JobOutcome("partial", f"Partly done: the text of {run.failed} paper(s) couldn't be read by the AI this "
+                                     f"time; they are tried again on the next run (three tries each). " + done)
+    return JobOutcome("ok", "Done: " + done)
+
+
 async def _run_privacy_selftest(session: Session, trigger: str) -> JobOutcome:
     from app.privacy.selftest import run_privacy_selftest
     return await run_privacy_selftest(session, trigger)
@@ -113,6 +132,13 @@ JOBS: dict[str, JobDef] = {
         default=Spec(kind="times_per_day", time_of_day="07:30,13:00,18:30"),
         run=run_bank_sync, legacy_last_start=bank_legacy_last_start,
         max_runs_per_day=4, max_runs_reason=BANK_LIMIT_REASON),
+    "paper_text": JobDef(
+        key="paper_text", label="Paper text",
+        description="Makes every filed paper findable by the words inside it. A PDF's own text is taken when it is filed; "
+                    "a scan or a photo is read by the AI at the paper's own privacy level, a few each hour so the cost stays "
+                    "low. Then the search is brought up to date.",
+        default=Spec(kind="every_n_minutes", every_n=60),
+        run=_run_paper_text, quiet_when_ok=True),
     "privacy_selftest": JobDef(
         key="privacy_selftest", label="Privacy self-test",
         description="Every night, proves that the privacy rules still hold: a document with no level reads as nothing, and a "

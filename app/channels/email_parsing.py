@@ -36,6 +36,15 @@ class EmailAttachment:
 class SkippedAttachment:
     filename: str
     detail: str                     # why it was not taken, in plain words (shown on the Inbox page)
+    reason: str = "decorative"      # "decorative" | "file_type" | "too_large" (InboxSkip.reason)
+
+
+def file_type_detail(filename: str) -> str:
+    """Not added, why, what to do (PLAN step 1e: e.g. the Via Verde CSV used to vanish without a word)."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    kind = f"a .{ext} file" if ext else "a file of this kind"
+    return (f"Not added: the Hub does not take {kind}; it takes PDFs, photos and short videos. "
+            f"Save it as a PDF and send that, or keep it outside the Hub.")
 
 
 @dataclass
@@ -45,7 +54,7 @@ class ParsedEmail:
     message_id: str
     context_text: str
     attachments: list[EmailAttachment] = field(default_factory=list)
-    skipped: list[SkippedAttachment] = field(default_factory=list)    # decorative images, with the reason
+    skipped: list[SkippedAttachment] = field(default_factory=list)    # files not taken, with the reason
     # The Gmail account whose forwarding rule sent this mail on ("" if none).
     # Auto-forwarding keeps the bill's own From, so the allowlist checks this too.
     forwarded_by: str = ""
@@ -123,9 +132,14 @@ def parse_email(raw: bytes) -> ParsedEmail:
             continue
         kind = media_kind_for(filename)
         if kind == MediaKind.OTHER:
+            skipped.append(SkippedAttachment(filename=filename, detail=file_type_detail(filename), reason="file_type"))
             continue
         content = part.get_payload(decode=True) or b""
         if len(content) > MAX_FILE_BYTES:
+            skipped.append(SkippedAttachment(
+                filename=filename, reason="too_large",
+                detail=f"Not added: it is larger than {MAX_FILE_BYTES // (1024 * 1024)} MB, the most the Hub takes "
+                       f"from an email. Send a smaller copy (a PDF of the pages that matter)."))
             continue
         if kind == MediaKind.IMAGE:
             reason = ("a tiny image (a logo or tracking pixel), not a document" if len(content) < MIN_IMAGE_BYTES

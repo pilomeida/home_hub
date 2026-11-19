@@ -147,6 +147,11 @@ async def poll_once(
             continue
         if not parsed.attachments:
             logger.info("ignoring mail without usable attachments from %s: %s", parsed.sender, parsed.subject)
+            with session_factory() as session:          # what it did carry is listed under "Not added" (PLAN 1e)
+                for skipped in parsed.skipped:
+                    record_skip(session, filename=skipped.filename, source="email", reason=skipped.reason,
+                                detail=skipped.detail, external_ref=f"email:{parsed.message_id}")
+                    report.decorative += skipped.reason == "decorative"
             _note(session_factory, Problem(
                 f"An email wasn't filed: “{parsed.subject[:80]}”.",
                 "It had no attachment the Hub can read (it takes PDFs, photos and short videos).",
@@ -159,9 +164,9 @@ async def poll_once(
         try:
             with session_factory() as session:
                 for skipped in parsed.skipped:
-                    record_skip(session, filename=skipped.filename, source="email", reason="decorative",
+                    record_skip(session, filename=skipped.filename, source="email", reason=skipped.reason,
                                 detail=skipped.detail, external_ref=f"email:{parsed.message_id}")
-                    report.decorative += 1
+                    report.decorative += skipped.reason == "decorative"
                 for index, attachment in enumerate(parsed.attachments):
                     receipt = await receive(
                         session,

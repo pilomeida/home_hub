@@ -13,3 +13,4 @@ class Category(str, Enum):
     HOUSE = "house"
     HEALTH = "health"
     INSURANCE = "insurance"  # stored as VARCHAR(10) without a CHECK: a new member needs no migration
+    OTHER = "other"          # "Other papers", the catch-all (PLAN step 1c)

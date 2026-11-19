@@ -42,7 +42,7 @@ class InboxSkip(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str
     source: str                                       # "email" | "telegram"
-    reason: str = Field(index=True)                   # "duplicate" | "decorative"
+    reason: str = Field(index=True)                   # "duplicate" | "decorative" | "file_type" | "too_large"
     detail: str                                       # what happened and why, for a person
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id")   # the existing document, for a duplicate
     external_ref: Optional[str] = None

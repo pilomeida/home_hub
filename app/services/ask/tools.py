@@ -33,6 +33,7 @@ from app.services.ask.refs import (
     Source, citable_for_source, citable_for_todo, citable_for_wiki_page, source_ref,
 )
 from app.services.document_input import UnsupportedFileTypeError, build_content_block
+from app.services.paper_search import search_papers
 from app.services.names import fold   # lowercase, accent-free: 'Caldéira' -> 'caldeira'
 from app.services.wiki_store import (
     active_claims, claim_sources, links_from, links_to, superseded_claims, visible_summary,
@@ -158,12 +159,16 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
 
 
 def _find_sources(session: Session, args: dict) -> ToolOutput:
+    """Filed papers by the words inside them (PLAN step 1b: the FTS index over title, kind, details and each paper's
+    text) and hand-entered records by their title and details; the score is how many of the words each contains."""
     category = _parse_category(args.get("domain"))
     paper_kind = args.get("category")
     limit = max(1, min(int(args.get("limit", 30)), 60))
-    query_tokens = tokens(args.get("query") or "")
+    query = args.get("query") or ""
+    query_tokens = tokens(query)
     scored = []
     reach = reach_for(session)
+    hits = {h.document.id: h for h in search_papers(session, query, reach=reach, limit=100_000)} if query_tokens else {}
     for entry in settled_entries(session, category, reach=reach):
         if paper_kind and entry.paper_kind != paper_kind:
             continue
@@ -171,22 +176,24 @@ def _find_sources(session: Session, args: dict) -> ToolOutput:
         spec = get_spec(source.category)
         fields_text = entry_fields_text(entry)
         haystack = " ".join([entry.title, entry.paper_kind or "", spec.kind_label(entry.paper_kind), spec.label, fields_text])
-        score = len(query_tokens & tokens(haystack)) if query_tokens else 1
+        hit = hits.get(entry.document.id) if entry.document is not None else None
+        score = max(len(query_tokens & tokens(haystack)), hit.words if hit else 0) if query_tokens else 1
         if score > 0:
-            scored.append((score, entry, source, spec, fields_text))
+            scored.append((score, entry, source, spec, fields_text, hit.snippet_plain('"') if hit and hit.snippet else ""))
     scored.sort(key=lambda item: (-item[0], -item[1].created_at.timestamp()))
     shown = scored[:limit]
     lines = [f"{len(scored)} matching filed sources (showing {len(shown)}):"]
-    for _, entry, source, spec, fields_text in shown:
+    for _, entry, source, spec, fields_text, snippet in shown:
         attachment = (f" | attachment doc:{entry.document.id}"
                       if entry.kind == SourceKind.RECORD and entry.document is not None else "")
+        matched = f" | text: …{snippet}…" if snippet else ""
         lines.append(f"{source_ref(source)} | {spec.label} | {spec.kind_label(entry.paper_kind) or '-'} | "
-                     f"{entry.title} | added {entry.created_at:%Y-%m-%d} | {fields_text or 'no details'}{attachment}")
+                     f"{entry.title} | added {entry.created_at:%Y-%m-%d} | {fields_text or 'no details'}{attachment}{matched}")
     # The header counts every match, so the level is judged on every match, not only the ones shown.
-    touched = [s for _, e, src, _, _ in scored for s in (src, e.document if e.document is not src else None)
+    touched = [s for _, e, src, _, _, _ in scored for s in (src, e.document if e.document is not src else None)
                if s is not None]                                            # a record AND its attached file
     tier = reach.private_tier(touched)
-    return ToolOutput(text="\n".join(lines), citables=[citable_for_source(s) for _, _, s, _, _ in shown],
+    return ToolOutput(text="\n".join(lines), citables=[citable_for_source(s) for _, _, s, _, _, _ in shown],
                       used_raw_sources=True, tier=tier, opened=_opened(reach, touched) if tier else "")
 
 
@@ -243,8 +250,9 @@ def core_tools() -> list[AskTool]:
                 run=_read_wiki_pages),
         AskTool(name="find_sources",
                 description="Search filed documents AND hand-entered records (e.g. a logged maintenance visit) by "
-                            "keywords over title, category and details (item, room, dates...). Omit query to list by "
-                            "recency. Use only when the wiki doesn't answer.",
+                            "keywords over title, category, details (item, room, dates...) and, for documents, the "
+                            "words printed inside them (a matching line is shown). Omit query to list by recency. "
+                            "Use only when the wiki doesn't answer.",
                 input_schema={"type": "object", "properties": {
                     "query": {"type": "string"}, "domain": category_prop,
                     "category": {"type": "string", "description": "A category value from the domain list."},

@@ -58,6 +58,7 @@ PRIVATE_DERIVED = [*PRIVATE, PAGE, MIXED, NEIGHBOUR, TODO_FROM_REC]    # file by
 STILL_EXCLUDED = [*(s for s in EXCLUDED if s not in PRIVATE_DERIVED and s not in (TODO, FILE_BYTES)), f"{TODO}-from-doc", f"{TODO}-from-txn"]
 
 CLEAN_ROOM = "Kitchen"
+CLEAN_TEXT = "CLEAN-PRINTED-TEXT"
 CLEAN_PAYEE = "CLEAN-PAYEE-EDP"
 CLEAN_TODO = "CLEAN-TODO-boiler"
 CLEAN_ANSWER = "CLEAN-SAVED-ANSWER"
@@ -125,6 +126,17 @@ def build_world(session, docs_dir) -> SimpleNamespace:
     w.rec = make_record(session, category=Category.HOUSE, paper_kind="maintenance_log",
                         fields={"item_name": "Boiler", "notes": f"{REC}-notes"})
 
+    # Paper text (PLAN step 1): each paper's own words, searchable by find_sources. The excluded and private papers'
+    # text carries their sentinel, so every test here also proves search never returns text it may not.
+    from app.models.paper_text import PDF_TEXT, PaperText
+    from app.services.paper_search import rebuild_index
+    for doc, words in ((w.a, f"bodytext {CLEAN_TEXT} kitchen boiler"), (w.c, f"bodytext {HIGH}-printed policy"),
+                       (w.d, f"bodytext {UNSET}-printed statement"), (w.e, f"bodytext {HIDES}-printed deed"),
+                       (w.unk, f"bodytext {UNKNOWN}-printed")):
+        session.add(PaperText(document_id=doc.id, text=words, method=PDF_TEXT))
+    session.commit()
+    rebuild_index(session)
+
     # Wiki. page_clean: all claims from an included document. page_high: only excluded sources.
     # page_mixed: a clean claim, a claim with BOTH an included and an excluded source, a superseded
     # excluded claim, and a stored summary that repeats hidden content. page_answer: a saved Ask answer.
@@ -168,6 +180,10 @@ def build_world(session, docs_dir) -> SimpleNamespace:
         measurements=[ExtractedMeasurement("LDL cholesterol", 162.0, None, "mg/dL", None, 100.0,
                                            date(2026, 3, 12), False, "LDL")]))
     w.health_paper = health
+    from app.services.paper_search import index_document
+    session.add(PaperText(document_id=health.id, text=f"bodytext {HEALTH_PAPER}-printed colesterol", method=PDF_TEXT))
+    session.commit()
+    index_document(session, health)
 
     # Waiting in the Inbox: one suggested as an excluded type, one as an included type.
     for suggested in ("insurance/policy", "financials/bill"):
@@ -187,7 +203,7 @@ def ask_script(w, final="The boiler is in the kitchen [[wiki:%d]]."):
     calls = [
         {"id": "t1", "name": "read_wiki_pages", "input": {"page_ids": [p.id for p in w.pages] + [9999]}},
         {"id": "t2", "name": "find_sources", "input": {"limit": 60}},
-        {"id": "t3", "name": "find_sources", "input": {"query": "insurer policy notes statement deed item", "limit": 60}},
+        {"id": "t3", "name": "find_sources", "input": {"query": "insurer policy notes statement deed item bodytext", "limit": 60}},
         {"id": "t4", "name": "read_document_file", "input": {"document_id": w.c.id}},
         {"id": "t5", "name": "read_document_file", "input": {"document_id": w.d.id}},
         {"id": "t6", "name": "read_document_file", "input": {"document_id": w.e.id}},

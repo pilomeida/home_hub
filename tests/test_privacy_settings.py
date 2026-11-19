@@ -126,7 +126,7 @@ def test_screen_lists_types_with_suggestions_and_explains_the_state(client, pair
     assert r.status_code == 200
     assert "Bank statement" in r.text and "Policy" in r.text and "Claim" in r.text
     assert "Suggested, not set yet" in r.text and "not binding yet" in r.text
-    assert "Confirm all 12 suggestions" in r.text
+    assert "Confirm all 13 suggestions" in r.text
 
 
 def test_screen_flow_confirm_then_switch_on_then_edit(client, session, pairings):

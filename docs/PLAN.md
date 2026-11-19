@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** nothing in progress. Next: step 1, search over papers and "Other papers".
+**Now (2026-11-19):** step 1 a–e committed; deploying, then filling the text of the papers on file on the server.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -84,6 +84,17 @@ text first" (idea).
 - e. A file type the Hub does not take (the Via Verde CSV) is listed under "Not added" instead of dropped silently.
 - Done when: an unknown paper is uploaded, approved and found by a word inside it, from the page and from Ask; a High
   paper never reaches a lower call.
+- Built 2026-11-19 (Claude): a–e in code, tests green (`tests/test_paper_search.py`, `tests/test_other_papers.py`, the
+  privacy world now carries paper text with sentinels, so every D16 test also covers search). Choices (Claude,
+  2026-11-19): the PDF's own text is kept at filing (pypdf, no AI); a paper with no text layer is read by the AI in
+  the hourly "Paper text" job, 10 a run, at the paper's own level (a High or Health paper always says High itself),
+  three tries then the Problems page; the job also rebuilds the index. A paper's score is how many of the words it
+  contains (title, kind, details or text, start-of-word match, accents folded), newest first. Other papers' reader
+  keeps what a person typed and fills only empty details, in the paper's own language; the Inbox offers Other papers
+  (never as a confident answer) when the classifier finds no fit. Search results are shown to every family member
+  like any other page (the level column says how private a paper is; levels govern the AI, not people) (Claude,
+  2026-11-19; Pedro may change). Telegram's
+  refused files are listed under "Not added" too, and so are email attachments over 25 MB.
 
 ### Step 2. One memory of past answers (C2, with C3) · L
 Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` (MIT).

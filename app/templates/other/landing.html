@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Other papers{% endblock %}
+{% block content %}
+<h1>Other papers</h1>
+<p>Papers that fit none of the other areas: contracts, letters, certificates, notices. Find one by any word in it with the search box at the top.</p>
+<p><a href="/other/upload">+ Add a paper</a></p>
+{% if papers %}
+<table class="review-table">
+  <thead><tr><th>Date</th><th>Paper</th><th>About</th><th>Summary</th></tr></thead>
+  <tbody>
+  {% for p in papers %}
+  <tr>
+    <td style="white-space:nowrap">{{ p.date or p.document.created_at.strftime('%Y-%m-%d') }}</td>
+    <td><a href="/other/documents/{{ p.document.id }}">{{ p.title }}</a></td>
+    <td>{{ p.about }}</td>
+    <td>{{ p.summary|truncate(160) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No paper here yet. The Inbox offers this place for a paper that fits nowhere else.</p>
+{% endif %}
+{% endblock %}

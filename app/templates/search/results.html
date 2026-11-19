@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}{{ q }} — {% endif %}Search{% endblock %}
+{% block content %}
+<h1>Search papers</h1>
+<form action="/search" method="get" class="field" role="search">
+  <input type="search" name="q" value="{{ q }}" placeholder="Any word printed on a paper" aria-label="Search papers" autofocus>
+</form>
+{% if q and n_words == 0 %}
+<p>Nothing searched. Words of one letter are not looked for. Type a longer word, then search again.</p>
+{% elif q and not results %}
+<p>No filed paper has these words. A paper still waiting in the <a href="/inbox">Inbox</a> is not searched; a scan or photo filed in the last hour may not be readable yet. Try another word, or look again later.</p>
+{% elif results %}
+<p>{{ results|length }} paper{{ 's' if results|length != 1 }}{% if n_words > 1 %}, those with the most of your words first{% endif %}.</p>
+<table class="review-table">
+  <thead><tr><th>Paper</th><th>Filed under</th><th>Level</th><th>Where it says it</th></tr></thead>
+  <tbody>
+  {% for r in results %}
+  <tr>
+    <td>{% if r.url %}<a href="{{ r.url }}">{{ r.document.filename }}</a>{% else %}{{ r.document.filename }}{% endif %}<br><small>added {{ r.document.created_at.strftime('%Y-%m-%d') }}</small></td>
+    <td>{{ r.where }}</td>
+    <td>{{ r.level }}</td>
+    <td>{% if r.line %}…{{ r.line }}…{% else %}<small>in its title or details</small>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

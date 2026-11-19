@@ -58,3 +58,13 @@ def test_gmail_auto_forward_keeps_original_sender_and_records_forwarder():
 
 def test_not_forwarded_has_no_forwarder():
     assert parse_email(_mail().as_bytes()).forwarded_by == ""
+
+
+def test_a_file_type_the_hub_does_not_take_is_kept_as_not_added_with_the_reason():
+    msg = _mail()
+    msg.add_attachment(b"data;valor\n2026-10-01;1,20", maintype="text", subtype="csv", filename="ViaVerde_extrato.csv")
+    parsed = parse_email(msg.as_bytes())
+    assert parsed.attachments == []
+    [skip] = parsed.skipped
+    assert skip.filename == "ViaVerde_extrato.csv" and skip.reason == "file_type"
+    assert skip.detail.startswith("Not added:") and ".csv" in skip.detail and "PDF" in skip.detail   # what, why, next

@@ -52,6 +52,18 @@ def _note_problem(problem, ref: str, technical: str | None = None) -> None:
         logger.exception("could not record a problem")
 
 
+def _note_skip(filename: str, reason: str, detail: str, ref: str) -> None:
+    """List a file the bot did not take under "Not added" on the Inbox page (PLAN step 1e). Never raises."""
+    try:
+        from sqlmodel import Session
+        from app.db import engine
+        from app.services.inbox_service import record_skip
+        with Session(engine) as s:
+            record_skip(s, filename=filename, source="telegram", reason=reason, detail=detail, external_ref=ref)
+    except Exception:
+        logger.exception("could not record a skipped file")
+
+
 @dataclass
 class PickedFile:
     file_id: str
@@ -141,10 +153,16 @@ async def on_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if sender is None or message is None:
         return
     picked = pick_file(message)
+    ref = f"telegram:{message.chat_id}:{message.message_id}"
     if picked is None or media_kind_for(picked.filename) == MediaKind.OTHER:
+        if picked is not None:
+            from app.channels.email_parsing import file_type_detail
+            _note_skip(picked.filename, "file_type", file_type_detail(picked.filename) + f" Sent by {sender}.", ref)
         await message.reply_text(UNSUPPORTED_TEXT if picked is not None else HELP_TEXT)
         return
     if picked.size and picked.size > MAX_BOT_DOWNLOAD_BYTES:
+        _note_skip(picked.filename, "too_large", f"Not added: Telegram does not let the Hub download files over 20 MB. "
+                                                 f"Email it to the Hub's address instead. Sent by {sender}.", ref)
         await message.reply_text(TOO_BIG_TEXT)
         return
     try:

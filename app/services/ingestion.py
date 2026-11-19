@@ -210,6 +210,8 @@ async def _file_under(session: Session, document: Document, validated: Validated
     if result.status == DocumentStatus.PROCESSED:
         from app.problems import resolve_for
         resolve_for(session, f"document:{result.id}")      # it works now: clear its earlier problem
+    from app.services.paper_search import after_filing
+    after_filing(session, result)                          # its text and search row (PLAN step 1); never raises
     return result
 
 
@@ -276,6 +278,8 @@ async def update_document_fields(
     with privacy_scope(session, document.category, document.paper_kind):
         await spec.handler.on_fields_changed(session, document, previous)
     session.refresh(document)
+    from app.services.paper_search import after_filing
+    after_filing(session, document)                        # its search row follows its new details
     return document
 
 
