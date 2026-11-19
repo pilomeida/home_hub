@@ -57,10 +57,38 @@ async def _second_look(x: ex.ExtractedHealth, lines: Sequence[str], gateway) -> 
         x.details = (x.details + "\n" + more).strip()
 
 
+def drop_wrappers(x: ex.ExtractedHealth) -> None:
+    """A paper's headings without the wrapper that opens them ("Conclusões › Triplex carotídeo" -> "Triplex
+    carotídeo"): the result's own name ("Conclusão") already says what it is, and topics drop it too."""
+    from app.categories.health.topics import topic_path
+    for m in x.measurements:
+        if m.group_path:
+            kept = topic_path(m.group_path)
+            if kept:                                          # a result whose only heading is the wrapper keeps it
+                m.group_path = ex.PATH_SEP.join(kept)
+
+
+def complete_from(x: ex.ExtractedHealth, y: ex.ExtractedHealth) -> None:
+    """Where one reading cut a written finding short and the other has it whole (the first is the start of the
+    second), the whole one is kept."""
+    from app.categories.health.text import match_key
+    longer = {(match_key(m.group_path), match_key(m.test)): m.value_text for m in y.measurements if m.value_text}
+    for m in x.measurements:
+        other = longer.get((match_key(m.group_path), match_key(m.test)))
+        if m.value_text and other and len(other) > len(m.value_text) \
+                and match_key(other).startswith(match_key(m.value_text).rstrip(" .")):
+            m.value_text = other
+
+
+def _settle(x: ex.ExtractedHealth, file_path: str) -> None:
+    apply_layout(x, file_path)
+    drop_wrappers(x)
+
+
 async def _laid_out(reading, file_path: str) -> ex.ExtractedHealth:
     """A reading with the paper's own layout applied, so two readings are compared on the same footing."""
     y = await reading
-    await ex.asyncio.to_thread(apply_layout, y, file_path)
+    await ex.asyncio.to_thread(_settle, y, file_path)
     return y
 
 
@@ -73,7 +101,7 @@ async def read_health_document(
                                          existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
     if x.is_bill:                                             # refused by the caller: nothing to check or compare, no more reads
         return x
-    await ex.asyncio.to_thread(apply_layout, x, file_path)    # what the PDF's own layout settles (step 5d)
+    await ex.asyncio.to_thread(_settle, x, file_path)         # what the PDF's own layout settles (step 5d)
     source = await ex.asyncio.to_thread(ex.paper_text, file_path)       # None for a scan or photo: nothing to check against
     report: CheckReport = check_reading(x, source)
     doubts: list[Doubt] = []
@@ -90,7 +118,7 @@ async def read_health_document(
             lambda: _laid_out(ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
                                                          existing_conditions=existing_conditions, gateway=gw,
                                                          guidance=guidance), file_path),
-            lambda y: compare_readings(x, y))
+            lambda y: (complete_from(x, y), compare_readings(x, y))[1])
     x.check = from_doubts(doubts, checked=bool(source) or second_read)     # the one check-result shape (step 5c)
     x.check_notes = x.check.notes(MAX_NOTES)
     return x

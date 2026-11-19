@@ -103,7 +103,11 @@ adapt and test well).
   block ends at a wider gap than its rows (the first version moved Ureia, AST… under A1c and Ionograma: caught by
   the benchmark, fixed the same day); a reference in words ("Risco elevado: >5,0") or differing only in spaces is
   kept as read. The benchmark's AI readings vary run to run (the Doppler passed, then failed, on the same code): each
-  reader change is judged on two runs.
+  reader change is judged on two runs. Benchmark after 5d (commit 7c55622, two runs): the Cintramédica lab sheet passes both
+  (55/55, it failed every run before); the Doppler (a scan) fails differently each run: the "Conclusões" wrapper
+  heading, one conclusion cut short, the hospital's long name. Those are the narrative-findings and provider items left.
+  Then: a wrapper heading ("Conclusões") is dropped from every reading, as topics already do; a written finding one
+  reading cut short is completed from the other reading when it is the start of it.
   A history point printed on several papers shows once on a person's results (5b) while each paper keeps what it
   printed (Claude; Pedro may change). Left: narrative findings as a structure of their own; Pedro's corrections
   kept per provider; grey bands (pypdf gives no shading; needs another reader).

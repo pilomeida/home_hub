@@ -79,3 +79,23 @@ def test_a_worded_reference_or_one_differing_only_in_spaces_is_kept(tmp_path):
         _m("Razão col.total/col.HDL", "Hematologia", 4.3, "Risco elevado: >5,0")])
     layout.apply_layout(x, _pdf(tmp_path))
     assert [m.reference_text for m in x.measurements] == ["=<15,0", "Risco elevado: >5,0"]
+
+
+def test_a_report_drops_its_wrapper_heading_and_a_cut_short_finding_is_completed():
+    from app.categories.health.reading import complete_from, drop_wrappers
+    full = ("Permeabilidade de todos os segmentos estudados com velocidades e sentidos de fluxo dentro dos valores "
+            "normais. Índices de pulsatilidade, dentro dos valores normais.")
+    x = ExtractedHealth(layout="report", measurements=[
+        ExtractedMeasurement("Conclusão", None, full.split(" Índices")[0], None, None, None, None, False, "",
+                             group_path=f"Conclusões{PATH_SEP}ECO/DTC"),
+        ExtractedMeasurement("Nota", None, "Só o invólucro.", None, None, None, None, False, "",
+                             group_path="Conclusões")])
+    y = ExtractedHealth(layout="report", measurements=[
+        ExtractedMeasurement("Conclusão", None, full, None, None, None, None, False, "", group_path="ECO/DTC")])
+    drop_wrappers(x)
+    assert [m.group_path for m in x.measurements] == ["ECO/DTC", "Conclusões"]     # alone, the wrapper stays
+    complete_from(x, y)
+    assert x.measurements[0].value_text == full
+    sheet = ExtractedHealth(layout="sheet", measurements=[_m("Glucose", f"Resultados{PATH_SEP}Bioquímica", 90)])
+    drop_wrappers(sheet)
+    assert sheet.measurements[0].group_path == "Bioquímica"                       # same rule as topics, any layout
