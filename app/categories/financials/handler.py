@@ -370,7 +370,15 @@ async def read_statement(session: Session, document: Document) -> Document:
         # try so that a failure here undoes the lines like any other failure; a statement that adds up, or
         # holds nothing; one that prints no balances holds only lines the model called unclear.
         apply_statement_check(session, document.id, created_transactions, extracted)
+        # Days the bank feed already brought show as overlap, never doubled (PLAN step 4a).
+        from app.services.feed_overlap import match_statement_to_feed
+        overlap = match_statement_to_feed(session, created_transactions)
         session.commit()
+        if overlap.overlapped:
+            from app.models.wiki import WikiOperation
+            from app.services.wiki_store import append_log
+            append_log(session, WikiOperation.INGEST, f"{document.filename}: {overlap.overlapped} line(s) were already "
+                       f"in the bank feed; shown as overlap, counted once", document_id=document.id)
     except Exception as exc:
         # Roll back any staged-but-uncommitted state, then explicitly
         # delete any line items (and any brand-new Merchants they created)

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 4 (statements against the bank feed), slice a: match a statement line to a feed line.
+**Now (2026-11-19):** step 4a (statement lines against feed lines) deploying; next: 4b, card statements and the Loans upload through the same intake.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -78,6 +78,13 @@ Reuse: actualbudget/actual `server/accounts/sync.ts` `reconcileTransactions` (MI
   credit balance). Before the 2025-10-10 baseline, so history and spending analysis only.
 - Done when: a statement for a feed period adds no double lines (tested on a real overlap), and Rute's card statement
   can be sent by Telegram.
+- ◐ a, 2026-11-19 (Claude): a new statement line the feed already holds (same account, direction and amount, nearest
+  date within 3 days, one-to-one) is kept but settled by its feed line, so it shows dimmed with a link to the bank
+  entry and counts once; a checked line is never changed; such a line no longer takes a bill from its feed twin
+  (`app/services/feed_overlap.py`). Matching by the bank's id first is moot here: a statement printed on paper
+  carries no bank id. A live dry run of bill matching gave the same pairs before and after (0 pending). Left: b
+  (Loans upload and card statements through the same intake; PDF wrapper on every channel; Rute's card statement by
+  Telegram), c.
 
 ### Step 5. Shared reading blocks, Health first (C4, with Health "first time right") · L
 Reuse: giovi321/asclepius `normalization/resolver.py`, `prompts_data/extraction_lab_test.yaml` (MIT, young project:

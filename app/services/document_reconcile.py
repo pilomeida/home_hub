@@ -76,8 +76,10 @@ def reconcile_documents(session: Session, dry_run: bool = False) -> ReconcileDoc
     names = {m.id: m.canonical_name for m in session.exec(select(Merchant)).all()}
     candidates = [t for t, d in rows if not _is_bank(d) and t.settled_by_id is None and (t.paid_date or t.due_date)]
     # a bank row waiting for a check, or rejected as not real, must not absorb a bill (neither would then count)
-    banks = [t for t, d in rows if _is_bank(d) and t.review_status not in ("needs_check", "rejected")]
-    used = {t.settled_by_id for t, _d in rows if t.settled_by_id is not None}
+    # A statement line the feed already holds (PLAN step 4: settled by its feed line) is not a bank row of its own.
+    banks = [t for t, d in rows if _is_bank(d) and t.review_status not in ("needs_check", "rejected")
+             and t.settled_by_id is None]
+    used = {t.settled_by_id for t, d in rows if t.settled_by_id is not None and not _is_bank(d)}
     bank_tokens = {b.id: _tokens(b.description, names.get(b.merchant_id)) for b in banks}
 
     by_id = {t.id: t for t, _d in rows}
