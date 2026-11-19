@@ -14,6 +14,7 @@ from app.categories.health import extraction as ex
 from app.categories.health.checks import MAX_LINES_TO_ASK, CheckReport, check_reading, compare_readings, unresolved_notes
 from app.llm_gateway import HEALTH_EXTRACTION, get_gateway
 from app.privacy.tiers import Tier
+from app.services.checks import Doubt, from_doubts, from_health, read_twice
 from app.services.json_utils import strip_json_fences
 
 _RESULTS_RULES = ex._SYSTEM[ex._SYSTEM.index("- sections:"):ex._SYSTEM.index("{full_text_rule}")]
@@ -66,21 +67,20 @@ async def read_health_document(
         return x
     source = await ex.asyncio.to_thread(ex.paper_text, file_path)       # None for a scan or photo: nothing to check against
     report: CheckReport = check_reading(x, source)
-    notes: list[str] = []
+    doubts: list[Doubt] = []
     if report.uncaptured_lines:
         try:
             await _second_look(x, report.uncaptured_lines, gw)
         except Exception as exc:                              # the reading is still good: say what could not be re-checked
-            notes.append(f"A second look at {len(report.uncaptured_lines)} printed line(s) did not work ({type(exc).__name__}); "
-                         "they were left as read.")
+            doubts.append(Doubt(f"A second look at {len(report.uncaptured_lines)} printed line(s) did not work "
+                                f"({type(exc).__name__}); they were left as read."))
         report = check_reading(x, source)                     # what is still missing, and values now on the page
-    notes += unresolved_notes(report)
-    if second_read:                                           # every paper is read twice, independently
-        try:
-            y = await ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
-                                                 existing_conditions=existing_conditions, gateway=gw, guidance=guidance)
-            notes += compare_readings(x, y)
-        except Exception as exc:                              # the first reading stands; say it was not cross-checked
-            notes.append(f"A second reading to compare against did not work ({type(exc).__name__}); this reading is unchecked. Read the paper again to check it.")
-    x.check_notes = notes[:MAX_NOTES] + ([f"... and {len(notes) - MAX_NOTES} more. Look at the paper."] if len(notes) > MAX_NOTES else [])
+    doubts += from_health(report, had_text=bool(source)).doubts
+    if second_read:                                           # every paper is read twice, independently (shared step)
+        doubts += await read_twice(
+            lambda: ex.extract_health_document(file_path, paper_kind, existing_areas=existing_areas,
+                                               existing_conditions=existing_conditions, gateway=gw, guidance=guidance),
+            lambda y: compare_readings(x, y))
+    x.check = from_doubts(doubts, checked=bool(source) or second_read)     # the one check-result shape (step 5c)
+    x.check_notes = x.check.notes(MAX_NOTES)
     return x

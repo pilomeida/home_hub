@@ -61,6 +61,11 @@ class Verdict:
     note: str
     flagged: dict[int, str] = field(default_factory=dict)   # line index (as given) -> plain-language reason
 
+    def result(self):
+        """The one check-result shape (PLAN step 5c, app/services/checks.py)."""
+        from app.services.checks import from_statement
+        return from_statement(self)
+
 
 def money(value: float) -> str:
     """1200.0 -> '1.200,00' (the way the statements print it)."""

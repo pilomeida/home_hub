@@ -15,6 +15,7 @@ from typing import Optional
 from sqlalchemy import update
 from sqlmodel import Session, select
 
+from app.services.checks import from_problems
 from app.privacy.scope import privacy_scope
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.document import Document, DocumentStatus
@@ -432,9 +433,9 @@ async def process_positions_document(session: Session, document: Document, gatew
     try:
         with privacy_scope(session, document.category, document.paper_kind):    # also when re-run from the Loans page
             positions = await extract_statement_positions(document.file_path, gateway=gateway)
-        problems = reconcile(positions)
-        if problems:
-            return _fail(session, document, "; ".join(problems), mark_document)
+        check = from_problems(reconcile(positions))                 # the one check-result shape (step 5c)
+        if not check.clean:
+            return _fail(session, document, "; ".join(check.notes()), mark_document)
         counts = apply_positions(session, document, positions)
     except Exception as exc:  # broad by design: any failure lands on needs_attention with a reason
         return _fail(session, document, str(exc), mark_document)
@@ -462,9 +463,9 @@ async def process_loan_history_document(session: Session, document: Document, ga
             oldest = min(numbers)
             rows = [r for r in rows if r.instalment_number != oldest]
             crop_note = f"oldest instalment nº {oldest} ignored: printout is cropped"
-        problems = reconcile_loan(rows)
-        if problems:
-            return _fail(session, document, "; ".join(problems), mark_document)
+        check = from_problems(reconcile_loan(rows))
+        if not check.clean:
+            return _fail(session, document, "; ".join(check.notes()), mark_document)
         instalments = aggregate_components(rows)
         debt = match_loan_for_history(session, instalments)
         if debt is None:

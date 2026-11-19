@@ -385,6 +385,47 @@ def _health_tests(session: Session) -> None:
     _close_gone(session, "health_test", refs, stamp)
 
 
+def _health_doubts(session: Session) -> None:
+    """A Health paper whose reading the check could not settle (step 5c): its doubts, on one item, until a person has
+    looked at the paper (the paper's own "I've checked these" does the same)."""
+    from app.categories.health.store import notes_of
+    from app.models.document import Document
+    from app.models.health import HealthEntry
+    refs, existing = set(), _open_refs(session, "health_doubts")
+    for entry in session.exec(select(HealthEntry).where(HealthEntry.check_notes.is_not(None))).all():
+        notes = notes_of(entry)
+        doc = session.get(Document, entry.document_id)
+        if not notes or doc is None:
+            continue
+        ref = f"health_entry:{entry.document_id}"
+        refs.add(ref)
+        if ref in existing:
+            continue
+        shown = "; ".join(notes[:3]) + (f"; and {len(notes) - 3} more" if len(notes) > 3 else "")
+        open_item(session, area="health", kind="health_doubts", ref=ref,
+                  title=f"Check the reading of {doc.filename}",
+                  why=f"The check against the paper could not settle {len(notes)} point(s): {shown}",
+                  evidence_url=f"/health/documents/{entry.document_id}",
+                  options=[{"value": APPROVE, "label": "I looked at the paper"}])
+
+    def stamp(ref: str) -> tuple:
+        from app.categories.health.store import entry_for
+        entry = entry_for(session, int(ref.split(":")[1]))
+        return (APPROVED if entry is not None else DISCARDED), None, None
+    _close_gone(session, "health_doubts", refs, stamp)
+
+
+def _answer_health_doubts(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.categories.health.store import clear_notes
+    from app.models.document import Document
+    doc = session.get(Document, int(item.ref.split(":")[1]))
+    if doc is None:
+        raise ReviewError("Nothing was changed.", "That Health paper is no longer filed.",
+                          "Reload “Waiting for you”; the item will go away.")
+    clear_notes(session, doc)
+    return APPROVED
+
+
 def _answer_health_test(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
     from app.categories.health import tests
     from app.models.health import HealthTest
@@ -455,11 +496,12 @@ for _kind in ("health_area", "health_person", "health_topic"):
     HANDLERS[_kind] = _answer_health
 HANDLERS["same_person"] = _answer_same_person
 HANDLERS["health_test"] = _answer_health_test
+HANDLERS["health_doubts"] = _answer_health_doubts
 HANDLERS["merchant"] = _answer_merchant
 HANDLERS["to_check_line"] = _answer_to_check_line
 HANDLERS["statement_mismatch"] = _answer_statement_mismatch
 PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants,
-                                               _health, _health_tests, _same_person]
+                                               _health, _health_tests, _health_doubts, _same_person]
 
 
 @dataclass

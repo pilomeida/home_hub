@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice c: one check-result shape (5a, 5b done).
+**Now (2026-11-19):** step 5 (shared reading blocks, Health first), slice d: Health reading, first time right (5a–5c done).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -85,7 +85,12 @@ adapt and test well).
   with nothing alike is simply added (Claude; Pedro may change: the PLAN said every new test is asked, which would
   have been 65 questions for the first two lab sheets). Units never merge (% and 10^9/L stay two tests).
 - c. One check-result shape (verdict, doubtful items) for the statement add-up, positions, card and Health checks,
-  flowing into step 3. Read-twice and the benchmark move into the shared block.
+  flowing into step 3. Read-twice and the benchmark move into the shared block. ✅ 2026-11-19 (`app/services/checks.py`:
+  `CheckResult` = verdict ok / doubtful / not checked + doubts; the statement add-up, positions, card and Health
+  checks return it; `read_twice` is shared; a Health paper with doubts is one item on "Waiting for you", closed by
+  "I looked at the paper" or by the paper's own button). 5b live: 88 results → 65 tests, 3 look-alikes asked
+  (left/right eye, ALT/AST). The benchmark runner stays with Health for now: no other reader has cases yet; it
+  moves when a second one does (Claude; Pedro may change).
 - d. Health reading, from the agreed "first time right" list: read the PDF's structure with code (positions, fonts,
   grey bands) so the model only interprets; learn each provider once (a profile Pedro confirms, his corrections kept
   for that provider); narrative findings get a structure of their own instead of long text in a result; "Read again"

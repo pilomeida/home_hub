@@ -66,6 +66,7 @@ class ExtractedHealth:
     requested_by: str = ""          # the service or doctor who asked for it / sent the patient
     performed_by: str = ""          # who did the exam or signed the report
     check_notes: list[str] = field(default_factory=list)    # what the check against the paper could not settle (reading.py)
+    check: Optional[object] = None  # the CheckResult behind check_notes (app/services/checks.py), when it was checked
     is_bill: bool = False          # the reader took the paper for a bill, receipt or reimbursement statement: not a Health paper
     appointment_date: Optional[date] = None
     appointment_time: Optional[str] = None

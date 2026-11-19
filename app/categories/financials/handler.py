@@ -372,8 +372,10 @@ async def read_card_statement_document(session: Session, document: Document) -> 
     session.commit()
     from app.models.wiki import WikiOperation
     from app.services.wiki_store import append_log
+    from app.services.checks import card_statement_checked
+    check = card_statement_checked(len(statement.lines))         # the one check-result shape (step 5c)
     append_log(session, WikiOperation.INGEST, f"{document.filename}: card statement {statement.number}, "
-               f"{len(statement.lines)} line(s), {added} new, checked to the cent", document_id=document.id)
+               f"{added} new, {check.summary}", document_id=document.id)
     reconcile_quietly(session)
     session.refresh(document)
     return document
