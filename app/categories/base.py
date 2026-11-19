@@ -261,6 +261,9 @@ class CategorySpec:
     document_url: Callable[[Document], str]
     wiki: WikiSchema = WikiSchema()
     infers_kind: bool = False                         # True: handler may determine a missing kind itself
+    # True: the paper's own reading proposes its kind (Health). Otherwise the kind is decided ONCE, before filing
+    # (PLAN step 2d, C3): by the Inbox's classifier, or for a hand upload by the same recognition and classifier.
+    reading_proposes_kind: bool = False
     record_url: Optional[Callable[[Record], str]] = None
     derive_fields: Callable[[Optional[str], dict[str, str]], dict[str, str]] = _no_derived_fields
     ask_tools: tuple = ()                             # tuple[app.services.ask.contracts.AskTool, ...] (Plan C)

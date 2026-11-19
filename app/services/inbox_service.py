@@ -165,7 +165,7 @@ def is_confident(item: InboxItem) -> bool:
         return False
     spec = get_spec(category)
     if item.suggested_paper_kind is None:
-        return spec.infers_kind
+        return spec.reading_proposes_kind
     return item.suggested_paper_kind in {c.value for c in spec.kinds}
 
 
@@ -231,6 +231,9 @@ async def approve(
     classification = Classification(category=category, paper_kind=paper_kind or None, fields=dict(fields))
     # Validate first so a rejected choice changes nothing (no review mark, no log).
     validated = validate_classification(session, classification, document.filename)
+    if validated.paper_kind is None and not validated.spec.reading_proposes_kind:
+        # The kind is decided once, here (PLAN step 2d, C3): no hidden second decision after approval.
+        raise InvalidClassification({"category": "Choose what kind of paper it is"})
     require_ready(session, category, validated.paper_kind)    # raises TierHeld before anything is marked or read
 
     item.reviewed_by = reviewed_by

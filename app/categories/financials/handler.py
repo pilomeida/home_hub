@@ -26,8 +26,8 @@ from app.services.classification_engine import classify_transaction
 from app.services.dedup import find_duplicate_transaction
 from app.services.document_reconcile import reconcile_quietly
 from app.services.extraction import (
+    ClassificationError,
     ExtractedBill,
-    classify_document,
     extract_bill,
     extract_statement_transactions,
     extract_utility_detail,
@@ -70,6 +70,29 @@ def _wiki_context(session: Session, transaction: Transaction) -> str:
     )
 
 
+async def classify_document(file_path: str, gateway=None) -> str:
+    """A hand upload's kind, decided once and the same way the Inbox decides it (PLAN step 2d, C3): the Inbox's own
+    classifier, limited to Money & Bills. (The separate bill-or-statement prompt that ran after approval is gone.)"""
+    from app.categories.registry import get_spec
+    from app.services.category_classifier import suggest_category_and_kind
+    suggestion = await suggest_category_and_kind(file_path, categories=[get_spec(Category.FINANCIALS)], gateway=gateway)
+    if suggestion.category != Category.FINANCIALS or not suggestion.paper_kind:
+        raise ClassificationError(f"Could not tell what kind of money paper this is: {suggestion.note or 'no answer'}")
+    return suggestion.paper_kind
+
+
+def _recognised_kind(session: Session, document: Document) -> Optional[str]:
+    """A person's recognition rule (sender, words, file name), with no AI: the Inbox's first step too."""
+    from pathlib import Path
+    from app.privacy.recognise import recognise
+    try:
+        content = Path(document.file_path).read_bytes()
+    except OSError:
+        return None
+    found = recognise(session, filename=document.filename, content=content, context_text=None)
+    return found.paper_kind if found is not None and found.category == Category.FINANCIALS.value else None
+
+
 async def process_financials_document(session: Session, document: Document) -> Document:
     """Run the Financials pipeline for a Document the ingestion core has
     already finalized (domain, category -- possibly None -- and fields set).
@@ -85,7 +108,7 @@ async def process_financials_document(session: Session, document: Document) -> D
 
     if document.paper_kind is None:
         try:
-            document.paper_kind = await classify_document(document.file_path)
+            document.paper_kind = _recognised_kind(session, document) or await classify_document(document.file_path)
         except Exception as exc:
             # Broad by design: any classification failure must land the
             # Document on needs_attention with a reason, never propagate.

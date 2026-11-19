@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 2e (one merchant for a provider written two ways) deploying; next: d (a paper's kind decided once).
+**Now (2026-11-19):** step 2d (a paper's kind decided once) deploying; next: payment entities and the supermarket list into the rules table.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -107,7 +107,12 @@ Reuse: maciejb2k/open-banking-rails `merchant_rule.rb`, `merchant_suggester.rb` 
   spelling of a known counterparty; merging merchants writes each merged spelling as a person's rule (tested with
   "Amigo (Vodafone Portugal)" → "Amigo (Vodafone)"). The live Amigo / Amigo EasyPay / Vodafone Portugal merchants
   are left as they are: their merge is step 6b's subject merge.
-  Left in step 2: payment entities and the supermarket list into the table; the rest of c; d.
+  ✅ d, 2026-11-19 (Claude): the kind of a paper is decided once. The bill-or-statement prompt that ran after approval
+  is gone; the Inbox classifier must give a Money paper its kind and approving one without a kind is refused; a hand
+  upload with no kind gets the Inbox's own decision once (a person's recognition rule first, then the same
+  classifier limited to Money & Bills). Health keeps its design: its reading proposes the kind
+  (`reading_proposes_kind`).
+  Left in step 2: payment entities and the supermarket list into the table; AI calls in batches (rest of c).
 
 ### Step 3. One review queue: "Waiting for you" (C1) · L
 Reuse: open-banking-rails' "a switched-off rule waits for review" (MIT).

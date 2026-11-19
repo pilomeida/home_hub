@@ -66,6 +66,7 @@ SPEC = CategorySpec(
     ),
     handler=HealthHandler(),
     infers_kind=True,       # the upload page asks only for the file; the reading proposes the kind of paper
+    reading_proposes_kind=True,
     ask_tools=HEALTH_TOOLS,
     nav_links=(NavLink("Records", "/health/records"), NavLink("Areas", "/health/areas"), NavLink("Topics", "/health/topics"),
                NavLink("People", "/health/people")),

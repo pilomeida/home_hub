@@ -117,50 +117,8 @@ async def extract_bill(file_path: str, gateway=None) -> ExtractedBill:
         raise ExtractionError(f"Could not parse extraction response: {exc}") from exc
 
 
-_CLASSIFICATION_SYSTEM_PROMPT = """You classify an uploaded financial \
-document as either a single bill/invoice or a bank account statement. \
-Respond with ONLY a JSON object:
-
-{"document_type": "bill" or "statement"}
-
-A "bill" has one provider and one amount due (an invoice, receipt, or \
-premium notice). A "statement" lists multiple transactions across one or \
-more accounts (a monthly bank/account statement)."""
-
-_CLASSIFICATION_SCHEMA = {
-    "type": "object",
-    "required": ["document_type"],
-    "properties": {"document_type": {"type": "string", "enum": ["bill", "statement"]}},
-}
-
-_CLASSIFY_USER_PROMPT = "Classify this document as JSON."
-
-
 class ClassificationError(Exception):
     pass
-
-
-async def classify_document(file_path: str, gateway=None) -> str:
-    """Classify an uploaded document as "bill" or "statement"."""
-    gw = gateway or get_gateway()
-    content_block = build_content_block(file_path)
-
-    result = await gw.run(
-        VISION_CLASSIFICATION,
-        _CLASSIFICATION_SYSTEM_PROMPT,
-        _CLASSIFY_USER_PROMPT,
-        attachments=[content_block],
-        response_schema=_CLASSIFICATION_SCHEMA,
-    )
-
-    try:
-        data = json.loads(strip_json_fences(result.text))
-        document_type = data["document_type"]
-        if document_type not in ("bill", "statement"):
-            raise ValueError(f"Unexpected document_type: {document_type!r}")
-        return document_type
-    except (IndexError, AttributeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-        raise ClassificationError(f"Could not classify document: {exc}") from exc
 
 
 _STATEMENT_SYSTEM_PROMPT = """You extract every transaction line item from a \

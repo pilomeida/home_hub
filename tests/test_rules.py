@@ -190,3 +190,61 @@ def test_merging_merchants_remembers_each_spelling(session):
     merge_merchants(session, [other.id], keep.id, by="pedro@example.com")
     assert rules.merchant_alias(session, "AMIGO EASYPAY") == "Amigo (Vodafone)"
     assert rules.merchant_alias(session, "Amigo (Vodafone)") is None
+
+
+# --- d. a paper's kind is decided once ----------------------------------------------------------------------
+
+def test_the_inbox_classifier_must_give_a_money_paper_its_kind():
+    from app.categories.registry import implemented_categories
+    from app.services.category_classifier import build_system_prompt
+    prompt = build_system_prompt(implemented_categories())
+    money = next(l for l in prompt.splitlines() if l.startswith('- domain "financials"'))
+    health = next(l for l in prompt.splitlines() if l.startswith('- domain "health"'))
+    assert "may be null" not in money and "may be null" in health
+
+
+def test_approving_a_money_paper_without_its_kind_is_refused(session, inbox_documents_dir):
+    import asyncio
+    import pytest
+    from app.categories.fields import InvalidClassification
+    from app.models.document import Document, DocumentSource, DocumentStatus
+    from app.models.inbox_item import InboxItem
+    from app.services import inbox_service
+    inbox_documents_dir.mkdir(parents=True, exist_ok=True)
+    path = inbox_documents_dir / "x.pdf"
+    path.write_bytes(b"%PDF-1.4 x")
+    doc = Document(filename="x.pdf", file_path=str(path), content_hash="h-x", source=DocumentSource.EMAIL,
+                   status=DocumentStatus.PENDING_REVIEW)
+    session.add(doc); session.commit()
+    session.add(InboxItem(document_id=doc.id, suggested_category="financials")); session.commit()
+    with pytest.raises(InvalidClassification) as refused:
+        asyncio.run(inbox_service.approve(session, doc.id, category_value="financials", paper_kind=None, fields={},
+                                          reviewed_by="p@x"))
+    assert "kind of paper" in refused.value.errors["category"]
+    session.refresh(doc)
+    assert doc.status == DocumentStatus.PENDING_REVIEW                                # nothing was filed
+
+
+def test_a_hand_upload_takes_its_kind_from_a_persons_recognition_rule_without_the_ai(session, tmp_path, monkeypatch):
+    import asyncio
+    from app.categories.financials import handler
+    from app.models.document import Document, DocumentSource
+    from app.privacy import recognise
+    path = tmp_path / "edp-fatura-2026-10.pdf"
+    path.write_bytes(b"%PDF-1.4 x")
+    recognise.remember(session, category="financials", paper_kind="bill", by="p@x", words="edp-fatura")
+    rule = session.exec(select(Rule)).one()
+    rule.looks_at = "filename"                                                        # a file-name rule
+    session.add(rule); session.commit()
+    doc = Document(filename=path.name, file_path=str(path), content_hash="h-edp", source=DocumentSource.MANUAL)
+    session.add(doc); session.commit()
+
+    async def no_ai(*a, **k):
+        raise AssertionError("the AI must not be asked when a person's rule recognises the paper")
+
+    async def read(session, document):
+        return document
+    monkeypatch.setattr(handler, "classify_document", no_ai)
+    monkeypatch.setattr(handler, "read_by_kind", lambda s, d, c, default: read(s, d))
+    asyncio.run(handler.process_financials_document(session, doc))
+    assert doc.paper_kind == "bill"

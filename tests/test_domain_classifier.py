@@ -53,7 +53,7 @@ def test_prompt_is_built_from_the_registry(two_categories):
         assert f'"{spec.category.value}"' in prompt and spec.description in prompt
         for category in spec.kinds:
             assert f'"{category.value}"' in prompt and category.description in prompt
-    assert "may be null" in prompt   # Money infers its own category
+    assert "may be null" not in prompt   # PLAN step 2d (C3): Money's kind is decided here, once; only Health's reading proposes it
 
 
 @pytest.mark.asyncio
@@ -65,9 +65,10 @@ async def test_valid_answer_and_wire_shape(pdf, two_categories):
 
 
 @pytest.mark.asyncio
-async def test_null_category_allowed_only_for_inferring_domains(pdf, two_categories):
+async def test_null_category_is_not_an_answer_where_the_kind_is_decided_once(pdf, two_categories):
+    # PLAN step 2d (C3): a Money paper must come with its kind; a null kind is no suggestion at all.
     ok = await suggest_category_and_kind(pdf, gateway=_answer(domain="financials", category=None, confidence=0.9, reason="x"))
-    assert ok.category == Category.FINANCIALS and ok.paper_kind is None
+    assert ok.category is None
     bad = await suggest_category_and_kind(pdf, gateway=_answer(domain="house", category=None, confidence=0.9, reason="x"))
     assert bad.category is None
 

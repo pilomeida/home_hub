@@ -79,7 +79,7 @@ async def test_pending_entries_confidence_and_labels(session):
     await _receive(session, content=b"b", suggestion=CategorySuggestion(Category.HOUSE, "clip", 0.4, "?"))
     await _receive(session, content=b"c", suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "bill-ish"))
     entries = inbox_service.pending_entries(session)
-    assert [e.confident for e in entries] == [True, False, True]
+    assert [e.confident for e in entries] == [True, False, False]   # Money with no kind: a person decides (C3)
     assert [e.suggestion_label for e in entries] == ["Fake › Manual", "Fake › Clip", "Money"]
 
 
@@ -132,12 +132,14 @@ async def test_approve_into_record_category_creates_record_with_file_attached(se
 
 
 @pytest.mark.asyncio
-async def test_approve_with_inferred_category(session, two_categories):
+async def test_approve_without_a_kind_is_refused_where_the_kind_is_decided_once(session, two_categories):
+    # PLAN step 2d (C3): no hidden second decision after approval; the person chooses the kind here.
     receipt = await _receive(session, suggestion=CategorySuggestion(Category.FINANCIALS, None, 0.9, "x"))
-    doc = await inbox_service.approve(session, receipt.document.id, category_value="financials",
-                                      paper_kind=None, fields={}, reviewed_by=None)
-    assert doc.category == Category.FINANCIALS and doc.paper_kind is None
-    assert two_categories["money"].handler.processed == [doc.id]
+    with pytest.raises(InvalidClassification) as refused:
+        await inbox_service.approve(session, receipt.document.id, category_value="financials",
+                                    paper_kind=None, fields={}, reviewed_by=None)
+    assert "kind of paper" in refused.value.errors["category"]
+    assert two_categories["money"].handler.processed == []
 
 
 @pytest.mark.asyncio

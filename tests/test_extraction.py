@@ -13,7 +13,6 @@ from app.services.extraction import (
     ExtractionError,
     StatementExtractionError,
     UtilityDetailExtractionError,
-    classify_document,
     extract_bill,
     extract_statement_transactions,
     extract_utility_detail,
@@ -58,19 +57,6 @@ async def test_extract_bill_uses_gateway_wire_shape(tmp_path):
         fake.requests[0], "vision_extraction", "Extract the billing data as JSON.",
         {"provider", "category_hint", "amount", "currency"},
     )
-
-
-@pytest.mark.asyncio
-async def test_classify_document_uses_gateway_wire_shape(tmp_path):
-    pdf_path = tmp_path / "doc.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4 fake")
-    fake = FakeGateway([_text_result(json.dumps({"document_type": "bill"}))])
-    assert await classify_document(str(pdf_path), gateway=fake) == "bill"
-    _assert_gateway_wire(
-        fake.requests[0], "vision_classification", "Classify this document as JSON.",
-        {"document_type"},
-    )
-    assert fake.requests[0]["response_schema"]["properties"]["document_type"].get("enum") == ["bill", "statement"]
 
 
 @pytest.mark.asyncio
@@ -195,48 +181,6 @@ async def test_extract_bill_sends_whole_pdf_as_document_block(tmp_path):
     block = client.requests[0]["attachments"][0]
     assert block["type"] == "document"
     assert block["source"]["media_type"] == "application/pdf"
-
-
-@pytest.mark.asyncio
-async def test_classify_document_returns_bill(tmp_path):
-    pdf_path = tmp_path / "doc.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4 fake")
-    client = _fake(json.dumps({"document_type": "bill"}))
-
-    result = await classify_document(str(pdf_path), gateway=client)
-
-    assert result == "bill"
-
-
-@pytest.mark.asyncio
-async def test_classify_document_returns_statement(tmp_path):
-    pdf_path = tmp_path / "doc.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4 fake")
-    client = _fake(json.dumps({"document_type": "statement"}))
-
-    result = await classify_document(str(pdf_path), gateway=client)
-
-    assert result == "statement"
-
-
-@pytest.mark.asyncio
-async def test_classify_document_raises_on_malformed_response(tmp_path):
-    pdf_path = tmp_path / "doc.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4 fake")
-    client = _fake("not json")
-
-    with pytest.raises(ClassificationError):
-        await classify_document(str(pdf_path), gateway=client)
-
-
-@pytest.mark.asyncio
-async def test_classify_document_raises_on_unexpected_type(tmp_path):
-    pdf_path = tmp_path / "doc.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4 fake")
-    client = _fake(json.dumps({"document_type": "receipt"}))
-
-    with pytest.raises(ClassificationError):
-        await classify_document(str(pdf_path), gateway=client)
 
 
 @pytest.mark.asyncio
