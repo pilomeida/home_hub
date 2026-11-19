@@ -178,8 +178,9 @@ def apply_layout(x, file_path: str) -> list[str]:
             changed.append(f"{m.test}: placed under {m.group_path} (was {before or 'no heading'}), as printed")
         printed = [spaced_intervals(r) or "" for r in _REFERENCE.findall(lines[at].text)]
         ours = spaced_intervals(m.reference_text) or ""
-        flat = " ".join(lines[at].text.split())
-        if ours and printed and " ".join(ours.split()) not in flat:
+        flat = "".join(lines[at].text.split())
+        worded = bool(re.search(r"[A-Za-zÀ-ÿ]{3}", ours))          # "Risco elevado: >5,0": the reading kept the words
+        if ours and printed and not worded and "".join(ours.split()) not in flat:
             same = next((r for r in printed if r != ours and _figures(r) == _figures(ours)), None)
             if same is not None:
                 changed.append(f"{m.test}: reference {ours} corrected to {same}, as printed")

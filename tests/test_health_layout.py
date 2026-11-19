@@ -18,6 +18,8 @@ SHEET = [
     (27, 618, 7.0, False, "ERITROGRAMA"),
     (27, 606, 7.0, False, "RDW"), (231, 606, 7.8, False, "13,9"), (312, 606, 6.3, False, "%"),
     (415, 604, 5.5, False, "=< 15,0"),
+    (27, 592, 7.0, False, "RAZÃO COL.TOTAL/COL.HDL"), (231, 592, 7.8, False, "4,3"),
+    (381, 592, 5.5, False, "Risco elevado:>5,0"),
 ]
 
 
@@ -69,3 +71,11 @@ def test_a_reference_already_as_printed_and_a_scan_are_left_alone(tmp_path):
     img = tmp_path / "scan.png"
     img.write_bytes(b"\x89PNG\r\n")
     assert layout.apply_layout(x, str(img)) == [] and layout.read_lines(str(img)) == []
+
+
+def test_a_worded_reference_or_one_differing_only_in_spaces_is_kept(tmp_path):
+    x = ExtractedHealth(measurements=[
+        _m("RDW", f"Hematologia{PATH_SEP}Eritrograma", 13.9, "=<15,0", "%"),
+        _m("Razão col.total/col.HDL", "Hematologia", 4.3, "Risco elevado: >5,0")])
+    layout.apply_layout(x, _pdf(tmp_path))
+    assert [m.reference_text for m in x.measurements] == ["=<15,0", "Risco elevado: >5,0"]
