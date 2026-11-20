@@ -133,6 +133,8 @@ Home & Family/
 │   │                           attaches request.state.user_email; skips only /health
 │   ├── templating.py           Shared Jinja2Templates instance (`app.templating.templates`) —
 │   │                           domain routers use this instead of building their own
+│   │                           and the one way a page shows money (`money`), a date (`display_date`)
+│   │                           and a what/why/what-to-do message (`templates/_message.html`, `three_part`)
 │   │
 │   ├── models/                 One file per entity; app/models/__init__.py imports every module so
 │   │   │                       SQLModel.metadata is fully populated (required for create_all/alembic)
@@ -167,7 +169,7 @@ Home & Family/
 │   │   │                       duplicates Document.status; suggested_domain is a plain string
 │   │   └── wiki.py             WikiPage (page_type + entity_key, facts_json = active-claims cache),
 │   │                           WikiClaim (+ note), WikiClaimSource (document OR record, +
-│   │                           withdrawn_at), WikiLogEntry (+ record_id), WikiLink, WikiChange (legacy)
+│   │                           withdrawn_at), WikiLogEntry (+ record_id), WikiLink
 │   │
 │   ├── categories/             Category registry — the ONLY extension point (see Design Decisions
 │   │   │                       and "Adding a domain"); shared code never names a domain
@@ -398,9 +400,8 @@ A source file (uploaded, forwarded, or synced). `domain` set ⇔ finalized: a Do
 | `source` | enum | MANUAL / EMAIL / API / TELEGRAM |
 | `status` | enum | PENDING → PROCESSED \| NEEDS_ATTENTION, or channel intake's PENDING_REVIEW → (finalized) \| DISCARDED |
 | `domain` | enum, nullable | FINANCIALS \| HOUSE — set at `finalize_document`; NULL ⇒ UNCLASSIFIED |
-| `category` | TEXT, nullable, indexed | The domain's category value (validated against the registry at finalize); Financials' former `doc_type` |
+| `category` | TEXT, nullable, indexed | The domain's category value (validated against the registry at finalize) |
 | `fields_json` | TEXT | JSON object of string values — per-domain metadata, validated against the registry's `FieldSpec`s before write |
-| `doc_type` | TEXT, nullable | **Deprecated** — copied into `category` by 3b7e9c1d2f40, no longer read or written |
 | `password_protected` | bool | |
 | `failure_reason` | TEXT, nullable | Populated whenever status is NEEDS_ATTENTION, or as a non-fatal note when PROCESSED with degraded enrichment |
 | `uploaded_by` | TEXT, nullable | CF Access email, or a script name for backfills |
@@ -518,7 +519,7 @@ arrived through an ingestion channel (email, Telegram). Review state itself live
 | `received_at` | DATETIME | |
 | `reviewed_by`, `reviewed_at` | TEXT / DATETIME, nullable | Set by `approve`/`discard`; NULL while the item is still pending |
 
-### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_links`, `wiki_log`, `wiki_changes`
+### `wiki_pages`, `wiki_claims`, `wiki_claim_sources`, `wiki_links`, `wiki_log`
 The knowledge layer. `WikiPage` is keyed by (`page_type`, `entity_key`, unique together) —
 `TOPIC` pages (the original standing-facts pages, `entity_key` NULL) plus per-domain item pages
 (e.g. House items, where `entity_key` is the normalized item name); it carries `summary` and
@@ -547,7 +548,7 @@ append-only). `WikiLogEntry` is an
 append-only log of every `apply_claims` run, tagged with a `WikiOperation`
 (ingest / edit / query / lint / review / migration), with `record_id` (nullable FK, alongside the
 existing `document_id`) so an entry can point at a hand-entered source; `/wiki/log` shows it.
-`wiki_changes` is the legacy WikiChange history table — still read-only, no longer written.
+The pre-claims history table `wiki_changes`, `documents.doc_type` and Health's amount columns were dropped by b8d1f3a5c702 (PLAN step 9, D1).
 
 ### `ask_conversations`, `ask_turns`
 Plan C's Ask chat. `AskConversation` (id, title — the first question, truncated; started_by; created_at;
