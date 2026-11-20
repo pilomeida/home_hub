@@ -38,7 +38,7 @@
   {% endif %}
   <nav class="phonebar" aria-label="Menu">
     <a class="pn2{% if here and here.key == 'home' %} on{% endif %}" href="/"><span>⌂</span>Home</a>
-    <a class="pn2{% if here and here.key == 'money' %} on{% endif %}" href="/financials/transactions"><span>€</span>Money</a>
+    <a class="pn2{% if here and here.key == 'money' %} on{% endif %}" href="/money"><span>€</span>Money</a>
     <a class="pn2 fab" href="/inbox" aria-label="Add a paper">+</a>
     <a class="pn2{% if here and here.key == 'health' %} on{% endif %}" href="/health/records"><span>+</span>Health</a>
     <a class="pn2{% if not here or here.key not in ('home', 'money', 'health') %} on{% endif %}" href="/more"><span>≡</span>More{% if n_waiting %} <em>{{ n_waiting }}</em>{% endif %}</a>

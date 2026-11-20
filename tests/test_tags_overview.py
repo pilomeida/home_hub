@@ -157,4 +157,4 @@ def test_dashboard_renders_the_by_tag_panel_with_links_and_amounts(client, sessi
 
 def test_dashboard_hides_the_by_tag_panel_when_there_are_no_tags(client, session):
     ensure_taxonomy(session)
-    assert "By tag" not in client.get("/").text
+    assert "By tag" not in client.get("/overview").text

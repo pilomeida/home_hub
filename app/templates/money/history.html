@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Category history — Home & Family{% endblock %}
+{% block content %}
+<form class="ctl" method="get" action="/money/history">
+  <label class="sel">Category <select name="category" onchange="this.form.submit()">
+    {% for slug, label in choices %}<option value="{{ slug }}"{% if slug == h.slug %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></label>
+  <label class="sel">Last <select name="months" onchange="this.form.submit()">
+    {% for n in month_choices %}<option value="{{ n }}"{% if n == months %} selected{% endif %}>{{ n }}</option>{% endfor %}
+  </select> months</label>
+  <label class="sel">View <select name="view" onchange="this.form.submit()">
+    {% for key, label in views.items() %}<option value="{{ key }}"{% if key == view %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></label>
+  <noscript><button class="btn" type="submit">Show</button></noscript>
+</form>
+<section class="card">
+  <div class="card-h"><span>{{ h.label }} · last {{ months }} months</span>
+    <span class="card-r">{% if h.average is not none %}average {{ charts.euros(h.average) }} · highest {{ h.highest.key }} {{ charts.euros(h.highest.spent) }}{% endif %}</span></div>
+  {% set title = h.label ~ ", spending per month" %}
+  {% if view == "line" %}{{ charts.line(h.items, w=760, h=220, title=title) }}
+  {% elif view == "trend" %}{{ charts.line(h.items, w=760, h=220, trend=True, title=title) }}
+  {% elif view == "bars" %}{{ charts.bars(h.bars, w=760, last_label="whole month", title=title) }}
+  {% else %}{{ charts.columns(h.items, w=760, h=220, title=title) }}{% endif %}
+  <p class="hint">A past month: the whole month and the same month up to day {{ day_of_month() }}. This month: only what has happened so far. No budget or forecast is drawn.</p>
+</section>
+<section class="card">
+  <div class="card-h"><span>By month</span></div>
+  <table class="tbl">
+    <thead><tr><th>Month</th><th class="num">Spent</th><th class="num">By the same day</th><th>Top merchant</th><th></th></tr></thead>
+    <tbody>
+    {% for m in h.months|reverse %}
+      <tr><td>{{ m.key }}{% if m.current %} (so far){% endif %}</td><td class="num">{{ charts.euros(m.spent, cents=True) }}</td>
+        <td class="num">{% if not m.current %}{{ charts.euros(m.by_same_day, cents=True) }}{% endif %}</td>
+        <td>{{ m.top_merchant or "" }}</td><td><a href="{{ m.lines_url }}">Lines ›</a></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

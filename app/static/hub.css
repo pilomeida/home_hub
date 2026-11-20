@@ -134,6 +134,42 @@ main { padding: 8px 20px 40px; max-width: 1240px; margin: 0 auto; }
   .wrow2 { grid-template-columns: 1fr; }
 }
 
+/* --- Money (step 10d) --------------------------------------------------------------------------------------- */
+.g4.k { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); margin-bottom: var(--gap); }
+.g4.k .card { margin: 0; color: var(--ink); text-decoration: none; }
+.kp .d { font-size: var(--fs-small); color: var(--muted); margin-top: 2px; } .kp .d.good { color: var(--good); }
+.kp .d.bad { color: var(--bad); }
+.g2.m { display: grid; grid-template-columns: 1fr 1.2fr; gap: var(--gap); align-items: start; }
+.g2.m > .card { margin-bottom: 0; }
+.ctl { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: var(--gap); }
+.ctl .sel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 5px 12px;
+  font-size: .9em; }
+.ctl select { font: inherit; border: 0; background: transparent; font-weight: 600; color: var(--ink); }
+.tbl .num, .tbl th.num { text-align: right; white-space: nowrap; } .tbl a { color: var(--accent); text-decoration: none; }
+@media (max-width: 1100px) { .g4.k { grid-template-columns: repeat(2, 1fr); } .g2.m { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .g4.k { gap: 10px; } .g4.k .big.s { font-size: 1.4em; } }
+
+/* --- Waiting for you (step 10e) ----------------------------------------------------------------------------- */
+.wlist { padding: 6px var(--pad); }
+.wrow { display: grid; grid-template-columns: 120px 1fr auto auto; gap: 14px; align-items: center; padding: 14px 0;
+  border-bottom: 1px solid var(--line); } .wrow:last-child { border: 0; }
+.wa { font-weight: 600; } .wd { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
+.wb .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch; }
+.g2.rv { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--gap); align-items: start; }
+.g2.rv > .card { margin: 0; }
+.paper-view { width: 100%; height: 70vh; border: 1px solid var(--line); border-radius: var(--radius-s); background: #fff;
+  object-fit: contain; }
+.one-t { font-size: 1.25em; margin: 4px 0 8px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.btns .btn[disabled] { opacity: .4; cursor: default; }
+.kbdh { color: var(--muted); font-size: .8em; margin-top: 10px; }
+.bulk { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .bulk .sp { flex: 1; }
+@media (max-width: 1100px) { .g2.rv { grid-template-columns: 1fr; } .paper-view { height: 50vh; } }
+@media (max-width: 760px) {
+  .wrow { grid-template-columns: 1fr auto; gap: 4px 10px; } .wrow .wd { display: none; } .wb .sub { max-width: none; }
+  .kbdh { display: none; }
+}
+
 /* --- page rules (moved from base.html) -------------------------------------------------------------------- */
   tr.flow-out { background: #f7ebe9; } tr.flow-out td.amt { color: #a8504a; }
   tr.flow-in, tr.flow-refund { background: #e9f2ea; } tr.flow-in td.amt, tr.flow-refund td.amt { color: #4d7a56; }

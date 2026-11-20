@@ -12,7 +12,7 @@ def test_dashboard_renders_open_todos(client, session):
     session.add(Todo(title="Pay EDP", due_date=date(2026, 9, 5)))
     session.commit()
 
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert "Pay EDP" in response.text
@@ -80,7 +80,7 @@ def test_overview_page_handles_yearly_commitment_with_zero_planned_amount(client
     )
     session.commit()
 
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
 

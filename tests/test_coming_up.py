@@ -127,5 +127,5 @@ def test_this_repeats_on_a_bank_line_fills_in_the_form(client, session):
 
 def test_the_overview_says_what_is_coming_in_the_next_30_days(client, session):
     _bill(session, "Fidelidade", 123.11, TODAY + timedelta(days=3))
-    page = client.get("/", headers=HTML).text
+    page = client.get("/overview", headers=HTML).text
     assert "Coming up in the next 30 days: 1 payment, €123.11" in page and 'href="/financials/coming-up"' in page

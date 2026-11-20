@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Money — Home & Family{% endblock %}
+{% block content %}
+<div class="g4 k">
+  {% for h in page.headline %}
+  <a class="card kp" href="{{ h.link }}"><div class="sub">{{ h.label }}</div><div class="big s">{{ h.value }}</div>
+    <div class="d {{ h.tone }}">{{ h.note }}</div></a>
+  {% endfor %}
+</div>
+<div class="g2 m">
+  <section class="card">
+    <div class="card-h"><span>By group · {{ page.today.strftime('%B') }} so far</span><a class="card-r" href="/overview">Overview ›</a></div>
+    {% if page.groups %}
+    {{ charts.bars(category_bars(page.groups), w=520, title="Spending by group: this month so far, last month in full") }}
+    <p class="hint">Solid: this month so far. Pale: last month in full. Click a group for its lines.</p>
+    {% else %}<p class="sub">No spending yet this month.</p>{% endif %}
+  </section>
+  <section class="card">
+    <div class="card-h"><span>Spending · 12 months</span><a class="card-r" href="/money/history">Category history ›</a></div>
+    {{ charts.columns(page.trend, kind="s", w=560, h=200, title="Spending per month, last 12 months") }}
+    <p class="hint">A past month: the whole month (pale) and the same month up to day {{ page.today.day }} (solid). This month: only what has happened so far.</p>
+    <p class="hint">Want one category over time? <a class="btn" href="/money/history">Open category history ›</a></p>
+  </section>
+</div>
+{% endblock %}

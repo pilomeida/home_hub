@@ -636,7 +636,7 @@ def test_detail_shows_red_flags_and_overview_item_links_to_loan(client, session)
 
 def test_overview_has_no_loan_item_without_alerts(client, session):
     _seed(session)
-    assert "Open loan" not in client.get("/").text
+    assert "Open loan" not in client.get("/overview").text
 
 
 def test_rate_history_table_highlights_a_changed_spread(client, session):

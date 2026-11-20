@@ -88,7 +88,7 @@ def test_full_bill_ingestion_flow(client, monkeypatch):
     )
     assert upload_response.status_code == 303
 
-    dashboard_response = client.get("/")
+    dashboard_response = client.get("/overview")
     assert dashboard_response.status_code == 200
     assert "electricity" in dashboard_response.text.lower()
     assert "EDP" in dashboard_response.text
@@ -143,7 +143,7 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
     # rolling-average contribution, since last_month_date falls outside the
     # current, still-empty month-to-date bucket). Classification is stubbed,
     # so the lines are not filed on the tree yet: they show as Unsorted.
-    dashboard_response = client.get("/")
+    dashboard_response = client.get("/overview")
     assert dashboard_response.status_code == 200
     assert "unsorted" in dashboard_response.text.lower()
 

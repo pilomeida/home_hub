@@ -11,7 +11,7 @@ def test_dashboard_renders(client):
     assert "Financials" in response.text
     # Since step 10b a section's pages show on that section's pages (and all of them on More), from the registry.
     money = client.get("/financials/transactions").text
-    assert "Bills &amp; Bank" in money  # Jinja autoescapes the "&" in the registry label
+    assert "Bills &amp; due" in money  # the tab's name (step 10d); Jinja autoescapes the "&"
     assert 'href="/financials/bills"' in money
     assert 'href="/financials/transactions"' in money
     assert 'href="/financials/utilities/electricity"' in money

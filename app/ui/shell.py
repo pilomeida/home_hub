@@ -51,12 +51,26 @@ def _unplaced_links() -> list[Link]:
             for l in spec.nav_links]
 
 
+# Money's tabs (step 10d), in the mock-up's order: the Money page, the money category's own pages under the tab names
+# the design gives them (only those the registry lists), then the category history.
+MONEY_NAMES = {"/financials/bills": "Bills & due", "/financials/loans": "Loans",
+               "/financials/utilities/electricity": "Utilities", "/financials/transactions": "All lines"}
+
+
+def _money_tabs() -> list[Link]:
+    listed = [l for l in _category_links("financials") if l.url not in ("/financials/coming-up", "/financials/bank/")]
+    urls = {l.url for l in listed}
+    named = [Link(label, url) for url, label in MONEY_NAMES.items() if url in urls]
+    return ([Link("Spending", "/money")] + named + [l for l in listed if l.url not in MONEY_NAMES]   # a new page shows
+            + [Link("Category history", "/money/history")])
+
+
 def sections() -> list[Section]:
-    money = [l for l in _category_links("financials") if l.url not in ("/financials/coming-up", "/financials/bank/")]
+    money = _money_tabs()
     return [
         Section("home", "Home", "/", ("/", "/ask", "/inbox", "/overview"),
                 [Link("Home", "/"), Link("Overview", "/overview"), Link("Ask", "/ask"), Link("Inbox", "/inbox")]),
-        Section("money", "Money", "/financials/transactions", ("/financials", "/budget", "/to-check"), money),
+        Section("money", "Money", "/money", ("/money", "/financials", "/budget", "/to-check"), money),
         Section("health", "Health", "/health/records", ("/health",), _category_links("health")),
         Section("things", "Things", "/house", ("/house", "/insurance"), _category_links("house", "insurance")),
         Section("papers", "Papers", "/search", ("/search", "/other", "/documents"),

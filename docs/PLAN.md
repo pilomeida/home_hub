@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** step 10 (UI redesign, Option A), slice d: Money (10a, 10b live; 10c deploying).
+**Now (2026-11-20):** step 10 (UI redesign, Option A), slice e: Waiting for you (10a, 10b live; 10c second deploy with 10d).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -119,12 +119,24 @@ and said tweaks will come from using it.
   shows the next six by date: bills, regular payments and dated To-Dos, a bill's own to-do once. Waiting: Inbox,
   Money, Health, Merchants; the menu, the heading and the queue's "All" leave out the merchants, which are one line
   and their own tab on /waiting (live: 105 waiting plus 1,149 merchants). Older tests that read the Overview at "/"
-  now read it at /overview.)
+  now read it at /overview.) The first 10c deploy (44654408534) failed on three more such tests that the local run
+  had not covered; fixed, with the tests that assert something is absent from the Overview moved with it (so they
+  still check something); nothing reached the live Hub.
 - d. Money: one page, tabs Spending, Bills & due, Loans, Utilities, All lines; the headline row; the breakdown with its
   trend. **New behaviour:** category history (any category at any level, a number of months; view columns, line,
-  trendline or bars).
+  trendline or bars). ✅ 2026-11-20 (`app/services/money_page.py`, `/money`, `/money/history`; the
+  Money menu item and the phone's € open `/money`). Headline row: spent this month (with "if budgets are respected"
+  as the budget panel says it), cash balance (what it rests on), due in the next 7 days plus overdue, open loans
+  and red flags; each opens its page. Tabs are the section row: Spending (`/money`), Bills & due, Loans, Utilities,
+  All lines (their pages, unchanged), Category history. Category history: every spending category at every level
+  plus "Not filed yet", 3/6/12/24 months, columns / history line / trendline / bars, counted with the budget's rule
+  (agrees with the Overview's breakdown, tested); a table by month (spent, by the same day, top merchant, its lines).
+  The budget is not drawn and not in the history table: a yearly line has no monthly budget to compare (Claude; Pedro
+  may change). The Overview stays at `/overview`.
 - e. Waiting for you: the grouped list; a paper card by card (paper left, what the Hub read right, keyboard shortcuts);
   merchants as a bulk table with the best guess filled in. Existing behaviour, new look.
+  Found 2026-11-20: the "See it" link of an AI answer waiting for a person goes to `/transactions?q=…`, a page that
+  does not exist (45 live items); fix the link the queue writes and the items already stored, with 10e.
 - f. The rest, with what exists: Health (name tiles, no faces; a strip of follow-ups; a person's page with results and
   the reference range, timeline), Things (house and items as today), Papers (everything filed; category chips; search),
   Coming up with To-Dos as a tab, Problems and the gear's pages. Papers is the same list pattern as All lines (not drawn).
