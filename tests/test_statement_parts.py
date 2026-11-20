@@ -70,3 +70,18 @@ def test_a_part_that_cannot_be_read_names_its_pages(session, tmp_path):
     gw = FakeGateway([_part([("2022-08-02", "Shop A", 10.0, 1, 90.0)]), gateway_text_result("not json")])
     with pytest.raises(StatementExtractionError, match="pages 5-6"):
         _read(session, path, 1, 6, pages_per_part=4, gateway=gw)
+
+
+def test_the_running_balance_settles_a_line_the_reader_called_the_wrong_way(session, tmp_path):
+    """Document 51: the reader called "Transfer from MATIAS" money out while the printed balance rose by its amount."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("read_statement_part", "scripts/read_statement_part.py")
+    script = importlib.util.module_from_spec(spec); spec.loader.exec_module(script)
+    path = _pdf(tmp_path, pages=2)
+    gw = FakeGateway([_part([("2022-09-08", "Card payment", 10.0, 1, 26.71),
+                             ("2022-09-08", "Transfer from MATIAS ALMEIDA", 2.0, 1, 28.71),     # read as a debit
+                             ("2022-09-09", "Unreadable balance", 5.0, 2, 99.0)])])             # proves nothing
+    lines = _read(session, path, 1, 2, pages_per_part=4, gateway=gw).transactions
+    assert script._settle_directions(lines) == 1
+    assert [t.transaction_type for t in lines] == ["debit", "credit", "debit"]
+    assert len(script._balance_breaks(lines)) == 1                      # the unproven line is still reported

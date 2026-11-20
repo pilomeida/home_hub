@@ -32,7 +32,8 @@ from app.models.document import Document, DocumentStatus  # noqa: E402
 from app.models.transaction import Transaction, TransactionType  # noqa: E402
 from app.privacy.scope import privacy_scope  # noqa: E402
 from app.services.classification_engine import classify_transaction  # noqa: E402
-from app.services.extraction import ExtractedTransaction, extract_statement_in_parts  # noqa: E402
+from app.services.extraction import ExtractedStatement, ExtractedTransaction, extract_statement_in_parts  # noqa: E402
+from app.services.statement_check import apply_statement_check  # noqa: E402
 
 READINGS = Path("data/readings")
 
@@ -44,6 +45,24 @@ def _shown_totals(session: Session) -> tuple[int, float]:
     count = sum(n for _, n, _ in rows)
     net = sum((total or 0.0) * (1 if kind == TransactionType.CREDIT else -1) for kind, _, total in rows)
     return count, round(net, 2)
+
+
+def _settle_directions(lines: list[ExtractedTransaction]) -> int:
+    """Where the printed running balance before and after a line proves which way the money went, that wins over the
+    reader's label (document 51: the reader called many "Transfer from ..." and top-ups money out while the balance
+    rose by exactly their amount). Returns how many labels changed; a line the balances do not prove keeps its own."""
+    changed = 0
+    for previous, line in zip(lines, lines[1:]):
+        if previous.balance_after is None or line.balance_after is None:
+            continue
+        delta = round(line.balance_after - previous.balance_after, 2)
+        if delta == 0 or abs(abs(delta) - abs(line.amount)) > 0.01:
+            continue
+        proven = TransactionType.CREDIT if delta > 0 else TransactionType.DEBIT
+        if line_type(line.transaction_type) != proven:
+            line.transaction_type = proven.value
+            changed += 1
+    return changed
 
 
 def _balance_breaks(lines: list[ExtractedTransaction]) -> list[str]:
@@ -94,6 +113,7 @@ async def main(argv: list[str]) -> int:
             print(f"Not read. Document {args.document} is not a statement of a known account.")
             return 1
         lines = await _reading(doc, first, last, args.per_part, session)
+        print(f"direction settled by the running balance on {_settle_directions(lines)} line(s)")
         kept = [t for t in lines if args.start <= t.transaction_date < args.before]
         print(f"{len(kept)} lines from {args.start} to before {args.before} ({len(lines) - len(kept)} outside, left out)")
         print("per month:", dict(sorted(Counter(t.transaction_date.strftime("%Y-%m") for t in kept).items())))
@@ -121,7 +141,18 @@ async def main(argv: list[str]) -> int:
                               statement_period=t.transaction_date.strftime("%Y-%m"))
             session.add(txn)
             filed.append(txn)
+        # The statement check, as for any statement: a line still in doubt waits for a person (decision D17).
+        first_line = kept[0] if kept else None
+        opening = None
+        if first_line is not None and first_line.balance_after is not None:
+            sign = 1 if line_type(first_line.transaction_type) == TransactionType.CREDIT else -1
+            opening = round(first_line.balance_after - sign * abs(first_line.amount), 2)
+        closing = kept[-1].balance_after if kept else None
+        session.flush()
+        verdict = apply_statement_check(session, doc.id, filed, ExtractedStatement(
+            statement_period=None, transactions=kept, opening_balance=opening, closing_balance=closing))
         session.commit()
+        print(f"statement check: {verdict.status}, {len(verdict.flagged)} line(s) wait for a person")
         unclassified = 0
         with privacy_scope(session, doc.category, doc.paper_kind):
             answers = await classify_transaction.prefetch(session, [(t.description, t.transaction_type == TransactionType.CREDIT)
