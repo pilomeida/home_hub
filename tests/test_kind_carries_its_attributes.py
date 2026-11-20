@@ -86,7 +86,7 @@ async def test_a_new_money_kind_is_a_spec_change_only(session, monkeypatch, tmp_
     async def read(file_path, gateway=None):            # the statement reader's model call, as the bill tests fake it
         return ExtractedStatement(statement_period="2026-10", transactions=[ExtractedTransaction(
             transaction_date=date(2026, 10, 3), description="GALP MAFRA", amount=61.2, currency="EUR",
-            transaction_type="debit", category_hint="other_expense")])
+            transaction_type="debit")])
     monkeypatch.setattr(money, "extract_statement_transactions", read)
 
     document = _make_document(session, tmp_path, filename="card-2026-10.pdf", content_hash="card-1")

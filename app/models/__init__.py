@@ -12,7 +12,7 @@ from app.models.transaction import Nature, StatementCheck, Transaction  # noqa: 
 from app.models.record import Record  # noqa: F401
 from app.models.todo import Todo  # noqa: F401
 from app.models.wiki import (  # noqa: F401
-    ClaimStatus, WikiChange, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry, WikiOperation, WikiPage,
+    ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry, WikiOperation, WikiPage,
 )
 from app.models.utility_reading import UtilityReading  # noqa: F401
 from app.models.ask import AskConversation, AskStatus, AskTurn  # noqa: F401

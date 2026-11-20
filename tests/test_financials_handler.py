@@ -211,15 +211,15 @@ async def test_ingest_statement_creates_one_transaction_per_line_item(session, m
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
-                amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+                amount=42.15, currency="EUR", transaction_type="debit",
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 10), description="SALARIO EMPRESA X",
-                amount=2200.0, currency="EUR", transaction_type="credit", category_hint="income",
+                amount=2200.0, currency="EUR", transaction_type="credit",
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 12), description="TRANSFERENCIA PARA REVOLUT",
-                amount=100.0, currency="EUR", transaction_type="transfer", category_hint="transfer",
+                amount=100.0, currency="EUR", transaction_type="transfer",
             ),
         ],
     )
@@ -253,7 +253,7 @@ async def test_ingest_statement_skips_dedup_todo_and_wiki_pages_but_logs_ingest(
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
-                amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+                amount=42.15, currency="EUR", transaction_type="debit",
             ),
         ],
     )
@@ -310,11 +310,11 @@ async def test_ingest_statement_marks_needs_attention_on_a_line_that_cannot_be_s
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
-                amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+                amount=42.15, currency="EUR", transaction_type="debit",
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 6), description="MYSTERY LINE",
-                amount=None, currency="EUR", transaction_type="debit", category_hint="other_expense",
+                amount=None, currency="EUR", transaction_type="debit",
             ),
         ],
     )
@@ -348,11 +348,11 @@ async def test_ingest_statement_normalizes_mixed_case_and_whitespace_transaction
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
-                amount=42.15, currency="EUR", transaction_type="Debit", category_hint="groceries",
+                amount=42.15, currency="EUR", transaction_type="Debit",
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 10), description="SALARIO EMPRESA X",
-                amount=2200.0, currency="EUR", transaction_type=" credit ", category_hint="income",
+                amount=2200.0, currency="EUR", transaction_type=" credit ",
             ),
         ],
     )
@@ -386,7 +386,7 @@ async def test_ingest_statement_stores_absolute_value_of_negative_amount(session
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
-                amount=-42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+                amount=-42.15, currency="EUR", transaction_type="debit",
             ),
         ],
     )
@@ -460,7 +460,7 @@ async def test_process_financials_document_bill_not_falsely_deduped_by_statement
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 8), description="EDP",
-                amount=87.32, currency="EUR", transaction_type="debit", category_hint="electricity",
+                amount=87.32, currency="EUR", transaction_type="debit",
             ),
         ],
     )
@@ -800,7 +800,7 @@ async def test_ingest_bill_skips_utility_reading_for_non_utility_category(sessio
     document = _make_document(session, tmp_path, filename="groceries.pdf", content_hash="hash-util-3")
 
     extracted = ExtractedBill(
-        provider="Continente", category_hint="groceries", amount=42.0, currency="EUR",
+        provider="Continente", category_hint="other", amount=42.0, currency="EUR",
         due_date=None, paid_date=None, statement_period="2026-07",
     )
 
@@ -869,11 +869,11 @@ async def test_ingest_statement_calls_classify_transaction_per_line_item(session
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="CONTINENTE MAFRA",
-                amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+                amount=42.15, currency="EUR", transaction_type="debit",
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 10), description="SALARIO EMPRESA X",
-                amount=2200.0, currency="EUR", transaction_type="credit", category_hint="income",
+                amount=2200.0, currency="EUR", transaction_type="credit",
             ),
         ],
     )
@@ -916,11 +916,11 @@ async def test_ingest_statement_failure_cleans_up_newly_created_merchant(session
         transactions=[
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 5), description="LOJA NOVA DESCONHECIDA",
-                amount=15.0, currency="EUR", transaction_type="debit", category_hint="other_expense",
+                amount=15.0, currency="EUR", transaction_type="debit",
             ),
             ExtractedTransaction(
                 transaction_date=date(2026, 7, 6), description="MYSTERY LINE",
-                amount=None, currency="EUR", transaction_type="debit", category_hint="other_expense",
+                amount=None, currency="EUR", transaction_type="debit",
             ),
         ],
     )
@@ -978,9 +978,9 @@ async def test_failed_statement_cleanup_keeps_informal_ledger_entries(fk_session
     document = _make_document(session, tmp_path, filename="fk-cleanup.pdf", content_hash="hash-fk-cleanup")
     extracted = ExtractedStatement(statement_period="2026-07", transactions=[
         ExtractedTransaction(transaction_date=_date(2026, 7, 5), description="TRF SEPA+ P/ TEST PERSON", amount=40.0,
-                             currency="EUR", transaction_type="debit", category_hint="other_expense"),
+                             currency="EUR", transaction_type="debit"),
         ExtractedTransaction(transaction_date=_date(2026, 7, 6), description="MYSTERY LINE", amount=None,
-                             currency="EUR", transaction_type="debit", category_hint="other_expense"),
+                             currency="EUR", transaction_type="debit"),
     ])
 
     async def fake_extract(file_path, gateway=None):
@@ -1034,7 +1034,7 @@ async def test_a_statement_arriving_after_the_bill_settles_the_bill(session, mon
     async def fake_stmt(file_path, gateway=None):
         return ExtractedStatement(statement_period="2026-08", transactions=[ExtractedTransaction(
             transaction_date=date(2026, 8, 3), description="DEBITO DIRETO-Coopernico-COOPERN", amount=77.1,
-            currency="EUR", transaction_type="debit", category_hint="electricity")])
+            currency="EUR", transaction_type="debit")])
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_stmt)
@@ -1051,7 +1051,7 @@ async def test_a_bill_arriving_after_the_debit_is_settled_on_arrival(session, mo
     async def fake_stmt(file_path, gateway=None):
         return ExtractedStatement(statement_period="2026-08", transactions=[ExtractedTransaction(
             transaction_date=date(2026, 8, 11), description="DEBITO DIRETO-METLIFE EUROPE D-00154572953", amount=109.64,
-            currency="EUR", transaction_type="debit", category_hint="insurance")])
+            currency="EUR", transaction_type="debit")])
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_statement)
     monkeypatch.setattr(pipeline, "extract_statement_transactions", fake_stmt)
@@ -1061,7 +1061,7 @@ async def test_a_bill_arriving_after_the_debit_is_settled_on_arrival(session, mo
     bill_doc = _make_document(session, tmp_path, filename="metlife.pdf", content_hash="hash-rec-bill2")
 
     async def fake_extract_bill(file_path, gateway=None):
-        return ExtractedBill(provider="MetLife", category_hint="insurance", amount=109.64, currency="EUR",
+        return ExtractedBill(provider="MetLife", category_hint="other", amount=109.64, currency="EUR",
                              due_date=None, paid_date=date(2026, 8, 14), statement_period="2026-08")
 
     monkeypatch.setattr(pipeline, "classify_document", _fake_classify_bill)

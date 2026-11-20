@@ -8,7 +8,7 @@ from sqlmodel import select
 
 from app.categories.health import store
 from app.categories.health.ask import HEALTH_TOOLS
-from app.categories.health.kinds import ALL_KINDS, LEGACY_KINDS
+from app.categories.health.kinds import ALL_KINDS
 from app.categories.health.extraction import _SCHEMA, _SYSTEM, extract_health_document
 from app.categories.registry import get_spec
 from app.llm_gateway import set_gateway_provider
@@ -67,7 +67,7 @@ async def test_a_reply_with_an_amount_is_read_and_the_amount_is_dropped(tmp_path
                           Classification(Category.HEALTH, "lab_result", {}))
     assert result.document.status == DocumentStatus.PROCESSED
     entry = store.entry_for(session, result.document.id)
-    assert (entry.amount_billed, entry.amount_reimbursed, entry.amount_owed) == (None, None, None)
+    assert not any(hasattr(entry, key) for key in AMOUNT_KEYS)                  # the columns are gone (step 9, D1)
     from app.categories.fields import load_fields
     assert not any(key in load_fields(result.document) for key in AMOUNT_KEYS)
 
@@ -78,7 +78,6 @@ def test_the_spec_has_neither_bill_category_and_does_not_speak_of_bills():
     values = {c.value for c in spec.kinds}
     assert not values & {"medical_bill", "claim_statement"}
     assert not ALL_KINDS & {"medical_bill", "claim_statement"}
-    assert LEGACY_KINDS == {"medical_bill", "claim_statement"}
     text = spec.description.lower()
     assert "bill" not in text and "reimburs" not in text and "invoice" not in text
     assert not {f.key for f in spec.fields} & set(AMOUNT_KEYS)
@@ -163,17 +162,6 @@ async def test_the_bill_reply_is_parsed_as_a_bill_with_no_category(tmp_path):
     assert '"bill"' in fake.requests[0]["system"] or "bill:" in fake.requests[0]["system"]
 
 
-# (e) the one paper already filed as a bill still opens
-@pytest.mark.parametrize("legacy", ["medical_bill", "claim_statement"])
-def test_a_paper_filed_under_a_removed_bill_category_still_opens_and_says_it_is_a_bill(client, session, legacy):
-    doc = make_document(session, category=Category.HEALTH, paper_kind=legacy, filename="old.pdf",
-                        fields={"provider": "Clínica Sul", "amount_billed": "45,5"})
-    r = client.get(f"/health/documents/{doc.id}")
-    assert r.status_code == 200
-    assert "This paper is a bill. Bills are dealt with under Bills, not Health." in r.text
-    assert "Clínica Sul" in r.text
-
-
 def test_a_normal_paper_page_has_no_bill_line(client, session):
     doc = make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename="lab.pdf")
     r = client.get(f"/health/documents/{doc.id}")
@@ -191,9 +179,6 @@ def test_no_ask_tool_shows_amounts(session):
         measurements=[ExtractedMeasurement("LDL cholesterol", 162.0, None, "mg/dL", None, 100.0, date(2026, 3, 12),
                                            False, "LDL")]))
     entry = store.entry_for(session, doc.id)
-    entry.amount_billed, entry.amount_reimbursed, entry.amount_owed = 4321.5, 1234.5, 3087.0     # a row from before bills left Health
-    session.add(entry)
-    session.commit()
     assert "health_spending" not in {t.name for t in HEALTH_TOOLS}
     for tool in HEALTH_TOOLS:
         with reachable_scope(session):
@@ -202,45 +187,6 @@ def test_no_ask_tool_shows_amounts(session):
         assert "billed" not in lowered and "reimbursed" not in lowered and "owed" not in lowered
         assert "spending" not in lowered and "(eur)" not in lowered
         assert not any(figure in out.text for figure in ("4321", "4 321", "1234", "3087"))
-
-
-# (g) a paper filed under a removed bill category cannot be read again, and is not wiped by trying
-def _legacy_paper(session):
-    doc = make_document(session, category=Category.HEALTH, paper_kind="medical_bill", filename="old.pdf",
-                        fields={"provider": "Clínica Sul", "amount_billed": "45,5"})
-    entry = HealthEntry(document_id=doc.id, entry_date=date(2025, 5, 2), provider="Clínica Sul", summary="Old bill",
-                        amount_billed=45.5)
-    session.add(entry)
-    session.commit()
-    session.refresh(entry)
-    session.add(HealthMeasurement(entry_id=entry.id, test="Consulta", test_key="consulta", value=1.0))
-    session.commit()
-    return doc, entry
-
-
-def test_a_legacy_paper_cannot_be_read_again_and_is_left_intact(client, session):
-    doc, entry = _legacy_paper(session)
-    r = client.post(f"/health/documents/{doc.id}/reread", follow_redirects=False)
-    assert r.status_code == 409
-    detail = r.json()["detail"]
-    assert detail == {"what": "Not read again.",
-                      "why": "Health no longer reads bills, so there is nothing to read it with.",
-                      "next_step": NEXT_STEP}
-    session.expire_all()
-    kept = session.get(type(doc), doc.id)
-    assert kept.status == DocumentStatus.PROCESSED and kept.failure_reason is None
-    assert json.loads(kept.fields_json) == {"provider": "Clínica Sul", "amount_billed": "45,5"}
-    assert store.entry_for(session, doc.id).id == entry.id
-    assert len(session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)).all()) == 1
-
-
-def test_a_legacy_paper_page_offers_no_read_again_and_says_what_to_do(client, session):
-    import html
-    doc, _ = _legacy_paper(session)
-    page = html.unescape(client.get(f"/health/documents/{doc.id}").text)
-    assert "Read again" not in page and "/reread" not in page
-    assert "This paper is a bill. Bills are dealt with under Bills, not Health." in page
-    assert NEXT_STEP in page
 
 
 # (h) a bill is refused after ONE reading: no second reading, no second look

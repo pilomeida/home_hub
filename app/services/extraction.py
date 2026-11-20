@@ -28,8 +28,7 @@ shape exactly:
 
 {
   "provider": "string, the company/entity that issued the bill",
-  "category_hint": "one lowercase word: electricity, water, gas, telecom, \
-insurance, subscriptions, groceries, health, home, or other",
+  "category_hint": "one lowercase word: electricity, water, telecom, or other",
   "amount": 0.00,
   "currency": "3-letter ISO code, default EUR",
   "issue_date": "YYYY-MM-DD or null, the date the document was issued",
@@ -50,8 +49,7 @@ _BILL_SCHEMA = {
         "provider": {"type": ["string", "null"]},
         "category_hint": {
             "type": ["string", "null"],
-            "enum": ["electricity", "water", "gas", "telecom", "insurance",
-                     "subscriptions", "groceries", "health", "home", "other", None],
+            "enum": ["electricity", "water", "telecom", "other", None],
         },
         "amount": {"type": ["number", "null"]},
         "currency": {"type": ["string", "null"], "minLength": 3, "maxLength": 3},
@@ -171,9 +169,6 @@ Revolut statement, the matching incoming top-up (from Santander, \
 directly or via such a card) is also a transfer, not income. A direct \
 transfer in the other direction (Revolut back to Santander) is a \
 transfer too.",
-      "category_hint": "one lowercase word: electricity, water, gas, \
-telecom, insurance, subscriptions, groceries, health, home, income, \
-transfer, atm_withdrawal, restaurants, shopping, or other_expense",
       "page": 1, the 1-based page of the document this line is printed on, \
 or null if you cannot tell,
       "balance_after": 0.00 or null, the running balance the statement \
@@ -190,16 +185,10 @@ reading in the other fields, but mark the line unclear
 
 Include every transaction line item found across all pages of the statement."""
 
-_TRANSACTION_CATEGORIES = [
-    "electricity", "water", "gas", "telecom", "insurance", "subscriptions",
-    "groceries", "health", "home", "income", "transfer", "atm_withdrawal",
-    "restaurants", "shopping", "other_expense",
-]
-
 # Parser: data["transactions"] indexed directly (required); statement_period,
 # opening_balance and closing_balance via .get (not required). Inside items:
 # date/description/amount/type are indexed directly (required);
-# currency/category_hint/page/balance_after/unclear are .get-defaulted
+# currency/page/balance_after/unclear are .get-defaulted
 # (optional, but null still tolerated — no stricter than the parser). The
 # parser reads the check fields (D17) leniently: a missing, null or
 # unreadable value there means "not printed", never a failure.
@@ -224,10 +213,6 @@ _STATEMENT_SCHEMA = {
                         "type": ["string", "null"],
                         "enum": ["debit", "credit", "transfer", None],
                     },
-                    "category_hint": {
-                        "type": ["string", "null"],
-                        "enum": [*_TRANSACTION_CATEGORIES, None],
-                    },
                     "page": {"type": ["integer", "null"]},
                     "balance_after": {"type": ["number", "null"]},
                     "unclear": {"type": ["boolean", "null"]},
@@ -251,7 +236,6 @@ class ExtractedTransaction:
     amount: float
     currency: str
     transaction_type: str
-    category_hint: str
     # Optional proof fields (decision D17); every one may be absent.
     page: Optional[int] = None              # 1-based page of the document the line is on
     balance_after: Optional[float] = None   # running balance printed after this line, if any
@@ -314,7 +298,6 @@ async def extract_statement_transactions(file_path: str, gateway=None) -> Extrac
                 amount=_required_number(item["amount"]),
                 currency=item.get("currency") or "EUR",
                 transaction_type=item["type"],
-                category_hint=item.get("category_hint", "other_expense"),
                 page=_optional_page(item.get("page")),
                 balance_after=_optional_number(item.get("balance_after")),
                 unclear=_optional_flag(item.get("unclear")),

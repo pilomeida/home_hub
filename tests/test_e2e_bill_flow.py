@@ -111,11 +111,11 @@ def test_full_statement_ingestion_flow(client, monkeypatch):
             transactions=[
                 ExtractedTransaction(
                     transaction_date=last_month_date, description="CONTINENTE MAFRA",
-                    amount=42.15, currency="EUR", transaction_type="debit", category_hint="groceries",
+                    amount=42.15, currency="EUR", transaction_type="debit",
                 ),
                 ExtractedTransaction(
                     transaction_date=last_month_date, description="SALARIO EMPRESA X",
-                    amount=2200.0, currency="EUR", transaction_type="credit", category_hint="income",
+                    amount=2200.0, currency="EUR", transaction_type="credit",
                 ),
             ],
         )

@@ -9,20 +9,13 @@ class HealthKind(str, Enum):
     MEDICAL_REPORT = "medical_report"
     PRESCRIPTION = "prescription"
     REFERRAL = "referral"
-    # LEGACY: bills are not Health papers any more (they belong under Bills / Insurance). The two members stay only so
-    # that a paper already filed under them still opens; they are in LEGACY_KINDS, not in ALL_KINDS.
-    MEDICAL_BILL = "medical_bill"
-    CLAIM_STATEMENT = "claim_statement"
     VACCINATION = "vaccination"
     APPOINTMENT = "appointment"
 
 
-LEGACY_KINDS = frozenset({HealthKind.MEDICAL_BILL.value, HealthKind.CLAIM_STATEMENT.value})
-LEGACY_LABELS = {HealthKind.MEDICAL_BILL.value: "Medical bill (no longer a Health kind)",
-                 HealthKind.CLAIM_STATEMENT.value: "Reimbursement statement (no longer a Health kind)"}
-
-# What the reader may return and what validates a category: every current kind, never a legacy one.
-ALL_KINDS = frozenset(c.value for c in HealthKind) - LEGACY_KINDS
+# What the reader may return and what validates a category. (The two bill kinds, medical_bill and claim_statement,
+# were retired 2026-11-20, PLAN step 9 D1: bills are Money papers and no live paper was filed under them.)
+ALL_KINDS = frozenset(c.value for c in HealthKind)
 
 # What kind of event the paper belongs to (the "check-up" facet of the Health tab).
 RECORD_KINDS = (

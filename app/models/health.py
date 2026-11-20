@@ -47,9 +47,6 @@ class HealthEntry(SQLModel, table=True):
     provider: Optional[str] = None
     summary: Optional[str] = None
     full_text: Optional[str] = None
-    amount_billed: Optional[float] = None
-    amount_reimbursed: Optional[float] = None
-    amount_owed: Optional[float] = None
     needs_check: bool = Field(default=False)
     check_notes: Optional[str] = None                   # JSON list: what the check against the paper could not settle
     calendar_event_id: Optional[str] = None

@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from app.models.wiki import WikiChange, WikiPage
+from app.models.wiki import WikiPage
 
 
 def test_list_wiki_pages_renders(client, session):
@@ -14,41 +14,16 @@ def test_list_wiki_pages_renders(client, session):
     assert "Electricity" in response.text
 
 
-def test_wiki_page_detail_renders_facts_and_changes(client, session):
+def test_wiki_page_detail_renders_facts(client, session):
     page = WikiPage(topic="Electricity", facts_json=json.dumps({"provider": "EDP"}))
     session.add(page)
     session.commit()
     session.refresh(page)
-
-    session.add(WikiChange(wiki_page_id=page.id, fact_key="provider", old_value=None, new_value="EDP"))
-    session.commit()
 
     response = client.get(f"/wiki/{page.id}")
 
     assert response.status_code == 200
     assert "EDP" in response.text
-
-
-def test_wiki_page_detail_renders_the_legacy_whole_fact_set_row_readably(client, session):
-    page = WikiPage(topic="Electricity", facts_json=json.dumps({"provider": "EDP"}))
-    session.add(page)
-    session.commit()
-    session.refresh(page)
-
-    session.add(WikiChange(
-        wiki_page_id=page.id, fact_key="*", old_value=None,
-        new_value=json.dumps({"provider": "MetLife", "policy_number": "123"}),
-    ))
-    session.commit()
-
-    response = client.get(f"/wiki/{page.id}")
-
-    assert response.status_code == 200
-    assert "Initial facts recorded" in response.text
-    assert "Provider: MetLife" in response.text
-    assert "Policy number: 123" in response.text
-    assert "*: None" not in response.text
-    assert '{"provider": "MetLife"' not in response.text
 
 
 def test_wiki_page_detail_404_for_missing_page(client):

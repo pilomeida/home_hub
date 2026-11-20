@@ -41,7 +41,7 @@ USE_TABLES = frozenset({
 })
 # Links that only say what happened once (logs, a skipped duplicate, the Inbox card a paper waited on): not uses.
 # `paper_texts` is the paper's own text (PLAN step 1): part of the paper, not a use of it; search shows only filed papers.
-HISTORY_TABLES = frozenset({"inbox_items", "inbox_skips", "wiki_changes", "wiki_log", "paper_texts"})
+HISTORY_TABLES = frozenset({"inbox_items", "inbox_skips", "wiki_log", "paper_texts"})
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,6 @@ from app.categories.health import areas as areas_svc
 from app.categories.health import conditions as conditions_svc
 from app.categories.health import follow_ups as follow_ups_svc
 from app.categories.health import care as care_svc
-from app.categories.health.kinds import LEGACY_KINDS, LEGACY_LABELS
 from app.categories.health import browse, outlines, people as people_svc, store
 from app.categories.health import topics as topics_svc
 from app.categories.health import tests as tests_svc
@@ -25,7 +24,7 @@ from app.services.wiki_engine import withdraw_from_wiki
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.category import Category
 from app.models.health import HealthArea, HealthEntry, HealthMeasurement, HealthTopic
-from app.problems import HEALTH_BILL_NEXT_STEP, Problem, file_notices, is_health_bill_refusal, record_problem
+from app.problems import Problem, file_notices, is_health_bill_refusal, record_problem
 from app.services.ingestion import (
     kept_on_reread,
     Classification, IncomingFile, file_for_later, finalize_document, mark_needs_attention, update_document_fields,
@@ -135,11 +134,8 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     is_report = bool(entry and entry.layout == "report")
     media_kind = media_kind_for(document.filename)
-    legacy_bill = document.paper_kind in LEGACY_KINDS        # filed as a bill before bills left Health: it still opens
     description = describe_document(document)
-    if legacy_bill:
-        description.kind_label = LEGACY_LABELS[document.paper_kind]
-    return {"document": document, "description": description, "legacy_bill": legacy_bill,
+    return {"document": document, "description": description,
             "bill_refused": document.status == DocumentStatus.NEEDS_ATTENTION and is_health_bill_refusal(document.failure_reason), "media_kind": media_kind.value,
             "entry": entry, "measurements": measurements, "is_report": is_report, "path_sep": PATH_SEP,
             "outline": _outline_view(session, entry, measurements) if is_report else [],
@@ -227,10 +223,6 @@ async def prepare_reread(session: Session, document: Document) -> None:
     """The steps behind "Read again": take back everything read from a filed paper (calendar entry, wiki claims,
     results, tags), clear the fields the reader filled so they start again from the new reading (the ones a person
     typed or changed stay), and mark it pending."""
-    if document.paper_kind in LEGACY_KINDS:       # checked first: nothing may be withdrawn from a paper that cannot be read
-        raise HTTPException(status_code=409, detail={
-            "what": "Not read again.", "why": "Health no longer reads bills, so there is nothing to read it with.",
-            "next_step": HEALTH_BILL_NEXT_STEP})
     if document.status == DocumentStatus.PROCESSED:
         await spec_for_health().handler.withdraw(session, document)
         await withdraw_from_wiki(session, document, description=f"{document.filename} read again")

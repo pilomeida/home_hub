@@ -40,8 +40,8 @@ class Document(RefusesUnknownFields, SQLModel, table=True):
     source: DocumentSource
     status: DocumentStatus = Field(default=DocumentStatus.PENDING)
     # The paper KIND (glossary, docs/ARCHITECTURE.md). Set on every filed document (work-list B6); empty only while
-    # it waits in the Inbox or after it was discarded. The old `doc_type` column stays in the table, unused
-    # (additive-only migrations; migration 3b7e9c1d2f40 copied it here).
+    # it waits in the Inbox or after it was discarded. (The old `doc_type` column was dropped 2026-11-20, PLAN step 9
+    # D1; migration 3b7e9c1d2f40 had copied it here.)
     paper_kind: Optional[str] = Field(default=None, sa_column=Column("category", AutoString, index=True))
     fields_json: str = Field(default="{}")
     # The fields a person typed or changed (JSON list of keys): "Read again" keeps them (PLAN step 5d).

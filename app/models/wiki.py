@@ -11,8 +11,8 @@
 - schema       = per-domain WikiSchema declared in the domain registry.
 
 WikiPage.facts_json is a cache of the page's ACTIVE claims, rebuilt only by
-app.services.wiki_store. WikiChange is the pre-claims history table: kept
-read-only, no longer written."""
+app.services.wiki_store. (The pre-claims history table, wiki_changes, was
+dropped in PLAN step 9 D1.)"""
 
 from datetime import date, datetime
 from enum import Enum
@@ -45,20 +45,6 @@ class WikiPage(RefusesUnknownFields, SQLModel, table=True):
     aliases_json: str = Field(default="[]")
     summary: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class WikiChange(SQLModel, table=True):
-    """Legacy per-fact history (pre-claims). Read-only; not written anymore."""
-
-    __tablename__ = "wiki_changes"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    wiki_page_id: int = Field(foreign_key="wiki_pages.id", index=True)
-    fact_key: str
-    old_value: Optional[str] = None
-    new_value: str
-    document_id: Optional[int] = Field(default=None, foreign_key="documents.id")
-    changed_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ClaimStatus(str, Enum):

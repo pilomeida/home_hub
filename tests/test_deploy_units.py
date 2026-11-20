@@ -19,7 +19,8 @@ RETIRED = ["home-hub-wikilint", "home-hub-banksync", "home-hub-reminder", "home-
 
 def test_expected_units_exist():
     names = {p.name for p in UNIT_DIR.iterdir()}
-    assert names == {"home-hub-scheduler.service", "home-hub-scheduler.timer", "home-hub-telegram.service"}
+    assert names == {"home-hub-scheduler.service", "home-hub-scheduler.timer", "home-hub-telegram.service",
+                     "home-hub-scheduler-long.service", "home-hub-scheduler-long.timer"}   # two lanes (step 9, D5)
 
 
 def test_the_fixed_timers_that_moved_onto_the_hubs_scheduler_are_gone_and_retired_on_the_server():
@@ -73,9 +74,12 @@ def test_scheduler_timer_fires_every_five_minutes_on_the_clock_and_catches_up():
 
 
 def test_scheduler_service_is_a_oneshot_so_a_slow_run_is_never_started_twice_by_systemd():
-    service = _read(UNIT_DIR / "home-hub-scheduler.service")
-    assert service["Service"]["Type"] == "oneshot" and not service.has_section("Install")
-    assert service["Service"]["ExecStart"].endswith("-m app.jobs.scheduler")
+    for name, lane in (("home-hub-scheduler", "quick"), ("home-hub-scheduler-long", "long")):    # one per lane (D5)
+        service = _read(UNIT_DIR / f"{name}.service")
+        assert service["Service"]["Type"] == "oneshot" and not service.has_section("Install")
+        assert service["Service"]["ExecStart"].endswith(f"-m app.jobs.scheduler --lane {lane}")
+        timer = (UNIT_DIR / f"{name}.timer").read_text()
+        assert "OnCalendar=*:0/5" in timer and "Persistent=true" in timer
 
 
 def test_install_script_is_executable():

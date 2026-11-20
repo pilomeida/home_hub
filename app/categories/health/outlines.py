@@ -97,6 +97,29 @@ class OutlineError(Exception):
         self.status = status
 
 
+def _paths_of(session: Session, entry: HealthEntry) -> list[str]:
+    paths: list[str] = []
+    for m in session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
+                          .order_by(HealthMeasurement.position, HealthMeasurement.id)).all():
+        if not m.is_previous and m.group_path and m.group_path not in paths:
+            paths.append(m.group_path)
+    return paths
+
+
+def waiting(session: Session) -> list[HealthEntry]:
+    """The papers whose outline is worth a person's look (PLAN step 9, D10): read with headings, from a provider whose
+    outline for that layout nobody has confirmed yet, and not confirmed themselves. Oldest first."""
+    known = {(p.provider_key, p.layout) for p in session.exec(select(HealthOutlineProfile)).all()}
+    out = []
+    for entry in session.exec(select(HealthEntry).where(HealthEntry.outline_confirmed_at.is_(None),
+                                                        HealthEntry.provider.is_not(None))
+                              .order_by(HealthEntry.id)).all():
+        if (entry.provider or "").strip() and (match_key(entry.provider), entry.layout or "sheet") not in known \
+                and _paths_of(session, entry):
+            out.append(entry)
+    return out
+
+
 def confirm_outline(session: Session, entry: HealthEntry, by: Optional[str]) -> HealthOutlineProfile:
     """A person confirms this paper's outline as right: it becomes the provider's profile, replacing an earlier one,
     and guides the later readings of that provider's papers."""
@@ -104,12 +127,7 @@ def confirm_outline(session: Session, entry: HealthEntry, by: Optional[str]) -> 
     if not provider:
         raise OutlineError(Problem("Outline not confirmed.", "This paper does not say who issued it, so there is no one to keep the outline for.",
                                    "Fill in the provider on the paper, then confirm the outline again."), 409)
-    rows = session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
-                        .order_by(HealthMeasurement.position, HealthMeasurement.id)).all()
-    paths: list[str] = []
-    for m in rows:
-        if not m.is_previous and m.group_path and m.group_path not in paths:
-            paths.append(m.group_path)
+    paths = _paths_of(session, entry)
     if not paths:
         raise OutlineError(Problem("Outline not confirmed.", "No results with headings were read from this paper, so it has no outline.",
                                    "Read the paper again, or correct it by hand, then confirm the outline."), 409)

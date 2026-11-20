@@ -173,13 +173,10 @@ def _settle_keys(session: Session, page: WikiPage, now) -> tuple[int, int]:
 def _move_page(session: Session, drop: WikiPage, keep: WikiPage) -> None:
     """Everything that points at `drop` points at `keep`; then `drop` goes (its claims, with their papers, move)."""
     from app.models.ask import AskTurn
-    from app.models.wiki import WikiChange, WikiClaim, WikiLink
+    from app.models.wiki import WikiClaim, WikiLink
     for c in session.exec(select(WikiClaim).where(WikiClaim.page_id == drop.id)).all():
         c.page_id = keep.id
         session.add(c)
-    for ch in session.exec(select(WikiChange).where(WikiChange.wiki_page_id == drop.id)).all():
-        ch.wiki_page_id = keep.id
-        session.add(ch)
     for t in session.exec(select(AskTurn).where(AskTurn.saved_wiki_page_id == drop.id)).all():
         t.saved_wiki_page_id = keep.id
         session.add(t)

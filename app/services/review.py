@@ -416,6 +416,53 @@ def _health_follow_ups(session: Session) -> None:
     _close_gone(session, "health_follow_up", refs, stamp)
 
 
+def _health_outlines(session: Session) -> None:
+    """PLAN step 9, D10: a paper's outline (its headings) from a provider nobody has confirmed yet: right, or not.
+    Confirmed, it guides the later readings of that provider's papers. A "not right" is not asked again."""
+    from app.categories.health import outlines
+    from app.models.health import HealthPerson
+    refs, existing = set(), _open_refs(session, "health_outline")
+    said_no = set(session.exec(select(ReviewItem.ref).where(ReviewItem.kind == "health_outline",
+                                                            ReviewItem.status == DISCARDED)))
+    for entry in outlines.waiting(session):
+        ref = f"entry:{entry.id}"
+        if ref in said_no:
+            continue
+        refs.add(ref)
+        if ref not in existing:
+            person = session.get(HealthPerson, entry.person_id) if entry.person_id else None
+            open_item(session, area="health", kind="health_outline", ref=ref,
+                      title=f"Is this outline right? {entry.provider} paper for {person.name if person else 'someone'}",
+                      why="The first paper read from this provider: if its headings are in the right order, the Hub "
+                          "reads that provider's later papers the same way. If not, correct it on its page.",
+                      evidence_url=f"/health/documents/{entry.document_id}",
+                      options=[{"value": APPROVE, "label": "Right"}, {"value": DISCARD, "label": "Not right"}])
+
+    def stamp(ref: str) -> tuple:
+        from app.models.health import HealthEntry
+        entry = session.get(HealthEntry, int(ref.split(":")[1]))
+        if entry is not None and entry.outline_confirmed_at is not None:
+            return APPROVED, entry.outline_confirmed_by, entry.outline_confirmed_at
+        return DISCARDED, None, None                      # its provider was confirmed on another paper, or it is gone
+    _close_gone(session, "health_outline", refs, stamp)
+
+
+def _answer_health_outline(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.categories.health import outlines
+    from app.models.health import HealthEntry
+    if answer != APPROVE:
+        return DISCARDED
+    entry = session.get(HealthEntry, int(item.ref.split(":")[1]))
+    if entry is None:
+        raise ReviewError("Not confirmed.", "That paper is no longer filed.", "Nothing to do.")
+    try:
+        outlines.confirm_outline(session, entry, by=by)
+    except outlines.OutlineError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED
+
+
 def _answer_health_follow_up(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
     from app.categories.health import follow_ups
     follow_up_id = int(item.ref.split(":")[1])
@@ -597,13 +644,14 @@ HANDLERS["same_person"] = _answer_same_person
 HANDLERS["health_condition_new"] = _answer_health_condition
 HANDLERS["health_condition_paper"] = _answer_health_condition
 HANDLERS["health_follow_up"] = _answer_health_follow_up
+HANDLERS["health_outline"] = _answer_health_outline
 HANDLERS["health_test"] = _answer_health_test
 HANDLERS["health_doubts"] = _answer_health_doubts
 HANDLERS["merchant"] = _answer_merchant
 HANDLERS["to_check_line"] = _answer_to_check_line
 HANDLERS["statement_mismatch"] = _answer_statement_mismatch
 PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants,
-                                               _health, _health_conditions, _health_follow_ups, _health_tests,
+                                               _health, _health_conditions, _health_follow_ups, _health_outlines, _health_tests,
                                                _health_doubts,
                                                _same_person]
 

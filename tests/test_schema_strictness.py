@@ -39,10 +39,10 @@ def test_bill_schema_does_not_require_parser_defaulted_keys():
     _validate(extraction._BILL_SCHEMA, {"provider": "EDP"})
 
 
-# --- _STATEMENT_SCHEMA: currency/category_hint defaulted by parser -------
+# --- _STATEMENT_SCHEMA: currency defaulted by parser -------
 
 
-def test_statement_schema_allows_null_currency_and_category_hint():
+def test_statement_schema_allows_null_currency():
     _validate(extraction._STATEMENT_SCHEMA, {
         "statement_period": None,
         "transactions": [{
@@ -51,7 +51,6 @@ def test_statement_schema_allows_null_currency_and_category_hint():
             "amount": 12.5,
             "currency": None,
             "type": "debit",
-            "category_hint": None,
         }],
     })
 

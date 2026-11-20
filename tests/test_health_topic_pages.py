@@ -320,3 +320,33 @@ def test_confirming_an_outline_records_who_did_it_when_the_hub_knows(session, tm
     asyncio.run(health_router.outline_ok(SimpleNamespace(state=SimpleNamespace()), other.id, session))
     session.refresh(entry2)
     assert entry2.outline_confirmed_by is None and entry2.outline_confirmed_at is not None
+
+
+def test_a_new_providers_outline_waits_for_you_and_a_yes_confirms_it(session, tmp_path):
+    """PLAN step 9, D10: Health's outline confirmation is on Waiting for you, not only a button on the paper."""
+    from sqlmodel import select
+    from app.models.review import ReviewItem
+    from app.services import review
+    doc, entry = _file(session, tmp_path, _reply("Maria Santos Almeida", "2023-03-26", [_section(EIXO, _prose("x"))]))
+    review.sync(session)
+    [item] = session.exec(select(ReviewItem).where(ReviewItem.kind == "health_outline")).all()
+    assert item.title.startswith("Is this outline right?") and item.evidence_url == f"/health/documents/{doc.id}"
+    review.decide(session, item.id, review.APPROVE, by="rute@x")
+    session.refresh(entry)
+    assert entry.outline_confirmed_by == "rute@x"
+    doc2, _ = _file(session, tmp_path, _reply("Maria Santos Almeida", "2024-03-26", [_section(EIXO, _prose("y"))]))
+    review.sync(session)                                       # the provider is known now: its next paper is not asked
+    assert session.exec(select(ReviewItem).where(ReviewItem.kind == "health_outline",
+                                                 ReviewItem.status.in_(review.OPEN))).all() == []
+
+
+def test_a_not_right_outline_is_not_asked_again(session, tmp_path):
+    from sqlmodel import select
+    from app.models.review import ReviewItem
+    from app.services import review
+    _file(session, tmp_path, _reply("Maria Santos Almeida", "2023-03-26", [_section(EIXO, _prose("x"))]))
+    review.sync(session)
+    [item] = session.exec(select(ReviewItem).where(ReviewItem.kind == "health_outline")).all()
+    review.decide(session, item.id, review.DISCARD, by="pedro@x")
+    review.sync(session)
+    assert len(session.exec(select(ReviewItem).where(ReviewItem.kind == "health_outline")).all()) == 1
