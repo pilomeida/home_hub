@@ -19,13 +19,17 @@ router = APIRouter(prefix="/waiting", tags=["waiting"])
 @router.get("")
 async def waiting_page(request: Request, area: Optional[str] = None, page: int = 1,
                        session: Session = Depends(get_session)):
-    area = area if area in review.AREAS else None
+    only_merchants = area == review.MERCHANTS          # the unconfirmed merchants are their own line (step 10c)
+    area = area if area in review.AREAS or only_merchants else None
     page = max(1, page)
-    items = review.waiting(session, area, offset=(page - 1) * review.PAGE, limit=review.PAGE)
-    counts = review.area_counts(session)
-    total = counts.get(area, 0) if area else sum(counts.values())
+    items = review.waiting(session, None if only_merchants else area, offset=(page - 1) * review.PAGE,
+                           limit=review.PAGE, merchants=only_merchants)
+    counts = review.area_counts(session, merchants=False)
+    merchants = review.merchant_count(session)
+    total = merchants if only_merchants else counts.get(area, 0) if area else sum(counts.values())
     return templates.TemplateResponse(request, "waiting/page.html", {
         "cards": [review.card(i) for i in items], "area": area, "areas": review.AREAS, "counts": counts,
+        "merchants": merchants, "merchants_key": review.MERCHANTS,
         "page": page, "pages": max(1, -(-total // review.PAGE))})
 
 

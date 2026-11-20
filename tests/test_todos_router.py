@@ -102,7 +102,7 @@ def test_the_todos_page_offers_the_general_form(client):
 def test_the_dashboard_does_not_say_due_none_for_a_to_do_without_a_date(client, session):
     session.add(Todo(title="Someday thing on the dashboard"))
     session.commit()
-    text = client.get("/").text
+    text = client.get("/overview").text
     assert "Someday thing on the dashboard" in text and "due None" not in text
 
 

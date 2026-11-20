@@ -19,6 +19,7 @@ from app.models.review import APPROVED, DISCARDED, OPEN, SNOOZED, WAITING, Revie
 SNOOZE_DAYS = 7
 AREAS = {"money": "Money", "health": "Health", "inbox": "Inbox", "house": "House", "other": "Other"}
 APPROVE, DISCARD, SNOOZE = "approve", "discard", "snooze"
+MERCHANT, MERCHANTS = "merchant", "merchants"     # the item kind, and the queue's own line for it (step 10c)
 
 
 class ReviewError(Exception):
@@ -49,9 +50,12 @@ def open_item(session: Session, *, area: str, kind: str, ref: str, title: str, w
     return item
 
 
-def _waiting_query(now: datetime, area: Optional[str] = None):
+def _waiting_query(now: datetime, area: Optional[str] = None, merchants: Optional[bool] = None):
+    """`merchants`: None = every kind; False = without the unconfirmed merchants; True = only them."""
     q = select(ReviewItem).where(or_(ReviewItem.status == WAITING,
                                      (ReviewItem.status == SNOOZED) & (ReviewItem.snoozed_until <= now)))
+    if merchants is not None:
+        q = q.where(ReviewItem.kind == MERCHANT) if merchants else q.where(ReviewItem.kind != MERCHANT)
     return q.where(ReviewItem.area == area) if area else q
 
 
@@ -59,30 +63,35 @@ PAGE = 50
 
 
 def waiting(session: Session, area: Optional[str] = None, now: Optional[datetime] = None, *,
-            offset: int = 0, limit: Optional[int] = None) -> list[ReviewItem]:
+            offset: int = 0, limit: Optional[int] = None, merchants: Optional[bool] = None) -> list[ReviewItem]:
     sync(session)
-    q = _waiting_query(now or datetime.utcnow(), area).order_by(ReviewItem.created_at, ReviewItem.id).offset(offset)
+    q = _waiting_query(now or datetime.utcnow(), area, merchants).order_by(ReviewItem.created_at, ReviewItem.id).offset(offset)
     return list(session.exec(q.limit(limit) if limit else q))
 
 
-def count(session: Session, now: Optional[datetime] = None) -> int:
-    return len(session.exec(_waiting_query(now or datetime.utcnow())).all())
+def count(session: Session, now: Optional[datetime] = None, merchants: Optional[bool] = None) -> int:
+    return len(session.exec(_waiting_query(now or datetime.utcnow(), merchants=merchants)).all())
 
 
-def area_counts(session: Session) -> dict[str, int]:
+def merchant_count(session: Session) -> int:
+    return count(session, merchants=True)
+
+
+def area_counts(session: Session, merchants: Optional[bool] = None) -> dict[str, int]:
     out: dict[str, int] = {}
-    for item in session.exec(_waiting_query(datetime.utcnow())):
+    for item in session.exec(_waiting_query(datetime.utcnow(), merchants=merchants)):
         out[item.area] = out.get(item.area, 0) + 1
     return out
 
 
 def menu_count() -> int:
-    """For the menu. Opens its own session; never raises (a menu must not break a page)."""
+    """For the menu: everything waiting except the unconfirmed merchants, which are their own line in the queue (step
+    10c; they would drown the rest). Opens its own session; never raises (a menu must not break a page)."""
     try:
         from app.db import engine
         with Session(engine) as s:
             sync(s)                  # a line held a minute ago counts now, not only once someone opens the page
-            return count(s)
+            return count(s, merchants=False)
     except Exception:
         return 0
 

@@ -55,7 +55,7 @@ def sections() -> list[Section]:
     money = [l for l in _category_links("financials") if l.url not in ("/financials/coming-up", "/financials/bank/")]
     return [
         Section("home", "Home", "/", ("/", "/ask", "/inbox", "/overview"),
-                [Link("Overview", "/"), Link("Ask", "/ask"), Link("Inbox", "/inbox")]),
+                [Link("Home", "/"), Link("Overview", "/overview"), Link("Ask", "/ask"), Link("Inbox", "/inbox")]),
         Section("money", "Money", "/financials/transactions", ("/financials", "/budget", "/to-check"), money),
         Section("health", "Health", "/health/records", ("/health",), _category_links("health")),
         Section("things", "Things", "/house", ("/house", "/insurance"), _category_links("house", "insurance")),

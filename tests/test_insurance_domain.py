@@ -138,7 +138,7 @@ def test_the_landing_is_empty_but_complete_with_no_policies(client):
 
 
 def test_the_overview_shows_the_insurance_card_and_the_nav_link(client):
-    page = client.get("/").text
+    page = client.get("/overview").text
     assert "/insurance" in page
 
 

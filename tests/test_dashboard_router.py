@@ -49,7 +49,7 @@ def test_overview_page_renders_kpi_cards_and_sections(client, session):
     session.add(t)
     session.commit()
 
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert "Income" in response.text
@@ -63,7 +63,7 @@ def test_overview_page_renders_kpi_cards_and_sections(client, session):
 
 
 def test_overview_page_kpi_drill_down_links_present(client, session):
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert 'href="/financials/transactions?transaction_type=credit' in response.text
@@ -86,7 +86,7 @@ def test_overview_page_handles_yearly_commitment_with_zero_planned_amount(client
 
 
 def test_overview_page_renders_cleanly_with_empty_database(client, session):
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert "No yearly commitments configured yet." in response.text
@@ -117,7 +117,7 @@ def test_cash_flow_range_pill_swap_changes_content(client, session):
 
 
 def test_overview_shows_a_card_per_domain(client, session):
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert 'class="domain-card"' in response.text
@@ -153,7 +153,7 @@ def test_overview_shows_budget_section_with_spend_and_status(client, session):
     _file_spend(session, "food.groceries.supermarket", 250.0, today)
     set_budget(session, get_node(session, "food.groceries.supermarket").id, today.year, 200.0)
 
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert 'id="budget-panel"' in response.text
@@ -228,7 +228,7 @@ def test_post_budget_rejects_bad_input(client, session):
 
 
 def test_overview_still_renders_with_no_taxonomy_data(client):
-    response = client.get("/")
+    response = client.get("/overview")
 
     assert response.status_code == 200
     assert 'id="budget-panel"' in response.text

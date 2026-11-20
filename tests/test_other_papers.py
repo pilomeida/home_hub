@@ -112,7 +112,7 @@ def test_upload_landing_and_detail_pages(client, engine, inbox_documents_dir, ga
     detail = client.get(response.headers["location"])
     assert detail.status_code == 200 and "letter.pdf" in detail.text
     assert client.post("/other/upload", data={}).status_code == 400
-    assert 'href="/other"' in client.get("/").text                                     # in the menu
+    assert 'href="/other"' in client.get("/search").text                               # Papers' own row (step 10b)
 
 
 def test_a_paper_of_another_category_is_not_shown_here(client, session):

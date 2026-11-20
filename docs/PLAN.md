@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 10 (UI redesign, Option A), slice c: Home (10a, 10b done).
+**Now (2026-11-20):** step 10 (UI redesign, Option A), slice d: Money (10a, 10b live; 10c deploying).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -101,7 +101,7 @@ and said tweaks will come from using it.
   zero. 316 tests.
 - b. Shell: the menu (Home · Money · Health · Things · Papers · Coming up · Waiting for you (n)), the header (Ask/search,
   Who chip showing Everyone, + Add a paper, the gear, a Problems dot only when something is wrong), the phone bottom bar
-  with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today. ✅ 2026-11-19 (`app/ui/shell.py`: the seven sections, each with
+  with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today. ✅ 2026-11-20, b7851bf, live with 10a (deploy 44651773605 green, journal clean, Problems nothing new) (`app/ui/shell.py`: the seven sections, each with
   its own row of pages from the category registry; a category no section names yet shows under Papers; "Ask or
   search" in a bar under the header, as in the mock-up; Settings (`/settings`) behind the gear; the phone's More
   (`/more`) lists every page; the Problems dot only when something is open; old URLs unchanged). The "Who" chip shows
@@ -112,7 +112,14 @@ and said tweaks will come from using it.
   available balance after the bills due this month); Coming up with To-Dos; Waiting for you as four slim cards (area,
   count, button). Earnings = incoming bank lines without the family's own transfers; available balance = cash balance
   minus bills due this month (Claude, 2026-11-19; Pedro may change). The menu's Waiting count leaves out the unconfirmed
-  merchants, which show as their own line inside the queue (changes step 3's count; Claude; Pedro may change).
+  merchants, which show as their own line inside the queue (changes step 3's count; Claude; Pedro may change). ✅ 2026-11-20 (`app/services/home.py`, `home.html`;
+  "/" is Home, the old Overview is unchanged at `/overview`, linked from Home's row and "Money this month › Open".
+  Available = the bank's balance plus lines since, minus unpaid bills and expected payments to the month's end and
+  anything overdue; the chip says what the balance rests on (there is no "matches the bank" check to show). Coming up
+  shows the next six by date: bills, regular payments and dated To-Dos, a bill's own to-do once. Waiting: Inbox,
+  Money, Health, Merchants; the menu, the heading and the queue's "All" leave out the merchants, which are one line
+  and their own tab on /waiting (live: 105 waiting plus 1,149 merchants). Older tests that read the Overview at "/"
+  now read it at /overview.)
 - d. Money: one page, tabs Spending, Bills & due, Loans, Utilities, All lines; the headline row; the breakdown with its
   trend. **New behaviour:** category history (any category at any level, a number of months; view columns, line,
   trendline or bars).

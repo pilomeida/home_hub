@@ -10,6 +10,7 @@ from app.problems import Problem, notice_problem, refusal_response
 from app.services.budget_service import get_budget_overview, set_budget
 from app.services.category_overview import build_category_cards
 from app.services.household_service import get_household_data
+from app.services.home import home_data
 from app.services.coming_up import next_days_summary
 from app.services.overview_service import get_overview_data, get_period_dependent_data
 from app.templating import templates
@@ -21,7 +22,14 @@ async def health():
     return {"status": "ok"}
 
 @router.get("/")
+async def home(request: Request, session: Session = Depends(get_session)):
+    """Home (PLAN step 10c): Ask first, Money this month, Coming up, Waiting for you."""
+    return templates.TemplateResponse(request, "home.html", {"home": home_data(session, date.today())})
+
+
+@router.get("/overview")
 async def dashboard(request: Request, session: Session = Depends(get_session)):
+    """The Overview as it was on the front page until step 10c (step 10d folds it into Money)."""
     overview = get_overview_data(session)
     household = get_household_data(session)
     return templates.TemplateResponse(

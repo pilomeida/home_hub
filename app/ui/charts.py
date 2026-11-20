@@ -102,7 +102,9 @@ def exaggeration(scale: Scale, values: Sequence[float]) -> float:
     return ((hi - scale.floor) / (lo - scale.floor)) / (hi / lo)
 
 
-def euros(v: float) -> str:
+def euros(v: float, cents: bool = False) -> str:
+    if cents:                                    # a balance or a bill, to the cent
+        return f"€{v:,.2f}"
     return f"€{v:,.0f}" if abs(v) >= 100 or float(v).is_integer() else f"€{v:,.2f}"
 
 

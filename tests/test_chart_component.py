@@ -99,7 +99,7 @@ def test_the_overview_charts_follow_the_rule(session):
 
 def test_the_overview_page_draws_with_the_component_and_no_budget(client, session):
     _world(session)
-    html = client.get("/").text
+    html = client.get("/overview").text
     assert html.count('class="chart"') >= 3                                       # KPI cards, income, expenses
     assert "fc-cf-bar" not in html and "fc-bar-slot" not in html                 # the old hand-drawn bars are gone
     assert "budget" not in " ".join(re.findall(r"<svg.*?</svg>", html, re.S)).lower()

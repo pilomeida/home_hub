@@ -457,12 +457,12 @@ def test_overview_reminder_item_only_when_due(client, session):
     d = _doc(session, 7)
     session.add(BalanceSnapshot(as_of=date.today(), kind="deposit", label="D", amount=1.0, document_id=d.id))
     session.commit()
-    assert REMINDER_TEXT not in client.get("/").text
+    assert REMINDER_TEXT not in client.get("/overview").text
     for b in session.exec(select(BalanceSnapshot)).all():
         b.as_of = date(2020, 1, 31)
         session.add(b)
     session.commit()
-    html = client.get("/").text
+    html = client.get("/overview").text
     assert REMINDER_TEXT in html and 'href="/financials/loans/upload"' in html
     assert "fc-attn-overdue" in html   # long past its deadline
 
@@ -629,7 +629,7 @@ def test_detail_shows_red_flags_and_overview_item_links_to_loan(client, session)
     debt = _seed(session)
     _flag(session, debt)
     assert "Red flags" in client.get(f"/financials/loans/{debt.id}").text
-    html = client.get("/").text
+    html = client.get("/overview").text
     assert f"{debt.name}: Instalment 3" in html and f'href="/financials/loans/{debt.id}"' in html
     assert "Open loan" in html and "fc-attn-alert" in html
 

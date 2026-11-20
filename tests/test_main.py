@@ -5,7 +5,7 @@ def test_health_returns_ok(client):
 
 
 def test_dashboard_renders(client):
-    response = client.get("/")
+    response = client.get("/overview")
     assert response.status_code == 200
     assert "Overview" in response.text
     assert "Financials" in response.text

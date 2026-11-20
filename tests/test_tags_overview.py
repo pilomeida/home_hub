@@ -147,7 +147,7 @@ def test_dashboard_renders_the_by_tag_panel_with_links_and_amounts(client, sessi
     session.add(t); session.commit()
     file_transaction(session, t, get_node(session, "insurances.cars.car-insurance")); session.commit()
 
-    page = client.get("/")
+    page = client.get("/overview")
     assert page.status_code == 200
     assert "By tag" in page.text
     assert "/financials/transactions?tag=insurance" in page.text

@@ -138,7 +138,7 @@ def test_overview_where_it_went_category_comparison(session, doc):
 def test_overview_page_shows_the_right_figures(client, session, doc):
     """Through the page, with today's date: the Financials card and the Expenses card."""
     five(session, doc, scale=100.0, paid_date=date.today())
-    html = client.get("/").text
+    html = client.get("/overview").text
     assert "Spent this month: €1,100.00" in html
     expenses = re.search(r"Expenses.*?fc-card-val\">€([\d,]+)<", html, re.S)
     assert expenses and expenses.group(1) == "1,100"

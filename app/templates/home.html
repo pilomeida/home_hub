@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Home — Home & Family{% endblock %}
+{% macro money_block(b, kind) %}
+<div class="mcol">
+  <div class="mmh"><span class="mmt">{{ b.title }}</span><span class="sub">so far in {{ home.today.strftime('%B') }}</span></div>
+  <div class="mmb"><span class="big s">{{ charts.euros(b.now) }}</span>
+    {% if b.delta_pct is not none %}<span class="chip{% if b.delta_good is true %} ok{% elif b.delta_good is false %} bad{% endif %}">{{ "▲" if b.delta_pct > 0 else "▼" if b.delta_pct < 0 else "=" }} {{ "%.1f"|format(b.delta_pct|abs) }}% vs {{ b.last_label }}, same date</span>
+    {% else %}<span class="chip">nothing by this date in {{ b.last_label }}</span>{% endif %}
+  </div>
+  {{ charts.columns(b.items, kind=kind, w=330, h=190, title=b.title ~ ", last three months") }}
+</div>
+{% endmacro %}
+{% block content %}
+<div class="homeA">
+  <section class="card hero tint1">
+    <div class="hero-t">What would you like to know, or do?</div>
+    <form method="post" action="/ask" hx-post="/ask" hx-disabled-elt="find button" class="askbox big">
+      <a class="plus" href="/inbox" title="Add a paper">+</a>
+      <input type="text" name="question" maxlength="1000" required placeholder="Ask the Hub" aria-label="Ask the Hub">
+      <button type="submit" class="btn pri">Ask</button>
+    </form>
+  </section>
+
+  <div class="g2a">
+    <section class="card">
+      <div class="card-h"><span>Money this month</span><a class="card-r" href="/overview">Open ›</a></div>
+      <div class="mm">{{ money_block(home.earnings, "e") }}{{ money_block(home.spending, "s") }}</div>
+      {% set a = home.available %}
+      {% if a %}
+      <div class="avail">
+        <div><div class="sub">Available balance</div><div class="big s">{{ charts.euros(a.balance, cents=True) }}</div></div>
+        <div class="avail-r">
+          <div><span class="chip">the bank's balance of {{ a.as_of.isoformat() }}, plus lines since</span></div>
+          <div class="sub">{% if a.still_due_count %}After the {{ a.still_due_count }} payment{{ "s" if a.still_due_count != 1 }} still due this month ({{ charts.euros(a.still_due, cents=True) }}): <b>{{ charts.euros(a.after, cents=True) }}</b>{% else %}Nothing else is due this month.{% endif %}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="avail"><div class="sub">No balance yet: no bank account has been read. Connect one under
+        <a href="/financials/bank/">Bank connections</a>.</div></div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card-h"><span>Coming up</span><a class="card-r" href="/financials/coming-up">See all ›</a></div>
+      {% if home.coming %}
+      <ul class="cl">
+        {% for l in home.coming %}
+        <li><span class="cd">{{ l.when.strftime('%a') }} {{ l.when.isoformat() }}</span>
+          <span class="ct"><a href="{{ l.link }}">{{ l.name }}</a>{% if l.note %} <span class="sub">· {{ l.note }}</span>{% endif %}</span>
+          <span class="cv">{% if l.amount is not none %}{{ charts.euros(l.amount, cents=True) }}{% endif %}</span>
+          <span class="chip">{{ l.tag }}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="sub">Nothing due in the next three months, and no to-do with a date.</p>
+      {% endif %}
+      <p class="sub"><a href="/todos">To-Dos ›</a></p>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-h"><span>Waiting for you · {{ "{:,}".format(home.waiting_total) }}</span><a class="card-r" href="/waiting">Open the queue ›</a></div>
+    <div class="wrow2">
+      {% for w in home.waiting %}
+      <div class="wi {{ loop.cycle('t1', 't2') }}">
+        <div><div class="wi-a">{{ w.label }}</div>
+          <div>{% if w.count %}<span class="big s">{{ "{:,}".format(w.count) }}</span> <span class="sub">{{ w.unit }}</span>{% else %}<span class="sub">nothing waiting</span>{% endif %}</div></div>
+        {% if w.count %}<a class="btn{% if loop.first %} pri{% endif %}" href="{{ w.link }}">{{ w.button }}</a>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
