@@ -97,8 +97,9 @@ def pairings(client):
 
 def test_the_privacy_page_shows_health_as_high_always(client, pairings):
     page = client.get("/privacy").text
-    assert page.count("High (always)") == 7
-    assert "Health papers are always private" in page
+    assert page.count("Health papers are always private") == 7
+    assert page.count("High (always)") == 12                                   # Health's 7 and Identity's 5 (step 8a)
+    assert page.count("Identity &amp; Legal papers are always private") == 5
 
 
 def test_changing_a_health_level_is_refused_with_a_three_part_message(client, session, pairings):

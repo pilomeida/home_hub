@@ -76,7 +76,8 @@ def _dry_run(plan: list[tuple[str, Path]]) -> int:
         data = path.read_bytes()
         clean, stripped, problem = inspect_pdf(data)
         if clean is None or not path.name.lower().endswith(".pdf"):
-            _line("REJECTED", path.name, f"{slot}, {len(data)} bytes: {problem or NOT_PDF}")
+            _line("REJECTED", path.name, f"{slot}, {len(data)} bytes: not imported, {problem or NOT_PDF}. "
+                                         "Download the bank's PDF again and run this once more.")
         elif stripped:
             _line("OK (wrapped, %d bytes stripped)" % stripped, path.name, f"{slot}, {len(data)} bytes")
         else:

@@ -21,7 +21,7 @@ A single-tenant FastAPI web app that ingests bank statements/bills (PDF/image, v
 | Database | `/srv/home-hub/app/data/home_family.db` (SQLite, single file) |
 | Uploaded/imported documents | `/srv/home-hub/app/app/static/documents/` (~23 MB at last check) |
 | Systemd unit | `/etc/systemd/system/home-hub.service` |
-| Background-job units | `~home-hub/.config/systemd/user/{home-hub-scheduler.service,home-hub-scheduler.timer,home-hub-telegram.service}` — the scheduler timer (every 5 minutes) starts every scheduled job: bank sync, statement reminder, mailbox check, wiki check; the Telegram bot is the one long-running unit. These are systemd **user** units of the `home-hub` account (no sudo, no root system-unit dir); installed/refreshed from `deploy/systemd/` on every deploy by `deploy/install_user_units.sh` |
+| Background-job units | `~home-hub/.config/systemd/user/{home-hub-scheduler.service,home-hub-scheduler.timer,home-hub-scheduler-long.service,home-hub-scheduler-long.timer,home-hub-telegram.service}` — two scheduler timers (every 5 minutes) start the scheduled jobs in two lanes (since 2026-11-20, PLAN D5): `home-hub-scheduler` the quick ones (mailbox check, phone notices, statement reminder, things to check), `home-hub-scheduler-long` the long ones (bank sync, wiki check, backup, paper text, privacy self-test), so a long job never holds up the mailbox; the Telegram bot is the one long-running unit. These are systemd **user** units of the `home-hub` account (no sudo, no root system-unit dir); installed/refreshed from `deploy/systemd/` on every deploy by `deploy/install_user_units.sh` |
 | Nginx site | `/etc/nginx/sites-enabled/home-hub` |
 | Env file | `/srv/home-hub/app/.env` (loaded both by systemd's `EnvironmentFile=` and by `python-dotenv` at app startup) — also holds the channel settings `HUB_IMAP_*` / `HUB_TELEGRAM_*` (see §6) |
 | Hub mailbox | A dedicated Gmail address (e.g. `cdafamily.hub@gmail.com`), created and handed over by Pedro (manual step M1) — never Pedro's personal Gmail |
@@ -148,9 +148,10 @@ command needs `XDG_RUNTIME_DIR` and runs as that user, not root directly:
 sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user status home-hub-telegram home-hub-scheduler.timer
 sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user list-units --failed
 journalctl _SYSTEMD_USER_UNIT=home-hub-telegram.service --since "1 hour ago"
-journalctl _SYSTEMD_USER_UNIT=home-hub-scheduler.service --since today   # mailbox checks, bank sync, reminder, wiki check
+journalctl _SYSTEMD_USER_UNIT=home-hub-scheduler.service --since today        # mailbox checks, notices, reminders
+journalctl _SYSTEMD_USER_UNIT=home-hub-scheduler-long.service --since today   # bank sync, wiki check, backup, paper text
 # Check the mailbox right now: press "Run now" on the Mailbox check job at /schedules (or, from the shell:)
-sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user start home-hub-scheduler.service   # runs whatever is due
+sudo -u home-hub XDG_RUNTIME_DIR=/run/user/995 systemctl --user start home-hub-scheduler.service   # runs the quick jobs that are due (home-hub-scheduler-long.service: the long ones)
 ```
 
 Mailbox folders the poller uses (never read/unread flags — a person browsing the mailbox can't
@@ -279,7 +280,7 @@ Santander Portugal and Revolut are read through **Enable Banking** (Restricted P
 - **Budget:** banks allow **4 unattended requests per account per 24 h**. Scheduled runs use 3; the **Sync now** button uses the 4th. The Hub counts calls itself (`bank_api_calls`) and refuses a 5th.
 - **Renewal every ~180 days:** the bank access expires (limit set by each bank). A banner appears on the Bank connections page and Bills & Bank 14 days before; press **Renew**, approve in the bank's app. Mappings and sync history carry over automatically; the old connection is retired.
 - **No statement uploads for a synced account.** Once an account is live, stop uploading its PDF statements: the sync matches new bank lines against already-imported ones (same account, direction, amount to the cent, ±2 days) so history isn't doubled, but a statement uploaded *later* for the same period would double-count the API lines.
-- **Check it:** the Bank sync card on `/schedules` (last result in plain words, run history, "Run now"); `journalctl --user -u home-hub-scheduler -n 50`; dry run (fetches, saves nothing, still uses one call): `cd /srv/home-hub/app && ../venv/bin/python -m app.jobs.bank_sync --dry-run`.
+- **Check it:** the Bank sync card on `/schedules` (last result in plain words, run history, "Run now"); `journalctl --user -u home-hub-scheduler-long -n 50`; dry run (fetches, saves nothing, still uses one call): `cd /srv/home-hub/app && ../venv/bin/python -m app.jobs.bank_sync --dry-run`.
 - **Key install (one time):** copy the downloaded `<application id>.pem` to `/srv/home-hub/secrets/enable_banking.pem` (owner `home-hub`, mode 600), add `ENABLE_BANKING_APP_ID=` and `ENABLE_BANKING_KEY_PATH=` to `/srv/home-hub/app/.env`, then delete the downloaded copy.
 - **Redirect URL** registered in Enable Banking: `https://hub.cdafamily.casa/financials/bank/callback` (must match exactly).
 

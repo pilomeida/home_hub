@@ -75,7 +75,7 @@ def test_upload_with_missing_fields_rerenders_with_errors_and_stores_nothing(cli
     response = _upload(client, {"category": "maintenance_log", "item_name": "Boiler"})
 
     assert response.status_code == 400
-    assert "Service date is required" in response.text
+    assert "Service date is missing, so nothing was saved" in response.text
     assert session.exec(select(Document)).all() == []
 
 
@@ -139,7 +139,7 @@ def test_editing_with_invalid_fields_shows_errors(client):
     location = _upload(client, {"category": "warranty_invoice", "item_name": "Boiler"}).headers["location"]
     response = client.post(f"{location}/fields", data={"item_name": "", "warranty_expiry": "soon"})
     assert response.status_code == 400
-    assert "Item is required" in response.text
+    assert "Item is missing, so nothing was saved" in response.text
 
 
 def test_non_house_documents_are_404(client, session):

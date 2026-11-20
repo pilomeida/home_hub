@@ -1,9 +1,9 @@
 [Unit]
-Description=Home Hub - run the background jobs that are due (schedules are set on the Hub)
+Description=Home Hub - run the quick background jobs that are due (mailbox, notices, reminders)
 
 [Service]
 Type=oneshot
 WorkingDirectory=/srv/home-hub/app
 EnvironmentFile=/srv/home-hub/app/.env
-ExecStart=/srv/home-hub/venv/bin/python -m app.jobs.scheduler
-TimeoutStartSec=45min
+ExecStart=/srv/home-hub/venv/bin/python -m app.jobs.scheduler --lane quick
+TimeoutStartSec=15min

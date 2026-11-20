@@ -38,6 +38,9 @@ class JobDef:
     # A job that runs every few minutes: its routine "ok" runs stay out of the history table and are
     # cleared after a couple of days (they would bury everything else); failures and manual runs are always kept.
     quiet_when_ok: bool = False
+    # A job that can take minutes (a bank sync, the wiki check): it runs in the scheduler's "long" lane, its own
+    # process on its own timer, so it never holds up the quick jobs (PLAN step 9, D5).
+    long: bool = False
 
 
 async def _run_paper_text(session: Session, trigger: str) -> JobOutcome:
@@ -93,8 +96,9 @@ def _lint_legacy_last_start(session: Session) -> Optional[datetime]:
     return row.started_at if row else None
 
 
-# The order is the order the scheduler runs due jobs in (one after another): quick, frequent jobs first, so a
-# long bank sync or wiki check never holds up the mailbox check or the reminder that were due at the same moment.
+# The order is the order the scheduler runs due jobs in, one after another within each lane. The long jobs
+# (long=True) run in a lane of their own (app/jobs/scheduler.py), so a bank sync or the wiki check never holds up the
+# mailbox check or the reminders, even when it runs for half an hour.
 JOBS: dict[str, JobDef] = {
     "mailbox_check": JobDef(
         key="mailbox_check", label="Mailbox check",
@@ -124,34 +128,34 @@ JOBS: dict[str, JobDef] = {
         description=f"Every night, copies the Hub's database (checked for damage) and every uploaded paper to the backup folder "
                     f"on the server. The last {NIGHTLY_KEEP} nightly copies are kept.",
         default=Spec(kind="daily", time_of_day="03:00"),
-        run=run_backup),
+        run=run_backup, long=True),
     "bank_sync": JobDef(
         key="bank_sync", label="Bank sync",
         description="Fetches new transactions from the linked bank accounts and files them. The bank allows only 4 requests per "
                     "account per day, and the “Sync now” button on the bank page uses the same allowance, so leave one spare.",
         default=Spec(kind="times_per_day", time_of_day="07:30,13:00,18:30"),
         run=run_bank_sync, legacy_last_start=bank_legacy_last_start,
-        max_runs_per_day=4, max_runs_reason=BANK_LIMIT_REASON),
+        max_runs_per_day=4, max_runs_reason=BANK_LIMIT_REASON, long=True),
     "paper_text": JobDef(
         key="paper_text", label="Paper text",
         description="Makes every filed paper findable by the words inside it. A PDF's own text is taken when it is filed; "
                     "a scan or a photo is read by the AI at the paper's own privacy level, a few each hour so the cost stays "
                     "low. Then the search is brought up to date.",
         default=Spec(kind="every_n_minutes", every_n=60),
-        run=_run_paper_text, quiet_when_ok=True),
+        run=_run_paper_text, quiet_when_ok=True, long=True),
     "privacy_selftest": JobDef(
         key="privacy_selftest", label="Privacy self-test",
         description="Every night, proves that the privacy rules still hold: a document with no level reads as nothing, and a "
                     "High document is never reachable at a lower level or when the High service is unavailable. It uses a "
                     "scratch copy with made-up papers, never calls the AI, and tells you on the Problems page if a rule broke.",
         default=Spec(kind="daily", time_of_day="03:20"),
-        run=_run_privacy_selftest),
+        run=_run_privacy_selftest, long=True),
     "wiki_lint": JobDef(
         key="wiki_lint", label="Wiki check",
         description="Looks through the household wiki for contradictions, out-of-date facts, gaps and loose ends, "
                     "and lists them for you to review. It never changes a fact by itself.",
         default=Spec(kind="weekly", weekday=6, time_of_day="04:30"),
-        run=_run_wiki_lint, legacy_last_start=_lint_legacy_last_start),
+        run=_run_wiki_lint, legacy_last_start=_lint_legacy_last_start, long=True),
 }
 
 # Jobs still on fixed server timers (not adjustable here): (label, when, what it does). Empty since the

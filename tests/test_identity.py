@@ -118,3 +118,27 @@ async def test_the_pages_and_the_overview_card(client, session, inbox_documents_
     texts = [l.text for l in identity_overview_card(session, date.today()).lines]
     assert texts == ["1 paper on file", f"next expiry {EXPIRES.isoformat()}"]
     assert not any("Pedro" in t or "CB123456" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_a_reading_that_fails_says_so_in_plain_words_not_the_error(client, session, inbox_documents_dir,
+                                                                        gateway):
+    gateway._bodies.append(gateway_text_result("not json"))
+    doc = (await ingestion.ingest(session, IncomingFile("passport.pdf", text_pdf_bytes(PASSPORT), DocumentSource.MANUAL),
+                                  Classification(Category.IDENTITY, "passport", {}))).document
+    assert doc.status == DocumentStatus.NEEDS_ATTENTION
+    page = client.get(f"/identity/documents/{doc.id}").text
+    assert "Not read." in page and "No reminder yet" not in page
+    assert "IdentityReadingError" not in page and "Traceback" not in page
+
+
+def test_changing_an_identity_level_is_refused_naming_identity(client):
+    from app.main import app
+    from app.routers.privacy import get_privacy_gateway
+    from tests.test_health_domain import _NoJobs
+    app.dependency_overrides[get_privacy_gateway] = lambda: _NoJobs()
+    r = client.post("/privacy/types", data={"domain": "identity", "category": "passport", "tier": "house_low"},
+                    follow_redirects=True)
+    assert "Identity &amp; Legal papers are always High, so their level cannot be changed." in r.text
+    assert "Health papers are always High" not in r.text
+    app.dependency_overrides.pop(get_privacy_gateway, None)

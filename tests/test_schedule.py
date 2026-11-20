@@ -261,3 +261,25 @@ async def test_main_exits_1_when_a_job_failed_but_still_does_not_crash(engine, m
     _, result = fake_job
     result["outcome"] = JobOutcome("failed", "Not done. Because.")
     assert await scheduler.main() == 1
+
+
+@pytest.mark.asyncio
+async def test_each_lane_runs_only_its_own_jobs_so_a_long_job_never_holds_up_the_mailbox(session, monkeypatch):
+    """PLAN step 9, D5: the long jobs have their own lane (own process, own timer)."""
+    calls = []
+
+    def job(key, long):
+        async def run(session, trigger):
+            calls.append(key)
+            return JobOutcome("ok", "Done.")
+        return JobDef(key, key, "A test job.", Spec("daily", time_of_day="04:30"), run, long=long)
+
+    jobs = {"bank": job("bank", True), "mail": job("mail", False)}
+    monkeypatch.setattr(scheduler, "JOBS", jobs)
+    await scheduler.run_due(session, utc(2026, 10, 15, 6, 0), lane="quick")
+    assert calls == ["mail"]
+    await scheduler.run_due(session, utc(2026, 10, 15, 6, 0), lane="long")
+    assert calls == ["mail", "bank"]
+    assert {k for k, j in registry.JOBS.items() if j.long} == {"backup", "bank_sync", "paper_text",
+                                                               "privacy_selftest", "wiki_lint"}
+    assert "mailbox_check" in registry.JOBS and not registry.JOBS["mailbox_check"].long

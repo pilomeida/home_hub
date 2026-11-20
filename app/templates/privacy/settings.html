@@ -41,7 +41,7 @@
     <td>
       {% if r.locked %}
       <strong>High (always)</strong>
-      <div style="font-size:12px;color:#666;">Health papers are always private. This cannot be changed.</div>
+      <div style="font-size:12px;color:#666;">{{ r.info.category_label }} papers are always private. This cannot be changed.</div>
       {% else %}
       <select name="tier" form="{{ fid }}">
         {% for value, text in tier_labels.items() %}

@@ -88,7 +88,7 @@ def test_approve_shows_validation_errors(client, session, two_categories):
     response = client.post(f"/inbox/{document.id}/approve", data={"domain": "house", "category": "manual"})
 
     assert response.status_code == 422
-    assert "Item is required" in response.text
+    assert "Item is missing, so nothing was saved" in response.text
     assert two_categories["house"].handler.processed == []
 
     bad_category = client.post(f"/inbox/{document.id}/approve", data={"domain": "house", "category": "bill"})

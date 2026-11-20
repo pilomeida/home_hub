@@ -140,8 +140,9 @@ def mark_needs_attention(session: Session, document: Document, reason: str) -> D
         record_problem(session, area="Reading documents",
                        problem=Problem(problem.what, problem.why, problem.next_step, link),
                        ref=f"document:{document.id}", technical=reason)
-    except Exception:
-        pass   # reporting a problem must never create another one
+    except Exception:                  # reporting a problem must never create another one; it is still in the log
+        import logging
+        logging.getLogger(__name__).exception("could not record the problem for document %s", document.id)
     return document
 
 

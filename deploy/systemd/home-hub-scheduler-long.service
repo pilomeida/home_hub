@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Hub - run the long background jobs that are due (bank sync, wiki check, backup, paper text)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/home-hub/app
+EnvironmentFile=/srv/home-hub/app/.env
+ExecStart=/srv/home-hub/venv/bin/python -m app.jobs.scheduler --lane long
+TimeoutStartSec=45min

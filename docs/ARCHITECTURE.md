@@ -45,7 +45,8 @@ FastAPI  (app/main.py)
   └── Static: /static/*  (htmx.min.js; app/static/documents/ — uploaded source PDFs)
 
 Ingestion channels (separate OS processes, systemd user units):
-  home-hub-scheduler.timer → python -m app.jobs.scheduler  (every 5 min; runs the Mailbox check — IMAP, every 10 min by default — and the other due jobs)
+  home-hub-scheduler.timer → python -m app.jobs.scheduler --lane quick  (every 5 min; the Mailbox check — IMAP, every 10 min by default — notices, reminders)
+  home-hub-scheduler-long.timer → python -m app.jobs.scheduler --lane long  (every 5 min; bank sync, wiki check, backup, paper text: their own process, so they never hold up the mailbox)
   home-hub-telegram        → python -m app.channels.telegram_bot  (long-polling bot)
         │  ingestion.IncomingFile + caption/subject
         ▼

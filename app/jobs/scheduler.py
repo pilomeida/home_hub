@@ -1,8 +1,10 @@
 """The one clock for jobs whose schedule is set on the Hub (decision D15).
 
-A systemd user timer starts this every 5 minutes (deploy/systemd/home-hub-scheduler.timer);
-it runs whichever jobs are due according to the schedules saved on the Scheduled jobs
-page (/schedules), and exits. Usage: python -m app.jobs.scheduler
+Two systemd user timers start this every 5 minutes, one per lane: the quick jobs
+(deploy/systemd/home-hub-scheduler.timer, `--lane quick`) and the long ones (home-hub-scheduler-long.timer,
+`--lane long`: bank sync, wiki check, backup...). Each runs whichever of its jobs are due according to the schedules
+saved on the Scheduled jobs page (/schedules), and exits. A long job running for half an hour therefore never holds
+up the mailbox check (PLAN step 9, D5). Usage: python -m app.jobs.scheduler [--lane quick|long]
 
 One slow job (a long bank sync) cannot be started twice: the next timer tick finds the job's "running"
 record and leaves it alone, and systemd does not start a second copy of this one-shot service while the
@@ -94,10 +96,13 @@ async def run_job(session: Session, job_key: str, trigger: str) -> JobRun:
     return run
 
 
-async def run_due(session: Session, now: Optional[datetime] = None) -> list[JobRun]:
+async def run_due(session: Session, now: Optional[datetime] = None, lane: Optional[str] = None) -> list[JobRun]:
+    """The due jobs of one lane ("quick" or "long"), or of both when no lane is given."""
     now = now or datetime.now(timezone.utc)
     ran = []
     for job in JOBS.values():
+        if lane is not None and job.long != (lane == "long"):
+            continue
         spec = effective_spec(session, job)
         if sched.is_due(spec, last_scheduled_start(session, job), now):
             if _running(session, job.key) is not None:     # still going from an earlier check: leave it alone
@@ -107,11 +112,13 @@ async def run_due(session: Session, now: Optional[datetime] = None) -> list[JobR
     return ran
 
 
-async def main() -> int:
+async def main(argv: Optional[list[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO)
+    argv = sys.argv[1:] if argv is None else argv
+    lane = argv[argv.index("--lane") + 1] if "--lane" in argv else None
     from app.db import engine
     with Session(engine) as session:
-        runs = await run_due(session)
+        runs = await run_due(session, lane=lane)
         # Read the results while the session is still open: the rows are detached once it closes.
         results = [(r.job, r.outcome, r.summary) for r in runs]
     for job, outcome, summary in results:

@@ -99,19 +99,21 @@ def validate_fields(
         text = "" if value is None else str(value).strip()
         if not text:
             if field_spec.required:
-                errors[field_spec.key] = f"{field_spec.label} is required"
+                errors[field_spec.key] = f"{field_spec.label} is missing, so nothing was saved. Fill it in, then save again."
             continue
         if field_spec.kind == FieldKind.DATE:
             try:
                 clean[field_spec.key] = date.fromisoformat(text).isoformat()
             except ValueError:
-                errors[field_spec.key] = f"{field_spec.label} must be a date (YYYY-MM-DD)"
+                errors[field_spec.key] = (f"Not saved: “{text}” is not a date the Hub can read. Type it as yyyy-mm-dd "
+                                          f"(e.g. 2027-03-02), then save again.")
         elif field_spec.kind == FieldKind.CHOICE:
             allowed = {option for option, _ in field_spec.options(session)}
             if text in allowed:
                 clean[field_spec.key] = text
             else:
-                errors[field_spec.key] = f"Choose a valid {field_spec.label.lower()}"
+                errors[field_spec.key] = (f"Not saved: “{text}” is not one of the choices for {field_spec.label.lower()}. "
+                                          "Pick one from the list, then save again.")
         elif field_spec.kind == FieldKind.SUGGEST:
             collapsed = " ".join(text.split())
             existing = {v.lower(): v for v in distinct_field_values(session, spec.category, field_spec.key)}

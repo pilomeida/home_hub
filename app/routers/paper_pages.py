@@ -24,13 +24,13 @@ from app.templating import templates
 _NON_FIELD_KEYS = {"file", "category"}
 
 
-def paper_pages(category: Category, landing: Callable[[Session], dict], landing_template: str,
+def paper_pages(category: Category, prefix: str, landing: Callable[[Session], dict], landing_template: str,
                 *, upload_note: str = "") -> APIRouter:
-    spec = get_spec(category)
-    prefix = spec.home_url
+    """The spec is looked up per request, never at import (a test may narrow the registry before the app loads)."""
     router = APIRouter(prefix=prefix, tags=[category.value])
 
     def _document_or_404(session: Session, document_id: int) -> Document:
+        spec = get_spec(category)
         document = session.get(Document, document_id)
         if document is None or document.category != category:
             raise HTTPException(status_code=404, detail={
@@ -39,6 +39,7 @@ def paper_pages(category: Category, landing: Callable[[Session], dict], landing_
         return document
 
     def _upload_context(session: Session, paper_kind: Optional[str], values: dict, errors: dict) -> dict:
+        spec = get_spec(category)
         choices = [(k.value, k.label) for k in spec.kinds]
         known = paper_kind if any(v == paper_kind for v, _ in choices) else None
         return {"spec": spec, "choices": choices, "category": known, "errors": file_notices(errors),
@@ -47,6 +48,7 @@ def paper_pages(category: Category, landing: Callable[[Session], dict], landing_
 
     def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
         media_kind = media_kind_for(document.filename)
+        spec = get_spec(category)
         return {"spec": spec, "document": document, "description": describe_document(document),
                 "media_kind": media_kind.value,
                 "form_fields": build_form_fields(session, spec, document.paper_kind, values, errors,
@@ -54,7 +56,7 @@ def paper_pages(category: Category, landing: Callable[[Session], dict], landing_
 
     @router.get("")
     async def landing_page(request: Request, session: Session = Depends(get_session)):
-        return templates.TemplateResponse(request, landing_template, {"spec": spec, **landing(session)})
+        return templates.TemplateResponse(request, landing_template, {"spec": get_spec(category), **landing(session)})
 
     @router.get("/upload")
     async def upload_form(request: Request, category: Optional[str] = None, session: Session = Depends(get_session)):

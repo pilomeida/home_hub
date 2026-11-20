@@ -8,7 +8,8 @@
   {% if media_kind == "image" %}<img src="{{ description.file_url }}" alt="{{ document.filename }}">{% endif %}
   <p><a href="{{ description.file_url }}" target="_blank" rel="noopener">Open the file</a></p>
 </div>
-{% if document.failure_reason %}<p class="needs-attention">No reminder yet. {{ document.failure_reason }}</p>{% endif %}
+{% if document.failure_reason %}{% if document.status.value == "needs_attention" %}<p class="needs-attention"><strong>Not read.</strong> {{ document.failure_reason | friendly_reason("Fill in the details below and save.") }}</p>
+{% else %}<p class="needs-attention">No reminder yet. {{ document.failure_reason }}</p>{% endif %}{% endif %}
 <h2>Details</h2>
 <form action="{{ spec.home_url }}/documents/{{ document.id }}/fields" method="post">
   {% include "domains/_field_inputs.html" %}

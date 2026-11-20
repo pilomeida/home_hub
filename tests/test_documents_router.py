@@ -58,7 +58,7 @@ def test_edit_validation_errors_and_unfinalized_404(client, session):
     location = _house_upload(client, {"category": "warranty_invoice", "item_name": "Boiler"})
     document_id = location.rsplit("/", 1)[-1]
     bad = client.post(f"/documents/{document_id}/edit", data={"domain": "house", "category": "floor_plan"})
-    assert bad.status_code == 400 and "System is required" in bad.text
+    assert bad.status_code == 400 and "System is missing, so nothing was saved" in bad.text
 
     pending = Document(filename="p.pdf", file_path="/tmp/p.pdf", content_hash="pp", source=DocumentSource.MANUAL)
     session.add(pending)

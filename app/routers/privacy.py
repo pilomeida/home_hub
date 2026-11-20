@@ -44,7 +44,8 @@ def _back() -> RedirectResponse:
 
 @router.get("")
 async def settings_page(request: Request, session: Session = Depends(get_session),
-                        gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = "", refused: str = ""):
+                        gateway: GatewayClient = Depends(get_privacy_gateway), saved: str = "", problem: str = "", refused: str = "",
+                        area: str = ""):
     rows = ps.type_rows(session)
     type_names = {(r.info.category, r.info.paper_kind): f"{r.info.category_label} › {r.info.label}" for r in rows}
     groups: dict[str, list] = {}
@@ -58,7 +59,7 @@ async def settings_page(request: Request, session: Session = Depends(get_session
     except GatewayError:
         jobs_error = "Can't reach the AI gateway right now, so the AI jobs can't be shown. Try again in a minute."
     return templates.TemplateResponse(request, "privacy/settings.html", {
-        "groups": groups, "refused": _refusal(refused),
+        "groups": groups, "refused": _refusal(refused, area),
         "tier_labels": TIER_LABELS,
         "enforcing": ps.enforcing(session),
         "unset_count": sum(1 for r in rows if r.tier is None),
@@ -71,10 +72,15 @@ async def settings_page(request: Request, session: Session = Depends(get_session
     })
 
 
-def _refusal(code: str) -> Optional[Problem]:
+def _area_label(area: str) -> str:
+    from app.categories.registry import implemented_categories
+    return next((s.label for s in implemented_categories() if s.category.value == area), "These")
+
+
+def _refusal(code: str, area: str = "health") -> Optional[Problem]:
     """The three-part message for a level change the Hub refused (the code comes from our own redirect)."""
     if code == "forced":
-        return Problem("Not saved.", "Health papers are always High, so their level cannot be changed.",
+        return Problem("Not saved.", f"{_area_label(area or 'health')} papers are always High, so their level cannot be changed.",
                        "Nothing to do: they are already as private as the Hub can make them.")
     if code == "stale":
         return Problem("Not saved.", "This page was out of date: that kind of document or level is not known any more.",
@@ -90,7 +96,8 @@ def save_type(request: Request, domain: str = Form(...), category: str = Form(..
         ps.save_type(session, domain, category, tier, redact is not None, _by(request))
     except TierBlocked:
         # nothing was saved: either Health (forced High) or an unknown type or tier from a stale form
-        return RedirectResponse("/privacy?" + urlencode({"refused": "forced" if ps.forced_tier(domain) else "stale"}),
+        return RedirectResponse("/privacy?" + urlencode({"refused": "forced", "area": domain} if ps.forced_tier(domain)
+                                                         else {"refused": "stale"}),
                                 status_code=303)
     return _back()
 
