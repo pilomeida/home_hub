@@ -13,9 +13,22 @@
 <p class="merchant-line"><a href="/waiting?area={{ merchants_key }}">{{ "{:,}".format(merchants) }} new merchant{{ "s" if merchants != 1 }} not confirmed yet</a>
   · the Hub filed them itself; confirm them when you have time.</p>
 {% endif %}
+{% if groups %}
+<section class="card wlist">
+  {% for g in groups %}
+  <div class="wrow"><span class="wa">{{ g.label }}</span>
+    <span class="wb"><strong>{{ "{:,}".format(g.count) }} {{ g.unit }}</strong><div class="sub">{{ g.first_title }}</div></span>
+    <span class="wd">{% if g.oldest_days %}oldest {{ g.oldest_days }} day{{ "s" if g.oldest_days != 1 }}{% else %}today{% endif %}</span>
+    <a class="btn pri" href="{{ g.link }}">{{ g.button }} ›</a></div>
+  {% endfor %}
+</section>
+{% endif %}
+{% if area == merchants_key %}{% include "waiting/_merchants.html" %}{% else %}
+{% if area and cards %}<p><a class="btn pri" href="/waiting/one?area={{ area }}">Card by card ›</a></p>{% endif %}
 {% for c in cards %}{% include "waiting/_item.html" %}{% else %}
-<p>Nothing is waiting for you{% if area == merchants_key %} among the merchants{% elif area %} in {{ areas[area] }}{% endif %}.</p>
+<p>Nothing is waiting for you{% if area %} in {{ areas[area] }}{% endif %}.</p>
 {% endfor %}
+{% endif %}
 {% if pages > 1 %}<p>Page {{ page }} of {{ pages }}
   {% if page > 1 %}· <a href="/waiting?page={{ page - 1 }}{% if area %}&area={{ area }}{% endif %}">previous</a>{% endif %}
   {% if page < pages %}· <a href="/waiting?page={{ page + 1 }}{% if area %}&area={{ area }}{% endif %}">next</a>{% endif %}</p>{% endif %}

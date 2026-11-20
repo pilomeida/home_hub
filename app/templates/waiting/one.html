@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Waiting for you — one at a time{% endblock %}
+{% block content %}
+<p class="sub"><a href="/waiting{% if area %}?area={{ area }}{% endif %}">← The whole list</a></p>
+{% include "waiting/_one.html" %}
+<script>
+  document.addEventListener("keydown", function (e) {
+    if (e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+    var key = {"Enter": "first", "l": "snooze", "j": "next", "k": "previous"}[e.key];
+    if (!key) return;
+    var b = document.querySelector('#one [data-key="' + key + '"]');
+    if (b) { e.preventDefault(); b.click(); }
+  });
+</script>
+{% endblock %}

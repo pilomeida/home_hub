@@ -1,0 +1,31 @@
+<div id="one">
+{% if problem %}<div class="problem">{{ problem }}</div>{% endif %}
+{% if not one %}
+  <section class="card"><p>Nothing is waiting for you{% if area == "merchants" %} among the merchants{% elif area %} in {{ areas[area] }}{% endif %}.</p>
+    <p><a class="btn" href="/waiting">Back to the list</a></p></section>
+{% else %}{% set c = one.card %}{% set url = "/waiting/one/" ~ c.item.id ~ "?n=" ~ one.position ~ ("&area=" ~ area if area else "") %}
+<div class="g2 rv">
+  <section class="card">
+    <div class="card-h"><span>The paper</span>{% if one.document %}<a class="card-r" href="{{ file }}" target="_blank" rel="noopener">Open the file ›</a>{% endif %}</div>
+    {% if one.document and file and media == "pdf" %}<iframe class="paper-view" src="{{ file }}" title="{{ one.document.filename }}"></iframe>
+    {% elif one.document and file and media == "image" %}<img class="paper-view" src="{{ file }}" alt="{{ one.document.filename }}">
+    {% elif one.document %}<p class="sub">{{ one.document.filename }}: this paper has no file to show here.</p>
+    {% else %}<p class="sub">This one isn't about a single paper.{% if c.item.evidence_url %} <a href="{{ c.item.evidence_url }}">See it where it lives ›</a>{% endif %}</p>{% endif %}
+  </section>
+  <section class="card">
+    <div class="card-h"><span>What the Hub read · <span class="chip">{{ c.area_label }}</span></span><span class="card-r">{{ one.position + 1 }} of {{ one.total }}</span></div>
+    <h2 class="one-t">{{ c.item.title }}</h2>
+    <p>{{ c.item.why }}{% if c.item.evidence_url %} <a href="{{ c.item.evidence_url }}">See it</a>{% endif %}</p>
+    <form hx-post="{{ url }}" hx-target="#one" hx-swap="outerHTML" class="btns">
+      {% for o in c.options %}<button class="btn{% if loop.first %} pri{% endif %}" type="submit" name="answer" value="{{ o.value }}"{% if loop.first %} data-key="first"{% endif %}>{{ o.label }}{% if loop.first %} ⏎{% endif %}</button>{% endfor %}
+      {% if not c.options and c.item.evidence_url %}<a class="btn" href="{{ c.item.evidence_url }}">Choose it there</a>{% endif %}
+      <button class="btn" type="submit" name="answer" value="snooze" data-key="snooze">Later (in a week) L</button>
+      <button class="btn" type="submit" name="answer" value="previous" data-key="previous"{% if one.position == 0 %} disabled{% endif %}>‹ K</button>
+      <button class="btn" type="submit" name="answer" value="next" data-key="next"{% if one.position + 1 >= one.total %} disabled{% endif %}>J ›</button>
+      <label class="sub"><input type="checkbox" name="remember" value="1" checked> Remember this answer</label>
+    </form>
+    <p class="kbdh">⏎ the first answer · L later · J / K next / previous</p>
+  </section>
+</div>
+{% endif %}
+</div>

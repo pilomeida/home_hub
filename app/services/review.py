@@ -160,7 +160,7 @@ def ai_rule_item(session: Session, rule) -> Optional[ReviewItem]:
                      title=f"{rule.merchant or rule.pattern}: is it {path_label(session, node) if node else 'this category'}?",
                      why=f"The AI suggested this category but was only {sure}, so the entries were left in Needs review "
                          f"instead of being filed on a guess (e.g. “{rule.example or rule.pattern}”).",
-                     evidence_url=f"/transactions?q={(rule.merchant or rule.pattern)[:40]}",
+                     evidence_url=f"/financials/transactions?q={(rule.merchant or rule.pattern)[:40]}",
                      options=[{"value": APPROVE, "label": "Yes, file them there"},
                               {"value": DISCARD, "label": "No"}])
 

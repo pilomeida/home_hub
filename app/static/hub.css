@@ -153,7 +153,7 @@ main { padding: 8px 20px 40px; max-width: 1240px; margin: 0 auto; }
 .wlist { padding: 6px var(--pad); }
 .wrow { display: grid; grid-template-columns: 120px 1fr auto auto; gap: 14px; align-items: center; padding: 14px 0;
   border-bottom: 1px solid var(--line); } .wrow:last-child { border: 0; }
-.wa { font-weight: 600; } .wd { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
+.wa { font-weight: 600; } .wrow .btn { white-space: nowrap; } .wd { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
 .wb .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch; }
 .g2.rv { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--gap); align-items: start; }
 .g2.rv > .card { margin: 0; }

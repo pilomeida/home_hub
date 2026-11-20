@@ -1,0 +1,25 @@
+<div id="merchants">
+{% if note %}<div class="problem">{{ note }}</div>{% endif %}
+{% if done %}<p class="msg info">Confirmed {{ done }} merchant{{ "s" if done != 1 }}. Each one's next line is filed without asking.</p>{% endif %}
+{% if rows %}
+<form hx-post="/waiting/bulk" hx-target="#merchants" hx-swap="outerHTML">
+  <div class="bulk"><span class="sub">{{ "{:,}".format(merchants) }} not confirmed yet; the first {{ rows|length }} below. Tick the ones whose guess is right.</span>
+    <span class="sp"></span>
+    <label class="sub"><input type="checkbox" name="remember" value="1" checked> Remember</label>
+    <button class="btn pri" type="submit">Confirm the ticked ones</button></div>
+  <section class="card flush">
+  <table class="tbl">
+    <thead><tr><th><input type="checkbox" aria-label="Tick every merchant with a guess" onclick="this.closest('form').querySelectorAll('input[name=item]').forEach(function(b){b.checked=this.checked}.bind(this))"></th>
+      <th>Merchant</th><th>Best guess</th><th class="num">Lines</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td>{% if r.can_confirm %}<input type="checkbox" name="item" value="{{ r.item.id }}" aria-label="Confirm {{ r.name }}">{% endif %}</td>
+        <td>{{ r.name }}</td><td>{{ r.guess or "no guess: choose one" }}</td><td class="num">{{ r.lines }}</td>
+        <td>{% if not r.can_confirm %}<a href="{{ r.item.evidence_url }}">Choose it there ›</a>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </section>
+</form>
+{% else %}<p>No merchant is waiting to be confirmed.</p>{% endif %}
+</div>

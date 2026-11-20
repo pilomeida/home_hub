@@ -91,7 +91,8 @@ def test_the_menu_and_the_queue_page_show_merchants_apart(client, engine, levels
     assert 'Waiting for you <em>1</em>' in html                  # the menu leaves the merchant out
     assert "1 new merchant not confirmed yet" in html and html.count('class="domain-card"') == 1
     only = client.get("/waiting?area=merchants").text
-    assert "Loja A" in only and only.count('class="domain-card"') == 1
+    assert "<td>Loja A</td>" in only and "no guess: choose one" in only   # merchants are a table since step 10e
+    assert only.count('class="domain-card"') == 0
 
 
 def test_home_page_has_ask_first_money_coming_and_waiting(client, session):

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** step 10 (UI redesign, Option A), slice e: Waiting for you (10a, 10b live; 10c second deploy with 10d).
+**Now (2026-11-20):** step 10 (UI redesign, Option A), slice e: Waiting for you (10a to 10d live).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -121,10 +121,10 @@ and said tweaks will come from using it.
   and their own tab on /waiting (live: 105 waiting plus 1,149 merchants). Older tests that read the Overview at "/"
   now read it at /overview.) The first 10c deploy (44654408534) failed on three more such tests that the local run
   had not covered; fixed, with the tests that assert something is absent from the Overview moved with it (so they
-  still check something); nothing reached the live Hub.
+  still check something); nothing reached the live Hub. ✅ live 2026-11-20 with 10d (`5aa4370`, deploy 44666588749).
 - d. Money: one page, tabs Spending, Bills & due, Loans, Utilities, All lines; the headline row; the breakdown with its
   trend. **New behaviour:** category history (any category at any level, a number of months; view columns, line,
-  trendline or bars). ✅ 2026-11-20 (`app/services/money_page.py`, `/money`, `/money/history`; the
+  trendline or bars). ✅ 2026-11-20, live (`5aa4370`; `app/services/money_page.py`, `/money`, `/money/history`; the
   Money menu item and the phone's € open `/money`). Headline row: spent this month (with "if budgets are respected"
   as the budget panel says it), cash balance (what it rests on), due in the next 7 days plus overdue, open loans
   and red flags; each opens its page. Tabs are the section row: Spending (`/money`), Bills & due, Loans, Utilities,
@@ -137,6 +137,14 @@ and said tweaks will come from using it.
   merchants as a bulk table with the best guess filled in. Existing behaviour, new look.
   Found 2026-11-20: the "See it" link of an AI answer waiting for a person goes to `/transactions?q=…`, a page that
   does not exist (45 live items); fix the link the queue writes and the items already stored, with 10e.
+  ◐ 2026-11-20, built and tested, deploying (`app/services/queue_view.py`): `/waiting` opens with one row per area
+  (count, the first item, how old the oldest is, "Open the first ›") and the merchants on their own row ("Open the
+  table ›"), then the list as before. `/waiting/one?area=…` shows one item at a time: the paper on the left when the
+  item is about one (a statement that doesn't add up, a line on a statement, a health paper read with doubts), the
+  question and its answers on the right; Enter = the first answer, L = later, J / K = next / previous (moving along
+  answers nothing). Merchants are a table: name, the category the Hub filed it under, its number of lines; tick the
+  right ones and confirm them in one go (a merchant with no guess is chosen on its own page). The answers and what
+  they do are unchanged. The "See it" link is fixed for new items and a migration repairs the stored ones.
 - f. The rest, with what exists: Health (name tiles, no faces; a strip of follow-ups; a person's page with results and
   the reference range, timeline), Things (house and items as today), Papers (everything filed; category chips; search),
   Coming up with To-Dos as a tab, Problems and the gear's pages. Papers is the same list pattern as All lines (not drawn).
