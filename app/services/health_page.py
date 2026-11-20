@@ -157,6 +157,8 @@ class PersonPage:
     conditions: list[AreaCount]
     results: list[ResultLine]
     timeline: list[TimelineRow]
+    own_conditions: list = field(default_factory=list)   # [(HealthCondition, papers confirmed)] (step 7a)
+    proposed: list = field(default_factory=list)         # condition names on their papers, not created yet
 
 
 def person_page(session: Session, person_id: int, today: Optional[date] = None) -> Optional[PersonPage]:
@@ -189,7 +191,11 @@ def person_page(session: Session, person_id: int, today: Optional[date] = None) 
         timeline.append(TimelineRow(e.entry_date if e else None, KIND_LABELS.get(e.kind or "", "Paper") if e else "Paper",
                                     (e.provider or "") if e else "couldn't be read",
                                     f"/health/documents/{r.document.id}"))
-    return PersonPage(person, len(rows), sorted(conds.values(), key=lambda c: c.name.lower()), results, timeline)
+    from app.categories.health import conditions as conditions_svc
+    own = [(c, len(conditions_svc.papers_of(session, c.id))) for c in conditions_svc.conditions_of(session, person.id)]
+    proposed = [p for p in conditions_svc.proposals(session) if p.person.id == person.id]
+    return PersonPage(person, len(rows), sorted(conds.values(), key=lambda c: c.name.lower()), results, timeline,
+                      own, proposed)
 
 
 __all__ = ["FollowUp", "follow_ups", "Tile", "AreaCount", "HealthHome", "health_home", "ResultLine", "TimelineRow",

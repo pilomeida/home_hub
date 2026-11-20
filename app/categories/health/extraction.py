@@ -91,7 +91,7 @@ Fields:
 - record_kind: one of {_KINDS}.
 - areas: every body area/system it concerns, as many as apply (a lab panel usually touches several) (e.g. Eyes, Skin, Heart and circulation, Digestive system, Teeth).
 - conditions: named conditions or diagnoses it concerns (e.g. Stroke, Diabetes). [] if none.
-  For areas and conditions, reuse an existing name exactly when it fits; write a new name in the language of the paper.
+  For areas and conditions, reuse an existing name exactly when it fits; write a new name in English (the areas and conditions are listed in English, whatever the paper's language).
 - layout: "sheet" if the paper is mostly a table of results (a laboratory sheet), "report" if it is mostly written text under headings (an imaging, consultation or examination report).
 - summary: two sentences, plain words, what this paper is and its main finding. Write it in the language of the paper.
 - indication: why the paper was requested or made, in the paper's own words (e.g. the line labelled "Indicação" or "Motivo");

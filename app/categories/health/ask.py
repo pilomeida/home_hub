@@ -77,7 +77,7 @@ def _find_records(session: Session, args: dict) -> ToolOutput:
     lines = [f"{len(rows)} matching private Health records (showing {len(shown)}):"]
     for e, doc, tags in shown:
         person = people.get(e.person_id)
-        lines.append(" | ".join([
+        lines.append(" | ".join(part for part in [
             f"doc:{doc.id}", str(e.entry_date or "undated"), person.name if person else "unknown person",
             KIND_LABELS.get(e.kind or "", e.kind or "-"), e.provider or "-",
             "areas: " + (", ".join(t.name for t in tags if t.kind == "area") or "-"),
@@ -134,6 +134,51 @@ def _measurements(session: Session, args: dict) -> ToolOutput:
 _PERSON = {"type": "string", "description": "Part of the person's name."}
 _YEAR = {"type": "integer"}
 
+def _conditions(session: Session, args: dict) -> ToolOutput:
+    """Step 7d: each person's conditions with their status, papers, next follow-up, medication, visits and notes.
+    A condition is shown only when the AI may read one of its person's papers (fail closed); its papers are only the
+    readable ones."""
+    from app.categories.health import care, conditions as cs, follow_ups as fu
+    from app.models.health import HealthCondition, HealthNote
+    people = _people(session)
+    readable = {e.id: e for e in _readable_entries(session)}
+    readers = {e.person_id for e in readable.values()}
+    wanted = match_key(args.get("condition") or "")
+    today = date.today()
+    lines, citables, count = [], [], 0
+    for c in session.exec(select(HealthCondition).order_by(HealthCondition.person_id, HealthCondition.name)).all():
+        person = people.get(c.person_id)
+        if not _person_ok(person, args.get("person")) or (wanted and wanted not in c.match_key):
+            continue
+        papers = [e for e in cs.papers_of(session, c.id) if e.id in readable]
+        if not papers and c.person_id not in readers:
+            continue                                  # nothing of this person may be read: the condition stays out
+        count += 1
+        docs = [session.get(Document, e.document_id) for e in papers]
+        citables += [citable_for_document(d) for d in docs if d is not None]
+        nxt = fu.open_ones(session, today, condition_id=c.id)
+        meds = [m for m in care.medications(session, c.id) if m.stopped_on is None]
+        booked = [v for v in care.visits(session, c.id, "booked") if v.visit_on >= today]
+        done = [v for v in care.visits(session, c.id, "done")]
+        notes = session.exec(select(HealthNote).where(HealthNote.condition_id == c.id)
+                             .order_by(HealthNote.noted_on.desc())).all()[:5]
+        lines.append(" | ".join(part for part in [
+            f"{person.name if person else 'unknown person'}: {c.name}", f"status {c.status}",
+            f"since {c.started_on}" if c.started_on else "start not recorded",
+            f"followed by {c.followed_by}" if c.followed_by else "",
+            "papers: " + (", ".join(f"doc:{e.document_id} {e.entry_date or 'undated'}" for e in papers) or "none readable"),
+            f"next follow-up {nxt[0].follow_up.due_on}: {nxt[0].follow_up.what}" if nxt else "no follow-up set",
+            "medication: " + (", ".join(" ".join(filter(None, [m.name, m.dose, m.frequency])) for m in meds) or "none"),
+            f"next visit {booked[0].visit_on}" if booked else "",
+            f"last visit {done[-1].visit_on}: {done[-1].observations or ''} {done[-1].plan_changes or ''}".strip()
+            if done else "",
+            "notes: " + "; ".join(f"{n.noted_on} {n.kind} {n.value if n.value is not None else ''} {n.text}".strip()
+                                  for n in notes) if notes else ""] if part))
+    text = (f"{count} condition{'s' if count != 1 else ''} (private Health):\n" + "\n".join(lines)
+            if lines else "No condition is recorded for that person.")
+    return _output(text, count, citables)
+
+
 HEALTH_TOOLS = (
     AskTool(
         name="health_find_records",
@@ -157,4 +202,12 @@ HEALTH_TOOLS = (
             "person": _PERSON, "test": {"type": "string"},
             "date_from": {"type": "string", "description": "YYYY-MM-DD"}, "date_to": {"type": "string", "description": "YYYY-MM-DD"}}},
         run=_measurements),
+    AskTool(
+        name="health_conditions",
+        description=("PRIVATE. The family's long-running conditions per person, as the family recorded them: status "
+                     "(followed, stable, resolved), since when, who follows it, the papers confirmed to be about it "
+                     "(doc:ID to cite), the next follow-up, current medication, visits and notes. Filter by person or "
+                     "condition. Using this makes the whole answer private."),
+        input_schema={"type": "object", "properties": {"person": _PERSON, "condition": {"type": "string"}}},
+        run=_conditions),
 )

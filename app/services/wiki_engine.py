@@ -35,6 +35,8 @@ A wiki page records standing facts worth remembering later (a provider, a \
 contract or policy number, a tariff, a renewal date) -- never one-off \
 transactional data such as this month's amount due.
 
+Write page titles and fact names in English, whatever the document's language; keep each value as the document prints it.
+
 Existing pages in this section (reuse a title exactly when the facts belong there):
 {existing}
 

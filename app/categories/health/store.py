@@ -125,6 +125,10 @@ def apply_extraction(session: Session, document: Document, extracted: ExtractedH
     from app.categories.health import tests as tests_svc
     tests_svc.attach_tests(session, entry)         # a lab sheet's results find their known test (step 5b)
     areas_svc.set_tags(session, entry, extracted.areas, extracted.conditions)
+    from app.categories.health import conditions as conditions_svc
+    from app.categories.health import follow_ups as follow_ups_svc
+    if conditions_svc.suggest_for_entry(session, entry) + follow_ups_svc.propose_from_paper(session, entry):
+        session.commit()                    # step 7a/7b: the conditions it fits, the follow-ups its words ask for
     return sync_entry_from_fields(session, document)           # also counts the notes as "to check"
 
 
@@ -165,6 +169,10 @@ def purge_derived(session: Session, document: Document) -> None:
         session.delete(m)
     for t in session.exec(select(HealthEntryTag).where(HealthEntryTag.entry_id == entry.id)).all():
         session.delete(t)
+    from app.categories.health import conditions as conditions_svc
+    conditions_svc.forget_entry(session, entry.id)
+    from app.categories.health import follow_ups as follow_ups_svc
+    follow_ups_svc.forget_entry(session, entry.id)
     session.flush()          # children first, explicitly: these tables have no declared relationship, so the unit of
     session.delete(entry)    # work does not order them, and the entry could be deleted while still referenced
     session.commit()

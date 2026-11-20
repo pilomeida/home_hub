@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** step 6 (wiki facts point at subjects), slices a and b. Step 10 is live except 10g (Ask's answer card and actions), which waits on Pedro (section 2).
+**Now (2026-11-20):** deploying step 6c (answers agree, English names) with step 7 (Health conditions, visits, medication); then step 8 (new categories). Step 10 is live except 10g (Ask's answer card and actions), which waits on Pedro (section 2).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -196,7 +196,11 @@ and said tweaks will come from using it.
   (B4's next step).
 - b. One provider written two ways becomes one subject with aliases, so its facts stop flip-flopping; the two Telecom
   pages (Amigo, Vodafone Portugal) merge, and the duplicate keys (provider/Provider, category/Category) fold together.
-  ◐ a and b 2026-11-20, built and tested, deploying; then `scripts/settle_wiki_subjects.py` on the live wiki.
+  ✅ a and b 2026-11-20 live (5333737, home_hub fe9d046, deploy 44692748973); `scripts/settle_wiki_subjects.py`
+  applied on the live wiki after a backup (`data/backup-2026-11-20-before-wiki-subjects.db`): 21 pages given their
+  subject, 4 spellings of Amigo made aliases of Vodafone Portugal, the Amigo page joined into Vodafone Portugal's,
+  44 keys folded, 6 duplicate current facts made history; 124 facts before and after (none deleted), 75 → 69
+  current; a second run changes nothing. Amigo/Vodafone now has one current provider, "Vodafone Portugal".
   Each wiki page carries the subject it is about (`app/services/wiki_subjects.py`): a person's, policy's or thing's
   page its subject; a topic page "Telecom — Amigo" the provider after the dash; "Pedro: check-ups" a person the
   registry already holds (a topic title never creates a person). A provider written another way leads to its subject
@@ -209,6 +213,19 @@ and said tweaks will come from using it.
   per category; the orphan check is fixed while links are rare. Language (Pedro, 2026-11-19): areas, topics and
   wiki guidance in English; each paper's own summary and wording stay in its language, shown as printed. Existing
   Portuguese area and topic names get English names, the Portuguese kept as an alias.
+  ◐ c 2026-11-20, built and tested, deploying; then `scripts/english_names.py` on the live data. Home's and the
+  Overview's Earnings and Spending now use the one rule the budget and Ask use (`spend_of`, new `earning_of`): live
+  2026-11 so far, Spending was €7,384 on Home and €4,461 in the budget and Ask; the difference was loan instalments
+  (€2,178) and moves between the family's own accounts (€600), and Earnings counted €2,312 of moves between own
+  accounts since 2026-08. Home names what is not counted under Spending ("Not counted as spending this month: loan
+  instalments €…, moves between your own accounts €…"). The wiki's names are per category (the same title in
+  another category is another page); the orphan check counts a page about a subject as connected (all 21 live pages
+  were flagged while no page had a link). Language: the readers name new areas, conditions, page titles and fact
+  names in English, the paper's own summary and values as printed; the six Portuguese areas join their English
+  twins, the two conditions get English names, the three Portuguese topic pages are renamed; each Portuguese name
+  stays an alias that still leads there. (Claude, 2026-11-20; Pedro may change: loan instalments are not spending
+  (they are named under it); the translations "Ischaemic stroke", "Atheromatous plaque", "Pedro: check-ups and
+  tests", "Pedro: conditions and diagnoses", "Vicente: eyes".)
 - Done when: Rute's facts are found from her subject, whichever page holds them; Amigo's provider fact keeps one value
   across bills.
 
@@ -226,6 +243,21 @@ The Hub only proposes; a person confirms. A condition is a subject (step 6).
   `app/privacy/reach.py`, tier High, tripwire tests); an Overview card.
 - Done when: a condition page shows its papers, visits, medication and next follow-up, and its reminder reaches the
   phone once.
+  ✅ a–d 2026-11-20, built and tested, deploying with 6c (`app/categories/health/conditions.py`, `follow_ups.py`,
+  `care.py`; three new tables in three migrations; `/health/conditions/{id}`). a: a condition is a record per person
+  and a subject ("Ischaemic stroke — Pedro Almeida"); each paper's box suggests the person's conditions named alike
+  (confirm, pick another, none of these; a re-read keeps the answer); the old guessed condition labels are proposals
+  on the person's page and on Waiting for you ("A condition for Pedro Almeida? …"), created only on a yes, with their
+  papers attached; a paper deleted takes its links with it. b: a follow-up is a Health To-Do 14 days before it is due
+  (titled with what and for whom, never the condition), "Next due" on the condition page, overdue in red; a paper's
+  words ("repetir RM em 12 meses", "controlo dentro de 6 meses", "review in one year") propose one dated from the
+  paper, never twice and never after a no; it reaches the phone once ("A Health follow-up for Pedro is due on
+  2026-12-01: see To-Dos."). c: visits booked then done (done books the next), notes (note, own reading with its
+  value, episode), medication whose changes are added, never overwritten; one timeline per condition, newest first.
+  d: Ask's `health_conditions` tool (tier High, fail-closed, in the tripwire test); the Overview's Health card says
+  "N conditions followed" and "next follow-up yyyy-mm-dd" or "N overdue", never a name. Left: bookings reach Google
+  Calendar once Pedro sets it up (section 2). (Claude, 2026-11-20; Pedro may change: reminders 14 days before; the
+  follow-up words read are Portuguese and English "repeat / control / review in N weeks, months or years".)
 
 ### Step 8. New categories · M each
 Reuse: sysadminsmedia/homebox's "a thing with typed fields and attachments" (AGPL: idea only).

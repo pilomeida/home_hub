@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} — {{ person.name }}{% endblock %}
+{% block content %}
+<p><a href="/health/people/{{ person.id }}">← {{ person.name }}</a></p>
+<div class="ph1"><span class="pn big s">{{ c.name }}</span>
+  <span class="chip{% if c.status == 'followed' %} warn{% elif c.status == 'resolved' %} ok{% endif %}">{{ statuses[c.status] }}</span>
+  <span class="sub">{{ person.name }}{% if c.started_on %} · since {{ c.started_on.isoformat() }}{% endif %}{% if c.followed_by %} · followed by {{ c.followed_by }}{% endif %}</span></div>
+<div class="g3 pp">
+  <section class="card">
+    <div class="card-h"><span>Papers</span><span class="sub">{{ papers|length }}</span></div>
+    {% for e, d in papers %}
+    <div class="cond"><a href="/health/documents/{{ e.document_id }}"><b>{{ e.entry_date.isoformat() if e.entry_date else "no date" }}</b></a>
+      <span class="sub">{{ e.provider or (d.filename if d else "") }}</span></div>
+    {% else %}<p class="sub">No paper is confirmed to be about {{ c.name }} yet.</p>{% endfor %}
+    {% if suggested %}
+    <div class="card-h"><span>Maybe about it</span><span class="sub">{{ suggested|length }}</span></div>
+    {% for e, d in suggested %}
+    <div class="cond"><a href="/health/documents/{{ e.document_id }}#conditions">{{ e.entry_date.isoformat() if e.entry_date else "no date" }}</a>
+      <span class="sub">{{ e.provider or (d.filename if d else "") }} · confirm it on the paper</span></div>
+    {% endfor %}{% endif %}
+  </section>
+  <section class="card">
+    <div class="card-h"><span>Follow-ups</span></div>
+    {% if follow_ups %}{% set nx = follow_ups[0] %}
+    <p><b>Next due</b> {{ nx.follow_up.due_on.isoformat() }}: {{ nx.follow_up.what }} <span class="chip{% if nx.late %} bad{% endif %}">{{ nx.note }}</span></p>
+    {% for d in follow_ups[1:] %}<div class="cond"><span>{{ d.follow_up.due_on.isoformat() }}: {{ d.follow_up.what }}</span><span class="chip{% if d.late %} bad{% endif %}">{{ d.note }}</span></div>{% endfor %}
+    {% else %}<p class="sub">Nothing to do again is set for {{ c.name }}.</p>{% endif %}
+    <form method="post" action="/health/conditions/{{ c.id }}/follow-ups">
+      <div class="field"><label>What to do again <input type="text" name="what" placeholder="e.g. Repeat the MRI"></label></div>
+      <div class="field"><label>Due (yyyy-mm-dd) <input type="text" name="due_on"></label></div>
+      <button class="btn" type="submit">Add</button>
+      <p class="sub">A To-Do comes {{ remind_before }} days before, and the phone is told once.</p>
+    </form>
+  </section>
+  <section class="card">
+    <div class="card-h"><span>About it</span></div>
+    <form method="post" action="/health/conditions/{{ c.id }}">
+      <div class="field"><label>Status
+        <select name="status">{% for key, label in statuses.items() %}<option value="{{ key }}"{% if c.status == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></div>
+      <div class="field"><label>Since (yyyy-mm-dd) <input type="text" name="started_on" value="{{ c.started_on.isoformat() if c.started_on else '' }}"></label></div>
+      <div class="field"><label>How it started <input type="text" name="started_note" value="{{ c.started_note or '' }}"></label></div>
+      <div class="field"><label>Followed by (doctor or clinic) <input type="text" name="followed_by" value="{{ c.followed_by or '' }}"></label></div>
+      <button class="btn pri" type="submit">Save</button>
+    </form>
+    <p class="sub">Created {{ c.created_at.strftime('%Y-%m-%d') }}{% if c.created_by %} by {{ c.created_by }}{% endif %}.</p>
+  </section>
+</div>
+<div class="g3 pp">
+  <section class="card">
+    <div class="card-h"><span>Medication</span></div>
+    {% for m in medications %}
+    <div class="cond"><span><b>{{ m.name }}</b> {{ m.dose or "" }} {{ m.frequency or "" }}{% if m.stopped_on %} <span class="chip">stopped {{ m.stopped_on.isoformat() }}</span>{% endif %}</span></div>
+    {% if not m.stopped_on %}<form method="post" action="/health/medications/{{ m.id }}/change" class="field">
+      <input type="text" name="changed_on" placeholder="date yyyy-mm-dd" size="11"> <input type="text" name="dose" placeholder="new dose" size="8">
+      <input type="text" name="frequency" placeholder="how often" size="10">
+      <button class="btn" name="action" value="change">Changed</button> <button class="btn" name="action" value="stop">Stopped</button></form>{% endif %}
+    {% else %}<p class="sub">No medicine listed.</p>{% endfor %}
+    <form method="post" action="/health/conditions/{{ c.id }}/medications" class="field">
+      <input type="text" name="name" placeholder="medicine"> <input type="text" name="dose" placeholder="dose" size="8">
+      <input type="text" name="frequency" placeholder="how often" size="10"> <input type="text" name="started_on" placeholder="since yyyy-mm-dd" size="11">
+      <button class="btn" type="submit">Add medicine</button></form>
+  </section>
+  <section class="card">
+    <div class="card-h"><span>Visits and notes</span></div>
+    {% for v in booked %}<form method="post" action="/health/visits/{{ v.id }}/done" class="field">
+      <b>Booked {{ v.visit_on.isoformat() }}</b> {{ v.clinic or "" }} {{ v.doctor or "" }}<br>
+      <input type="text" name="observations" placeholder="what was seen"> <input type="text" name="plan_changes" placeholder="what changed">
+      <input type="text" name="next_appointment_on" placeholder="next visit yyyy-mm-dd" size="12"> <button class="btn" type="submit">It happened</button></form>{% endfor %}
+    <form method="post" action="/health/conditions/{{ c.id }}/visits" class="field">
+      <input type="text" name="visit_on" placeholder="date yyyy-mm-dd" size="11"> <input type="text" name="clinic" placeholder="clinic" size="12">
+      <input type="text" name="doctor" placeholder="doctor" size="12">
+      <select name="status"><option value="booked">booked</option><option value="done">done</option></select>
+      <button class="btn" type="submit">Add visit</button></form>
+    <form method="post" action="/health/conditions/{{ c.id }}/notes" class="field">
+      <input type="text" name="noted_on" placeholder="date yyyy-mm-dd" size="11">
+      <select name="kind">{% for k, label in note_kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select>
+      <input type="text" name="text" placeholder="what happened"> <input type="text" name="value" placeholder="value" size="6"> <input type="text" name="unit" placeholder="unit" size="6">
+      <button class="btn" type="submit">Add note</button></form>
+  </section>
+</div>
+<section class="card">
+  <div class="card-h"><span>Timeline</span></div>
+  {% for ev in timeline %}
+  <div class="tl{% if ev.ahead %} ahead{% endif %}"><span class="sub">{{ ev.when.isoformat() if ev.when else "no date" }}</span>
+    {% if ev.link %}<a href="{{ ev.link }}"><b>{{ ev.title }}</b></a>{% else %}<b>{{ ev.title }}</b>{% endif %} <span class="sub">{{ ev.detail }}</span></div>
+  {% else %}<p class="sub">Nothing on {{ c.name }}'s timeline yet.</p>{% endfor %}
+</section>
+{% endblock %}

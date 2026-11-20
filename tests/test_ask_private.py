@@ -174,6 +174,10 @@ def world(session, inbox_documents_dir):
                      Todo(title=f"{pw.HIGH}-todo", document_id=w.c.id)])                 # made from a High document
     session.commit()
     w.health = _health_paper(session, inbox_documents_dir)
+    from app.categories.health import conditions as cs
+    from app.categories.health.store import entry_for
+    entry = entry_for(session, w.health.id)
+    cs.create(session, entry.person_id, f"Condition {HEALTH}", "pedro@x", confirm_entry_id=entry.id)   # step 7d
     return w
 
 
@@ -189,11 +193,12 @@ def _calls(w) -> dict:
         "financials_find_transactions": [{"query": ""}],
         "health_find_records": [{"query": "Maria"}],
         "health_measurements": [{}],
+        "health_conditions": [{}, {"person": "Maria"}],
     }
 
 
 _STATEMENT_HIGH = {**pw.STANDARD, "high": [*pw.STANDARD["high"], "financials/statement"]}
-_HEALTH_TOOLS = {"health_find_records", "health_measurements"}
+_HEALTH_TOOLS = {"health_find_records", "health_measurements", "health_conditions"}
 _SCENARIOS = {
     # name: (levels, private sentinels, private files, tools that must be seen returning private content)
     "standard": (pw.STANDARD, [*pw.PRIVATE_DERIVED, HEALTHTODO, HEALTH], pw.PRIVATE_FILES,

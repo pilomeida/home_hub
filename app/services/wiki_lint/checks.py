@@ -31,11 +31,16 @@ def _active(session: Session) -> list[WikiClaim]:
 
 
 def find_orphan_pages(session: Session) -> list[FindingDraft]:
+    """A page nothing connects: no link to or from it, and about no subject (PLAN step 6c). Links are rare, so a page
+    about a person, a policy, a thing or a provider is reached through its subject and is not an orphan."""
     linked = {p for pair in _links(session) for p in pair}
-    return [FindingDraft(LintFindingKind.ORPHAN_PAGE, f"“{p.topic}” isn't linked to or from any other wiki page.",
+    return [FindingDraft(LintFindingKind.ORPHAN_PAGE,
+                         f"“{p.topic}” isn't linked to or from any other wiki page, and is about no person, policy, "
+                         f"thing or provider the Hub knows.",
                          category=p.category, wiki_page_ids=(p.id,),
                          suggested_action="Link it from a related page, or dismiss if it stands on its own.")
-            for p in session.exec(select(WikiPage).order_by(WikiPage.id)).all() if p.id not in linked]
+            for p in session.exec(select(WikiPage).order_by(WikiPage.id)).all()
+            if p.id not in linked and p.subject_id is None]
 
 
 def find_unsourced_claims(session: Session) -> list[FindingDraft]:

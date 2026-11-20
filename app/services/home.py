@@ -15,7 +15,7 @@ from app.models.todo import Todo
 from app.services import review
 from app.services.coming_up import coming_up
 from app.services.overview_service import (_bank_reported_cash, _cash_account_ids, _monthly_flow_totals,
-                                           _same_day_flow_totals)
+                                           _same_day_flow_totals, left_out_this_month)
 from app.ui.charts import Item
 
 MONTHS_SHOWN = 3
@@ -47,6 +47,7 @@ class MoneyBlock:
     delta_pct: Optional[float]       # vs last month by the same day; None when last month had nothing by then
     last_label: str                  # "Oct"
     good_when_up: bool
+    left_out: list = field(default_factory=list)   # [("loan instalments", 2178.19), ...]: money out that is not spending
 
     @property
     def delta_good(self) -> Optional[bool]:
@@ -113,12 +114,13 @@ def _block(title: str, full: dict[str, float], by_day: dict[str, float], today: 
 
 
 def money_this_month(session: Session, today: date) -> tuple[MoneyBlock, MoneyBlock]:
-    """Earnings = incoming bank lines without the family's own transfers (transfers never count as income or spending
-    in the Overview's totals); Spending = outgoing lines, the same way."""
+    """Earnings and Spending by the one rule the budget and Ask use (PLAN step 6c); the money out that is not
+    spending (loan instalments, moves between the family's own accounts) is named under Spending."""
     income, expense = _monthly_flow_totals(session, today)
     income_by, expense_by = _same_day_flow_totals(session, today)
-    return (_block("Earnings", income, income_by, today, True),
-            _block("Spending", expense, expense_by, today, False))
+    spending = _block("Spending", expense, expense_by, today, False)
+    spending.left_out = left_out_this_month(session, today)
+    return _block("Earnings", income, income_by, today, True), spending
 
 
 def available(session: Session, today: date) -> Optional[Available]:

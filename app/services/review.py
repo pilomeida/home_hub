@@ -332,7 +332,7 @@ def _flagged(session: Session, *, kind: str, area: str, model, flag: str, title:
              label: str) -> None:
     """Rows a person approves by setting one flag (Health areas, people, topics): one item each while it is unset."""
     rows = [r for r in session.exec(select(model).where(getattr(model, flag) == False))  # noqa: E712
-            if getattr(r, "merged_into_id", None) is None]
+            if getattr(r, "merged_into_id", None) is None and getattr(r, "kind", "area") == "area"]
     refs, existing = set(), _open_refs(session, kind)
     for r in rows:
         ref = f"{kind}:{r.id}"
@@ -361,6 +361,96 @@ def _health(session: Session) -> None:
              title=lambda t: f"New Health topic proposed: {t.name}",
              why="A written report's headings named a topic the Hub didn't have; it is used once a person approves it.",
              url="/health/topics", label="Approve it")
+
+
+def _health_conditions(session: Session) -> None:
+    """PLAN step 7a: a condition the reader named that the person does not have yet (create it, or not a condition),
+    and a paper the Hub thinks is about one of the person's conditions (yes, or no)."""
+    from app.categories.health import conditions
+    refs, existing = set(), _open_refs(session, "health_condition_new")
+    for p in conditions.proposals(session):
+        refs.add(p.ref)
+        if p.ref not in existing:
+            n = len(p.papers)
+            open_item(session, area="health", kind="health_condition_new", ref=p.ref,
+                      title=f"A condition for {p.person.name}? {p.name}",
+                      why=f"The reader named it on {n} of {p.person.name}'s paper{'s' if n != 1 else ''}. A condition "
+                          f"gets its own page with its papers; nothing is created until you say so.",
+                      evidence_url=f"/health/documents/{_document_of_entry(session, p.papers[0])}",
+                      options=[{"value": APPROVE, "label": "Create it"}, {"value": DISCARD, "label": "Not a condition"}])
+    _close_gone(session, "health_condition_new", refs, lambda ref: (APPROVED, None, None))
+    refs, existing = set(), _open_refs(session, "health_condition_paper")
+    for entry, condition in conditions.open_suggestions(session):
+        ref = f"{entry.id}:{condition.id}"
+        refs.add(ref)
+        if ref not in existing:
+            open_item(session, area="health", kind="health_condition_paper", ref=ref,
+                      title=f"Is this paper about {condition.name}?",
+                      why="Its names fit this condition of the person; confirm it and it is listed on the condition's "
+                          "page.", evidence_url=f"/health/documents/{entry.document_id}",
+                      options=[{"value": APPROVE, "label": "Yes, it is"}, {"value": DISCARD, "label": "No"}])
+    _close_gone(session, "health_condition_paper", refs, lambda ref: (APPROVED, None, None))
+
+
+def _health_follow_ups(session: Session) -> None:
+    """PLAN step 7b: a follow-up a paper's own words ask for ("repetir em 12 meses"): add it, or no."""
+    from app.categories.health import follow_ups
+    from app.models.health import HealthPerson
+    refs, existing = set(), _open_refs(session, "health_follow_up")
+    for f in follow_ups.proposals(session):
+        ref = f"follow_up:{f.id}"
+        refs.add(ref)
+        if ref not in existing:
+            person = session.get(HealthPerson, f.person_id)
+            open_item(session, area="health", kind="health_follow_up", ref=ref,
+                      title=f"Follow-up for {person.name if person else 'someone'} by {f.due_on.isoformat()}? {f.what}",
+                      why=f"The paper says “{f.source_text}”, counted from its date. Added, it becomes a To-Do "
+                          f"two weeks before.",
+                      evidence_url=f"/health/documents/{_document_of_entry(session, f.entry_id)}" if f.entry_id else None,
+                      options=[{"value": APPROVE, "label": "Add it"}, {"value": DISCARD, "label": "No"}])
+
+    def stamp(ref: str) -> tuple:
+        from app.models.health import HealthFollowUp
+        f = session.get(HealthFollowUp, int(ref.split(":")[1]))
+        return (APPROVED if f is not None and f.state == follow_ups.ACTIVE else DISCARDED), None, None
+    _close_gone(session, "health_follow_up", refs, stamp)
+
+
+def _answer_health_follow_up(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.categories.health import follow_ups
+    follow_up_id = int(item.ref.split(":")[1])
+    try:
+        if answer == APPROVE:
+            follow_ups.accept(session, follow_up_id, by)
+        else:
+            follow_ups.dismiss(session, follow_up_id)
+    except follow_ups.FollowUpError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED if answer == APPROVE else DISCARDED
+
+
+def _document_of_entry(session: Session, entry_id: int) -> Optional[int]:
+    from app.models.health import HealthEntry
+    entry = session.get(HealthEntry, entry_id)
+    return entry.document_id if entry else None
+
+
+def _answer_health_condition(session: Session, item: ReviewItem, answer: str, remember: bool, by: Optional[str]) -> str:
+    from app.categories.health import conditions
+    a, b = (int(x) for x in item.ref.split(":"))
+    try:
+        if item.kind == "health_condition_new":
+            if answer == APPROVE:
+                conditions.accept_proposal(session, a, b, by)
+            else:
+                conditions.dismiss_proposal(session, b)
+        else:
+            conditions.decide(session, a, b, conditions.CONFIRMED if answer == APPROVE else conditions.REJECTED, by)
+    except conditions.ConditionError as exc:
+        p = exc.problem
+        raise ReviewError(p.what, p.why, p.next_step) from None
+    return APPROVED if answer == APPROVE else DISCARDED
 
 
 SAME = "same"
@@ -504,13 +594,18 @@ def _answer_same_person(session: Session, item: ReviewItem, answer: str, remembe
 for _kind in ("health_area", "health_person", "health_topic"):
     HANDLERS[_kind] = _answer_health
 HANDLERS["same_person"] = _answer_same_person
+HANDLERS["health_condition_new"] = _answer_health_condition
+HANDLERS["health_condition_paper"] = _answer_health_condition
+HANDLERS["health_follow_up"] = _answer_health_follow_up
 HANDLERS["health_test"] = _answer_health_test
 HANDLERS["health_doubts"] = _answer_health_doubts
 HANDLERS["merchant"] = _answer_merchant
 HANDLERS["to_check_line"] = _answer_to_check_line
 HANDLERS["statement_mismatch"] = _answer_statement_mismatch
 PRODUCERS: list[Callable[[Session], None]] = [_ai_rules, _to_check_lines, _statement_mismatches, _merchants,
-                                               _health, _health_tests, _health_doubts, _same_person]
+                                               _health, _health_conditions, _health_follow_ups, _health_tests,
+                                               _health_doubts,
+                                               _same_person]
 
 
 @dataclass

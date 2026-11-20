@@ -73,27 +73,68 @@ class IngestReport:
     log_entry_id: Optional[int] = None
 
 
-def _candidate_titles(ref: PageRef) -> list[str]:
-    return [ref.title, f"{ref.title} ({ref.page_type})"]
+_ANY = object()
 
 
-def find_page(session: Session, ref: PageRef) -> Optional[WikiPage]:
+def _candidate_titles(ref: PageRef, category=None) -> list[str]:
+    titles = [ref.title]
+    if isinstance(category, Category):           # the same title in another category is another page (step 6c)
+        titles.append(f"{ref.title} ({category.value.replace('_', ' ').title()})")
+    return titles + [f"{ref.title} ({ref.page_type})"]
+
+
+def find_page(session: Session, ref: PageRef, category=_ANY) -> Optional[WikiPage]:
+    """The page for `ref`. With `category`, a topic page is looked for in that category only: the wiki's names are
+    per category, so "Insurance — Fidelidade" in Money and in Insurance are two pages."""
     if ref.entity_key is not None:
         return session.exec(
             select(WikiPage).where(WikiPage.page_type == ref.page_type, WikiPage.entity_key == ref.entity_key)
         ).first()
-    return session.exec(
-        select(WikiPage).where(
-            WikiPage.page_type == ref.page_type,
-            WikiPage.entity_key.is_(None),
-            WikiPage.topic.in_(_candidate_titles(ref)),
-        )
-    ).first()
+    statement = select(WikiPage).where(
+        WikiPage.page_type == ref.page_type,
+        WikiPage.entity_key.is_(None),
+        WikiPage.topic.in_(_candidate_titles(ref, None if category is _ANY else category)),
+    )
+    if category is not _ANY:
+        statement = statement.where(WikiPage.category == category if category is not None
+                                    else WikiPage.category.is_(None))
+    found = session.exec(statement.order_by(WikiPage.id)).first()
+    return found if found is not None else _page_by_alias(session, ref, category)
+
+
+def _page_by_alias(session: Session, ref: PageRef, category) -> Optional[WikiPage]:
+    """A page that was renamed is still found by its old title (its aliases)."""
+    from app.services.names import name_key
+    key = name_key(ref.title)
+    statement = select(WikiPage).where(WikiPage.page_type == ref.page_type, WikiPage.entity_key.is_(None),
+                                       WikiPage.aliases_json != "[]")
+    if category is not _ANY:
+        statement = statement.where(WikiPage.category == category if category is not None
+                                    else WikiPage.category.is_(None))
+    for page in session.exec(statement.order_by(WikiPage.id)).all():
+        if key in {name_key(a) for a in json.loads(page.aliases_json or "[]")}:
+            return page
+    return None
+
+
+def rename_page(session: Session, page: WikiPage, title: str) -> WikiPage:
+    """Give a topic page a new title; the old one stays an alias, so a paper naming it still lands here."""
+    title = title.strip()
+    if not title or title == page.topic:
+        return page
+    clash = session.exec(select(WikiPage).where(WikiPage.topic == title, WikiPage.id != page.id)).first()
+    if clash is not None:
+        raise ValueError(f"Wiki title collision for {title!r}")
+    aliases = [a for a in json.loads(page.aliases_json or "[]") if a != title] + [page.topic]
+    page.topic, page.aliases_json = title, json.dumps(aliases, ensure_ascii=False)
+    session.add(page)
+    session.flush()
+    return page
 
 
 def _get_or_create_page(session: Session, ref: PageRef, category: Optional[Category]) -> WikiPage:
     from app.services import wiki_subjects
-    page = find_page(session, ref)
+    page = find_page(session, ref, category)
     if page is not None:
         return page
     subject = wiki_subjects.subject_for(session, ref.page_type, ref.title)
@@ -101,8 +142,9 @@ def _get_or_create_page(session: Session, ref: PageRef, category: Optional[Categ
         same = wiki_subjects.topic_page_about(session, subject, category)
         if same is not None:
             return same
-    taken = set(session.exec(select(WikiPage.topic).where(WikiPage.topic.in_(_candidate_titles(ref)))).all())
-    title = next((t for t in _candidate_titles(ref) if t not in taken), None)
+    candidates = _candidate_titles(ref, category)
+    taken = set(session.exec(select(WikiPage.topic).where(WikiPage.topic.in_(candidates))).all())
+    title = next((t for t in candidates if t not in taken), None)
     if title is None:
         raise ValueError(f"Wiki title collision for {ref.title!r} ({ref.page_type})")
     page = WikiPage(topic=title, page_type=ref.page_type, entity_key=ref.entity_key,

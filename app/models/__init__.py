@@ -33,4 +33,4 @@ from app.models.paper_text import PaperText  # noqa: F401
 from app.models.rule import Rule  # noqa: F401
 from app.models.review import ReviewItem  # noqa: F401
 
-from app.models.health import HealthArea, HealthEntry, HealthEntryTag, HealthMeasurement, HealthOutlineProfile, HealthPerson, HealthTopic  # noqa: F401
+from app.models.health import HealthArea, HealthCondition, HealthEntry, HealthEntryCondition, HealthEntryTag, HealthFollowUp, HealthMeasurement, HealthMedication, HealthMedicationChange, HealthNote, HealthOutlineProfile, HealthPerson, HealthTopic, HealthVisit  # noqa: F401

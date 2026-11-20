@@ -8,6 +8,7 @@
     {% else %}<span class="chip">nothing by this date in {{ b.last_label }}</span>{% endif %}
   </div>
   {{ charts.columns(b.items, kind=kind, w=330, h=190, title=b.title ~ ", last three months") }}
+  {% if b.left_out %}<p class="sub leftout">Not counted as spending this month: {% for why, amount in b.left_out %}{{ why }} {{ charts.euros(amount) }}{{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}
 </div>
 {% endmacro %}
 {% block content %}

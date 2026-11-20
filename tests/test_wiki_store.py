@@ -108,7 +108,7 @@ def test_entity_title_collision_with_a_topic_page_gets_a_suffix(session):
     session.add(WikiPage(topic="Boiler"))
     session.commit()
     wiki_store.apply_claims(session, [ClaimInput(BOILER, "room", "Kitchen")], document=_document(session))
-    assert wiki_store.find_page(session, BOILER).topic == "Boiler (fake.item)"
+    assert wiki_store.find_page(session, BOILER).topic == "Boiler (House)"          # its category first (step 6c)
 
 
 def test_topic_pages_keep_the_given_summary(session):

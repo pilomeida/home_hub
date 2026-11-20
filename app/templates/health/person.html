@@ -7,8 +7,13 @@
 <div class="g3 pp">
   <section class="card">
     <div class="card-h"><span>Conditions</span></div>
-    {% for c in p.conditions %}<div class="cond"><a href="{{ c.link }}"><b>{{ c.name }}</b></a><span class="sub">{{ c.papers }} paper{{ "s" if c.papers != 1 }}</span></div>
-    {% else %}<p class="sub">No condition filed for {{ p.person.name }}.</p>{% endfor %}
+    {% for c, n in p.own_conditions %}<div class="cond"><a href="/health/conditions/{{ c.id }}"><b>{{ c.name }}</b></a>
+      <span class="sub">{{ n }} paper{{ "s" if n != 1 }} · {{ c.status }}</span></div>
+    {% else %}<p class="sub">No condition created for {{ p.person.name }} yet.</p>{% endfor %}
+    {% for pr in p.proposed %}<div class="cond"><span>Named on {{ pr.papers|length }} paper{{ "s" if pr.papers|length != 1 }}: <b>{{ pr.name }}</b></span>
+      <span class="sub">answer it in <a href="/waiting?area=health">Waiting for you</a></span></div>{% endfor %}
+    <form method="post" action="/health/people/{{ p.person.id }}/conditions" class="field">
+      <label>New condition <input type="text" name="name"></label> <button class="btn" type="submit">Create</button></form>
   </section>
   <section class="card">
     <div class="card-h"><span>Latest results</span><a class="card-r" href="/health/people/{{ p.person.id }}/results">Every result ›</a></div>

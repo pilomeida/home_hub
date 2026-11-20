@@ -152,3 +152,25 @@ def test_settle_joins_the_two_telecom_pages_and_folds_their_keys(session):
     assert [(l.from_page_id) for l in session.exec(select(WikiLink)).all()] == [vod.id]
     assert all(p.subject_id is not None for p in session.exec(select(WikiPage)).all())
     assert wiki_subjects.settle(session)["pages_joined"] == []                # safe to run again
+
+
+def test_a_page_about_a_subject_is_not_an_orphan(session):
+    from app.services.wiki_lint import checks
+    apply_claims(session, [ClaimInput(page=PageRef(page_type=TOPIC_PAGE_TYPE, title="Electricity — EDP"),
+                                      key="provider", value="EDP"),
+                           ClaimInput(page=PageRef(page_type=TOPIC_PAGE_TYPE, title="Garden notes"),
+                                      key="lawn", value="cut in May")])
+    session.commit()
+    lonely = session.exec(select(WikiPage).where(WikiPage.topic == "Garden notes")).one()
+    assert [f.wiki_page_ids for f in checks.find_orphan_pages(session)] == [(lonely.id,)]
+
+
+def test_the_same_title_in_another_category_is_another_page(session):
+    ref = PageRef(page_type=TOPIC_PAGE_TYPE, title="Renewal dates")
+    apply_claims(session, [ClaimInput(page=ref, key="car", value="2027-01")], category=Category.FINANCIALS)
+    apply_claims(session, [ClaimInput(page=ref, key="policy", value="2027-03")], category=Category.INSURANCE)
+    apply_claims(session, [ClaimInput(page=ref, key="car", value="2027-02")], category=Category.FINANCIALS)
+    pages = session.exec(select(WikiPage).order_by(WikiPage.id)).all()
+    assert [(p.topic, p.category) for p in pages] == [("Renewal dates", Category.FINANCIALS),
+                                                     ("Renewal dates (Insurance)", Category.INSURANCE)]
+    assert _active(session, pages[0].id, "car") == ["2027-02"]

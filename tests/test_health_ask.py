@@ -66,3 +66,26 @@ def test_measurements_come_back_oldest_first_with_range_flags(session, world):
 def test_the_tools_see_nothing_outside_health(session, world):
     other = make_document(session, category=Category.HOUSE, paper_kind="house_appliance", fields={"item_name": "Boiler"})
     assert "Boiler" not in run(session, "health_find_records", query="boiler").text
+
+
+def test_conditions_tool_reports_high_and_shows_only_readable_papers(session, world):
+    """Step 7d: a condition with its papers, follow-up and medication; a paper the AI may not read is not listed."""
+    from datetime import timedelta
+    from app.categories.health import care, conditions as cs, follow_ups as fu
+    from app.categories.health.store import entry_for
+    a, b, c = world
+    e = entry_for(session, b.id)
+    cond = cs.create(session, e.person_id, "Hypercholesterolaemia", "pedro@x", confirm_entry_id=e.id)
+    fu.add(session, 0, "Repeat the lipid panel", date.today() + timedelta(days=90), "pedro@x", condition_id=cond.id)
+    care.add_medication(session, cond.id, name="Atorvastatin", dose="20 mg")
+    out = run(session, "health_conditions", person="Maria")
+    assert out.tier == Tier.HIGH and "Hypercholesterolaemia" in out.text and f"doc:{b.id}" in out.text
+    assert "Repeat the lipid panel" in out.text and "Atorvastatin 20 mg" in out.text
+    assert "Pedro" not in out.text
+    from app.models.document import DocumentStatus
+    b.status = DocumentStatus.NEEDS_ATTENTION             # a paper not settled is never read by the AI
+    session.add(b)
+    session.commit()
+    out = run(session, "health_conditions", person="Maria")
+    assert "Hypercholesterolaemia" in out.text and f"doc:{b.id}" not in out.text and "none readable" in out.text
+    assert " |  | " not in out.text

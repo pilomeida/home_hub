@@ -41,6 +41,8 @@ class WikiPage(RefusesUnknownFields, SQLModel, table=True):
     # Who or what the page is about (PLAN step 6a): a person, a policy, a thing, a provider. Pages about one subject
     # are found from it, whichever page holds the fact; a provider's second spelling reuses its page.
     subject_id: Optional[int] = Field(default=None, foreign_key="subjects.id", index=True)
+    # Other titles that lead to this page (a topic's Portuguese title once it has an English one, step 6c).
+    aliases_json: str = Field(default="[]")
     summary: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

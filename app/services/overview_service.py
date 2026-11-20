@@ -16,7 +16,7 @@ from app.models.document import Document, DocumentStatus
 from app.models.category_node import CategoryNode
 from app.models.transaction import Transaction, TransactionType
 from app.categories.registry import document_url
-from app.services.budget_service import spend_of
+from app.services.budget_service import earning_of, left_out_of, spend_of
 from app.services.classification_engine import get_needs_review_queue
 from app.services.loan_alerts import unacknowledged_groups
 from app.services.loan_math import informal_debt_rows, legacy_debt_total, newest_balances, summarize_all
@@ -43,57 +43,55 @@ def _month_start(d: date) -> date:
     return date(d.year, d.month, 1)
 
 
-def _monthly_flow_totals(session: Session, today: date) -> tuple[dict[str, float], dict[str, float]]:
-    """Buckets CREDIT/DEBIT transaction amounts by calendar month (paid_date),
-    covering the trailing _TREND_MONTHS_BACK complete months plus the
-    current in-progress month. TRANSFER-type rows are excluded (money
-    moving between our own tracked accounts is neither income nor
-    expense).
-
-    Design note: every Overview aggregate is scoped by `paid_date`, here and
-    throughout this module. A transaction with no `paid_date` (e.g. an
-    unpaid bill) therefore does not appear in any Overview number -- it only
-    shows up as a Todo in the Household panel -- until it's marked paid.
-    This is a deliberate design point, not an oversight: the Overview is
-    meant to reflect money that has actually moved, not what's merely owed.
-    """
+def _flow_rows(session: Session, today: date):
     cutoff = _month_start(today) - timedelta(days=31 * (_TREND_MONTHS_BACK + 1))
-    statement = select(Transaction).where(
-        Transaction.paid_date >= cutoff, Transaction.paid_date <= today, Transaction.counts(),
-    )
+    nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
+    rows = session.exec(select(Transaction).where(
+        Transaction.paid_date >= cutoff, Transaction.paid_date <= today, Transaction.counts())).all()
+    return [(t, nodes.get(t.category_id) if t.category_id is not None else None) for t in rows if t.paid_date]
+
+
+def _flows(session: Session, today: date, same_day_only: bool) -> tuple[dict[str, float], dict[str, float]]:
     income: dict[str, float] = {}
     expense: dict[str, float] = {}
-    for t in session.exec(statement):
-        if t.paid_date is None:
-            continue
+    for t, node in _flow_rows(session, today):
         key = _month_key(t.paid_date)
-        if t.transaction_type == TransactionType.CREDIT:
-            income[key] = income.get(key, 0.0) + t.amount
-        elif t.transaction_type == TransactionType.DEBIT:
-            expense[key] = expense.get(key, 0.0) + t.amount
+        if same_day_only and t.paid_date > same_day(key, today):
+            continue
+        earned, spent = earning_of(t, node), spend_of(t, node)
+        if earned is not None:
+            income[key] = income.get(key, 0.0) + earned
+        if spent is not None:
+            expense[key] = expense.get(key, 0.0) + spent
     return income, expense
+
+
+def _monthly_flow_totals(session: Session, today: date) -> tuple[dict[str, float], dict[str, float]]:
+    """Earnings and spending by calendar month (paid_date), the trailing _TREND_MONTHS_BACK complete months plus this
+    month so far. One rule with the budget and Ask (PLAN step 6c): spending is `spend_of` (refunds taken off; loan
+    instalments, moves between the family's own accounts and income never count), earnings `earning_of`. What money
+    out is left out is named by `left_out_this_month`.
+
+    Every Overview aggregate is scoped by `paid_date`: an unpaid bill is in no Overview number (it is a To-Do and a
+    line in Coming up) until it is paid -- the Overview reflects money that has moved, not what is owed."""
+    return _flows(session, today, same_day_only=False)
 
 
 def _same_day_flow_totals(session: Session, today: date) -> tuple[dict[str, float], dict[str, float]]:
     """Like `_monthly_flow_totals`, each month counted only up to today's day of the month (PLAN step 10a: a past month
     is compared like for like with the month so far). The current month is the same as its month-to-date total."""
-    cutoff = _month_start(today) - timedelta(days=31 * (_TREND_MONTHS_BACK + 1))
-    statement = select(Transaction).where(
-        Transaction.paid_date >= cutoff, Transaction.paid_date <= today, Transaction.counts(),
-    )
-    income: dict[str, float] = {}
-    expense: dict[str, float] = {}
-    for t in session.exec(statement):
-        if t.paid_date is None:
-            continue
-        key = _month_key(t.paid_date)
-        if t.paid_date > same_day(key, today):
-            continue
-        if t.transaction_type == TransactionType.CREDIT:
-            income[key] = income.get(key, 0.0) + t.amount
-        elif t.transaction_type == TransactionType.DEBIT:
-            expense[key] = expense.get(key, 0.0) + t.amount
-    return income, expense
+    return _flows(session, today, same_day_only=True)
+
+
+def left_out_this_month(session: Session, today: date) -> list[tuple[str, float]]:
+    """Money out this month that is not spending, by reason ("loan instalments", "moves between your own accounts"),
+    largest first: shown under Spending so nothing goes missing from the page."""
+    key, out = _month_key(today), {}
+    for t, node in _flow_rows(session, today):
+        why = left_out_of(t, node) if _month_key(t.paid_date) == key else None
+        if why is not None:
+            out[why] = out.get(why, 0.0) + t.amount
+    return sorted(((k, round(v, 2)) for k, v in out.items() if round(v, 2)), key=lambda kv: -kv[1])
 
 
 def _mtd_and_complete(monthly: dict[str, float], today: date) -> tuple[float, dict[str, float]]:

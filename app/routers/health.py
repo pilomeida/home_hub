@@ -12,6 +12,9 @@ from app.categories.fields import (
     InvalidClassification, build_form_fields, describe_document, dump_fields, load_fields, media_kind_for,
 )
 from app.categories.health import areas as areas_svc
+from app.categories.health import conditions as conditions_svc
+from app.categories.health import follow_ups as follow_ups_svc
+from app.categories.health import care as care_svc
 from app.categories.health.kinds import LEGACY_KINDS, LEGACY_LABELS
 from app.categories.health import browse, outlines, people as people_svc, store
 from app.categories.health import topics as topics_svc
@@ -142,6 +145,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
             "outline": _outline_view(session, entry, measurements) if is_report else [],
             "metrics": [row for row in measurements if row["m"].value is not None] if is_report else [],
             "check_notes": store.notes_of(entry) if entry else [],
+            "conditions_box": conditions_svc.entry_box(session, entry),
             "area_names": ", ".join(t.name for t in tags if t.kind == "area"),
             "condition_names": ", ".join(t.name for t in tags if t.kind == "condition"),
             "why": {k: fields.get(k, "") for k in ("indication", "clinical_notes", "requested_by", "performed_by", "details")},
@@ -302,7 +306,184 @@ async def update_tags(document_id: int, areas: str = Form(""), conditions: str =
             "next_step": "Wait for it to finish, or fix its problem on the Problems page, then try again."})
     split = lambda raw: [p.strip() for p in raw.split(",") if p.strip()]
     areas_svc.set_tags(session, entry, split(areas), split(conditions))
+    if conditions_svc.suggest_for_entry(session, entry):
+        session.commit()
     return RedirectResponse(f"/health/documents/{document.id}", status_code=303)
+
+
+def _by(request: Request) -> Optional[str]:
+    return getattr(request.state, "user_email", None)
+
+
+def _condition_problem(exc: conditions_svc.ConditionError, status: int = 409) -> HTTPException:
+    p = exc.problem
+    return HTTPException(status_code=status, detail={"what": p.what, "why": p.why, "next_step": p.next_step})
+
+
+@router.post("/documents/{document_id}/conditions")
+async def decide_conditions(request: Request, document_id: int, action: str = Form(...),
+                            condition_id: Optional[int] = Form(None), name: str = Form(""),
+                            session: Session = Depends(get_session)):
+    """The paper's conditions box (step 7a): confirm or reject a suggestion, pick another, none of these, or create a
+    new condition from this paper."""
+    document = _document_or_404(session, document_id)
+    entry = store.entry_for(session, document.id)
+    if entry is None or entry.person_id is None:
+        raise HTTPException(status_code=409, detail={
+            "what": "Not saved.", "why": "This paper has no person yet, so it cannot be about one of their conditions.",
+            "next_step": "Fill in whose paper it is in the details below, then try again."})
+    try:
+        if action in ("confirm", "reject") and condition_id is not None:
+            conditions_svc.decide(session, entry.id, condition_id,
+                                  conditions_svc.CONFIRMED if action == "confirm" else conditions_svc.REJECTED, _by(request))
+        elif action == "none":
+            conditions_svc.none_of_these(session, entry.id, _by(request))
+        elif action == "create":
+            conditions_svc.create(session, entry.person_id, name, _by(request), confirm_entry_id=entry.id)
+        else:
+            raise HTTPException(status_code=400, detail={
+                "what": "Not saved.", "why": "The button pressed did not say what to do.",
+                "next_step": "Reload the page and press the button again."})
+    except conditions_svc.ConditionError as exc:
+        raise _condition_problem(exc) from None
+    return RedirectResponse(f"/health/documents/{document.id}#conditions", status_code=303)
+
+
+@router.post("/people/{person_id}/conditions")
+async def create_condition(request: Request, person_id: int, name: str = Form(""), started_on: str = Form(""),
+                           session: Session = Depends(get_session)):
+    try:
+        condition = conditions_svc.create(session, person_id, name, _by(request), started_on=_date_or_none(started_on))
+    except conditions_svc.ConditionError as exc:
+        raise _condition_problem(exc) from None
+    return RedirectResponse(f"/health/conditions/{condition.id}", status_code=303)
+
+
+def _date_or_none(raw: str):
+    from datetime import date as _date
+    try:
+        return _date.fromisoformat(raw.strip()) if raw and raw.strip() else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail={
+            "what": "Not saved.", "why": f"“{raw}” is not a date.", "next_step": "Write it as yyyy-mm-dd."}) from None
+
+
+@router.get("/conditions/{condition_id}")
+async def condition_page(request: Request, condition_id: int, session: Session = Depends(get_session)):
+    from app.models.health import HealthCondition, HealthPerson
+    condition = session.get(HealthCondition, condition_id)
+    if condition is None:
+        raise HTTPException(status_code=404, detail={
+            "what": "Not found.", "why": "That condition is no longer listed.",
+            "next_step": "Open the person's page to see their conditions."})
+    papers = [(e, session.get(Document, e.document_id)) for e in conditions_svc.papers_of(session, condition.id)]
+    suggested = [(e, session.get(Document, e.document_id))
+                 for e in conditions_svc.papers_of(session, condition.id, conditions_svc.SUGGESTED)]
+    from datetime import date as _date
+    return templates.TemplateResponse(request, "health/condition.html", {
+        "c": condition, "person": session.get(HealthPerson, condition.person_id), "papers": papers,
+        "suggested": suggested, "statuses": conditions_svc.STATUSES,
+        "follow_ups": follow_ups_svc.open_ones(session, _date.today(), condition_id=condition.id),
+        "remind_before": follow_ups_svc.REMIND_BEFORE, "timeline": care_svc.timeline(session, condition.id),
+        "medications": care_svc.medications(session, condition.id),
+        "booked": care_svc.visits(session, condition.id, "booked"), "note_kinds": care_svc.NOTE_KINDS})
+
+
+def _care(call):
+    try:
+        return call()
+    except care_svc.CareError as exc:
+        p = exc.problem
+        raise HTTPException(status_code=400, detail={"what": p.what, "why": p.why, "next_step": p.next_step}) from None
+
+
+def _float_or_none(raw: str):
+    try:
+        return float(raw.replace(",", ".")) if raw and raw.strip() else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail={"what": "Not saved.", "why": f"“{raw}” is not a number.",
+                                                     "next_step": "Type the value as a number, e.g. 7.2."}) from None
+
+
+@router.post("/conditions/{condition_id}/visits")
+async def add_visit(request: Request, condition_id: int, visit_on: str = Form(""), clinic: str = Form(""),
+                    doctor: str = Form(""), status: str = Form("booked"), observations: str = Form(""),
+                    plan_changes: str = Form(""), session: Session = Depends(get_session)):
+    _care(lambda: care_svc.add_visit(session, condition_id, visit_on=_date_or_none(visit_on), clinic=clinic,
+                                     doctor=doctor, status=status, observations=observations,
+                                     plan_changes=plan_changes, by=_by(request)))
+    return RedirectResponse(f"/health/conditions/{condition_id}", status_code=303)
+
+
+@router.post("/visits/{visit_id}/done")
+async def visit_done(visit_id: int, observations: str = Form(""), plan_changes: str = Form(""),
+                     next_appointment_on: str = Form(""), session: Session = Depends(get_session)):
+    visit = _care(lambda: care_svc.visit_done(session, visit_id, observations=observations, plan_changes=plan_changes,
+                                              next_appointment_on=_date_or_none(next_appointment_on)))
+    return RedirectResponse(f"/health/conditions/{visit.condition_id}", status_code=303)
+
+
+@router.post("/conditions/{condition_id}/notes")
+async def add_note(request: Request, condition_id: int, noted_on: str = Form(""), kind: str = Form("note"),
+                   text: str = Form(""), value: str = Form(""), unit: str = Form(""),
+                   session: Session = Depends(get_session)):
+    _care(lambda: care_svc.add_note(session, condition_id, noted_on=_date_or_none(noted_on), kind=kind, text=text,
+                                    value=_float_or_none(value), unit=unit, by=_by(request)))
+    return RedirectResponse(f"/health/conditions/{condition_id}", status_code=303)
+
+
+@router.post("/conditions/{condition_id}/medications")
+async def add_medication(request: Request, condition_id: int, name: str = Form(""), dose: str = Form(""),
+                         frequency: str = Form(""), started_on: str = Form(""),
+                         session: Session = Depends(get_session)):
+    _care(lambda: care_svc.add_medication(session, condition_id, name=name, dose=dose, frequency=frequency,
+                                          started_on=_date_or_none(started_on), by=_by(request)))
+    return RedirectResponse(f"/health/conditions/{condition_id}", status_code=303)
+
+
+@router.post("/medications/{medication_id}/change")
+async def change_medication(request: Request, medication_id: int, changed_on: str = Form(""), dose: str = Form(""),
+                            frequency: str = Form(""), action: str = Form("change"),
+                            session: Session = Depends(get_session)):
+    med = _care(lambda: care_svc.change_medication(session, medication_id, changed_on=_date_or_none(changed_on),
+                                                   dose=dose, frequency=frequency, stop=action == "stop",
+                                                   by=_by(request)))
+    return RedirectResponse(f"/health/conditions/{med.condition_id}", status_code=303)
+
+
+@router.post("/conditions/{condition_id}/follow-ups")
+async def add_follow_up(request: Request, condition_id: int, what: str = Form(""), due_on: str = Form(""),
+                        session: Session = Depends(get_session)):
+    try:
+        follow_ups_svc.add(session, 0, what, _date_or_none(due_on), _by(request), condition_id=condition_id)
+    except follow_ups_svc.FollowUpError as exc:
+        p = exc.problem
+        raise HTTPException(status_code=400, detail={"what": p.what, "why": p.why, "next_step": p.next_step}) from None
+    return RedirectResponse(f"/health/conditions/{condition_id}", status_code=303)
+
+
+@router.post("/follow-ups/{follow_up_id}/dismiss")
+async def dismiss_follow_up(follow_up_id: int, back: str = Form("/health/family"),
+                            session: Session = Depends(get_session)):
+    from app.services.who import safe_back
+    try:
+        follow_ups_svc.dismiss(session, follow_up_id)
+    except follow_ups_svc.FollowUpError as exc:
+        p = exc.problem
+        raise HTTPException(status_code=404, detail={"what": p.what, "why": p.why, "next_step": p.next_step}) from None
+    return RedirectResponse(safe_back(back), status_code=303)
+
+
+@router.post("/conditions/{condition_id}")
+async def update_condition(condition_id: int, status: str = Form("followed"), started_on: str = Form(""),
+                           started_note: str = Form(""), followed_by: str = Form(""),
+                           session: Session = Depends(get_session)):
+    try:
+        conditions_svc.update(session, condition_id, status=status, started_on=_date_or_none(started_on),
+                              started_note=started_note, followed_by=followed_by)
+    except conditions_svc.ConditionError as exc:
+        raise _condition_problem(exc, 404) from None
+    return RedirectResponse(f"/health/conditions/{condition_id}", status_code=303)
 
 
 @router.post("/documents/{document_id}/outline/ok")

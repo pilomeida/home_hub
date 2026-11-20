@@ -178,6 +178,28 @@ def spend_of(txn: Transaction, node: Optional[CategoryNode]) -> Optional[float]:
     return _signed(txn, "out")
 
 
+def earning_of(txn: Transaction, node: Optional[CategoryNode]) -> Optional[float]:
+    """What one line adds to earnings, or None (PLAN step 6c, the partner of `spend_of`): a line on an income leaf
+    counts (a reversal there takes off); a line not filed yet counts when it is a credit; moves between the family's
+    own accounts, spending refunds and transfers never count."""
+    if node is None or node.slug.startswith("unsorted"):
+        return txn.amount if txn.transaction_type == TransactionType.CREDIT else None
+    if node.level != 3 or node.kind != "in":
+        return None
+    return _signed(txn, "in")
+
+
+def left_out_of(txn: Transaction, node: Optional[CategoryNode]) -> Optional[str]:
+    """Why money out that is not spending was left out, in the words a page shows; None for spending and money in."""
+    if txn.transaction_type == TransactionType.CREDIT or spend_of(txn, node) is not None:
+        return None
+    if node is not None and node.cadence == "loan":
+        return "loan instalments"
+    if node is not None and node.kind == "neutral" or txn.transaction_type == TransactionType.TRANSFER:
+        return "moves between your own accounts"
+    return "other money out"
+
+
 def _load_buckets(session: Session, today: date, nodes: dict[int, CategoryNode]):
     """ONE query for all transactions with a paid_date in the window; returns
     ({node_id: {"YYYY-MM": signed amount}}, {"YYYY-MM": unsorted outflow},

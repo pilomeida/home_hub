@@ -7,8 +7,8 @@ Each run works out what currently needs a person, from what the Hub already stor
 - no longer holds -> closed quietly.
 Between QUIET_FROM and QUIET_UNTIL (Lisbon time) nothing is sent; it waits for the morning.
 
-The four kinds (Pedro, 2026-11-03): a bank's access has expired; a scheduled job keeps failing; a bill is due within
-BILL_DAYS days; a new loan red flag. Lines carry administrative facts only (decision D21) and point to the Hub."""
+The kinds (Pedro, 2026-11-03): a bank's access has expired; a scheduled job keeps failing; a bill is due within
+BILL_DAYS days; a new loan red flag; and (PLAN step 7b) a Health follow-up's reminder has come. Lines carry administrative facts only (decision D21) and point to the Hub."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ from app.services.bankapi.connect import connection_label, latest_connections
 from app.services.schedule import LISBON
 
 BANK_EXPIRED, JOB_FAILING, BILL_DUE, LOAN_FLAG = "bank_expired", "job_failing", "bill_due", "loan_flag"
+FOLLOW_UP_DUE = "follow_up_due"         # PLAN step 7b: a Health follow-up's reminder has come (told once)
 BILL_DAYS = 3
 FAILED_RUNS = 2                         # "keeps failing": this many scheduled runs in a row did not work
 REMIND_AFTER = timedelta(days=3)
@@ -86,8 +87,26 @@ def _loan_flags(session: Session) -> list[Found]:
     return found
 
 
+def _follow_ups_due(session: Session, today: date) -> list[Found]:
+    """A Health follow-up whose To-Do date has come. Who and when only, never what it is about (decision D21)."""
+    from app.categories.health import follow_ups
+    from app.models.health import HealthPerson
+    found = []
+    for due in follow_ups.open_ones(session, today):
+        f = due.follow_up
+        todo = session.get(Todo, f.todo_id) if f.todo_id else None
+        if todo is None or todo.due_date is None or todo.due_date > today:
+            continue
+        person = session.get(HealthPerson, f.person_id)
+        first = (person.name.split() or ["someone"])[0].title() if person else "someone"
+        found.append(Found(FOLLOW_UP_DUE, f"follow-up:{f.id}",
+                           f"A Health follow-up for {first} is due on {f.due_on.isoformat()}: see To-Dos.", "/todos"))
+    return found
+
+
 def current(session: Session, today: date) -> list[Found]:
-    return _bank_expired(session) + _jobs_failing(session) + _bills_due(session, today) + _loan_flags(session)
+    return (_bank_expired(session) + _jobs_failing(session) + _bills_due(session, today) + _loan_flags(session)
+            + _follow_ups_due(session, today))
 
 
 def quiet(now_lisbon: datetime) -> bool:

@@ -19,4 +19,16 @@ def health_overview_card(session: Session, today: date) -> CategoryCard:
     if f.proposed_areas:
         lines.append(CardLine(text=f"{f.proposed_areas} new area{'s' if f.proposed_areas != 1 else ''} to approve",
                               url="/health/areas", attention=True))
+    from sqlmodel import select
+    from app.categories.health import follow_ups
+    from app.models.health import HealthCondition
+    followed = len(session.exec(select(HealthCondition).where(HealthCondition.status == "followed")).all())
+    if followed:                                                  # step 7d: counts and dates only, no condition names
+        lines.append(CardLine(text=f"{followed} condition{'s' if followed != 1 else ''} followed", url="/health/family"))
+    due = follow_ups.open_ones(session, today)
+    if due:
+        late = sum(1 for d in due if d.late)
+        lines.append(CardLine(text=(f"{late} follow-up{'s' if late != 1 else ''} overdue" if late
+                                    else f"next follow-up {due[0].follow_up.due_on.isoformat()}"),
+                              url="/health/family", attention=bool(late)))
     return CategoryCard(label="Health", url="/health/records", lines=lines)
