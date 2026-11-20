@@ -243,7 +243,8 @@ The Hub only proposes; a person confirms. A condition is a subject (step 6).
   `app/privacy/reach.py`, tier High, tripwire tests); an Overview card.
 - Done when: a condition page shows its papers, visits, medication and next follow-up, and its reminder reaches the
   phone once.
-  ✅ a–d 2026-11-20, built and tested, deploying with 6c (`app/categories/health/conditions.py`, `follow_ups.py`,
+  ✅ a–d 2026-11-20, built and tested, deploying with 6c (the first deploy, 77499c9, stopped at its test gate: the
+  privacy tripwire's full Ask turn did not yet call the new conditions tool; fixed in the next commit) (`app/categories/health/conditions.py`, `follow_ups.py`,
   `care.py`; three new tables in three migrations; `/health/conditions/{id}`). a: a condition is a record per person
   and a subject ("Ischaemic stroke — Pedro Almeida"); each paper's box suggests the person's conditions named alike
   (confirm, pick another, none of these; a re-read keeps the answer); the old guessed condition labels are proposals

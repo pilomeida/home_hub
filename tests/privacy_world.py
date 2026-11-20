@@ -214,6 +214,7 @@ def ask_script(w, final="The boiler is in the kitchen [[wiki:%d]]."):
         {"id": "t11", "name": "financials_find_transactions", "input": {"query": ""}},
         {"id": "t12", "name": "health_find_records", "input": {"person": "Maria", "query": "Maria"}},
         {"id": "t13", "name": "health_measurements", "input": {"person": "Maria", "test": "LDL"}},
+        {"id": "t14", "name": "health_conditions", "input": {"person": "Maria"}},
     ]
     return [gateway_tool_result(calls), gateway_text_result(final % w.page_clean.id)]
 
