@@ -9,7 +9,7 @@ Plan C's Query (filing answers back) and Lint also go through here."""
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Iterable, Optional, Sequence
 
@@ -92,15 +92,21 @@ def find_page(session: Session, ref: PageRef) -> Optional[WikiPage]:
 
 
 def _get_or_create_page(session: Session, ref: PageRef, category: Optional[Category]) -> WikiPage:
+    from app.services import wiki_subjects
     page = find_page(session, ref)
     if page is not None:
         return page
+    subject = wiki_subjects.subject_for(session, ref.page_type, ref.title)
+    if subject is not None:                   # "Telecom — Amigo (Vodafone)": the provider's page, not a second one
+        same = wiki_subjects.topic_page_about(session, subject, category)
+        if same is not None:
+            return same
     taken = set(session.exec(select(WikiPage.topic).where(WikiPage.topic.in_(_candidate_titles(ref)))).all())
     title = next((t for t in _candidate_titles(ref) if t not in taken), None)
     if title is None:
         raise ValueError(f"Wiki title collision for {ref.title!r} ({ref.page_type})")
     page = WikiPage(topic=title, page_type=ref.page_type, entity_key=ref.entity_key,
-                    summary=ref.summary, category=category)
+                    summary=ref.summary, category=category, subject_id=subject.id if subject is not None else None)
     session.add(page)
     session.flush()
     return page
@@ -300,11 +306,16 @@ def apply_claims(
     changed: set[int] = set()
     asserted: set[tuple[int, str]] = set()
 
+    from app.services.wiki_subjects import canonical_value, fold_key
     for claim_input in claims:
         page = _get_or_create_page(session, claim_input.page, category)
+        key = fold_key(claim_input.key)               # one spelling per key: "Provider" is "provider" (step 6b)
+        claim_input = replace(claim_input, key=key, label=claim_input.label or claim_input.key,
+                              value=canonical_value(session, page, key, claim_input.value))
         touched[page.id] = page
         asserted.add((page.id, claim_input.key))
-        if claim_input.page.summary and page.entity_key is None and page.summary != claim_input.page.summary:
+        if (claim_input.page.summary and page.entity_key is None and page.summary != claim_input.page.summary
+                and page.topic in _candidate_titles(claim_input.page)):    # another spelling's page keeps its own
             page.summary = claim_input.page.summary
             changed.add(page.id)
 
@@ -424,6 +435,7 @@ class IndexEntry:
     title: str
     summary: Optional[str]
     updated_at: datetime
+    about: Optional[str] = None      # the subject the page is about (step 6a)
 
 
 @dataclass
@@ -441,6 +453,13 @@ def visible_summary(session: Session, page: WikiPage, view) -> Optional[str]:
         return page.summary or _derived_summary(json.loads(page.facts_json or "{}").items())
     return _derived_summary((claim_label(c.label, c.key), c.value)
                             for c in active_claims(session, page.id) if view.claim_visible(c.id))
+
+
+def _about(session: Session, page: WikiPage) -> Optional[str]:
+    from app.services.wiki_subjects import root_id
+    from app.models.subject import Subject
+    root = root_id(session, page.subject_id)
+    return session.get(Subject, root).name if root is not None else None
 
 
 def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
@@ -462,7 +481,8 @@ def build_wiki_index(session: Session, view=None) -> list[IndexSection]:
         page_type = page.page_type or TOPIC_PAGE_TYPE
         summary = visible_summary(session, page, view)
         grouped.setdefault((page.category, page_type), []).append(
-            IndexEntry(page_id=page.id, title=page.topic, summary=summary, updated_at=page.updated_at)
+            IndexEntry(page_id=page.id, title=page.topic, summary=summary, updated_at=page.updated_at,
+                       about=_about(session, page))
         )
 
     def sort_key(key: tuple[Optional[Category], str]):

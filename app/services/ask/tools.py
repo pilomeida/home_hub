@@ -26,6 +26,7 @@ from app.models.category import Category
 from app.models.record import Record
 from app.models.todo import Todo
 from app.models.wiki import WikiPage
+from app.services.wiki_subjects import pages_about
 from app.privacy.reach import Reach, reach_for
 from app.privacy.tiers import Tier
 from app.services.ask.contracts import AskTool, ToolOutput
@@ -152,6 +153,13 @@ def _read_wiki_pages(session: Session, args: dict) -> ToolOutput:
         if neighbours:
             lines.append("Linked pages: " + "; ".join(f"wiki:{p.id} {p.topic}" for p in neighbours.values()))
             citables += [citable_for_wiki_page(p.id, p.topic) for p in neighbours.values()]
+        if page.subject_id is not None:                    # step 6a: the subject's facts, whichever page holds them
+            same = [p for p in pages_about(session, page.subject_id) if p.id != page.id and p.id not in neighbours
+                    and view.page_visible(p.id)]
+            private_pages |= {p.id for p in same if not first_call_view.page_visible(p.id)}
+            if same:
+                lines.append("Other pages about the same subject: " + "; ".join(f"wiki:{p.id} {p.topic}" for p in same))
+                citables += [citable_for_wiki_page(p.id, p.topic) for p in same]
         parts.append("\n".join(lines))
     tier = Tier.HIGH if private_pages else reach.private_tier(shown_sources)
     return ToolOutput(text="\n\n".join(parts), citables=citables,

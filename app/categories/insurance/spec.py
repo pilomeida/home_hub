@@ -52,7 +52,7 @@ SPEC = CategorySpec(
     wiki=WikiSchema(
         entity_types=(
             EntityTypeSpec(
-                page_type=POLICY_PAGE_TYPE, label="Policies", key_field="policy_number",
+                page_type=POLICY_PAGE_TYPE, label="Policies", key_field="policy_number", subject_kind="policy",
                 kinds=ALL_KINDS,
                 facts=(
                     FactSpec("type", "Type", "covers_label"),

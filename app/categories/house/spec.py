@@ -66,7 +66,7 @@ SPEC = CategorySpec(
     wiki=WikiSchema(
         entity_types=(
             EntityTypeSpec(
-                page_type=ITEM_PAGE_TYPE, label="Items", key_field="item_name", kinds=ITEM_KINDS,
+                page_type=ITEM_PAGE_TYPE, label="Items", key_field="item_name", kinds=ITEM_KINDS, subject_kind="thing",
                 links=(LinkSpec("room", ROOM_PAGE_TYPE),),
                 facts=(
                     FactSpec("type", "Type", "category", kinds=frozenset(ITEM_TYPE_KINDS)),

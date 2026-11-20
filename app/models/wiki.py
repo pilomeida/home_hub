@@ -38,6 +38,9 @@ class WikiPage(RefusesUnknownFields, SQLModel, table=True):
     category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))
     page_type: str = Field(default=TOPIC_PAGE_TYPE, index=True)
     entity_key: Optional[str] = None
+    # Who or what the page is about (PLAN step 6a): a person, a policy, a thing, a provider. Pages about one subject
+    # are found from it, whichever page holds the fact; a provider's second spelling reuses its page.
+    subject_id: Optional[int] = Field(default=None, foreign_key="subjects.id", index=True)
     summary: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

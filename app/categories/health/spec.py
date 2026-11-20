@@ -76,7 +76,7 @@ SPEC = CategorySpec(
         guidance=_GUIDANCE,
         entity_types=(
             EntityTypeSpec(
-                page_type=PERSON_PAGE_TYPE, label="People", key_field="person", kinds=ALL_KINDS,
+                page_type=PERSON_PAGE_TYPE, label="People", key_field="person", kinds=ALL_KINDS, subject_kind="person",
                 facts=(FactSpec("last_record", "Most recent paper", "document_date", policy=FactPolicy.LATEST),),
             ),
         ),

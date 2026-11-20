@@ -170,6 +170,7 @@ class EntityTypeSpec:
     kinds: frozenset[str]           # paper kinds that feed this entity
     facts: tuple[FactSpec, ...]
     links: tuple[LinkSpec, ...] = ()
+    subject_kind: Optional[str] = None   # the subjects registry kind its pages are about ("person", "policy", "thing")
 
 
 @dataclass(frozen=True)

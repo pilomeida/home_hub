@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** step 10 (UI redesign, Option A), slice f: the rest — Health, Things, Papers, Coming up, Problems and the gear's pages (10a to 10e live).
+**Now (2026-11-20):** step 6 (wiki facts point at subjects), slices a and b. Step 10 is live except 10g (Ask's answer card and actions), which waits on Pedro (section 2).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -148,7 +148,7 @@ and said tweaks will come from using it.
 - f. The rest, with what exists: Health (name tiles, no faces; a strip of follow-ups; a person's page with results and
   the reference range, timeline), Things (house and items as today), Papers (everything filed; category chips; search),
   Coming up with To-Dos as a tab, Problems and the gear's pages. Papers is the same list pattern as All lines (not drawn).
-  ◐ 2026-11-20, built and tested (full suite 2 841 passed; the 2 failures it found fixed: Waiting counted before the queue was brought up to date; the card used an old variable name), deploying. Health opens on `/health/family` (`/health` is the server's health
+  ✅ 2026-11-20 live (3f6aa39, home_hub 128df36, deploy 44691099183; the full suite found 2 failures, fixed before the commit: Waiting counted before the queue was brought up to date; the card used an old variable name). Health opens on `/health/family` (`/health` is the server's health
   check, so it cannot be a page): a tile per person (name, next follow-up, latest paper, papers; no faces), the
   follow-ups across the family (open Health To-Dos, overdue first), papers by approved area or condition with the
   proposed and unsorted counts linking to their pages; a person's page `/health/people/{id}`: conditions, each result
@@ -170,7 +170,7 @@ and said tweaks will come from using it.
   card's new look and the file attached to a question (it uses 10h's "Add a paper") wait with it.
 - h. Phone: Home, Ask, and **new behaviour** a light "approve a paper" card (the file, four key fields, Approve / Edit /
   Later) for a paper uploaded on the run, using the Inbox's existing approval.
-  ◐ 2026-11-20, built and tested, deploying with 10f. The Inbox had no way to add a paper from the page (only email
+  ✅ 2026-11-20 live with 10f (3f6aa39). The Inbox had no way to add a paper from the page (only email
   and Telegram), so the + now opens "Add a paper" (`/inbox/add`: choose a file or take a photo, an optional note);
   the paper goes to the Inbox exactly as an emailed one (same recognition, same reading in a High run, same duplicate
   check) and opens its card (`/inbox/{id}/card`): the file, "Filed as" the Hub's guess, up to three of that kind's
@@ -179,7 +179,7 @@ and said tweaks will come from using it.
   may change: 25 MB limit from the page; the note is shown to whoever files it.)
 - i. **New behaviour:** the Who chip works (Everyone / a person) on Papers, Coming up, Waiting for you and Ask; people
   come from the subjects registry; it filters and hides nothing from anyone's login.
-  ◐ 2026-11-20, built and tested, deploying with 10f and 10h (`app/services/who.py`). The header chip lists Everyone
+  ✅ 2026-11-20 live with 10f and 10h (3f6aa39, `app/services/who.py`). The header chip lists Everyone
   and each person in the subjects registry (an alias counts as its person); the choice is kept in this browser
   (a cookie) and hides nothing from anyone. A paper is about a person when the Hub already links them: a Health
   paper through its person, a bank paper through the owner of the account its lines are on. Papers and Waiting for
@@ -196,6 +196,15 @@ and said tweaks will come from using it.
   (B4's next step).
 - b. One provider written two ways becomes one subject with aliases, so its facts stop flip-flopping; the two Telecom
   pages (Amigo, Vodafone Portugal) merge, and the duplicate keys (provider/Provider, category/Category) fold together.
+  ◐ a and b 2026-11-20, built and tested, deploying; then `scripts/settle_wiki_subjects.py` on the live wiki.
+  Each wiki page carries the subject it is about (`app/services/wiki_subjects.py`): a person's, policy's or thing's
+  page its subject; a topic page "Telecom — Amigo" the provider after the dash; "Pedro: check-ups" a person the
+  registry already holds (a topic title never creates a person). A provider written another way leads to its subject
+  through its aliases, so it reuses the provider's page and its "provider" fact is written as the provider's name;
+  fact keys have one spelling ("Provider" is "provider"). Ask's wiki index says whom a page is about, and reading a
+  page lists the other pages about the same subject. Joining two subjects carries their pages. (Claude, 2026-11-20;
+  Pedro may change: the name kept for Amigo is "Vodafone Portugal", with Amigo, Amigo (Vodafone), Amigo (Vodafone
+  Portugal) and Vodafone as its other spellings.)
 - c. (C7) The same spending question gives the same number on the Overview, Ask and the budget; the wiki's names are
   per category; the orphan check is fixed while links are rare. Language (Pedro, 2026-11-19): areas, topics and
   wiki guidance in English; each paper's own summary and wording stay in its language, shown as printed. Existing

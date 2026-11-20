@@ -20,6 +20,7 @@ from app.models.health import HealthPerson
 from app.models.merchant import Merchant
 from app.models.person import Person
 from app.models.subject import Subject, SubjectKind, SubjectMatch
+from app.models.wiki import WikiPage
 from app.problems import Problem
 from app.services.names import name_key, name_tokens
 
@@ -27,7 +28,7 @@ SAME, DIFFERENT = "same", "different"
 # The stores that point at a person's subject: (model, column, how the place is named to a person).
 _LINKS = ((Person, "subject_id", "Loans"), (HealthPerson, "subject_id", "Health"),
           (BankConnection, "owner_subject_id", "bank connection owner"), (Account, "owner_subject_id", "account owner"),
-          (Merchant, "subject_id", "payee"))
+          (Merchant, "subject_id", "payee"), (WikiPage, "subject_id", "wiki"))
 
 
 class SubjectError(Exception):
@@ -61,6 +62,43 @@ def register_person(session: Session, name: Optional[str]) -> Optional[Subject]:
     session.add(subject)
     session.flush()
     propose_matches(session)
+    return subject
+
+
+def find(session: Session, kind: SubjectKind, name: Optional[str]) -> Optional[Subject]:
+    """The subject of this kind with exactly this name key (an alias leads to the subject kept), or None."""
+    key = name_key(name or "")
+    if not key:
+        return None
+    found = session.exec(select(Subject).where(Subject.kind == kind, Subject.match_key == key)
+                         .order_by(Subject.id)).first()
+    return resolve(session, found) if found is not None else None
+
+
+def register(session: Session, kind: SubjectKind, name: Optional[str]) -> Optional[Subject]:
+    """Find-or-create a subject of any kind by exact name key. A person goes through `register_person` (its matches
+    are proposed); other kinds join only by an alias a person or a plan step made (`add_alias`)."""
+    if kind == SubjectKind.PERSON:
+        return register_person(session, name)
+    found = find(session, kind, name)
+    if found is not None or not name_key(name or ""):
+        return found
+    subject = Subject(kind=kind, name=name.strip(), match_key=name_key(name))
+    session.add(subject)
+    session.flush()
+    return subject
+
+
+def add_alias(session: Session, subject: Subject, name: str) -> Subject:
+    """Another way of writing `subject` ("Amigo" for Vodafone Portugal): a subject row merged into it, so the
+    spelling leads to it. An existing subject of that spelling is merged in (its links follow)."""
+    subject = resolve(session, subject)
+    existing = session.exec(select(Subject).where(Subject.kind == subject.kind,
+                                                  Subject.match_key == name_key(name))).first()
+    if existing is not None:
+        return merge(session, existing.id, subject.id)
+    session.add(Subject(kind=subject.kind, name=name.strip(), match_key=name_key(name), merged_into_id=subject.id))
+    session.flush()
     return subject
 
 

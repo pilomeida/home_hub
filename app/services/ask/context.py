@@ -95,7 +95,8 @@ def build_system_prompt(session: Session, today: date, left_out: Optional[LeftOu
     for section in build_wiki_index(session, view=reach.wiki_view(session)):
         index_lines.append(f"{section.category_label} — {section.section_label}:")
         for entry in section.entries:
-            index_lines.append(f"- wiki:{entry.page_id} {entry.title} — {entry.summary or '(no summary)'}")
+            about = f" (about {entry.about})" if entry.about and entry.about != entry.title else ""
+            index_lines.append(f"- wiki:{entry.page_id} {entry.title}{about} — {entry.summary or '(no summary)'}")
             citables.append(citable_for_wiki_page(entry.page_id, entry.title))
     if not citables:
         index_lines.append("(the wiki is empty)")
