@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Vehicles{% endblock %}
+{% block content %}
+<h1>{{ spec.label }}</h1>
+<p class="sub">Each car's papers and its next inspection, road tax and service. A To-Do comes before each date.
+Car insurance is filed under <a href="/insurance">Insurance</a> and shows on its car.</p>
+<p><a href="/vehicles/upload">+ Add a paper</a></p>
+{% for car in cars %}
+<section class="card">
+  <h2>{{ car.title }}</h2>
+  {% if car.dates %}<ul class="plain">
+    {% for d in car.dates %}<li>{{ d.label }}: <span class="{% if d.late %}needs-attention{% elif d.soon %}soon{% endif %}">{{ d.when.isoformat() }}{% if d.late %} (overdue){% endif %}</span></li>{% endfor %}
+  </ul>{% else %}<p>No date known yet.</p>{% endif %}
+  {% if car.policies %}<p>Insurance: {% for p in car.policies %}<a href="/insurance#{{ p.anchor }}">{{ p.insurer }} {{ p.policy_number }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  <h3>Papers</h3>
+  <ul class="plain">
+    {% for doc, label, when in car.papers %}<li><a href="/vehicles/documents/{{ doc.id }}">{{ label }}</a>{% if when %} · {{ when }}{% endif %}</li>{% endfor %}
+  </ul>
+</section>
+{% else %}
+<p>No car yet. Add its registration or its last inspection to start.</p>
+{% endfor %}
+{% endblock %}

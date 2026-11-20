@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Pets{% endblock %}
+{% block content %}
+<h1>{{ spec.label }}</h1>
+<p class="sub">Each pet's vet visits and vaccinations. A To-Do comes before the next one. Pet insurance is filed
+under <a href="/insurance">Insurance</a> and shows on its pet.</p>
+<p><a href="/pets/upload">+ Add a paper</a></p>
+{% for pet in pets %}
+<section class="card">
+  <h2>{{ pet.name }}{% if pet.species %} <span class="sub">· {{ pet.species }}</span>{% endif %}</h2>
+  {% if pet.next %}<p>Next: {{ pet.next[1] | lower }} on {{ pet.next[0].isoformat() }}</p>{% endif %}
+  {% if pet.policies %}<p>Insurance: {% for p in pet.policies %}<a href="/insurance#{{ p.anchor }}">{{ p.insurer }} {{ p.policy_number }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  <ul class="plain">
+    {% for doc, label, when, vaccine in pet.papers %}<li><a href="/pets/documents/{{ doc.id }}">{{ label }}</a>{% if vaccine %} ({{ vaccine }}){% endif %}{% if when %} · {{ when }}{% endif %}</li>{% endfor %}
+  </ul>
+</section>
+{% else %}
+<p>No pet yet. Add a vet paper or a vaccination record to start.</p>
+{% endfor %}
+{% endblock %}

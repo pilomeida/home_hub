@@ -49,7 +49,8 @@ def _active(session, page_id):
 
 def test_registry_lists_financials_house_insurance_health_then_other_papers():
     assert [s.category for s in registry.implemented_categories()] == [
-        Category.FINANCIALS, Category.HOUSE, Category.INSURANCE, Category.HEALTH, Category.OTHER]
+        Category.FINANCIALS, Category.HOUSE, Category.INSURANCE, Category.HEALTH, Category.OTHER,
+        Category.IDENTITY, Category.VEHICLES, Category.EDUCATION, Category.PETS]                       # step 8
     spec = registry.get_spec(Category.HOUSE)
     assert spec.home_url == "/house"
     assert [c.value for c in spec.kinds] == [

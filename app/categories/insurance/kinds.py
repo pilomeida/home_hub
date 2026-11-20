@@ -24,6 +24,7 @@ COVERS = (
     ("car", "Cars"),
     ("health", "Health"),
     ("life", "Life"),
+    ("pet", "Pets"),          # PLAN step 8e: shown on the pet's card too
 )
 SECTION_TITLES = dict(COVERS)
 

@@ -36,7 +36,8 @@ def gateway():
 def test_other_papers_is_registered_as_the_catch_all_suggested_mid():
     spec = get_spec(Category.OTHER)
     assert spec.label == "Other papers" and spec.catch_all and spec.home_url == "/other"
-    assert [k.value for k in spec.kinds] == ["other_paper"] and spec.kinds[0].suggested_tier.value == "house_mid"
+    assert [k.value for k in spec.kinds] == ["other_paper", "contract", "letter"]           # step 8b
+    assert all(k.suggested_tier.value == "house_mid" for k in spec.kinds)
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ document.filename }} — {{ spec.label }}{% endblock %}
+{% block content %}
+<p><a href="{{ spec.home_url }}">← {{ spec.label }}</a></p>
+<h1>{{ document.filename }}</h1>
+<p><span class="badge">{{ description.kind_label }}</span> · added {{ document.created_at.strftime('%Y-%m-%d') }} · <a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
+<div class="doc-preview">
+  {% if media_kind == "image" %}<img src="{{ description.file_url }}" alt="{{ document.filename }}">{% endif %}
+  <p><a href="{{ description.file_url }}" target="_blank" rel="noopener">Open the file</a></p>
+</div>
+{% if document.failure_reason %}<p class="needs-attention">No reminder yet. {{ document.failure_reason }}</p>{% endif %}
+<h2>Details</h2>
+<form action="{{ spec.home_url }}/documents/{{ document.id }}/fields" method="post">
+  {% include "domains/_field_inputs.html" %}
+  <button type="submit">Save</button>
+</form>
+{% endblock %}

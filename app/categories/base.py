@@ -105,6 +105,7 @@ class KindSpec:
     reader: Optional[Reader] = None            # None: the category's own reader
     files_as: frozenset[FiledAs] = frozenset()
     dated_by: Optional[DatedBy] = None         # None: the category's own (CategorySpec.dated_by)
+    reminder: Optional[object] = None          # app/categories/reminders.DateReminder: a date that becomes a To-Do
 
     def __post_init__(self) -> None:
         if self.suggested_tier == Tier.HIGH:

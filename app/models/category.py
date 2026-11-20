@@ -14,3 +14,7 @@ class Category(str, Enum):
     HEALTH = "health"
     INSURANCE = "insurance"  # stored as VARCHAR(10) without a CHECK: a new member needs no migration
     OTHER = "other"          # "Other papers", the catch-all (PLAN step 1c)
+    IDENTITY = "identity"    # Identity & Legal (PLAN step 8a): ID cards, passports, licences, residence papers, wills
+    VEHICLES = "vehicles"    # Vehicles (PLAN step 8c): registration, inspection, road tax, service
+    EDUCATION = "education"  # Education (PLAN step 8d): school papers per child, fees, diplomas
+    PETS = "pets"            # Pets (PLAN step 8e): vet visits, vaccinations

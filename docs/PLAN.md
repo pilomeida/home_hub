@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** deploying step 6c (answers agree, English names) with step 7 (Health conditions, visits, medication); then step 8 (new categories). Step 10 is live except 10g (Ask's answer card and actions), which waits on Pedro (section 2).
+**Now (2026-11-20):** deploying step 6c and step 7 (Health conditions, visits, medication); step 8 (new categories, a–e) built and tested, deploying next; then the live re-filing and English names scripts, then step 9. Step 10 is live except 10g (Ask's answer card and actions), which waits on Pedro (section 2).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -213,7 +213,11 @@ and said tweaks will come from using it.
   per category; the orphan check is fixed while links are rare. Language (Pedro, 2026-11-19): areas, topics and
   wiki guidance in English; each paper's own summary and wording stay in its language, shown as printed. Existing
   Portuguese area and topic names get English names, the Portuguese kept as an alias.
-  ◐ c 2026-11-20, built and tested, deploying; then `scripts/english_names.py` on the live data. Home's and the
+  ✅ c 2026-11-20 live (77499c9 + 4de8954, deploy 44710554332 green, journal clean, Problems nothing new);
+  `scripts/english_names.py` applied after a backup (`data/backup-2026-11-20-before-english-names.db`): 6 areas
+  joined their English names and 2 conditions got English ones (areas 18 → 20 rows, the Portuguese kept as aliases),
+  3 wiki topics renamed (old titles kept as aliases); wiki pages 20 and facts 124 before and after; a second run
+  changes nothing. Home's and the
   Overview's Earnings and Spending now use the one rule the budget and Ask use (`spend_of`, new `earning_of`): live
   2026-11 so far, Spending was €7,384 on Home and €4,461 in the budget and Ask; the difference was loan instalments
   (€2,178) and moves between the family's own accounts (€600), and Earnings counted €2,312 of moves between own
@@ -243,7 +247,7 @@ The Hub only proposes; a person confirms. A condition is a subject (step 6).
   `app/privacy/reach.py`, tier High, tripwire tests); an Overview card.
 - Done when: a condition page shows its papers, visits, medication and next follow-up, and its reminder reaches the
   phone once.
-  ✅ a–d 2026-11-20, built and tested, deploying with 6c (the first deploy, 77499c9, stopped at its test gate: the
+  ✅ a–d 2026-11-20 live with 6c (deploy 44710554332; the first deploy, 77499c9, stopped at its test gate: the
   privacy tripwire's full Ask turn did not yet call the new conditions tool; fixed in the next commit) (`app/categories/health/conditions.py`, `follow_ups.py`,
   `care.py`; three new tables in three migrations; `/health/conditions/{id}`). a: a condition is a record per person
   and a subject ("Ischaemic stroke — Pedro Almeida"); each paper's box suggests the person's conditions named alike
@@ -264,13 +268,46 @@ The Hub only proposes; a person confirms. A condition is a subject (step 6).
 Reuse: sysadminsmedia/homebox's "a thing with typed fields and attachments" (AGPL: idea only).
 - a. Identity & Legal: ID card, passport, driving licence, residence papers, wills; holder (a subject), number,
   expiry; a reminder before expiry; suggested High.
+  ✅ a 2026-11-20, built and tested (`app/categories/identity/`, `/identity`, under Papers in the menu). Five kinds (ID
+  card, passport, driving licence, residence papers, will); the reader fills whose it is, the number, issue and expiry
+  dates and the country, keeping what a person typed; the holder is put in the subjects registry and written as the
+  name it keeps; a renewal To-Do 90 days before expiry ("Renew Pedro's passport (expires yyyy-mm-dd)", never the
+  number), told once on the phone when it comes ("Pedro's passport expires on yyyy-mm-dd: see To-Dos."); a paper whose
+  expiry was not found says so on its page and gets its To-Do when the date is typed; the Overview card counts papers
+  and the next expiry, never a name. "Suggested High" became always High (forced, like Health): a suggestion does
+  nothing until Pedro confirms it and his levels are not binding, so a passport could otherwise reach a cheaper route.
+  (Claude, 2026-11-20; Pedro may change: always High; 90 days before; the holder is kept as a name on the paper that
+  leads to its subject, not a new link column.)
 - b. Contracts and letters: contracts (telecom, service agreement, NDA) and bank letters (the Handelsbanken FATCA/CRS
   letters) move out of "Other papers" into their own kinds, each with a level on the Privacy page.
+  ✅ b 2026-11-20, built and tested: Other papers has three kinds (Other paper, Contract, Letter), each its own row
+  on the Privacy page (suggested Mid; with c–e, 25 suggestions); the upload asks which; the page shows Contracts, Letters
+  and Other papers as sections; the Inbox still offers "Other paper" when nothing fits. The papers filed before move
+  by their own title and summary words (`app/categories/other/refile.py`, `scripts/refile_other_papers.py`: contract
+  words first, then letter words; anything else stays). Then the script on the live data. (Claude, 2026-11-20; Pedro
+  may change: contracts and letters stay inside Other papers as kinds rather than a category of their own.)
 - c. Vehicles: the car as a subject; insurance, inspection (IPO), road tax (IUC), service; reminders.
 - d. Education: school papers per child, diplomas; dates and fees into Coming up.
 - e. Pet (Pedro, 2026-11-19): a pet as a thing with a type, like the car: vet papers, vaccinations, insurance; reminders.
   Built with step 10's components.
 - Done when: a passport is uploaded, read, and its expiry reminder appears on To-Dos and reaches the phone once.
+  ✅ c–e 2026-11-20, built and tested, on shared pieces that a new category of papers now reuses: a paper kind
+  declares its date reminder (`app/categories/reminders.py`: which date, how many days before, the To-Do's title and
+  the phone line, whose and what kind only, never a number); filing and editing keep the To-Do in step; one phone
+  notice kind tells each once when its day comes; one set of pages (add a paper, its page, its details:
+  `app/routers/paper_pages.py`) and one reader for typed papers (`app/categories/paper_reading.py`,
+  `typed_handler.py`). c Vehicles (`/vehicles`, under Things): registration, inspection (IPO), road tax (IUC),
+  service; the plate written one way and the car a subject; one card per car with its papers, its next inspection,
+  road tax and service (soon amber, past red) and the Insurance policies that name its plate; To-Dos 30 / 14 / 21
+  days before; a road tax already paid reminds next year's. d Education (`/education`, under Papers): school papers
+  per child (a date to act on), school fees (amount and due date), diplomas; the pupil a person of the registry; a
+  date or fee is a To-Do 7 days before, so it shows in Coming up's Dates with an Education chip and reaches the
+  phone once. e Pets (`/pets`, under Things): a pet is a thing of the registry with a type (dog, cat, other); vet
+  visits and vaccinations, the next date a To-Do 14 days before; pet insurance is filed under Insurance ("Pets" is
+  a new section there) and shows on the pet's card. All suggested Mid on the Privacy page. Then deploy. (Claude,
+  2026-11-20; Pedro may change: the days before each date; Education under Papers and Vehicles and Pets under
+  Things; school fees as Education papers with a To-Do rather than bills under Money; a car's and a pet's insurance
+  stay under Insurance.)
 
 ### Step 9. What clean-up is left · S–M each
 Whatever the steps above did not already touch.

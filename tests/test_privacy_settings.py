@@ -28,7 +28,7 @@ def test_every_registry_type_is_listed_with_a_suggestion_and_none_is_saved_yet(s
     assert {r.shown_tier for r in open_rows} <= {Tier.LOW, Tier.MID}     # never suggests house_high
     health = [r for r in rows if r.info.category == "health"]               # Health is locked High, not suggested
     assert len(health) == 7 and all(r.locked and r.tier == Tier.HIGH and r.is_saved for r in health)
-    assert {r.info.category for r in rows if r.locked} == {"health"}
+    assert {r.info.category for r in rows if r.locked} == {"health", "identity"}   # Identity forced High (step 8a)
     assert all(s != Tier.HIGH for s in ps.suggested_tiers().values())
 
 
@@ -126,7 +126,7 @@ def test_screen_lists_types_with_suggestions_and_explains_the_state(client, pair
     assert r.status_code == 200
     assert "Bank statement" in r.text and "Policy" in r.text and "Claim" in r.text
     assert "Suggested, not set yet" in r.text and "not binding yet" in r.text
-    assert "Confirm all 14 suggestions" in r.text
+    assert "Confirm all 25 suggestions" in r.text
 
 
 def test_screen_flow_confirm_then_switch_on_then_edit(client, session, pairings):

@@ -38,7 +38,7 @@ def test_the_registry_has_insurance_whose_kinds_are_papers():
     assert spec.home_url == "/insurance"
     assert [c.value for c in spec.kinds] == ["policy", "claim"]
     covers = next(f for f in spec.fields if f.key == "covers")
-    assert covers.required and [v for v, _ in covers.choices] == ["home", "car", "health", "life"]
+    assert covers.required and [v for v, _ in covers.choices] == ["home", "car", "health", "life", "pet"]
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_documents_of_one_policy_share_a_card_in_reading_order(session):
     assert [p.note for p in zurich.documents][-1] == "claim"
     assert zurich.insured == "Mafra house" and zurich.product == "Zurich Lar Seguro"
     sections = {title: [c.insurer for c in cs] for title, cs in policy_sections(session)}
-    assert sections == {"Home": ["Zurich"], "Cars": ["Fidelidade"], "Health": [], "Life": []}
+    assert sections == {"Home": ["Zurich"], "Cars": ["Fidelidade"], "Health": [], "Life": [], "Pets": []}
 
 
 @pytest.mark.asyncio

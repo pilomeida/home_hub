@@ -10,7 +10,7 @@ Use the model's word in anything a person reads (pages, messages, docs).
 
 | Model word | Means | Code name today |
 |---|---|---|
-| **category** | A subject area of household life: Money & Bills, Health, House Records, Insurance (planned: Identity & Legal, Education, Vehicles) | `Category` (`app/models/category.py`), `CategorySpec`, package `app/categories/`, attribute `.category` (2026-11-04); columns and form fields still `domain` (migrations only add) |
+| **category** | A subject area of household life: Money & Bills, Health, House Records, Insurance, Other papers, Identity & Legal, Vehicles, Education, Pets (step 8, 2026-11-20) | `Category` (`app/models/category.py`), `CategorySpec`, package `app/categories/`, attribute `.category` (2026-11-04); columns and form fields still `domain` (migrations only add) |
 | **paper kind** | A kind of paper or record inside a category: bill, statement, lab result, warranty, policy… It carries, on its spec (`KindSpec`, work-list B2): the privacy level (`suggested_tier`, and the category's `forced_tier`), how it is read and checked (`reader`; the check is part of the reader until C4) and what it is filed as (`files_as`) | `KindSpec` (`app/categories/base.py`); the attribute is `paper_kind` on documents, records, privacy settings and every entry or classification (2026-11-04), stored in columns still named `category` (migrations only add). Those models refuse an unknown keyword (`app/models/strict.py`), so code still saying `category=` fails instead of making a paper with no kind. Insurance's kinds are Policy and Claim; what a policy covers is the field `covers` (2026-11-04). A premium notice is a Money bill carrying `policy_number` |
 | **spending category** | A node of the 3-level spending tree a money line is filed under (Food › Groceries › Supermarket) | `CategoryNode`, table `category_nodes`, `Transaction.category_id` |
 | *(retired)* spending label | The old flat 16-value list (GROCERIES, OTHER_EXPENSE…), retired 2026-11-03 (work-list B3): the tree is the only record. Its columns stay in the tables, unread, filled with "OTHER" | `unused_old_category` on `Transaction`, `Merchant`, `Commitment` (columns `category`, `default_category`) |
@@ -739,20 +739,35 @@ and refreshes them on every deploy — no `systemctl`/`sudo` call in the deploy 
 
 **Adding a kind of paper** to an existing category is a change to that category's `spec.py` only (work-list B2): declare a `KindSpec` with its label and description, `suggested_tier`, `reader` (an existing reader, such as Money's `read_statement`, or a new one; leave it out to use the category's own) and `files_as`. The handler, the Privacy page and the delete check pick it up from the spec (`tests/test_kind_carries_its_attributes.py` shows it with a card statement).
 
-**Adding a category** (checklist for Education / Vehicles / Legal):
+**A date on a paper that reminds** (step 8, 2026-11-20): a `KindSpec` declares `reminder=DateReminder(field,
+days_before, title, phone)` (`app/categories/reminders.py`). Filing and editing a paper keep one open To-Do for it
+(`ingestion._file_under` and `update_document_fields` call `reminders.sync`); a date unknown or past makes none. The
+To-Do shows on To-Dos and in Coming up's Dates, and when its day comes the notices tell the phone once
+(`notices.PAPER_DATE_DUE`). Title and phone line name whose and what kind only, never a number (decision D21).
+Identity & Legal (expiry), Vehicles (inspection, road tax, service), Education (a school date, a fee) and Pets
+(the next visit or vaccination) use it. House's warranty reminder predates it and keeps its own code.
 
-1. Add the `Category` member (`app/models/category.py`). `documents`, `todos` and `wiki_pages` store it in the column `domain`, as `VARCHAR(10)` with no CHECK constraint, so a member whose name fits in 10 characters (`INSURANCE` was added this way) needs **no** migration; a longer name, or a database that has gained a CHECK, needs one (copy `3b7e9c1d2f40`'s pattern).
-2. Create `app/categories/<category>/` with `kinds.py`, `handler.py` (a `CategoryHandler` whose `process` reads with `read_by_kind`), `overview.py` (`overview_card`), and `spec.py` (`SPEC`, including its kinds, `fields`, `wiki` schema and, if every kind must be High, `forced_tier`).
-3. Append `"app.categories.<domain>.spec"` to `_SPEC_MODULES` in `app/categories/registry.py`.
-4. Create `app/routers/<domain>.py` (+ `app/templates/<domain>/`) using `app.templating.templates`, the ingestion core (`receive_file` / `finalize_document`) for uploads, `domains/_field_inputs.html` for metadata, and `todos/_backlog.html` for the backlog; include the router in `app/main.py`.
-5. For any category that's hand-entered rather than filed from a file (a mileage log, a doctor
-   visit), declare `kind=SourceKind.RECORD` on its `KindSpec` and set `CategorySpec.record_url`
-   (where a Record of this domain is viewed — parallel to `document_url`). Optionally set
+**Adding a category** (the checklist step 8 followed for Identity & Legal, Vehicles, Education and Pets):
+
+1. Add the `Category` member (`app/models/category.py`). `documents`, `todos` and `wiki_pages` store it in the column `domain`, as `VARCHAR(10)` with no CHECK constraint, so a member whose name fits in 10 characters needs **no** migration; a longer name, or a database that has gained a CHECK, needs one (copy `3b7e9c1d2f40`'s pattern).
+2. Create `app/categories/<category>/` with its `spec.py` (`SPEC`: kinds with `suggested_tier` and any `reminder`,
+   `fields`, `overview_card`, `document_url`, `dated_by`, and `forced_tier` if every paper must be High, as Health
+   and Identity & Legal). A category of typed papers reads them with `TypedPaperHandler` (`app/categories/
+   typed_handler.py`: the reader's prompt and keys, the field naming whom or what it is about, which goes into the
+   subjects registry) or its own handler on `paper_reading.fill_empty`; only empty details are read.
+3. Append `"app.categories.<category>.spec"` to `_SPEC_MODULES` in `app/categories/registry.py`.
+4. Its pages: `app/routers/<category>.py` is `paper_pages(Category.X, landing, "<category>/landing.html")`
+   (`app/routers/paper_pages.py`: add a paper, its page, its details, on `domains/upload.html` and
+   `domains/detail.html`); only the landing page is the category's own. Include the router in `app/main.py`.
+5. Give it its place in the menu (`app/ui/shell.py`: the section's prefixes and `_category_links`, and `_PLACED`);
+   until then it is listed under Papers.
+6. For any category that's hand-entered rather than filed from a file (a mileage log, a doctor
+   visit), declare `kind=SourceKind.RECORD` on its `KindSpec` and set `CategorySpec.record_url`. Optionally set
    `CategorySpec.derive_fields` for any fact that should be computed rather than stated (see *Derived
    fields and claim notes*).
-6. Nothing else changes: nav, Overview card row, backlogs, the wiki index, the generic
-   `/documents/{id}/edit` and `/records/{id}/edit` re-filing screens, and (once they exist) Plan B's
-   Inbox classifier and Plan C's Ask all pick the domain up from the registry.
+7. Nothing else changes: the Overview card row, the Privacy page rows, the wiki index, the generic
+   `/documents/{id}/edit` re-filing screen, the Inbox classifier and Ask pick the category up from the registry
+   (Ask's reach treats a forced High category as private, like Health).
 
 **Known follow-up:** Financials-only services still live in `app/services/` — `extraction.py`, `categorization.py`, `classification_engine.py`, and `find_duplicate_transaction` / `generate_todo_for_transaction` in their current files. They are not shared code; they are called only by the Financials handler and Financials routers. Moving them under `app/categories/financials/` is a pure relocation reserved for a later cleanup.
 

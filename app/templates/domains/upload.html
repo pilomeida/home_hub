@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Add a paper — {{ spec.label }}{% endblock %}
+{% block content %}
+<p><a href="{{ spec.home_url }}">← {{ spec.label }}</a></p>
+<h1>Add a paper to {{ spec.label }}</h1>
+{% if upload_note %}<p class="sub">{{ upload_note }}</p>{% endif %}
+<form action="{{ spec.home_url }}/upload" method="post" enctype="multipart/form-data">
+  <div class="field">
+    <label for="f-category">What kind of paper *</label>
+    <select id="f-category" name="category" hx-get="{{ spec.home_url }}/upload/fields" hx-target="#paper-fields" hx-trigger="change">
+      <option value="">— choose —</option>
+      {% for value, label in choices %}
+      <option value="{{ value }}"{% if value == category %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
+  </div>
+  <div id="paper-fields">
+    {% include "domains/_field_inputs.html" %}
+  </div>
+  <div class="field">
+    <label for="f-file">File *</label>
+    <input type="file" id="f-file" name="file" accept="application/pdf,image/*">
+    <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ scan_notice }}</small>
+    {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
+  </div>
+  <button type="submit">Upload</button>
+</form>
+{% endblock %}

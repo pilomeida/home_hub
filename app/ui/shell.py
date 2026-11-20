@@ -41,7 +41,7 @@ SETTINGS = [Link("Privacy", "/privacy"), Link("Scheduled jobs", "/schedules"), L
 OTHER_APPS = [Link("Recipes", "https://recipes.cdafamily.casa"), Link("Exercise", "https://gym.cdafamily.casa")]
 
 
-_PLACED = ("financials", "health", "house", "insurance", "other")     # the categories a section names below
+_PLACED = ("financials", "health", "house", "insurance", "other", "identity", "vehicles", "education", "pets")     # the categories a section names below
 
 
 def _unplaced_links() -> list[Link]:
@@ -72,9 +72,11 @@ def sections() -> list[Section]:
                 [Link("Home", "/"), Link("Overview", "/overview"), Link("Ask", "/ask"), Link("Inbox", "/inbox")]),
         Section("money", "Money", "/money", ("/money", "/financials", "/budget", "/to-check"), money),
         Section("health", "Health", "/health/family", ("/health",), [Link("Family", "/health/family")] + _category_links("health")),
-        Section("things", "Things", "/house", ("/house", "/insurance"), _category_links("house", "insurance")),
-        Section("papers", "Papers", "/papers", ("/papers", "/search", "/other", "/documents"),
-                [Link("All papers", "/papers"), Link("Search", "/search")] + _category_links("other") + _unplaced_links()),
+        Section("things", "Things", "/house", ("/house", "/insurance", "/vehicles", "/pets"),
+                _category_links("house", "insurance", "vehicles", "pets")),
+        Section("papers", "Papers", "/papers", ("/papers", "/search", "/other", "/identity", "/education", "/documents"),
+                [Link("All papers", "/papers"), Link("Search", "/search")] + _category_links("other", "identity", "education")
+                + _unplaced_links()),
         Section("coming", "Coming up", "/financials/coming-up", ("/financials/coming-up", "/todos"),
                 [Link("Dates", "/financials/coming-up"), Link("To-Dos", "/todos")]),
         Section("waiting", "Waiting for you", "/waiting", ("/waiting",), [Link("Waiting for you", "/waiting")]),

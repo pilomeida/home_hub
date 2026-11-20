@@ -5,6 +5,12 @@
 <h1>Add a paper</h1>
 <p>Leave the details empty and the Hub reads them from the paper.</p>
 <form action="/other/upload" method="post" enctype="multipart/form-data">
+  <div class="field">
+    <label for="f-category">What kind of paper</label>
+    <select id="f-category" name="category">
+      {% for value, label in choices %}<option value="{{ value }}"{% if value == kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
   {% include "domains/_field_inputs.html" %}
   <div class="field">
     <label for="f-file">File *</label>

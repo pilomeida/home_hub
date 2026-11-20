@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Education{% endblock %}
+{% block content %}
+<h1>{{ spec.label }}</h1>
+<p class="sub">School papers, fees and diplomas, by person. A date to act on and a fee's due date become To-Dos and
+show in <a href="/financials/coming-up">Coming up</a>.</p>
+<p><a href="/education/upload">+ Add a paper</a></p>
+{% for who, papers in groups %}
+<section>
+  <h2>{{ who }}</h2>
+  <ul class="plain">
+    {% for doc, label, when, note in papers %}<li><a href="/education/documents/{{ doc.id }}">{{ label }}</a>{% if when %} · {{ when }}{% endif %}{% if note %} · {{ note }}{% endif %}</li>{% endfor %}
+  </ul>
+</section>
+{% else %}
+<p>No paper yet.</p>
+{% endfor %}
+{% endblock %}

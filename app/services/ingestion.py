@@ -260,7 +260,10 @@ async def _file_under_scoped(session: Session, document: Document, validated: Va
     session.commit()
     session.refresh(document)
     try:
-        return await validated.spec.handler.process(session, document)
+        document = await validated.spec.handler.process(session, document)
+        from app.categories import reminders
+        reminders.sync(session, document)                  # a kind's date reminder (step 8)
+        return document
     except Exception as exc:
         # Broad by design: the ingestion boundary never leaves a document stuck.
         session.rollback()
@@ -310,6 +313,8 @@ async def update_document_fields(
     with privacy_scope(session, document.category, document.paper_kind):
         await spec.handler.on_fields_changed(session, document, previous)
     session.refresh(document)
+    from app.categories import reminders
+    reminders.sync(session, document)                      # a kind's date reminder follows the edited date (step 8)
     from app.services.paper_search import after_filing
     after_filing(session, document)                        # its search row follows its new details
     return document

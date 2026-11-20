@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Identity & Legal{% endblock %}
+{% block content %}
+<h1>{{ spec.label }}</h1>
+<p class="sub">ID cards, passports, driving licences, residence papers and wills. Read only by the private route.
+A renewal To-Do comes 90 days before a paper expires.</p>
+<p><a href="/identity/upload">+ Add a paper</a></p>
+{% for holder, papers in groups %}
+<section>
+  <h2>{{ holder }}</h2>
+  <ul class="plain">
+    {% for p in papers %}
+    <li><a href="/identity/documents/{{ p.document.id }}">{{ p.kind_label }}</a>
+      {% if p.note %} · <span class="{% if p.late %}needs-attention{% elif p.soon %}soon{% endif %}">{{ p.note }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<p>No paper yet. Add a passport or an ID card to get its renewal reminder.</p>
+{% endfor %}
+{% endblock %}

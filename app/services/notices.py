@@ -8,7 +8,7 @@ Each run works out what currently needs a person, from what the Hub already stor
 Between QUIET_FROM and QUIET_UNTIL (Lisbon time) nothing is sent; it waits for the morning.
 
 The kinds (Pedro, 2026-11-03): a bank's access has expired; a scheduled job keeps failing; a bill is due within
-BILL_DAYS days; a new loan red flag; and (PLAN step 7b) a Health follow-up's reminder has come. Lines carry administrative facts only (decision D21) and point to the Hub."""
+BILL_DAYS days; a new loan red flag; (PLAN step 7b) a Health follow-up's reminder has come; and (step 8) a paper's date reminder has come (an identity paper's expiry, a car's inspection). Lines carry administrative facts only (decision D21) and point to the Hub."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ from app.services.schedule import LISBON
 
 BANK_EXPIRED, JOB_FAILING, BILL_DUE, LOAN_FLAG = "bank_expired", "job_failing", "bill_due", "loan_flag"
 FOLLOW_UP_DUE = "follow_up_due"         # PLAN step 7b: a Health follow-up's reminder has come (told once)
+PAPER_DATE_DUE = "paper_date_due"       # PLAN step 8: a paper's date reminder (expiry, inspection...) has come (once)
 BILL_DAYS = 3
 FAILED_RUNS = 2                         # "keeps failing": this many scheduled runs in a row did not work
 REMIND_AFTER = timedelta(days=3)
@@ -104,9 +105,23 @@ def _follow_ups_due(session: Session, today: date) -> list[Found]:
     return found
 
 
+def _paper_dates_due(session: Session, today: date) -> list[Found]:
+    """A paper's date reminder whose To-Do day has come and is not done (an identity paper's expiry, a car's
+    inspection...): the line its kind declares, whose and what kind only (app/categories/reminders.py)."""
+    from app.categories import reminders
+    found = []
+    todos = session.exec(select(Todo).where(Todo.done == False, Todo.document_id.is_not(None),  # noqa: E712
+                                            Todo.due_date <= today)).all()
+    for todo in todos:
+        line = reminders.phone_line(session, todo)
+        if line:
+            found.append(Found(PAPER_DATE_DUE, f"paper-date:{todo.id}", line, "/todos"))
+    return found
+
+
 def current(session: Session, today: date) -> list[Found]:
     return (_bank_expired(session) + _jobs_failing(session) + _bills_due(session, today) + _loan_flags(session)
-            + _follow_ups_due(session, today))
+            + _follow_ups_due(session, today) + _paper_dates_due(session, today))
 
 
 def quiet(now_lisbon: datetime) -> bool:
