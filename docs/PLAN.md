@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** stopped for Pedro: step 8's deploy stopped twice at its test gate (2816bfc: a Health privacy test counted 7 locked rows, now 12 with Identity; 24a9d14: two deploy-unit tests did not know the scheduler's new long lane). Nothing reached the server either time; both fixed and tested locally, not pushed, as the run's rules ask after two failures. Live: steps 6 and 7. Built, not yet live: step 8 a–e and step 9 D3, D5, D10, D1 (D1 and D10 not committed yet; D7 tried and kept out, see D7). Step 10 is live except 10g, which waits on Pedro (section 2).
+**Now (2026-11-20):** stopped for Pedro: step 8's deploy stopped twice at its test gate (2816bfc: a Health privacy test counted 7 locked rows, now 12 with Identity; 24a9d14: two deploy-unit tests did not know the scheduler's new long lane). Nothing reached the server either time; both fixed. Since then, committed locally and not pushed: 7187d0c (D10, D1) and b4e7260 (D4); a full local run passed 2,897 of 2,898 (the one failure fixed and rerun). Waiting for Pedro's word to push. Live: steps 6 and 7 (moved to section 4). Left in step 9: D2, D6 rest, D7 (partial), D8, D9, D11, D12. Step 10 is live except 10g, which waits on Pedro (section 2).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
