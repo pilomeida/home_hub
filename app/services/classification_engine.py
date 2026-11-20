@@ -5,8 +5,8 @@ detects recurring-commitment and debt candidates for human review."""
 import json
 import logging
 import re
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass, field, replace
+from typing import Iterable, Optional
 
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
@@ -181,6 +181,86 @@ async def resolve_merchant_via_llm(
     return ResolvedMerchant(canonical_name=name, node_slug=node_slug, nature=nature, confidence=confidence)
 
 
+# PLAN step 9 D9: the provider strings a bank sync or a statement brings that need the AI are asked together, one
+# call per BATCH_SIZE, each item with its index; the long list of category slugs is sent once per call, not per line.
+BATCH_SIZE = 25
+MerchantAnswers = dict[tuple[str, Optional[bool]], ResolvedMerchant]   # (provider string, is_credit) -> answer
+
+
+def _batch_schema(slugs: list[str]) -> dict:
+    item = _merchant_schema(slugs)
+    item = {**item, "required": ["index", *item["required"]],
+            "properties": {"index": {"type": "integer"}, **item["properties"]}}
+    return {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": item}}}
+
+
+async def ask_merchants_llm(items: list[tuple[str, Optional[bool]]], slugs: list[str],
+                            gateway=None) -> dict[int, ResolvedMerchant]:
+    """One gateway call for many provider strings: NO database access. Returns the readable answers by index; an
+    item the answer leaves out or gets wrong is simply absent, and its line asks alone as before."""
+    if not slugs:
+        raise MerchantResolutionError("Category tree is not seeded (no leaf nodes)")
+    gw = gateway or get_gateway()
+    system = (_MERCHANT_SYSTEM_PROMPT.replace("{unsure_rule}", _UNSURE_RULE)
+              .replace("{slugs}", "\n".join(slugs)).replace("{unsorted}", UNSORTED_SLUG)
+              + '\n\nYou get a numbered list of provider strings. Answer each one with the object above plus its '
+                '"index", all inside {"items": [...]}.')
+    lines = "\n".join(f"{i}. {text!r}" + ("" if credit is None else (" (a credit)" if credit else " (a debit)"))
+                      for i, (text, credit) in enumerate(items))
+    result = await gw.run(CLASSIFICATION, system, f"Resolve each provider string as JSON:\n{lines}",
+                          response_schema=_batch_schema(slugs))
+    try:
+        rows = json.loads(strip_json_fences(result.text))["items"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise MerchantResolutionError(f"Could not read the batch answer: {exc}") from exc
+    answers: dict[int, ResolvedMerchant] = {}
+    for row in rows if isinstance(rows, list) else []:
+        try:
+            index, slug = int(row["index"]), row["node_slug"]
+            if not 0 <= index < len(items) or slug not in slugs or index in answers:
+                continue
+            raw = row.get("confidence")
+            confidence = min(max(float(raw), 0.0), 1.0) if isinstance(raw, (int, float)) else None
+            answers[index] = ResolvedMerchant(str(row["canonical_name"]), slug, Nature(row["nature"]), confidence)
+        except (KeyError, TypeError, ValueError):
+            continue
+    return answers
+
+
+def needs_ai(session: Session, description: Optional[str]) -> bool:
+    """Would classify_transaction ask the AI for this provider string? (no payee, no known merchant, no chain)"""
+    if not description or structured_merchant(session, description) is not None:
+        return False
+    if _find_merchant_by_key(session, normalize_provider(description)) is not None:
+        return False
+    return keyword_match(session, description) is None
+
+
+async def prefetch_merchants(session: Session, lines: Iterable[tuple[str, Optional[bool]]],
+                             gateway=None) -> MerchantAnswers:
+    """Ask together for every line that would need the AI (one per merchant key and direction). Never fails: a
+    batch that cannot be asked or read leaves its lines to ask alone, where any real failure shows as before. Run it
+    inside the same privacy scope as the lines' classification; it only reads the database."""
+    wanted: dict[tuple[str, Optional[bool]], tuple[str, Optional[bool]]] = {}
+    for description, is_credit in lines:
+        if needs_ai(session, description):
+            wanted.setdefault((normalize_provider(description), is_credit), (description, is_credit))
+    pending = list(wanted.values())
+    answers: MerchantAnswers = {}
+    if len(pending) < 2:                    # a single line asks alone, as before
+        return answers
+    slugs = candidate_slugs(session)
+    for start in range(0, len(pending), BATCH_SIZE):
+        chunk = pending[start:start + BATCH_SIZE]
+        try:
+            got = await ask_merchants_llm(chunk, slugs, gateway=gateway)
+        except Exception as exc:            # noqa: BLE001: each line then asks alone and shows its own failure
+            log.warning("merchant batch of %d not answered, each line will ask alone: %s", len(chunk), exc)
+            continue
+        answers.update({chunk[i]: answer for i, answer in got.items()})
+    return answers
+
+
 @dataclass
 class ClassificationResult:
     merchant: Merchant
@@ -193,13 +273,14 @@ def _find_merchant_by_key(session: Session, normalized_key: str) -> Optional[Mer
 
 
 async def classify_transaction(
-    session: Session, transaction: Transaction, gateway=None
+    session: Session, transaction: Transaction, gateway=None, answers: Optional[MerchantAnswers] = None
 ) -> ClassificationResult:
     """Resolve transaction.description to a Merchant (rules tier, then LLM
     fallback on a miss), and set transaction.merchant_id/account_id/nature
     from the result. Does not commit — the caller controls the
     transaction boundary. This is the single entry point both the live
-    ingestion pipeline and the historical backfill script use."""
+    ingestion pipeline and the historical backfill script use. `answers`: what prefetch_merchants already asked
+    for many lines together (PLAN step 9 D9); a line it has no answer for asks alone."""
     structured = structured_merchant(session, transaction.description)
     if structured is not None:  # a loan instalment / loan insurance debit: one fixed merchant, no model call
         merchant, created_new_merchant = ensure_structured_merchant(session, structured)
@@ -216,10 +297,10 @@ async def classify_transaction(
             keyword_slug, chain_name = keyword
             resolved = ResolvedMerchant(canonical_name=chain_name, node_slug=keyword_slug, nature=Nature.ESSENTIAL)
         else:
-            resolved = await resolve_merchant_via_llm(
-                transaction.description, session, gateway=gateway,
-                is_credit=transaction.transaction_type == TransactionType.CREDIT,
-            )
+            is_credit = transaction.transaction_type == TransactionType.CREDIT
+            ready = (answers or {}).get((transaction.description, is_credit))
+            resolved = replace(ready) if ready is not None else await resolve_merchant_via_llm(
+                transaction.description, session, gateway=gateway, is_credit=is_credit)
         resolved_node_slug = resolved.node_slug
         from app.services import rules
         alias = rules.merchant_alias(session, resolved.canonical_name)     # another spelling of a known counterparty
@@ -332,6 +413,10 @@ async def classify_transaction(
 
     session.add(transaction)
     return ClassificationResult(merchant=merchant, created_new_merchant=created_new_merchant)
+
+
+# A classifier may offer a prefetch for many lines (PLAN step 9 D9); a stand-in classifier in a test offers none.
+classify_transaction.prefetch = prefetch_merchants
 
 
 def _is_consecutive_month(period_a: str, period_b: str) -> bool:

@@ -241,6 +241,18 @@ async def _check_balance(session: Session, client, link: BankAccountLink, accoun
     resolve_for(session, msg.balance_ref(link.id))
 
 
+def _provider_lines(rows: list[dict]) -> list[tuple[str, bool]]:
+    """(provider string, is_credit) of every row that has one; an unparsable row is skipped here as in the loop."""
+    lines = []
+    for raw in rows:
+        try:
+            is_credit = raw.get("credit_debit_indicator") == "CRDT"
+            lines.append((_provider(raw, is_credit), is_credit))
+        except (KeyError, ValueError, TypeError, AttributeError):
+            continue
+    return lines
+
+
 async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run: bool = False,
                     scheduled: bool = True, today: Optional[date] = None,
                     classify=classify_transaction) -> SyncResult:
@@ -282,6 +294,12 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
         session.commit()  # the rolling document must survive any later rollback
     loop_finished = True
     fetched_refs = {_external_id(r) for r in rows}
+    # New merchants are asked of the AI together, not one call per line (PLAN step 9 D9), at the lines' own level.
+    answers, prefetch = {}, getattr(classify, "prefetch", None)
+    if prefetch is not None and not dry_run:
+        with privacy_scope(session, document.category, document.paper_kind):
+            answers = await prefetch(session, _provider_lines(rows))
+    line_options = {"answers": answers} if prefetch is not None else {}
     for raw in rows:
         try:
             external_id = _external_id(raw)
@@ -326,7 +344,7 @@ async def sync_link(session: Session, client, link: BankAccountLink, *, dry_run:
                 # The merchant classifier may ask the AI: at the level of the line's paper kind (a feed line is a
                 # statement line), refused while that level is held (finding F7).
                 with privacy_scope(session, document.category, document.paper_kind):
-                    await classify(session, txn)
+                    await classify(session, txn, **line_options)
                 session.add(txn)  # classify filed it under the merchant's tree node, if the merchant has one
             except Exception:
                 session.rollback()

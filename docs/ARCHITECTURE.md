@@ -85,12 +85,18 @@ Classification engine (app/services/classification_engine.py — populates
 merchant_id / account_id / nature on every Transaction; also the standalone
 detection heuristics behind the Needs Review queue):
 
-  classify_transaction(transaction)
+  prefetch_merchants(lines)   — bank sync and statement reading, before their lines (PLAN step 9 D9): every line
+        │                       that would need the AI (no payee rule, no known merchant key, no chain rule) is asked
+        │                       together, 25 per gateway call with an index each; a missing or wrong item asks alone
+        ▼
+  classify_transaction(transaction, answers)
         │
+        ├─ payee rules (rules table, D8)  ──►  a fixed merchant by key, no LLM
         ├─ normalize_provider(raw)  ──►  Merchant.normalized_key lookup (rules tier, no LLM)
         │                                        │ hit                    │ miss
         │                                        ▼                        ▼
-        │                              reuse Merchant           resolve_merchant_via_llm (Claude Haiku)
+        │                              reuse Merchant           chain rule, else the prefetched answer,
+        │                                                       else resolve_merchant_via_llm (gateway)
         │                                                                 │
         │                                                        create new Merchant (confirmed=False)
         │

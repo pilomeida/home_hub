@@ -331,6 +331,17 @@ _MONEY_IN = ("credit", "deposit", "refund", "income", "salary", "received", "rec
              "reimburse", "inflow", "incoming")
 
 
+def _provider_lines(items) -> list[tuple[str, bool]]:
+    """(description, is_credit) of every extracted line with a readable type, for one merchant question together."""
+    lines = []
+    for item in items:
+        try:
+            lines.append((item.description, line_type(item.transaction_type) == TransactionType.CREDIT))
+        except (ValueError, KeyError, TypeError):
+            continue
+    return lines
+
+
 def line_type(raw: str) -> TransactionType:
     """A statement line's direction. The reader sometimes names it in its own words ('atm_withdrawal', 'insurance':
     documents 22 and 33 were refused whole for it); those are mapped from the words instead of failing the statement
@@ -396,6 +407,9 @@ async def read_statement(session: Session, document: Document) -> Document:
     created_merchant_ids: list[int] = []
     try:
         extracted = await extract_statement_transactions(document.file_path)
+        # New merchants are asked of the AI together (PLAN step 9 D9), when the classifier offers it.
+        prefetch = getattr(classify_transaction, "prefetch", None)
+        line_options = {"answers": await prefetch(session, _provider_lines(extracted.transactions))} if prefetch else {}
         for item in extracted.transactions:
             transaction = Transaction(
                 document_id=document.id,
@@ -411,7 +425,7 @@ async def read_statement(session: Session, document: Document) -> Document:
             session.refresh(transaction)
             created_transactions.append(transaction)
             try:
-                result = await classify_transaction(session, transaction)
+                result = await classify_transaction(session, transaction, **line_options)
                 if result.created_new_merchant:
                     created_merchant_ids.append(result.merchant.id)
                 session.commit()
