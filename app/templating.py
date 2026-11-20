@@ -78,3 +78,7 @@ def _utility_format(unit: str = "", precision: int = 2):
 
 templates.env.globals["utility_items"] = _utility_items
 templates.env.globals["utility_format"] = _utility_format
+
+from app.ui import shell as _shell  # noqa: E402
+templates.env.globals["shell_sections"] = _shell.sections       # the menu and section rows (PLAN step 10b)
+templates.env.globals["shell_active"] = _shell.active

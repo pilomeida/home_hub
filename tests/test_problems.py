@@ -117,11 +117,12 @@ def test_problems_page_lists_and_dismisses(client, session):
     assert entry.resolved_at is not None and "Nothing is stuck right now." in client.get("/problems").text
 
 
-def test_the_menu_shows_how_many_problems_are_open(client, session):
-    assert "Problems</a>" in client.get("/").text
+def test_the_menu_shows_how_many_problems_are_open(client, session, engine, monkeypatch):
+    monkeypatch.setattr("app.db.engine", engine)                    # the menu counts open their own session
+    assert 'href="/problems"' in client.get("/settings").text             # behind the gear (step 10b)
     pr.record_problem(session, area="Email", problem=pr.Problem("A.", "B because.", "C do it."), ref="x")
-    # the menu counts through its own connection to the real engine in tests, so only check it renders
-    assert "/problems" in client.get("/").text
+    session.commit()
+    assert 'class="alert" href="/problems"' in client.get("/").text      # the header's dot once one is open
 
 
 def test_browser_requests_get_a_page_htmx_gets_a_banner_and_api_callers_keep_json(client):

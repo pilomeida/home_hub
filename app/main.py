@@ -17,7 +17,7 @@ static_dir = Path("app/static")
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 from app.routers import (  # noqa: E402
-    ask, bank, bills, coming_up, dashboard, subjects, documents, health, house, inbox, insurance, loans, other, privacy, problems, schedules, search, to_check, todos, transactions, utilities, waiting, wiki, wiki_lint,
+    ask, bank, bills, coming_up, dashboard, subjects, documents, health, house, inbox, insurance, loans, other, privacy, problems, schedules, search, settings, to_check, todos, transactions, utilities, waiting, wiki, wiki_lint,
 )
 
 app.include_router(dashboard.router)
@@ -44,6 +44,7 @@ app.include_router(utilities.router)
 app.include_router(waiting.router)
 app.include_router(wiki_lint.router)
 app.include_router(wiki.router)
+app.include_router(settings.router)
 
 
 from fastapi import HTTPException, Request  # noqa: E402

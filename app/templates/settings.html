@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<p class="hint">How the Hub runs: who it may tell what, when it works on its own, the banks it reads, and what it has learnt.</p>
+<div class="card">
+  {% for l in links %}<p><a href="{{ l.url }}">{{ l.label }}</a></p>{% endfor %}
+</div>
+<div class="card">
+  <div class="card-h">Other apps</div>
+  {% for l in apps %}<p><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.label }}</a></p>{% endfor %}
+</div>
+{% endblock %}

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-19):** step 10 (UI redesign, Option A), slice b: the shell (10a done).
+**Now (2026-11-19):** step 10 (UI redesign, Option A), slice c: Home (10a, 10b done).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -101,7 +101,13 @@ and said tweaks will come from using it.
   zero. 316 tests.
 - b. Shell: the menu (Home · Money · Health · Things · Papers · Coming up · Waiting for you (n)), the header (Ask/search,
   Who chip showing Everyone, + Add a paper, the gear, a Problems dot only when something is wrong), the phone bottom bar
-  with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today.
+  with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today. ✅ 2026-11-19 (`app/ui/shell.py`: the seven sections, each with
+  its own row of pages from the category registry; a category no section names yet shows under Papers; "Ask or
+  search" in a bar under the header, as in the mock-up; Settings (`/settings`) behind the gear; the phone's More
+  (`/more`) lists every page; the Problems dot only when something is open; old URLs unchanged). The "Who" chip shows
+  Everyone until 10i. The 10a deploy failed once on a test that counted a style rule moved into the stylesheet (fixed
+  with 10b; nothing reached the live Hub). Four older tests that looked for menu links on the Overview now look where
+  the links live (Money's row, the gear).
 - c. Home: Ask box first; Money this month (Earnings and Spending, three months each, past months filled to the same day;
   available balance after the bills due this month); Coming up with To-Dos; Waiting for you as four slim cards (area,
   count, button). Earnings = incoming bank lines without the family's own transfers; available balance = cash balance

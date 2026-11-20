@@ -182,7 +182,7 @@ def test_empty_state(client):
 
 
 def test_nav_link_present(client):
-    assert 'href="/financials/loans"' in client.get("/").text
+    assert 'href="/financials/loans"' in client.get("/financials/transactions").text   # Money's own row (step 10b)
 
 
 # ---- Task 8: multi-PDF upload, assignment, reminder ---------------------

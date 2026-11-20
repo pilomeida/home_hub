@@ -281,7 +281,7 @@ def test_images_are_shown_as_images(hub, session):
 def test_the_whole_line_is_highlighted_when_the_reason_names_no_field(hub, session):
     line(session, statement(session), reason="The printing is blurry here.")
     html = hub.get("/to-check").text
-    assert html.count("tc-doubt") >= 3 + 1       # three highlighted values (+ the stylesheet rule)
+    assert html.count('class="tc-doubt"') == 3      # the three values (the rule itself is in hub.css since step 10a)
 
 
 def test_the_list_is_a_second_section_on_the_inbox_page(hub, session):
@@ -305,11 +305,11 @@ def test_an_htmx_request_for_the_list_gets_a_fragment_not_a_page(hub, session):
 
 def test_waiting_lines_count_in_the_one_waiting_for_you_count_not_a_separate_menu_link(hub, session):
     # PLAN step 3c (Pedro, 2026-11-19: one count, filters inside): the lines count under "Waiting for you".
-    assert 'href="/waiting">Waiting for you</a>' in hub.get("/").text
+    assert 'href="/waiting">Waiting for you</a>' in hub.get("/").text            # no badge while nothing waits
     document = statement(session)
     t1, t2 = line(session, document), line(session, document, "SECOND")
     html = hub.get("/inbox").text
-    assert 'href="/waiting">Waiting for you (2)</a>' in html and "To check (" not in html.split("<main")[0]
+    assert 'href="/waiting">Waiting for you <em>2</em></a>' in html and "To check (" not in html.split("<main")[0]
     to_check.confirm(session, t1.id, "Rute")
     to_check.confirm(session, t2.id, "Rute")
     assert 'href="/waiting">Waiting for you</a>' in hub.get("/inbox").text

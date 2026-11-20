@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Everything{% endblock %}
+{% block content %}
+<h1>Everything</h1>
+{% for s in sections %}
+<div class="card">
+  <div class="card-h"><a href="{{ s.url }}">{{ s.label }}</a>{% if s.key == "waiting" %}{% set n = waiting_count() %}{% if n %}<span class="card-r">{{ n }} waiting</span>{% endif %}{% endif %}</div>
+  {% for l in s.links %}<p><a href="{{ l.url }}">{{ l.label }}</a></p>{% endfor %}
+</div>
+{% endfor %}
+<div class="card">
+  <div class="card-h"><a href="/settings">Settings</a></div>
+  {% for l in settings %}<p><a href="{{ l.url }}">{{ l.label }}</a></p>{% endfor %}
+  {% for l in apps %}<p><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.label }}</a></p>{% endfor %}
+</div>
+{% endblock %}

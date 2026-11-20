@@ -8,32 +8,40 @@
   <link rel="stylesheet" href="/static/hub.css">
 </head>
 <body>
-  <nav>
-    <form action="/search" method="get" role="search" class="nav-search">
-      <input type="search" name="q" placeholder="Search papers" aria-label="Search papers" value="{{ request.query_params.get('q', '') if request and request.url.path == '/search' else '' }}">
-    </form>
-    <a href="/">Overview</a>
-    <a href="/ask">Ask</a>
-    <a href="/inbox">Inbox</a>
-    {% set n_waiting = waiting_count() %}<a href="/waiting">Waiting for you{% if n_waiting %} ({{ n_waiting }}){% endif %}</a>
-    {% for spec in category_nav() %}
-    <div class="nav-group">
-      <span class="nav-group-label">{{ spec.label }}</span>
-      {% for link in spec.nav_links %}
-      <a href="{{ link.url }}">{{ link.label }}</a>
+  {% set all_sections = shell_sections() %}
+  {% set here = shell_active(request.url.path if request else "/", all_sections) %}
+  {% set n_waiting = waiting_count() %}
+  {% set n_problems = open_problem_count() %}
+  <header class="topnav">
+    <a class="logo" href="/"><b>◐</b> Home Hub</a>
+    <nav class="pills" aria-label="Menu">
+      {% for s in all_sections %}
+      <a class="pill{% if here and here.key == s.key %} on{% endif %}" href="{{ s.url }}">{{ s.label }}{% if s.key == "waiting" and n_waiting %} <em>{{ n_waiting }}</em>{% endif %}</a>
       {% endfor %}
+    </nav>
+    <div class="tools">
+      <span class="who" title="Choosing one person comes in a later step; everyone sees the same">Who: Everyone</span>
+      <a class="add" href="/inbox">+ Add a paper</a>
+      <a class="gear" href="/settings" title="Settings" aria-label="Settings">⚙</a>
+      {% if n_problems %}<a class="alert" href="/problems" title="Problems: {{ n_problems }} need{{ 's' if n_problems == 1 else '' }} you" aria-label="Problems: {{ n_problems }}">{{ n_problems }}</a>{% endif %}
     </div>
-    {% endfor %}
-    <a href="/wiki">Wiki</a>
-    <a href="/todos">To-Dos</a>
-    <a href="/privacy">Privacy</a>
-    <a href="/schedules">Scheduled jobs</a>
-    <a href="/problems">Problems{% set n = open_problem_count() %}{% if n %} ({{ n }}){% endif %}</a>
-    <div class="nav-group">
-      <span class="nav-group-label">Other apps</span>
-      <a href="https://recipes.cdafamily.casa" target="_blank" rel="noopener">Recipes</a>
-      <a href="https://gym.cdafamily.casa" target="_blank" rel="noopener">Exercise</a>
-    </div>
+  </header>
+  <div class="subbar">
+    <form action="/search" method="get" role="search" class="nav-search">
+        <input type="search" name="q" placeholder="Ask or search…" aria-label="Search papers" value="{{ request.query_params.get('q', '') if request and request.url.path == '/search' else '' }}">
+      </form>
+  </div>
+  {% if here and here.links|length > 1 %}
+  <nav class="sectionbar" aria-label="{{ here.label }} pages">
+    {% for l in here.links %}<a class="tab{% if request and (request.url.path == l.url or request.url.path.rstrip('/') == l.url.rstrip('/')) %} on{% endif %}" href="{{ l.url }}">{{ l.label }}</a>{% endfor %}
+  </nav>
+  {% endif %}
+  <nav class="phonebar" aria-label="Menu">
+    <a class="pn2{% if here and here.key == 'home' %} on{% endif %}" href="/"><span>⌂</span>Home</a>
+    <a class="pn2{% if here and here.key == 'money' %} on{% endif %}" href="/financials/transactions"><span>€</span>Money</a>
+    <a class="pn2 fab" href="/inbox" aria-label="Add a paper">+</a>
+    <a class="pn2{% if here and here.key == 'health' %} on{% endif %}" href="/health/records"><span>+</span>Health</a>
+    <a class="pn2{% if not here or here.key not in ('home', 'money', 'health') %} on{% endif %}" href="/more"><span>≡</span>More{% if n_waiting %} <em>{{ n_waiting }}</em>{% endif %}</a>
   </nav>
   <main>
   <div id="problem-banner" role="alert"></div>

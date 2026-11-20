@@ -66,7 +66,7 @@ def test_the_page_shows_one_count_in_the_menu_filters_by_area_and_refuses_a_seco
         _doubtful(session)
         item_id = review.waiting(session)[0].id
     home = client.get("/").text
-    assert 'href="/waiting">Waiting for you (1)</a>' in home
+    assert 'href="/waiting">Waiting for you <em>1</em></a>' in home      # the menu badge (step 10b)
     page = client.get("/waiting").text
     assert "Loja Nova" in page and "Money (1)" in page and "Ask me in a week" in page
     assert "Nothing is waiting for you in Health" in client.get("/waiting?area=health").text

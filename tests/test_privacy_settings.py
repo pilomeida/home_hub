@@ -150,7 +150,8 @@ def test_screen_ignores_a_stale_or_forged_form_without_error(client, session, pa
 
 
 def test_screen_is_linked_from_the_menu(client, pairings):
-    assert 'href="/privacy"' in client.get("/").text
+    assert 'href="/settings"' in client.get("/").text                     # the gear on every page (step 10b)
+    assert 'href="/privacy"' in client.get("/settings").text
 
 
 # --- the AI jobs section (the gateway's existing quality/privacy levels) -------

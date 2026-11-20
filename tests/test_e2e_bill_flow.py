@@ -193,6 +193,6 @@ def test_electricity_bill_upload_appears_in_utilities_tab(client, monkeypatch):
     assert "2026-07" in electricity_response.text
     assert "401" in electricity_response.text
 
-    dashboard_response = client.get("/")
+    dashboard_response = client.get("/financials/transactions")             # Money's row links the utility (step 10b)
     assert dashboard_response.status_code == 200
-    assert "electricity" in dashboard_response.text.lower()
+    assert 'href="/financials/utilities/electricity"' in dashboard_response.text
