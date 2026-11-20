@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 from app.models.account import Account
 from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import ensure_taxonomy, file_transaction, get_node
+from app.services import tree_slugs
 
 logger = logging.getLogger("bank_sync")
 
@@ -62,7 +63,7 @@ def link_revolut_topups(session: Session) -> int:
         unused[round(credit.amount * 100)].append(credit)
 
     ensure_taxonomy(session)
-    internal = get_node(session, "internal-transfers.between-my-accounts.santander-revolut")
+    internal = get_node(session, tree_slugs.SANTANDER_TO_REVOLUT)
     linked = 0
     for debit in sorted(debits, key=lambda t: t.paid_date):
         for credit in unused[round(debit.amount * 100)]:

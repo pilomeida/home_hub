@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlmodel import Session, func, select
+from sqlmodel import Session, select
 
 from app.llm_gateway import GatewayClient, get_gateway
 from app.db import get_session, get_session_factory
@@ -37,11 +37,6 @@ KIND_LABELS = {
 def get_lint_gateway() -> GatewayClient:
     """The gateway client for wiki-lint LLM audits. Tests override this dependency."""
     return get_gateway()
-
-
-def open_finding_count(session: Session) -> int:
-    return session.exec(select(func.count()).select_from(LintFinding)
-                        .where(LintFinding.status == LintFindingStatus.OPEN)).one()
 
 
 def _pages_for(session: Session, finding: LintFinding) -> list[WikiPage]:

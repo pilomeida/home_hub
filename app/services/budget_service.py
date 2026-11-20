@@ -26,6 +26,7 @@ from app.models.debt import Debt
 from app.services.loan_math import add_months, summarize_all
 from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
 from app.services.taxonomy import flow_of
+from app.services import tree_slugs
 
 
 def set_budget(session: Session, node_id: int, year: int, amount: float,
@@ -81,8 +82,7 @@ def get_effective_budgets(session: Session, year: int) -> dict[int, tuple[Budget
 
 _HISTORY_MONTHS = 36
 _RELEVANCE_MONTHS = 12
-_RECURRING_INCOME = {"income.psi", "income.employment", "income.rental",
-                     "income.benefits-refunds-from-the-state", "savings-investments.earnings"}
+_RECURRING_INCOME = tree_slugs.RECURRING_INCOME
 _STATUS_RANK = {"no_budget": 0, "ok": 1, "at_risk": 2, "over": 3}
 
 

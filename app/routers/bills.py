@@ -27,7 +27,7 @@ async def list_bills(request: Request, session: Session = Depends(get_session)):
     documents = session.exec(
         select(Document).where(Document.category == Category.FINANCIALS).order_by(Document.created_at.desc())
     ).all()
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     return templates.TemplateResponse(
         request, "bills/list.html",
         {"documents": documents, "notices": bank_notices(session),

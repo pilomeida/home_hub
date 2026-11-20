@@ -79,7 +79,7 @@ async def test_the_feed_statement_is_never_re_filed(session):
 
 
 def test_a_feed_line_shows_that_it_came_from_the_bank_not_a_broken_file_link(client, session):
-    from app.routers.to_check import line_card
+    from app.ui.to_check import line_card
     account = _account(session)
     feed = feed_statement(session, account.id, "Santander Totta"); session.commit()
     line = _line(session, feed, "GALP MAFRA")

@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.db import get_session, get_session_factory
 from app.categories.fields import (
@@ -18,17 +18,18 @@ from app.categories.health import care as care_svc
 from app.categories.health import browse, outlines, people as people_svc, store
 from app.categories.health import topics as topics_svc
 from app.categories.health import tests as tests_svc
-from app.categories.health.text import PATH_SEP, match_key, reference_for_display
+from app.categories.health.text import PATH_SEP
 from app.categories.registry import document_url, get_spec
 from app.services.wiki_engine import withdraw_from_wiki
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.category import Category
-from app.models.health import HealthArea, HealthEntry, HealthMeasurement, HealthTopic
+from app.models.health import HealthMeasurement, HealthTopic
 from app.problems import Problem, file_notices, is_health_bill_refusal, record_problem
 from app.services.ingestion import (
     kept_on_reread,
     Classification, IncomingFile, file_for_later, finalize_document, mark_needs_attention, update_document_fields,
 )
+from app.services import health_views
 from app.services.paper_uses import PaperInUse
 from app.templating import templates
 
@@ -53,84 +54,11 @@ def _upload_context(errors: dict) -> dict:
     return {"errors": file_notices(errors)}
 
 
-def _measurement_view(rows: list[HealthMeasurement]) -> list[dict]:
-    """The paper's results in the paper's own order and grouping: before a result, the headings (outermost first)
-    that differ from the previous result's; after its value, the earlier results the paper printed for it."""
-    earlier: dict[int, list[HealthMeasurement]] = {}
-    for m in rows:
-        if m.is_previous:
-            earlier.setdefault(m.position, []).append(m)
-    view: list[dict] = []
-    last: list[str] = []
-    for m in rows:
-        if m.is_previous:
-            continue
-        path = [h for h in m.group_path.split(PATH_SEP) if h] if m.group_path else []
-        common = 0
-        while common < len(path) and common < len(last) and path[common] == last[common]:
-            common += 1
-        flag = None
-        if m.out_of_range and m.value is not None:
-            flag = "high" if (m.ref_high is not None and m.value > m.ref_high) else "low"
-        view.append({"m": m, "flag": flag, "headings": [(depth, path[depth]) for depth in range(common, len(path))],
-                     "earlier": earlier.get(m.position, []),
-                     "reference": reference_for_display(m.reference_text, m.ref_low, m.ref_high)})
-        last = path
-    return view
-
-
-def _heading_topics(session: Session, row: dict, cache: dict[int, Optional[HealthTopic]]) -> list[Optional[int]]:
-    """For each heading shown above a result, the topic it links to (None: no link). The result's own (last) heading
-    links to the result's topic, even after a merge. A heading above it links to the result's topic's ancestor at that
-    level only when that ancestor still carries the printed name: after a merge the ancestors are not the headings
-    printed on this paper. A wrapper heading such as "Conclusões" is not a topic."""
-    m = row["m"]
-    path = [h for h in m.group_path.split(PATH_SEP) if h] if m.group_path else []
-    if m.topic_id is None:
-        return [None for _ in row["headings"]]
-    chain: list[Optional[HealthTopic]] = []
-    topic_id, seen = m.topic_id, set()
-    while topic_id is not None and topic_id not in seen and len(chain) < len(topics_svc.topic_path(m.group_path)):
-        seen.add(topic_id)
-        if topic_id not in cache:
-            cache[topic_id] = session.get(HealthTopic, topic_id)
-        topic = cache[topic_id]
-        chain.append(topic)
-        topic_id = topic.parent_id if topic is not None else None
-    ids: list[Optional[int]] = []
-    for depth, name in row["headings"]:
-        back = len(path) - 1 - depth                    # 0 = the result's own (last) heading
-        topic = chain[back] if back < len(chain) else None
-        if topic is not None and (back == 0 or match_key(name) == topic.match_key):
-            ids.append(topic.id)
-        else:
-            ids.append(None)
-    return ids
-
-
-def _outline_view(session: Session, entry: HealthEntry, view: list[dict]) -> list[dict]:
-    """A written report's outline: its headings in the paper's order (each with the topic it names) and the prose
-    under them. Numbers are not here: they go to the Metrics table."""
-    cache: dict[int, Optional[HealthTopic]] = {}
-    items: list[dict] = []
-    for row in view:
-        ids = _heading_topics(session, row, cache)
-        for (depth, name), topic_id in zip(row["headings"], ids):
-            items.append({"kind": "heading", "depth": depth, "name": name, "topic_id": topic_id})
-        m = row["m"]
-        if m.value is None and m.value_text:
-            label = None if match_key(m.test) in topics_svc.DOCUMENT_SECTIONS else m.test
-            items.append({"kind": "prose", "m": m, "label": label})
-    return items
-
-
 def _detail_context(session: Session, document: Document, values: dict, errors: dict) -> dict:
     spec = get_spec(Category.HEALTH)
     fields = load_fields(document)
     entry = store.entry_for(session, document.id)
-    measurements = _measurement_view(list(session.exec(select(HealthMeasurement).where(HealthMeasurement.entry_id == entry.id)
-                                          .order_by(HealthMeasurement.position, HealthMeasurement.is_previous,
-                                                    HealthMeasurement.measured_on)))) if entry else []
+    measurements = health_views.measurement_view(health_views.measurements_of(session, entry)) if entry else []
     tags = areas_svc.tags_of(session, entry.id) if entry else []
     is_report = bool(entry and entry.layout == "report")
     media_kind = media_kind_for(document.filename)
@@ -138,7 +66,7 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
     return {"document": document, "description": description,
             "bill_refused": document.status == DocumentStatus.NEEDS_ATTENTION and is_health_bill_refusal(document.failure_reason), "media_kind": media_kind.value,
             "entry": entry, "measurements": measurements, "is_report": is_report, "path_sep": PATH_SEP,
-            "outline": _outline_view(session, entry, measurements) if is_report else [],
+            "outline": health_views.outline_view(session, entry, measurements) if is_report else [],
             "metrics": [row for row in measurements if row["m"].value is not None] if is_report else [],
             "check_notes": store.notes_of(entry) if entry else [],
             "conditions_box": conditions_svc.entry_box(session, entry),
@@ -186,9 +114,7 @@ async def person_page(request: Request, person_id: int, session: Session = Depen
 @router.get("/records")
 async def landing(request: Request, session: Session = Depends(get_session)):
     f = browse.parse_filters(request.query_params)
-    waiting = list(session.exec(select(Document).where(
-        Document.category == Category.HEALTH,
-        Document.status.in_([DocumentStatus.PENDING, DocumentStatus.NEEDS_ATTENTION])).order_by(Document.id)))
+    waiting = health_views.papers_waiting(session)
     return templates.TemplateResponse(request, "health/landing.html", {
         "rows": browse.rows(session, f), "f": f, "facets": browse.facets(session), "waiting": waiting})
 
@@ -518,8 +444,7 @@ async def measurement_ok(document_id: int, measurement_id: int, session: Session
 
 
 def _areas_page(request: Request, session: Session, error: Optional[Problem] = None, status_code: int = 200):
-    rows = list(session.exec(select(HealthArea).where(HealthArea.merged_into_id.is_(None))
-                             .order_by(HealthArea.approved, HealthArea.kind, HealthArea.name)))
+    rows = health_views.live_areas(session)
     return templates.TemplateResponse(request, "health/areas.html", {"areas": rows, "error": error},
                                       status_code=status_code)
 
@@ -616,39 +541,8 @@ async def person_merge(request: Request, person_id: int, into: Optional[str] = F
     return RedirectResponse("/health/people", status_code=303)
 
 
-def _topic_rows(session: Session) -> list[dict]:
-    """Every topic still in the baseline as a tree in reading order (roots first, then each one's children), with its
-    depth, its full path, what it "looks like", and the topics it may be merged into (not itself or what is inside it)."""
-    live = list(session.exec(select(HealthTopic).where(HealthTopic.merged_into_id.is_(None))))
-    by_id = {t.id: t for t in live}
-    children: dict[Optional[int], list[HealthTopic]] = {}
-    for t in live:
-        children.setdefault(t.parent_id if t.parent_id in by_id else None, []).append(t)
-    for kids in children.values():
-        kids.sort(key=lambda t: (t.match_key, t.id))
-    rows: list[dict] = []
-
-    def walk(parent_id: Optional[int], depth: int, path: str) -> None:
-        for t in children.get(parent_id, []):
-            here = f"{path}{PATH_SEP}{t.name}" if path else t.name
-            start = len(rows)
-            rows.append({"t": t, "depth": depth, "path": here, "inside": set()})
-            walk(t.id, depth + 1, here)
-            rows[start]["inside"] = {r["t"].id for r in rows[start + 1:]}
-
-    walk(None, 0, "")
-    paths = {r["t"].id: r["path"] for r in rows}
-    for r in rows:
-        similar = by_id.get(r["t"].similar_to_id) if r["t"].similar_to_id is not None else None
-        r["similar"] = ({"id": similar.id, "name": similar.name, "path": paths[similar.id]}
-                        if similar is not None and similar.id != r["t"].id and similar.id not in r["inside"] else None)
-        r["targets"] = [{"id": o["t"].id, "path": o["path"]} for o in rows
-                        if o["t"].id != r["t"].id and o["t"].id not in r["inside"]]
-    return rows
-
-
 def _topics_page(request: Request, session: Session, error: Optional[Problem] = None, status_code: int = 200):
-    return templates.TemplateResponse(request, "health/topics.html", {"topics": _topic_rows(session), "error": error},
+    return templates.TemplateResponse(request, "health/topics.html", {"topics": health_views.topic_rows(session), "error": error},
                                       status_code=status_code)
 
 
@@ -688,25 +582,6 @@ async def topic_merge(request: Request, topic_id: int, into: Optional[str] = For
     return RedirectResponse("/health/topics", status_code=303)
 
 
-def _is_prose(m: HealthMeasurement) -> bool:
-    return m.value is None and bool(m.value_text)
-
-
-def _conclusions(session: Session, topic: HealthTopic, entries: list[dict]) -> list[dict]:
-    """The thread's papers (already newest first) with their prose grouped under the sub-topic it belongs to."""
-    cache: dict[int, Optional[HealthTopic]] = {}
-
-    def below(topic_id: Optional[int]) -> str:
-        return topics_svc.path_below(session, topic_id, topic.id, cache)
-
-    out = []
-    for e in entries:
-        prose = [{"sub": below(m.topic_id), "m": m} for m in e["items"] if _is_prose(m)]
-        if prose:
-            out.append({"entry": e["entry"], "document": e["document"], "prose": prose})
-    return out
-
-
 @router.get("/topics/{topic_id}")
 async def topic_thread(request: Request, topic_id: int, person: Optional[str] = None,
                        session: Session = Depends(get_session)):
@@ -723,7 +598,7 @@ async def topic_thread(request: Request, topic_id: int, person: Optional[str] = 
     found = topics_svc.thread(session, topic.id, chosen)
     return templates.TemplateResponse(request, "health/topic.html", {
         "topic": found["topic"], "path": found["path"], "people": people, "chosen": chosen,
-        "conclusions": _conclusions(session, found["topic"], found["entries"]), "metrics": found["metrics"]})
+        "conclusions": health_views.conclusions(session, found["topic"], found["entries"]), "metrics": found["metrics"]})
 
 
 @router.post("/documents/{document_id}/delete")

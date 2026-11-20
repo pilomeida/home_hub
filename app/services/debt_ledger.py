@@ -17,21 +17,22 @@ from sqlmodel import Session, select
 from app.models.category_node import CategoryNode
 from app.models.debt import Debt, DebtDirection, DebtKind
 from app.models.person import Person
-from app.models.position import DebtEntry
+from app.models.position import DebtEntry, DebtMatchRule
 from app.models.transaction import Transaction, TransactionType
 from app.services.loan_math import informal_summary
 from app.services.taxonomy import direction_matches, file_transaction
 from app.services.subjects import register_person
+from app.services import tree_slugs
 
 KINDS = ("advance", "repayment", "adjust_up", "adjust_down")
 ROLES = ("advance", "repayment")  # the roles a bank transaction can take
 
 # (direction, kind) -> node slug. A missing direction counts as owed by us.
 _FILING = {
-    (DebtDirection.OWED_TO_US, "advance"): "loans-debt.money-lent-out.to-friends",
-    (DebtDirection.OWED_TO_US, "repayment"): "loans-debt.money-lent-out.from-friends",
-    (DebtDirection.OWED_BY_US, "advance"): "loans-debt.money-borrowed.personal-loan-received",
-    (DebtDirection.OWED_BY_US, "repayment"): "loans-debt.loan-repayments.personal-loans",
+    (DebtDirection.OWED_TO_US, "advance"): tree_slugs.LENT_TO_FRIENDS,
+    (DebtDirection.OWED_TO_US, "repayment"): tree_slugs.REPAID_BY_FRIENDS,
+    (DebtDirection.OWED_BY_US, "advance"): tree_slugs.PERSONAL_LOAN_RECEIVED,
+    (DebtDirection.OWED_BY_US, "repayment"): tree_slugs.PERSONAL_LOAN_REPAYMENT,
 }
 
 
@@ -258,3 +259,12 @@ def rebuild_entries_from_links(session: Session) -> int:
             recompute(session, debt)
         total += created
     return total
+
+
+def learn_counterparty(session: Session, debt: Debt, txn: Transaction) -> None:
+    """An informal debt learns the counterparty's bank text, so later rows from it link automatically (statement
+    loans never get rules). Not committed: the caller commits with the link it made."""
+    from app.services.classification_engine import normalize_provider
+    key = normalize_provider(txn.description)
+    if key and session.exec(select(DebtMatchRule).where(DebtMatchRule.normalized_key == key)).first() is None:
+        session.add(DebtMatchRule(debt_id=debt.id, normalized_key=key))

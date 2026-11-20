@@ -23,9 +23,10 @@ from app.models.debt import Debt
 from app.models.position import LoanInsuranceRule, LoanMovement
 from app.models.transaction import Transaction, TransactionType
 from app.services.taxonomy import file_transaction, get_node
+from app.services import tree_slugs
 
-LIFE_SLUG = "insurances.home.life-insurance-house-loan"
-BUILDING_SLUG = "insurances.home.building-insurance-house-loan"
+LIFE_SLUG = tree_slugs.LIFE_INSURANCE_HOUSE_LOAN
+BUILDING_SLUG = tree_slugs.BUILDING_INSURANCE_HOUSE_LOAN
 LOAN_INSURANCE_SLUGS = (LIFE_SLUG, BUILDING_SLUG)  # only the linker files here, never the LLM
 _SLUG = {"life": LIFE_SLUG, "building": BUILDING_SLUG}
 

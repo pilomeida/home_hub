@@ -42,7 +42,7 @@ def settings_page(session: Session, now: Optional[datetime] = None) -> SettingsP
     from app.jobs.registry import JOBS
     from app.jobs.scheduler import effective_spec
     from app.models.schedule import JobRun
-    from app.routers.bank import connection_rows
+    from app.services.bankapi.notices import connection_rows
     from app.services import schedule as sched
     now = now or datetime.now(timezone.utc)
     problems = open_problems(session, limit=100)

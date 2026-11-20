@@ -9,9 +9,10 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from app.services import tree_slugs
 from app.services.loan_insurance import BUILDING_SLUG, LIFE_SLUG, insurance_key, key_component
 
-MORTGAGE_SLUG = "loans-debt.loan-repayments.mortgage"
+MORTGAGE_SLUG = tree_slugs.MORTGAGE
 _LOAN_COLLECTION = re.compile(r"^\s*COB\.?\s?REC\.?\s?31\.\d{9,}", re.IGNORECASE)
 
 

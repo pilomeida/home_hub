@@ -8,29 +8,24 @@ import logging
 import math
 import re
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
-from sqlmodel import Session, select
+from sqlmodel import Session
 
-from app.baseline import BASELINE_DATE
 from app.db import get_session
 from app.categories.fields import InvalidClassification
-from app.models.category_node import CategoryNode
 from app.models.debt import Debt, DebtDirection
 from app.models.document import Document, DocumentSource
 from app.models.category import Category
-from app.models.person import Person
-from app.models.position import DebtEntry, LoanAlert, LoanMovement, LoanSnapshot, PositionExtraction
-from app.models.transaction import Transaction, TransactionType
+from app.models.position import DebtEntry, PositionExtraction
 from app.services.ingestion import Classification, IncomingFile, ingest
-from app.services import debt_ledger
-from app.services.loan_insurance import LOAN_INSURANCE_SLUGS
+from app.services import debt_ledger, loans_page
 from app.services.loan_alerts import (
-    KINDS as ALERT_KINDS, MAX_NOTE_CHARS as MAX_ACK_NOTE, SPREAD_TOLERANCE, acknowledge_alert, acknowledge_group, group_alerts,
+    KINDS as ALERT_KINDS, MAX_NOTE_CHARS as MAX_ACK_NOTE, acknowledge_alert, acknowledge_group,
 )
 from app.services.loan_math import (
-    LoanSummary, informal_debt_rows, informal_summary, newest_balances, position_totals, savings_lines, summarize_loan, summarize_all,
+    position_totals, summarize_loan,
 )
 from app.services.position_store import (
     assign_history_to_loan, create_loan_from_assignment, extraction_summary, loan_number_conflict,
@@ -70,93 +65,12 @@ class FileResult:
     warnings: list = field(default_factory=list)  # Problems for a read that left something out
 
 
-@dataclass
-class LoanRow:
-    summary: LoanSummary
-    from_statements: bool
-    rate_derived: bool
-    remaining_pct: Optional[float]
-    payoff_text: Optional[str]
-    alerts: list = field(default_factory=list)  # unacknowledged LoanAlert rows
-    groups: list = field(default_factory=list)  # the same, grouped per kind (AlertGroup)
-    acked_alerts: list = field(default_factory=list)
-    insurance_paid: float = 0.0  # linked insurance debits (SEG...), beside the instalment
-    last_premium: Optional[float] = None
-    last_premium_date: Optional[date] = None
-
-
-def payoff_text(months_left: Optional[int], payoff_date: Optional[date]) -> Optional[str]:
-    if months_left is None or payoff_date is None:
-        return None
-    years, months = divmod(months_left, 12)
-    parts = []
-    if years:
-        parts.append(f"{years} yr{'s' if years != 1 else ''}")
-    if months or not years:
-        parts.append(f"{months} mo")
-    return f"≈ {' '.join(parts)} ({payoff_date.strftime('%Y-%m')})"
-
-
-def _insurance_debits(session: Session, debt_id: int) -> tuple[float, Optional[float], Optional[date]]:
-    """(total, latest premium, its date) of the debits linked to the loan AND filed
-    under the Loan insurance nodes."""
-    node_ids = session.exec(select(CategoryNode.id).where(CategoryNode.slug.in_(LOAN_INSURANCE_SLUGS))).all()
-    if not node_ids:
-        return 0.0, None, None
-    rows = session.exec(
-        select(Transaction).where(
-            Transaction.debt_id == debt_id, Transaction.transaction_type == TransactionType.DEBIT,
-            Transaction.counts(), Transaction.category_id.in_(node_ids),
-        ).order_by(Transaction.paid_date, Transaction.id)
-    ).all()
-    if not rows:
-        return 0.0, None, None
-    return round(sum(t.amount for t in rows), 2), rows[-1].amount, rows[-1].paid_date
-
-
-def _loan_row(session: Session, summary: LoanSummary) -> LoanRow:
-    snapshot = session.exec(
-        select(LoanSnapshot).where(LoanSnapshot.debt_id == summary.debt_id).order_by(LoanSnapshot.as_of.desc())
-    ).first()
-    pct = None
-    if summary.balance_known and summary.capital_granted:
-        pct = max(0.0, min(100.0, summary.capital_remaining / summary.capital_granted * 100))
-    alerts = session.exec(
-        select(LoanAlert).where(LoanAlert.debt_id == summary.debt_id).order_by(LoanAlert.detected_on, LoanAlert.id)
-    ).all()
-    paid, premium, premium_date = _insurance_debits(session, summary.debt_id)
-    debt = session.get(Debt, summary.debt_id)
-    return LoanRow(
-        summary=summary,
-        insurance_paid=paid, last_premium=premium, last_premium_date=premium_date,
-        alerts=[a for a in alerts if not a.acknowledged],
-        groups=group_alerts([(a, debt) for a in alerts if not a.acknowledged]) if alerts else [],
-        acked_alerts=[a for a in alerts if a.acknowledged],
-        from_statements=snapshot is not None,
-        rate_derived=summary.rate_source in ("derived", "debt"),
-        remaining_pct=pct,
-        payoff_text=payoff_text(summary.months_left, summary.payoff_date),
-    )
-
-
 @router.get("")
 async def loans_index(request: Request, session: Session = Depends(get_session)):
     today = date.today()
-    summaries = summarize_all(session, today)
-    rows = [_loan_row(session, s) for s in summaries]
-    active = [r for r in rows if r.summary.capital_remaining > 0 or not r.summary.balance_known]
-    closed = [r for r in rows if r not in active]
-    people = {p.id: p.name for p in session.exec(select(Person)).all()}
-    informal = [
-        {"debt": d, "balance": float(balance), "person": people.get(d.person_id), "summary": informal_summary(session, d)}
-        for d, balance in informal_debt_rows(session)
-    ]
-    funds = savings_lines(session)
-    holders: dict[str, list] = {}
-    for line in funds:
-        holders.setdefault(line.holder or "Other", []).append(line)
-    deposits = newest_balances(session, "deposit")
-    cards = newest_balances(session, "card")
+    view = loans_page.overview(session, today)
+    rows, funds, deposits, cards, informal = view["rows"], view["funds"], view["deposits"], view["cards"], view["informal"]
+    active, closed, holders = view["active"], view["closed"], view["holders"]
     return templates.TemplateResponse(request, "loans/index.html", {
         "today": today,
         "alert_count": sum(len(r.groups) for r in rows),
@@ -173,11 +87,6 @@ async def loans_index(request: Request, session: Session = Depends(get_session))
         "upload_url": UPLOAD_URL,
         "empty": not (rows or funds or deposits or cards or informal),
     })
-
-
-def _extraction_for(session: Session, document: Document) -> Optional[PositionExtraction]:
-    session.expire_all()
-    return session.exec(select(PositionExtraction).where(PositionExtraction.document_id == document.id)).first()
 
 
 # --- messages for a file that could not be used (what / why / what to do) ---
@@ -285,14 +194,14 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
         )
         document = received.document
         if not received.duplicate:
-            return _from_extraction(session, name, label, _extraction_for(session, document), document, already=False)
+            return _from_extraction(session, name, label, loans_page.extraction_for(session, document), document, already=False)
         if document.paper_kind not in slot["compatible"]:
             shown = document.paper_kind or "an unfiled document"
             return FileResult(name, label, "other", problem=Problem(
                 "Not read again.",
                 f"This exact file was already uploaded as {shown}, so it isn't read again as a {label}.",
                 "Nothing is lost. Upload the right printout for this box if this is a different one."))
-        previous = _extraction_for(session, document)
+        previous = loans_page.extraction_for(session, document)
         if previous is not None and previous.status == "ok":
             return _from_extraction(session, name, label, previous, document, already=True)
         # An ordinary `statement` that was already filed keeps its status whatever
@@ -311,15 +220,11 @@ async def _handle_file(session: Session, request: Request, upload: UploadFile, s
         return FileResult(name, label, "failed", problem=problem, technical=technical)
 
 
-def _existing_loans(session: Session) -> list[Debt]:
-    return list(session.exec(select(Debt).where(Debt.external_number.isnot(None)).order_by(Debt.name)).all())
-
-
 def _results_page(request: Request, session: Session, results: list[FileResult], error: Optional[Problem] = None,
                   status_code: int = 200):
     return templates.TemplateResponse(
         request, "loans/results.html",
-        {"results": results, "loans": _existing_loans(session), "error": error}, status_code=status_code,
+        {"results": results, "loans": loans_page.existing_loans(session), "error": error}, status_code=status_code,
     )
 
 
@@ -391,7 +296,7 @@ async def assign_history(
             return reject(Problem(
                 "Not assigned.", "The loan type isn't one of the three the Hub knows.",
                 "Choose mortgage, personal or other, then assign again."))
-        debt = session.exec(select(Debt).where(Debt.external_number == digits)).first()
+        debt = loans_page.loan_by_number(session, digits)
         if debt is None:
             conflict = loan_number_conflict(session, digits)
             if conflict:
@@ -554,25 +459,10 @@ async def loan_detail(debt_id: int, request: Request, session: Session = Depends
     debt = session.get(Debt, debt_id)
     if debt is None or debt.external_number is None:
         raise HTTPException(status_code=404, detail="Loan not found")
-    movements = session.exec(
-        select(LoanMovement).where(LoanMovement.debt_id == debt.id, LoanMovement.movement_date >= BASELINE_DATE)
-        .order_by(LoanMovement.movement_date.desc(), LoanMovement.instalment_number.desc())
-    ).all()
-    series = [m.balance_after for m in reversed(movements) if m.balance_after is not None]
-    top = max(series) if series else 0
-    strip = [{"value": v, "pct": round(v / top * 100) if top else 0} for v in series]
-    snapshots = session.exec(
-        select(LoanSnapshot).where(LoanSnapshot.debt_id == debt.id).order_by(LoanSnapshot.as_of)
-    ).all()
-    rate_history = [
-        {"as_of": sn.as_of, "indexante": sn.indexante_percent, "spread": sn.spread_percent,
-         "tan": sn.next_rate_percent if sn.next_rate_percent is not None else sn.rate_percent,
-         "spread_changed": (sn.spread_percent is not None and debt.spread_percent is not None
-                            and abs(sn.spread_percent - debt.spread_percent) > SPREAD_TOLERANCE)}
-        for sn in snapshots
-    ]
+    history = loans_page.loan_history(session, debt)
+    movements, strip, rate_history = history["movements"], history["strip"], history["rate_history"]
     return templates.TemplateResponse(request, "loans/detail.html", {
-        "row": _loan_row(session, summarize_loan(session, debt, date.today())),
+        "row": loans_page.loan_row(session, summarize_loan(session, debt, date.today())),
         "rate_history": rate_history,
         "baseline_spread": debt.spread_percent,
         "movements": movements,

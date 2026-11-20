@@ -13,11 +13,12 @@ from app.models.debt import Debt
 from app.models.transaction import Transaction, TransactionType
 from app.services.loan_insurance import link_insurance_transaction, load_index
 from app.services.taxonomy import file_transaction, get_node
+from app.services import tree_slugs
 
 log = logging.getLogger(__name__)
 
-MORTGAGE_SLUG = "loans-debt.loan-repayments.mortgage"
-PERSONAL_SLUG = "loans-debt.loan-repayments.personal-loans"
+MORTGAGE_SLUG = tree_slugs.MORTGAGE
+PERSONAL_SLUG = tree_slugs.PERSONAL_LOAN_REPAYMENT
 
 
 def digits_only(text: str) -> str:

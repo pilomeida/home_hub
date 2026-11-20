@@ -148,7 +148,7 @@ def test_sync_now_creates_transactions_and_shows_summary(client, session, bank_c
 
 
 def test_bank_notices_renewal_warning_at_14_days(session):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     conn, link = _sync_now_seed(session)
     now = datetime(2026, 10, 4, 12, 0)
     conn.valid_until = now + timedelta(days=14)
@@ -158,7 +158,7 @@ def test_bank_notices_renewal_warning_at_14_days(session):
 
 
 def test_bank_notices_silent_at_15_days(session):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     conn, link = _sync_now_seed(session)
     now = datetime(2026, 10, 4, 12, 0)
     conn.valid_until = now + timedelta(days=15)
@@ -167,7 +167,7 @@ def test_bank_notices_silent_at_15_days(session):
 
 
 def test_bank_notices_expired(session):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     conn, link = _sync_now_seed(session)
     conn.status = BankConnectionStatus.EXPIRED
     session.add(conn); session.commit()
@@ -176,7 +176,7 @@ def test_bank_notices_expired(session):
 
 
 def test_bank_notices_stale_last_synced(session):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     conn, link = _sync_now_seed(session)
     link.last_synced_at = datetime.utcnow() - timedelta(days=3)
     session.add(link); session.commit()
@@ -185,7 +185,7 @@ def test_bank_notices_stale_last_synced(session):
 
 
 def test_bank_notices_on_error(session):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     conn, link = _sync_now_seed(session)
     link.last_error = "stored by an earlier sync"
     session.add(link); session.commit()
@@ -277,7 +277,7 @@ def test_renewal_carries_mapping_and_supersedes_old_connection(session, bank_cli
     assert set(results) == {new_link.id}
 
     # No false banners from the dead connection.
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     assert bank_notices(session) == []
 
 

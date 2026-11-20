@@ -4,8 +4,10 @@ import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
+from sqlmodel import Session, func, select
+
 from app.models.category import Category
-from app.models.wiki_lint import LintFindingKind
+from app.models.wiki_lint import LintFinding, LintFindingKind, LintFindingStatus
 
 DETERMINISTIC_KINDS = frozenset({
     LintFindingKind.ORPHAN_PAGE, LintFindingKind.MISSING_LINK, LintFindingKind.STALE_LINK,
@@ -29,3 +31,8 @@ class FindingDraft:
         parts = [self.kind.value] + [",".join(map(str, sorted(ids))) for ids in
                                      (self.wiki_page_ids, self.claim_ids, self.document_ids, self.record_ids)]
         return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+def open_finding_count(session: Session) -> int:
+    return session.exec(select(func.count()).select_from(LintFinding)
+                        .where(LintFinding.status == LintFindingStatus.OPEN)).one()

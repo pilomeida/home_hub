@@ -7,13 +7,8 @@ from sqlmodel import Session
 
 from app.db import get_session
 from app.services import subjects as svc
-from app.templating import templates
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
-
-
-def section_html(session: Session) -> str:
-    return templates.get_template("inbox/_same_person.html").render(proposals=svc.pending(session))
 
 
 @router.post("/matches/{match_id}")

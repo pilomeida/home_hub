@@ -7,9 +7,10 @@ from sqlmodel import Session, select
 
 from app.models.category_node import CategoryNode
 from app.models.transaction import Transaction, TransactionType
+from app.services import tree_slugs
 from app.services.taxonomy_seed import SEED
 
-UNSORTED_SLUG = "unsorted.needs-review.needs-review"
+UNSORTED_SLUG = tree_slugs.UNSORTED
 
 
 def _slug(name: str) -> str:

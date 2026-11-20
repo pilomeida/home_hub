@@ -14,191 +14,26 @@ from app.baseline import baseline_note
 from app.db import get_session
 from app.models.account import Account
 from app.models.category_node import CategoryNode
-from app.models.commitment import Cadence, Commitment
+from app.models.commitment import Cadence
 from app.models.debt import Debt, DebtDirection
 from app.models.person import Person
-from app.models.position import DebtMatchRule
 from app.services import debt_ledger as ledger
-from app.models.document import Document
 from app.models.merchant import Merchant
 from app.models.transaction import Nature, Transaction, TransactionType
 from app.problems import Problem, notice, refusal_response
-from app.services.classification_engine import normalize_provider, get_needs_review_page, REVIEW_SECTIONS, unsorted_transactions_query
+from app.services.classification_engine import get_needs_review_page, REVIEW_SECTIONS
 from app.services.merchant_assign import assign_category, list_merchants
 from app.services.taxonomy import (
     node_options as tree_options,
-    auto_fits, descendant_ids, direction_matches, file_transaction, flow_of, get_node, is_refund,
+    get_node,
+)
+from app.services import transaction_list
+from app.services.transaction_list import (
+    PAGE_SIZE, UnknownCategory, commitment_from_merchant, attached_documents, count_filtered_transactions, filtered_transactions, lookup_dicts_for, node_context,
 )
 from app.templating import templates
 
 router = APIRouter(prefix="/financials/transactions", tags=["transactions"])
-
-_PAGE_SIZE = 100
-
-def _apply_transaction_filters(
-    session: Session,
-    statement,
-    nature: Optional[str] = None,
-    account_id: Optional[int] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    commitment_id: Optional[int] = None,
-    debt_id: Optional[int] = None,
-    transaction_type: Optional[str] = None,
-    transaction_id: Optional[int] = None,
-    merchant_id: Optional[int] = None,
-    category_node: Optional[str] = None,
-    tag: Optional[str] = None,
-    q: Optional[str] = None,
-):
-    if q:
-        like = f"%{q}%"
-        statement = statement.where(
-            Transaction.description.ilike(like)
-            | Transaction.merchant_id.in_(select(Merchant.id).where(Merchant.canonical_name.ilike(like))))
-    if tag:
-        from app.services.tag_service import tag_node_ids
-        node_ids = tag_node_ids(session, tag)
-        statement = statement.where(Transaction.category_id.in_(node_ids if node_ids else [-1]))
-    if category_node:
-        node = session.exec(select(CategoryNode).where(CategoryNode.slug == category_node)).first()
-        statement = statement.where(
-            Transaction.category_id.in_(descendant_ids(session, node.id) if node else [])
-        )
-    if nature:
-        statement = statement.where(Transaction.nature == Nature(nature))
-    if account_id:
-        statement = statement.where(Transaction.account_id == account_id)
-    if date_from:
-        statement = statement.where(Transaction.paid_date >= date_from)
-    if date_to:
-        statement = statement.where(Transaction.paid_date <= date_to)
-    if commitment_id:
-        statement = statement.where(Transaction.commitment_id == commitment_id)
-    if debt_id:
-        statement = statement.where(Transaction.debt_id == debt_id)
-    if transaction_type:
-        statement = statement.where(Transaction.transaction_type == TransactionType(transaction_type))
-    if transaction_id:
-        statement = statement.where(Transaction.id == transaction_id)
-    if merchant_id:
-        statement = statement.where(Transaction.merchant_id == merchant_id)
-    return statement
-
-def _filtered_transactions(
-    session: Session,
-    nature: Optional[str] = None,
-    account_id: Optional[int] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    commitment_id: Optional[int] = None,
-    debt_id: Optional[int] = None,
-    transaction_type: Optional[str] = None,
-    page: int = 1,
-    transaction_id: Optional[int] = None,
-    merchant_id: Optional[int] = None,
-    category_node: Optional[str] = None,
-    tag: Optional[str] = None,
-    q: Optional[str] = None,
-):
-    # keeps held rows: the Transactions page is the full ledger: it shows every row (settled ones with a marker) and adds up nothing
-    statement = (select(Transaction).where(Transaction.after_baseline())
-                 .order_by(Transaction.paid_date.desc(), Transaction.id.desc()))
-    statement = _apply_transaction_filters(
-        session, statement, nature=nature, account_id=account_id,
-        date_from=date_from, date_to=date_to, commitment_id=commitment_id,
-        debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
-        merchant_id=merchant_id, category_node=category_node, tag=tag, q=q,
-    )
-    statement = statement.limit(_PAGE_SIZE).offset((page - 1) * _PAGE_SIZE)
-    return session.exec(statement).all()
-
-def _lookup_dicts_for(session: Session, transactions: list[Transaction]) -> tuple[dict, dict, dict]:
-    """Build {id: name}/{id: Transaction} lookups for the merchants,
-    accounts, and linked (internal-transfer counterpart) transactions
-    referenced by a batch of transactions, for row rendering. There is no
-    SQLModel Relationship convention anywhere in this codebase's models, so
-    rows are annotated via these dicts rather than introducing one here."""
-    merchant_ids = {t.merchant_id for t in transactions if t.merchant_id is not None}
-    linked_ids = {t.linked_transaction_id for t in transactions if t.linked_transaction_id is not None}
-    linked_transactions = {
-        lt.id: lt
-        # keeps held rows: display lookup of a row's transfer counterpart
-        for lt in (session.exec(select(Transaction).where(Transaction.id.in_(linked_ids))).all() if linked_ids else [])
-    }
-    account_ids = {t.account_id for t in transactions if t.account_id is not None}
-    account_ids |= {lt.account_id for lt in linked_transactions.values() if lt.account_id is not None}
-    merchant_names = {
-        m.id: m.canonical_name
-        for m in (session.exec(select(Merchant).where(Merchant.id.in_(merchant_ids))).all() if merchant_ids else [])
-    }
-    account_names = {
-        a.id: a.name
-        for a in (session.exec(select(Account).where(Account.id.in_(account_ids))).all() if account_ids else [])
-    }
-    return merchant_names, account_names, linked_transactions
-
-def _count_filtered_transactions(
-    session: Session,
-    nature: Optional[str] = None,
-    account_id: Optional[int] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    commitment_id: Optional[int] = None,
-    debt_id: Optional[int] = None,
-    transaction_type: Optional[str] = None,
-    transaction_id: Optional[int] = None,
-    merchant_id: Optional[int] = None,
-    category_node: Optional[str] = None,
-    tag: Optional[str] = None,
-    q: Optional[str] = None,
-) -> int:
-    # keeps held rows: page count of the full ledger list above
-    statement = select(Transaction).where(Transaction.after_baseline())
-    statement = _apply_transaction_filters(
-        session, statement, nature=nature, account_id=account_id,
-        date_from=date_from, date_to=date_to, commitment_id=commitment_id,
-        debt_id=debt_id, transaction_type=transaction_type, transaction_id=transaction_id,
-        merchant_id=merchant_id, category_node=category_node, tag=tag, q=q,
-    )
-    return len(session.exec(statement).all())
-
-def _node_context(session: Session, transactions: list[Transaction]) -> tuple[dict, dict]:
-    """(node_labels, row_flow) keyed by transaction id. Loads the whole (small)
-    category tree once, so rows cost no queries. Unfiled rows get no label
-    and a type-based flow."""
-    nodes = {n.id: n for n in session.exec(select(CategoryNode)).all()}
-
-    def label(node: CategoryNode) -> str:
-        parts = [node.name]
-        while node.parent_id:
-            node = nodes[node.parent_id]
-            parts.append(node.name)
-        return " › ".join(reversed(parts))
-
-    node_labels, row_flow = {}, {}
-    for t in transactions:
-        node = nodes.get(t.category_id) if t.category_id else None
-        row_flow[t.id] = ("settled" if t.settled_by_id is not None
-                          else "refund" if is_refund(t, node) else flow_of(t, node))
-        if node is not None:
-            node_labels[t.id] = label(node)
-    return node_labels, row_flow
-
-def _attached_documents(session: Session, transactions: list[Transaction]) -> dict[int, list[tuple[int, str]]]:
-    """{bank transaction id: [(document id, filename)]} of the bills and receipts settled by these rows."""
-    ids = [t.id for t in transactions]
-    if not ids:
-        return {}
-    out: dict[int, list[tuple[int, str]]] = {}
-    for settled, document in session.exec(
-            # keeps held rows: display lookup of the documents a bank row settled
-            select(Transaction, Document).join(Document, Document.id == Transaction.document_id)
-            .where(Transaction.settled_by_id.in_(ids))).all():
-        out.setdefault(settled.settled_by_id, []).append((document.id, document.filename))
-    return out
-
-
 
 def _int(value, default=None):
     """A blank or malformed query number (a form sends `account_id=`) means 'not set', not a 422."""
@@ -230,22 +65,22 @@ async def list_transactions(
     transaction_id, merchant_id, page = _int(transaction_id), _int(merchant_id), max(1, _int(page, 1))
     nature, date_from, date_to = (nature or None), (date_from or None), (date_to or None)
     transaction_type, category_node, tag, q = (transaction_type or None), (category_node or None), (tag or None), ((q or "").strip() or None)
-    transactions = _filtered_transactions(
+    transactions = filtered_transactions(
         session, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         page=page, transaction_id=transaction_id, merchant_id=merchant_id,
         category_node=category_node, tag=tag, q=q,
     )
-    total_count = _count_filtered_transactions(
+    total_count = count_filtered_transactions(
         session, nature, account_id, date_from, date_to,
         commitment_id=commitment_id, debt_id=debt_id, transaction_type=transaction_type,
         transaction_id=transaction_id, merchant_id=merchant_id,
         category_node=category_node, tag=tag, q=q,
     )
-    total_pages = max(1, -(-total_count // _PAGE_SIZE))
+    total_pages = max(1, -(-total_count // PAGE_SIZE))
     accounts = session.exec(select(Account)).all()
-    merchant_names, account_names, linked_transactions = _lookup_dicts_for(session, transactions)
-    node_labels, row_flow = _node_context(session, transactions)
+    merchant_names, account_names, linked_transactions = lookup_dicts_for(session, transactions)
+    node_labels, row_flow = node_context(session, transactions)
     merchant_filter_name = merchant_names.get(merchant_id) if merchant_id else None
     if merchant_id and merchant_filter_name is None:
         merchant = session.get(Merchant, merchant_id)
@@ -282,7 +117,7 @@ async def list_transactions(
             "account_names": account_names,
             "linked_transactions": linked_transactions,
             "node_options": tree_options(session),
-            "node_labels": node_labels, "attached": _attached_documents(session, transactions),
+            "node_labels": node_labels, "attached": attached_documents(session, transactions),
             "row_flow": row_flow,
             "tags": tags,
         },
@@ -306,26 +141,12 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
     filter_page = form.get("page") or None
 
     if transaction_ids:
-        transactions = session.exec(
-            # keeps held rows: bulk edit acts on the rows a person ticked, held or not
-            select(Transaction).where(Transaction.id.in_(transaction_ids))
-        ).all()
-        target_node = None
-        if new_category_node:
-            target_node = session.exec(select(CategoryNode).where(CategoryNode.slug == new_category_node)).first()
-            if target_node is None:
-                raise HTTPException(status_code=400, detail="Unknown category")
-        for t in transactions:
-            if target_node is not None:
-                file_transaction(session, t, target_node)
-            if new_nature:
-                t.nature = Nature(new_nature)
-            if new_account_id:
-                t.account_id = int(new_account_id)
-            session.add(t)
-        session.commit()
+        try:
+            transaction_list.bulk_edit(session, transaction_ids, new_category_node, new_nature, new_account_id)
+        except UnknownCategory:
+            raise HTTPException(status_code=400, detail="Unknown category")
 
-    transactions = _filtered_transactions(
+    transactions = filtered_transactions(
         session,
         category_node=filter_category_node,
         tag=filter_tag,
@@ -336,15 +157,15 @@ async def bulk_edit(request: Request, session: Session = Depends(get_session)):
         date_to=filter_date_to,
         page=int(filter_page) if filter_page else 1,
     )
-    merchant_names, account_names, linked_transactions = _lookup_dicts_for(session, transactions)
-    node_labels, row_flow = _node_context(session, transactions)
+    merchant_names, account_names, linked_transactions = lookup_dicts_for(session, transactions)
+    node_labels, row_flow = node_context(session, transactions)
     return templates.TemplateResponse(
         request,
         "transactions/_rows.html",
         {
             "transactions": transactions, "merchant_names": merchant_names, "account_names": account_names,
             "linked_transactions": linked_transactions, "node_labels": node_labels, "row_flow": row_flow,
-            "attached": _attached_documents(session, transactions),
+            "attached": attached_documents(session, transactions),
         },
     )
 
@@ -497,27 +318,8 @@ async def create_commitment_from_merchant(
     if merchant is None:
         raise HTTPException(status_code=404, detail="Merchant not found")
 
-    commitment = Commitment(
-        name=merchant.canonical_name,
-        category_id=merchant.default_category_id,
-        cadence=Cadence(form["cadence"]),
-        planned_amount=float(form["planned_amount"]),
-        year=int(form["year"]) if form.get("year") else None,
-    )
-    session.add(commitment)
-    session.commit()
-    session.refresh(commitment)
-
-    linked_transactions = session.exec(
-        # keeps held rows: linking a merchant's rows to a new commitment (bookkeeping, not a total)
-        select(Transaction).where(Transaction.merchant_id == merchant_id)
-    ).all()
-    for t in linked_transactions:
-        t.commitment_id = commitment.id
-        session.add(t)
-    merchant.recurring_reviewed = True
-    session.add(merchant)
-    session.commit()
+    commitment_from_merchant(session, merchant, Cadence(form["cadence"]), float(form["planned_amount"]),
+                             int(form["year"]) if form.get("year") else None)
 
     return _review_rows(request, session, form)
 
@@ -586,9 +388,7 @@ async def link_debt(request: Request, transaction_id: int, session: Session = De
 
     # Informal debts learn the counterparty, so later transactions from it
     # link automatically; statement loans never get rules.
-    key = normalize_provider(transaction.description)
-    if key and session.exec(select(DebtMatchRule).where(DebtMatchRule.normalized_key == key)).first() is None:
-        session.add(DebtMatchRule(debt_id=debt.id, normalized_key=key))
+    ledger.learn_counterparty(session, debt, transaction)
     session.commit()
 
     return _review_rows(request, session, form)

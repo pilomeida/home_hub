@@ -20,8 +20,9 @@ from app.models.merchant import Merchant
 from app.models.transaction import Nature, Transaction, TransactionType
 from app.services.classification_engine import _find_merchant_by_key, normalize_provider
 from app.services.taxonomy import auto_fits, file_transaction, get_node
+from app.services import tree_slugs
 
-RUTE_CARD_NODE = "family.personal.rute-card-not-itemised"
+RUTE_CARD_NODE = tree_slugs.RUTE_CARD_NOT_ITEMISED
 RUTE_CARD_MARK = "7303599"          # the payment reference of Rute's card on the current-account statement
 _LINE = re.compile(r"^\s*(\d\d)-(\d\d)-(\d{4})\s+(.+?)\s+([+-]\d[\d.]*,\d\d) EUR\s*$")
 
@@ -182,7 +183,7 @@ def _file_by_merchant_memory(session: Session, txn: Transaction) -> bool:
 
 def presort_purchases(session: Session, account_id: int) -> list[Transaction]:
     """Purchases of this card still waiting in Needs Review that a confirmed merchant can file."""
-    unsorted = get_node(session, "unsorted.needs-review.needs-review")
+    unsorted = get_node(session, tree_slugs.UNSORTED)
     rows = session.exec(select(Transaction).where(Transaction.account_id == account_id,
                                                   Transaction.category_id == unsorted.id)).all()
     done = [t for t in rows if _file_by_merchant_memory(session, t)]
@@ -204,9 +205,9 @@ def add_lines(session: Session, account_id: int, lines: list[CardLine], document
         if anchor is None:
             raise ValueError("The card account holds no row yet to take its document from")
         document_id = anchor.document_id
-    fee_node = get_node(session, "taxes-financial-costs.financial-costs.bank-card-fees")
-    transfer_node = get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments")
-    unsorted_node = get_node(session, "unsorted.needs-review.needs-review")
+    fee_node = get_node(session, tree_slugs.CARD_FEES)
+    transfer_node = get_node(session, tree_slugs.CARD_TOP_UPS_AND_PAYMENTS)
+    unsorted_node = get_node(session, tree_slugs.UNSORTED)
     n = 0
     for line in lines:
         stem = _stem(line.description)
@@ -252,7 +253,7 @@ def _merchant(session: Session, name: str, category_id: int) -> Merchant:
 
 def rute_card_payments(session: Session) -> list[Transaction]:
     """Payments of Rute's card still filed as an internal transfer."""
-    node_ids = [n for n in (get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments"),) if n]
+    node_ids = [n for n in (get_node(session, tree_slugs.CARD_TOP_UPS_AND_PAYMENTS),) if n]
     return [t for t in session.exec(select(Transaction).where(
         Transaction.description.contains(RUTE_CARD_MARK), Transaction.category_id.in_([n.id for n in node_ids]),
         Transaction.transaction_type == TransactionType.DEBIT)).all()]
@@ -271,7 +272,7 @@ def file_rute_card_payments(session: Session) -> list[Transaction]:
 
 def unfile_rute_card_payments(session: Session) -> list[Transaction]:
     """Rute's card payments back to internal transfers, once the card's own lines are stored (they are the spending)."""
-    node = get_node(session, "internal-transfers.between-my-accounts.top-ups-card-payments")
+    node = get_node(session, tree_slugs.CARD_TOP_UPS_AND_PAYMENTS)
     rows = session.exec(select(Transaction).where(
         Transaction.description.contains(RUTE_CARD_MARK),
         Transaction.category_id == get_node(session, RUTE_CARD_NODE).id)).all()

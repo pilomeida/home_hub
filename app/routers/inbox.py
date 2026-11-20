@@ -18,8 +18,8 @@ from app.categories.registry import document_url, get_spec, implemented_categori
 from app.models.category import Category
 from app.privacy.recognise import original_sender
 from app.privacy.settings import TierHeld
-from app.routers.subjects import section_html as same_person_section
-from app.routers.to_check import section_html as to_check_section
+from app.ui.same_person import section_html as same_person_section
+from app.ui.to_check import section_html as to_check_section
 from app.services import inbox_service
 from app.problems import Problem
 from app.services.paper_uses import PaperInUse

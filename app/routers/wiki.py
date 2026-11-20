@@ -12,7 +12,7 @@ from app.db import get_session
 from app.categories.fields import file_url
 from app.categories.registry import document_url
 from app.models.wiki import WikiPage
-from app.routers.wiki_lint import open_finding_count
+from app.services.wiki_lint.findings import open_finding_count
 from app.services.wiki_store import (
     active_claims, build_wiki_index, links_from, links_to, recent_log, sources_for_claims, superseded_claims,
 )

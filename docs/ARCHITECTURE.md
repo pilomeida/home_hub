@@ -198,7 +198,9 @@ Home & Family/
 │   │   └── telegram_bot.py      The Hub's own dedicated Telegram bot (long-polling); run by
 │   │                           home-hub-telegram.service
 │   │
-│   ├── routers/                One file per nav section; each owns its own Jinja2Templates instance
+│   ├── routers/                One file per nav section: reads the request, calls services, renders. A router
+│   │                           never imports another router; a page piece more than one page shows lives in
+│   │                           app/ui (To-check cards, Same person?, the shared paper pages) (tests/test_layers.py)
 │   │   ├── dashboard.py        `/` and `/health`
 │   │   ├── bills.py            `/financials/bills*` — upload form + POST (dedup by content_hash, then
 │   │   │                       the ingestion core), list, per-document detail
@@ -224,7 +226,9 @@ Home & Family/
 │   │                           (with domain field inputs pre-filled when confident), the fields
 │   │                           partial (Area/Type change), approve, discard
 │   │
-│   ├── services/                Business logic, no HTTP/template concerns
+│   ├── services/                Business logic, no HTTP/template concerns; never imports a router.
+│   │                           tree_slugs.py names every place in the spending tree the code relies on
+│   │                           (tests/test_tree_slugs.py checks each exists in the seeded tree)
 │   │   ├── ingestion.py         receive_file / finalize_document — the ingestion core: the ONLY
 │   │   │                       way a file becomes a Document (see diagram above); also
 │   │   │                       create_record / attach_file / update_record_fields (the only way

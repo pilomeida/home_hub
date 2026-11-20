@@ -320,7 +320,7 @@ def test_missing_bank_keys_are_only_a_problem_once_a_bank_is_connected(session):
 # --- notices on the bank pages and Bills & Bank ------------------------------------------------------------
 
 def test_bank_notices_are_complete_messages(session, pem):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     now = datetime(2026, 10, 10, 12, 0)
 
     soon_conn, soon_link = make_link(session, "Santander Totta", "n1")
@@ -342,7 +342,7 @@ def test_bank_notices_are_complete_messages(session, pem):
 
 
 def test_a_stored_failure_without_a_log_entry_still_gives_a_complete_notice(session):
-    from app.routers.bank import bank_notices
+    from app.services.bankapi.notices import bank_notices
     conn, link = make_link(session)
     link.last_error = "stored by an earlier version"
     session.add(link); session.commit()
