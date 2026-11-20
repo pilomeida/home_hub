@@ -2,28 +2,37 @@
 {% block title %}Coming up — Money{% endblock %}
 {% block content %}
 <h1>Coming up</h1>
-<p>What is due from {{ view.today.strftime('%Y-%m-%d') }} to {{ view.until.strftime('%Y-%m-%d') }}: your commitments, and the bills filed but not paid yet. Each payment shows once. Budgets are separate: they are a planned maximum, on the <a href="/">Overview</a>.</p>
-
-{% if view.overdue %}
-<h2>Overdue</h2>
-<table class="table">
-  {% for i in view.overdue %}
-  <tr class="needs-attention"><td>{{ i.when.strftime('%Y-%m-%d') }}</td><td><a href="{{ i.link }}">{{ i.name }}</a></td><td>{{ i.place or "Not filed yet" }}</td><td>{{ i.note }}</td><td class="amt">€{{ "{:,.2f}".format(i.amount) }}</td></tr>
-  {% endfor %}
-</table>
+<p class="hint">What has a date from {{ view.today.strftime('%Y-%m-%d') }} to {{ view.until.strftime('%Y-%m-%d') }}: your commitments, the bills filed but not paid yet, and the To-Dos with a date. Each payment shows once. Budgets are separate: they are a planned maximum, on the <a href="/overview">Overview</a>.</p>
+{% if person %}<p class="whonote">Showing what is about <b>{{ person.name }}</b>{% if dates.hidden %} ({{ dates.hidden }} about nobody in particular left out){% endif %}. <a href="/who?back={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}">Show everyone</a></p>{% endif %}
+{% if dates.chips|length > 1 %}
+<div class="chips">
+  <a class="chip{% if not dates.area %} on{% endif %}" href="/financials/coming-up">All</a>
+  {% for key, label, n in dates.chips %}<a class="chip{% if dates.area == key %} on{% endif %}" href="/financials/coming-up?area={{ key }}">{{ label }} ({{ n }})</a>{% endfor %}
+</div>
 {% endif %}
-
-{% for month in view.months %}
-<h2>{{ month.label }} <small>€{{ "{:,.2f}".format(month.total) }}</small></h2>
-<table class="table">
-  {% for i in month.items %}
-  <tr><td>{{ i.when.strftime('%Y-%m-%d') }}</td><td><a href="{{ i.link }}">{{ i.name }}</a></td><td>{{ i.place or "Not filed yet" }}</td>
-      <td>{% if i.kind == "bill" %}bill, not paid yet{% else %}commitment ({{ i.note }}){% endif %}</td><td class="amt">€{{ "{:,.2f}".format(i.amount) }}</td></tr>
+{% if dates.overdue or dates.months %}
+<section class="card flush">
+<table class="tbl cu">
+  <thead><tr><th>Date</th><th>What</th><th>Note</th><th>Area</th><th class="num">Amount</th></tr></thead>
+  {% if dates.overdue %}
+  <tbody><tr class="mh"><td colspan="5">Overdue</td></tr>
+  {% for i in dates.overdue %}
+  <tr class="needs-attention"><td>{{ i.when.strftime('%Y-%m-%d') }}</td><td><a href="{{ i.link }}">{{ i.name }}</a></td><td>{{ i.note }}</td>
+    <td><span class="chip">{{ i.area_label }}</span></td><td class="num">{% if i.amount is not none %}€{{ "{:,.2f}".format(i.amount) }}{% else %}—{% endif %}</td></tr>
+  {% endfor %}</tbody>
+  {% endif %}
+  {% for month in dates.months %}
+  <tbody><tr class="mh"><td colspan="4">{{ month.label }}</td><td class="num">{% if month.total %}€{{ "{:,.2f}".format(month.total) }}{% endif %}</td></tr>
+  {% for i in month.rows %}
+  <tr><td>{{ i.when.strftime('%Y-%m-%d') }}</td><td><a href="{{ i.link }}">{{ i.name }}</a></td><td>{{ i.note }}</td>
+    <td><span class="chip">{{ i.area_label }}</span></td><td class="num">{% if i.amount is not none %}€{{ "{:,.2f}".format(i.amount) }}{% else %}—{% endif %}</td></tr>
+  {% endfor %}</tbody>
   {% endfor %}
 </table>
+</section>
 {% else %}
-{% if not view.overdue %}<p>Nothing due in the next three months: no commitment is set up yet and no bill is waiting to be paid. Add a commitment below, or press “↻ repeats” on a bank line in <a href="/financials/transactions">Transactions</a>.</p>{% endif %}
-{% endfor %}
+<div class="empty">Nothing due in the next three months{% if dates.area %} in this area{% endif %}: no commitment is set up yet, no bill is waiting to be paid and no To-Do has a date. Add a commitment below, or press “↻ repeats” on a bank line in <a href="/financials/transactions">Transactions</a>.</div>
+{% endif %}
 
 <h2 id="add">Add a commitment</h2>
 <p>A spend you know is coming: a subscription, a yearly tax, an insurance. It shows here on its dates; it does not change any budget.</p>

@@ -12,7 +12,7 @@
 
 /* --- shared components ------------------------------------------------------------------------------------ */
 .card { background: var(--surface); border-radius: var(--radius); padding: var(--pad); margin-bottom: var(--gap); }
-.card.flush { padding: 0; overflow: hidden; }
+.card.flush { padding: 0; overflow: hidden; overflow-x: auto; }
 .card-h { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; margin-bottom: 12px; }
 .card-r { font-weight: 400; font-size: .85em; color: var(--muted); }
 .card.tint1 { background: var(--t1); } .card.tint2 { background: var(--t2); }
@@ -169,6 +169,57 @@ main { padding: 8px 20px 40px; max-width: 1240px; margin: 0 auto; }
   .wrow { grid-template-columns: 1fr auto; gap: 4px 10px; } .wrow .wd { display: none; } .wb .sub { max-width: none; }
   .kbdh { display: none; }
 }
+
+/* --- Health (step 10f) -------------------------------------------------------------------------------------- */
+.hh { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.g4.p { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); margin-bottom: var(--gap); }
+.g4.p .card { margin: 0; color: var(--ink); text-decoration: none; display: flex; flex-direction: column; gap: 4px; }
+.pn { font-weight: 600; font-size: 1.1em; } .pn.big { font-size: 1.9em; }
+.ph1 { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: var(--gap); }
+.g3.pp { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: var(--gap); align-items: start; }
+.g3.pp > .card { margin: 0; }
+.cond { display: flex; flex-direction: column; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cond:last-child { border: 0; } .cond a { color: var(--ink); text-decoration: none; }
+.res { padding: 6px 0 12px; border-bottom: 1px solid var(--line); } .res:last-child { border: 0; }
+.res .rv { font-weight: 600; margin-left: 8px; } .res .rv.bad { color: var(--bad); }
+.tl { list-style: none; padding: 0; margin: 0; } .tl li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.tl li:last-child { border: 0; } .tl i { color: var(--accent); font-style: normal; font-size: .85em; margin-left: 4px; }
+.tl a { color: var(--ink); }
+@media (max-width: 1100px) { .g4.p { grid-template-columns: repeat(2, 1fr); } .g3.pp { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .g4.p { grid-template-columns: 1fr; } }
+
+/* --- Coming up (step 10f) ----------------------------------------------------------------------------------- */
+.tbl .mh td { background: var(--t1); font-weight: 600; padding: 7px 10px; }
+.tbl tr.needs-attention td:first-child { color: var(--bad); font-weight: 600; }
+a.chip { text-decoration: none; color: var(--ink); } a.chip.on { color: #fff; }
+@media (max-width: 760px) { .tbl.cu th:nth-child(3), .tbl.cu td:nth-child(3) { display: none; } }
+
+/* --- Settings (step 10f) ------------------------------------------------------------------------------------ */
+.g2.st { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: start; }
+.prob { border-left: 3px solid var(--bad); padding: 4px 0 8px 12px; margin-bottom: 10px; } .prob .pw { margin-bottom: 2px; }
+.prob .btn { margin-top: 6px; }
+@media (max-width: 900px) { .g2.st { grid-template-columns: 1fr; } }
+
+/* --- Things and To-Dos (step 10f) ---------------------------------------------------------------------------- */
+.tl.todo li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .tl.todo .btn { margin-left: auto; }
+.addtodo { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .addtodo input[name=title] { flex: 1; min-width: 14em; }
+
+/* --- Add and approve a paper (step 10h) ---------------------------------------------------------------------- */
+.addp { display: flex; flex-direction: column; gap: 12px; max-width: 560px; }
+.addp .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 22px; text-align: center; cursor: pointer; }
+.addp .drop input { display: block; margin: 0 auto 8px; } .addp input[type=text] { width: 100%; }
+.pcard { max-width: 560px; } .pcard .pdoc .paper-view { height: 46vh; }
+.pf { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.pf label { color: var(--muted); }
+
+/* --- Who chip (step 10i) ------------------------------------------------------------------------------------ */
+details.who { position: relative; } details.who summary { list-style: none; cursor: pointer; }
+details.who summary::-webkit-details-marker { display: none; }
+.who-menu { position: absolute; right: 0; top: 130%; z-index: 30; background: var(--surface); border-radius: var(--radius-s);
+  box-shadow: 0 6px 24px rgba(0,0,0,.12); padding: 8px; min-width: 240px; display: flex; flex-direction: column; gap: 2px; }
+.who-menu a { padding: 6px 10px; border-radius: 8px; color: var(--ink); text-decoration: none; }
+.who-menu a.on, .who-menu a:hover { background: var(--t1); } .who-menu .hint { padding: 6px 10px; }
+.whonote { background: var(--t1); border-radius: var(--radius-s); padding: 8px 12px; margin-bottom: var(--gap); }
 
 /* --- page rules (moved from base.html) -------------------------------------------------------------------- */
   tr.flow-out { background: #f7ebe9; } tr.flow-out td.amt { color: #a8504a; }

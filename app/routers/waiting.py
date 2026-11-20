@@ -23,15 +23,25 @@ async def waiting_page(request: Request, area: Optional[str] = None, page: int =
     only_merchants = area == review.MERCHANTS          # the unconfirmed merchants are their own line (step 10c)
     area = area if area in review.AREAS or only_merchants else None
     page = max(1, page)
-    items = review.waiting(session, None if only_merchants else area, offset=(page - 1) * review.PAGE,
-                           limit=review.PAGE, merchants=only_merchants)
-    counts = review.area_counts(session, merchants=False)
+    from app.services import who
+    person = None if only_merchants else who.chosen(session, request.cookies.get(who.COOKIE))
+    if person is not None:                     # the Who chip: items about one of this person's papers
+        mine = who.document_ids(session, person.id)
+        every = [i for i in review.waiting(session, area, limit=None, merchants=False)
+                 if (d := queue_view.document_of(session, i)) is not None and d.id in mine]
+        total = len(every)
+        items = every[(page - 1) * review.PAGE:page * review.PAGE]
+    else:
+        items = review.waiting(session, None if only_merchants else area, offset=(page - 1) * review.PAGE,
+                               limit=review.PAGE, merchants=only_merchants)
+    counts = review.area_counts(session, merchants=False)       # after `waiting`, which brings the queue up to date
     merchants = review.merchant_count(session)
-    total = merchants if only_merchants else counts.get(area, 0) if area else sum(counts.values())
+    if person is None:
+        total = merchants if only_merchants else counts.get(area, 0) if area else sum(counts.values())
     return templates.TemplateResponse(request, "waiting/page.html", {
         "cards": [] if only_merchants else [review.card(i) for i in items],
         "rows": queue_view.merchant_rows(session, items) if only_merchants else [],
-        "groups": [] if area else queue_view.groups(session),
+        "groups": [] if area or person else queue_view.groups(session), "person": person,
         "area": area, "areas": review.AREAS, "counts": counts,
         "merchants": merchants, "merchants_key": review.MERCHANTS,
         "page": page, "pages": max(1, -(-total // review.PAGE))})

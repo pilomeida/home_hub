@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Inbox{% endblock %}
 {% block content %}
-<h1>Inbox</h1>
-<p>Documents sent by email or Telegram. Check where each one belongs, then approve it to file it.</p>
+<div class="hh"><h1>Inbox</h1><a class="btn pri" href="/inbox/add">+ Add a paper</a></div>
+<p>Papers added here or sent by email or Telegram. Check where each one belongs, then approve it to file it.</p>
 {% if cards %}
   {% for card in cards %}{{ card | safe }}{% endfor %}
 {% else %}

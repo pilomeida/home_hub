@@ -1,19 +1,19 @@
-<section>
-  <h2>Open</h2>
-  <ul>
+<section class="card">
+  <div class="card-h"><span>Open</span></div>
+  <ul class="tl todo">
     {% for todo in open_todos %}
     <li>
       {% if todo.category %}<span class="badge">{{ category_label(todo.category) }}</span> {% endif %}{{ todo.title }}{% if todo.due_date %} — due {{ todo.due_date }}{% endif %}
-      <button hx-post="/todos/{{ todo.id }}/done" hx-target="#todo-lists" hx-swap="innerHTML">Done</button>
+      <button class="btn" hx-post="/todos/{{ todo.id }}/done" hx-target="#todo-lists" hx-swap="innerHTML">Done</button>
     </li>
     {% else %}
     <li>Nothing open.</li>
     {% endfor %}
   </ul>
 </section>
-<section>
-  <h2>Done</h2>
-  <ul>
+<section class="card">
+  <div class="card-h"><span>Done</span></div>
+  <ul class="tl todo">
     {% for todo in done_todos %}
     <li>{% if todo.category %}<span class="badge">{{ category_label(todo.category) }}</span> {% endif %}{{ todo.title }} — done</li>
     {% else %}

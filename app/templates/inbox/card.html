@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Approve a paper{% endblock %}
+{% block content %}
+<div id="approve-card" class="pcard">
+{% if filed %}
+  {% if duplicate %}<div class="problem"><strong>Not added again.</strong> The Hub already holds an exact copy of this paper{% if filed.status.value == "pending_review" %}, still waiting in the Inbox{% endif %}. Nothing to do{% if in_place %}: it is filed{% endif %}.</div>{% endif %}
+  {% if approved %}<p class="msg info">Filed{% if label %} as {{ label }}{% endif %}.</p>{% endif %}
+  <p><b>{{ filed.filename }}</b>{% if label and not approved %} · {{ label }}{% endif %}</p>
+  <p class="btns">{% if document_href %}<a class="btn pri" href="{{ document_href }}">Open it ›</a>{% endif %}
+    <a class="btn" href="/inbox/add">Add another</a> <a class="btn" href="/">Home</a></p>
+{% else %}
+  <div class="pdoc">{% if media == "image" %}<img class="paper-view" src="{{ file_href }}" alt="The paper">{% elif media == "pdf" %}<iframe class="paper-view" src="{{ file_href }}" title="The paper"></iframe>{% else %}<a href="{{ file_href }}">Open the file</a>{% endif %}</div>
+  {% if duplicate %}<p class="msg info">This exact paper was already waiting in the Inbox; here it is.</p>{% endif %}
+  {% if held %}<div class="problem"><strong>Not filed.</strong> This kind of paper has no privacy level yet, so nothing may read it. <a href="/privacy">Set its level on the Privacy page</a>, then press Approve again.</div>{% endif %}
+  <form method="post" action="/inbox/{{ entry.document.id }}/card">
+    {% if selected_domain %}
+    <input type="hidden" name="domain" value="{{ selected_domain }}"><input type="hidden" name="category" value="{{ selected_category }}">
+    <div class="pf"><label>Filed as</label><b>{{ entry.suggestion_label or selected_spec.label }}</b></div>
+    {% with form_fields = key_fields, id_prefix = "card-" %}{% include "domains/_field_inputs.html" %}{% endwith %}
+    {% if errors.file %}<span class="needs-attention">{{ errors.file }}</span>{% endif %}
+    <p class="btns">{% if not too_many %}<button class="btn pri" type="submit">Approve</button>{% endif %}
+      <a class="btn{% if too_many %} pri{% endif %}" href="/inbox#inbox-{{ entry.document.id }}">Edit</a> <a class="btn" href="/">Later</a></p>
+    {% if too_many %}<p class="hint">This kind of paper needs more details than fit here: press Edit to fill them in.</p>{% endif %}
+    {% else %}
+    <p>Not sure where this belongs{% if entry.item.classifier_note %}: <em>{{ entry.item.classifier_note | friendly_reason }}</em>{% endif %}.</p>
+    <p class="btns"><a class="btn pri" href="/inbox#inbox-{{ entry.document.id }}">Choose where it goes</a> <a class="btn" href="/">Later</a></p>
+    {% endif %}
+  </form>
+{% endif %}
+</div>
+{% endblock %}

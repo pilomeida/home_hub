@@ -39,9 +39,9 @@ def _menu(html: str) -> list[str]:
 def test_the_header_and_the_phone_bar_on_a_page(client):
     html = client.get("/health/records").text
     assert _menu(html) == ["Home", "Money", "Health", "Things", "Papers", "Coming up", "Waiting for you"]
-    assert 'class="pill on" href="/health/records"' in html
-    assert "Who: Everyone" in html and 'href="/inbox">+ Add a paper' in html and 'href="/settings"' in html
-    assert 'class="phonebar"' in html and 'class="pn2 fab" href="/inbox"' in html
+    assert 'class="pill on" href="/health/family"' in html       # Health opens on the family page since step 10f
+    assert "Who: Everyone" in html and 'href="/inbox/add">+ Add a paper' in html and 'href="/settings"' in html
+    assert 'class="phonebar"' in html and 'class="pn2 fab" href="/inbox/add"' in html    # the + adds a paper (10h)
     assert 'href="/health/areas"' in html                            # the section's own pages
 
 

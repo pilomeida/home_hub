@@ -82,3 +82,6 @@ templates.env.globals["utility_format"] = _utility_format
 from app.ui import shell as _shell  # noqa: E402
 templates.env.globals["shell_sections"] = _shell.sections       # the menu and section rows (PLAN step 10b)
 templates.env.globals["shell_active"] = _shell.active
+
+from app.services.who import header as _who_header  # noqa: E402
+templates.env.globals["who_header"] = _who_header        # the Who chip (PLAN step 10i)

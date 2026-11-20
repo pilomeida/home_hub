@@ -11,6 +11,7 @@ from app.db import get_session
 from app.models.category_node import CategoryNode
 from app.models.commitment import Cadence, Commitment
 from app.services import coming_up as svc
+from app.services.coming_dates import dates_view
 from app.services.taxonomy import node_options, path_label
 from app.templating import templates
 
@@ -20,19 +21,25 @@ CADENCES = [(Cadence.MONTHLY.value, "Every month"), (Cadence.QUARTERLY.value, "E
             (Cadence.YEARLY.value, "Every year"), (Cadence.IRREGULAR.value, "Once (on that date)")]
 
 
-def _page(request: Request, session: Session, *, values: dict, problem=None, status: int = 200):
+def _page(request: Request, session: Session, *, values: dict, problem=None, status: int = 200,
+          area: Optional[str] = None):
+    from app.services import who
+    person = who.chosen(session, request.cookies.get(who.COOKIE))
     commitments = session.exec(select(Commitment).order_by(Commitment.name)).all()
     places = {c.id: path_label(session, session.get(CategoryNode, c.category_id)) if c.category_id else None
               for c in commitments}
     leaves = [o for o in node_options(session) if o["level"] == 3 and o["kind"] == "out"]
     return templates.TemplateResponse(request, "coming_up/page.html", {
-        "view": svc.coming_up(session, date.today()), "commitments": commitments, "places": places,
+        "view": svc.coming_up(session, date.today()), "dates": dates_view(session, date.today(), area,
+                                                                       who.document_ids(session, person.id) if person else None),
+        "person": person, "commitments": commitments, "places": places,
         "leaves": leaves, "cadences": CADENCES, "values": values, "problem": problem}, status_code=status)
 
 
 @router.get("")
-async def coming_up_page(request: Request, from_line: Optional[int] = None, session: Session = Depends(get_session)):
-    return _page(request, session, values=svc.prefill_from_line(session, from_line))
+async def coming_up_page(request: Request, from_line: Optional[int] = None, area: Optional[str] = None,
+                         session: Session = Depends(get_session)):
+    return _page(request, session, values=svc.prefill_from_line(session, from_line), area=area)
 
 
 @router.post("/commitments")

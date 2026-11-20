@@ -32,6 +32,16 @@ def _clean(question: str) -> str:
     return question
 
 
+def _about(request: Request, session: Session, question: str) -> str:
+    """The Who chip (step 10i): with one person chosen, the question says who it is about, in words the person
+    sees on the page (nothing hidden is added to what the AI reads)."""
+    from app.services import who
+    person = who.chosen(session, request.cookies.get(who.COOKIE))
+    if person is None or question.lower().startswith(f"about {person.name.lower()}:"):
+        return question
+    return f"About {person.name}: {question}"
+
+
 def _turn_view(turn: AskTurn) -> dict:
     failed = ask_messages.failure(turn) if turn.status == AskStatus.FAILED else None
     return {"turn": turn, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
@@ -54,7 +64,7 @@ async def ask_home(request: Request, session: Session = Depends(get_session)):
 async def new_chat(request: Request, background_tasks: BackgroundTasks, question: str = Form(""),
                    session: Session = Depends(get_session), session_factory=Depends(get_session_factory),
                    gateway=Depends(get_ask_gateway)):
-    turn = start_conversation(session, _clean(question), started_by=getattr(request.state, "user_email", None))
+    turn = start_conversation(session, _about(request, session, _clean(question)), started_by=getattr(request.state, "user_email", None))
     background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
     url = f"/ask/c/{turn.conversation_id}"
     if request.headers.get("HX-Request"):
@@ -76,7 +86,7 @@ async def follow_up(request: Request, conversation_id: int, background_tasks: Ba
                     question: str = Form(""), session: Session = Depends(get_session),
                     session_factory=Depends(get_session_factory), gateway=Depends(get_ask_gateway)):
     try:
-        turn = add_turn(session, conversation_id, _clean(question),
+        turn = add_turn(session, conversation_id, _about(request, session, _clean(question)),
                         asked_by=getattr(request.state, "user_email", None))
     except KeyError:
         raise HTTPException(status_code=404, detail="Conversation not found")

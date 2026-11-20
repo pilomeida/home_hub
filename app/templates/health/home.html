@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Health — Home & Family{% endblock %}
+{% block content %}
+<div class="hh"><h1>Health</h1><a class="btn pri" href="/health/upload">+ Add a paper</a></div>
+{% if h.tiles %}
+<div class="g4 p">
+  {% for t in h.tiles %}
+  <a class="card ptile" href="{{ t.link }}"><div class="pn">{{ t.person.name }}</div>
+    <div class="sub">{% if t.next %}Next: {{ t.next.what }} {{ t.next.due.isoformat() }}{% else %}Nothing due{% endif %}</div>
+    <div class="sub">{% if t.latest %}Latest: {{ t.latest }}{% else %}No papers yet{% endif %} · {{ t.papers }} paper{{ "s" if t.papers != 1 }}</div>
+    {% if not t.person.confirmed %}<span class="chip warn">new: confirm on People</span>{% endif %}</a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">Nobody yet. The Hub adds a person the first time a name appears on a paper.<br>
+  <a class="btn pri" href="/health/upload">+ Add a paper</a></div>
+{% endif %}
+<section class="card">
+  <div class="card-h"><span>Follow-ups across the family</span><a class="card-r" href="/todos">To-Dos ›</a></div>
+  {% if h.follow_ups %}
+  <table class="tbl"><thead><tr><th>Due</th><th>Who</th><th>What</th><th></th></tr></thead><tbody>
+  {% for f in h.follow_ups %}
+    <tr><td>{{ f.due.isoformat() if f.due else "—" }}</td><td>{{ f.who }}</td><td><a href="{{ f.link }}">{{ f.what }}</a></td>
+      <td><span class="chip{% if f.late %} bad{% endif %}">{{ f.note }}</span></td></tr>
+  {% endfor %}
+  </tbody></table>
+  {% else %}<p class="sub">No follow-up is open.</p>{% endif %}
+</section>
+<section class="card">
+  <div class="card-h"><span>Or browse by body area or condition</span><a class="card-r" href="/health/records">Every paper ›</a></div>
+  {% if h.areas %}
+  <table class="tbl mini"><thead><tr><th>Area</th><th class="num">Papers</th></tr></thead><tbody>
+  {% for a in h.areas %}<tr><td><a href="{{ a.link }}">{{ a.name }}</a>{% if a.kind == "condition" %} <span class="chip">condition</span>{% endif %}</td>
+    <td class="num">{{ a.papers }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="sub">No approved area yet.</p>{% endif %}
+  {% if h.proposed or h.unsorted %}<p class="hint">
+    {% if h.proposed %}<a href="/health/areas">{{ h.proposed }} proposed, not approved yet</a>{% endif %}
+    {% if h.proposed and h.unsorted %} · {% endif %}
+    {% if h.unsorted %}<a href="/health/records?unsorted=1">{{ h.unsorted }} paper{{ "s" if h.unsorted != 1 }} with no area</a>{% endif %}</p>{% endif %}
+</section>
+{% endblock %}

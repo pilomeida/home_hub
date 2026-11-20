@@ -1,28 +1,25 @@
 {% extends "base.html" %}
 {% block title %}House{% endblock %}
 {% block content %}
-<h1>House</h1>
-<p>
-  <a href="/house/upload">+ Add a document</a>
-  · Group by:
-  <a href="/house?group_by=type" class="{{ 'active' if group_by == 'type' else '' }}">Type</a> |
-  <a href="/house?group_by=room" class="{{ 'active' if group_by == 'room' else '' }}">Room</a>
-</p>
+<div class="hh"><h1>House</h1><a class="btn pri" href="/house/upload">+ Add a document</a></div>
+<div class="chips"><span class="sub">Group by</span>
+  <a href="/house?group_by=type" class="chip{{ ' on active' if group_by == 'type' else '' }}">Type</a>
+  <a href="/house?group_by=room" class="chip{{ ' on active' if group_by == 'room' else '' }}">Room</a></div>
 
 {% for title, cards in sections %}
-<section>
-  <h2>{{ title }}</h2>
+<section class="card">
+  <div class="card-h"><span>{{ title }}</span></div>
   <div class="item-grid">
-    {% for card in cards %}{% include "house/_item_card.html" %}{% else %}<p>Nothing here yet.</p>{% endfor %}
+    {% for card in cards %}{% include "house/_item_card.html" %}{% else %}<p class="sub">Nothing here yet.</p>{% endfor %}
   </div>
 </section>
 {% endfor %}
 
-<section>
-  <h2>Reference</h2>
+<section class="card">
+  <div class="card-h"><span>Reference</span></div>
   {% for title, docs in reference %}
-  <h3>{{ title }}</h3>
-  <ul>
+  <h3 class="sub">{{ title }}</h3>
+  <ul class="tl">
     {% for item in docs %}
     <li>
       <a href="{{ item.url }}">{{ item.title }}</a>
@@ -31,7 +28,7 @@
       {% if item.fields.get("observations") %}<br><small>{{ item.fields["observations"] }}</small>{% endif %}
     </li>
     {% else %}
-    <li>Nothing here yet.</li>
+    <li class="sub">Nothing here yet.</li>
     {% endfor %}
   </ul>
   {% endfor %}

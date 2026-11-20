@@ -3,11 +3,53 @@
 {% block content %}
 <h1>Settings</h1>
 <p class="hint">How the Hub runs: who it may tell what, when it works on its own, the banks it reads, and what it has learnt.</p>
-<div class="card">
-  {% for l in links %}<p><a href="{{ l.url }}">{{ l.label }}</a></p>{% endfor %}
+<div class="g2 st">
+  <div>
+    <section class="card">
+      <div class="card-h"><span>Problems</span><a class="card-r" href="/problems">{{ s.problems_open }} open ›</a></div>
+      {% for p in s.problems %}
+      <div class="prob"><div class="pw"><b>{{ p.what }}</b></div><div class="pw">{{ p.why }}</div><div class="pw">{{ p.next_step }}</div>
+        {% if p.link %}<a class="btn" href="{{ p.link }}">Open it ›</a>{% endif %}</div>
+      {% else %}<p class="sub">Nothing is wrong.</p>{% endfor %}
+      {% if s.problems_open > s.problems|length %}<p class="hint"><a href="/problems">{{ s.problems_open - s.problems|length }} more ›</a></p>{% endif %}
+    </section>
+    <section class="card">
+      <div class="card-h"><span>Bank connections</span><a class="card-r" href="/financials/bank/">Manage ›</a></div>
+      <table class="tbl mini"><thead><tr><th>Connection</th><th>State</th></tr></thead><tbody>
+      {% for b in s.banks %}<tr><td>{{ b.name }}</td>
+        <td><span class="chip {{ 'ok' if b.status == 'Connected' else 'bad' if b.status in ('Access has ended', 'Not connected') else 'warn' }}">{{ b.status }}</span>
+          {% if b.days_left is not none and b.status == 'Connected' %}<span class="sub">{{ b.days_left }} days left</span>{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+    </section>
+  </div>
+  <div>
+    <section class="card">
+      <div class="card-h"><span>Privacy levels</span><a class="card-r" href="/privacy">Edit ›</a></div>
+      <table class="tbl mini"><thead><tr><th>Level</th><th class="num">Kinds of paper</th></tr></thead><tbody>
+      {% for label, n in s.levels %}<tr><td>{% if label == "No level yet" %}<span class="chip warn">{{ label }}</span>{% else %}<span class="chip">{{ label }}</span>{% endif %}</td><td class="num">{{ n }}</td></tr>{% endfor %}
+      </tbody></table>
+      <p class="hint">{% if s.enforcing %}Levels are binding: nothing reads a kind of paper with no level.{% else %}Levels are not binding yet: a kind of paper with no level is still read.{% endif %}</p>
+    </section>
+    <section class="card">
+      <div class="card-h"><span>Scheduled jobs</span><a class="card-r" href="/schedules">Edit ›</a></div>
+      <table class="tbl mini"><thead><tr><th>Job</th><th>When</th><th>Last run</th></tr></thead><tbody>
+      {% for j in s.jobs %}<tr><td>{{ j.label }}</td><td>{{ j.when }}</td>
+        <td>{% if j.outcome %}<span class="chip {{ "ok" if j.outcome == "ok" else "warn" if j.outcome in ("partial", "running", "skipped") else "bad" }}">{{ j.outcome }}</span>{% else %}<span class="sub">not yet</span>{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+    </section>
+    <section class="card">
+      <div class="card-h"><span>What the Hub knows</span></div>
+      <p class="sub">The standing facts Ask reads from (not a place to browse): {{ "{:,}".format(s.facts) }} fact{{ "s" if s.facts != 1 }}, {{ s.facts_new }} added in the last 30 days.</p>
+      <p><a class="btn" href="/wiki">Open What the Hub knows ›</a> <a class="btn" href="/wiki/lint">Wiki check ›</a></p>
+    </section>
+  </div>
 </div>
-<div class="card">
+<section class="card">
+  <div class="card-h"><span>Every setting</span></div>
+  {% for l in links %}<a class="chip" href="{{ l.url }}">{{ l.label }}</a> {% endfor %}
+</section>
+<section class="card">
   <div class="card-h">Other apps</div>
   {% for l in apps %}<p><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.label }}</a></p>{% endfor %}
-</div>
+</section>
 {% endblock %}

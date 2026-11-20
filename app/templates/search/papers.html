@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}{{ q }} — {% endif %}Papers{% endblock %}
+{% block content %}
+<div class="hh"><h1>Papers</h1><a class="btn pri" href="/inbox">+ Add a paper</a></div>
+{% if person %}<p class="whonote">Showing what is about <b>{{ person.name }}</b>. <a href="/who?back={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}">Show everyone</a></p>{% endif %}
+<form action="/papers" method="get" class="field" role="search">
+  {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+  <input type="search" name="q" value="{{ q }}" placeholder="Any word printed on a paper" aria-label="Search papers">
+</form>
+<div class="chips">
+  <a class="chip{% if not category %} on{% endif %}" href="/papers{% if q %}?q={{ q|urlencode }}{% endif %}">All ({{ all }})</a>
+  {% for key, label, n in chips %}<a class="chip{% if category == key %} on{% endif %}" href="/papers?category={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}">{{ label }} ({{ n }})</a>{% endfor %}
+</div>
+{% if q and n_words == 0 %}
+<p>Nothing searched. Words of one letter are not looked for. Type a longer word, then search again.</p>
+{% elif not rows %}
+<div class="empty">{% if q %}No filed paper{% if category %} here{% endif %} has these words. A paper still waiting in the <a href="/inbox">Inbox</a> is not searched; a scan or photo filed in the last hour may not be readable yet. Try another word, or look again later.{% else %}Nothing filed here yet.<br><a class="btn pri" href="/inbox">+ Add a paper</a>{% endif %}</div>
+{% else %}
+<p class="sub">{{ total }} paper{{ 's' if total != 1 }}{% if q %}{% if n_words > 1 %}, those with the most of your words first{% endif %}{% else %}, newest first{% endif %}.</p>
+<section class="card flush">
+<table class="tbl">
+  <thead><tr><th>Paper</th><th>Filed under</th><th>Added</th><th>Level</th>{% if q %}<th>Where it says it</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr><td>{% if r.url %}<a href="{{ r.url }}">{{ r.document.filename }}</a>{% else %}{{ r.document.filename }}{% endif %}</td>
+    <td>{{ r.where }}</td><td>{{ r.document.created_at.strftime('%Y-%m-%d') }}</td><td><span class="chip">{{ r.level }}</span></td>
+    {% if q %}<td>{% if r.line %}…{{ r.line }}…{% else %}<span class="sub">in its title or details</span>{% endif %}</td>{% endif %}</tr>
+  {% endfor %}
+  </tbody>
+</table>
+</section>
+{% if pages > 1 %}<p>Page {{ page }} of {{ pages }}
+  {% set base = "/papers?" ~ ("category=" ~ category ~ "&" if category else "") ~ ("q=" ~ q|urlencode ~ "&" if q else "") %}
+  {% if page > 1 %}· <a href="{{ base }}page={{ page - 1 }}">previous</a>{% endif %}
+  {% if page < pages %}· <a href="{{ base }}page={{ page + 1 }}">next</a>{% endif %}</p>{% endif %}
+{% endif %}
+{% endblock %}

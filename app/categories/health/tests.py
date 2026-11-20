@@ -202,10 +202,11 @@ def results_of(session: Session, person_id: int) -> list[dict]:
         shown = m.value if m.value is not None else m.value_text
         point = line["points"].setdefault(when, {"date": when, "value": shown, "numeric": m.value,
                                                  "out_of_range": m.out_of_range, "reference": m.reference_text,
+                                                 "ref": (m.ref_low, m.ref_high),
                                                  "document_id": entry.document_id if entry else None})
         if not m.is_previous:                          # the paper's own result wins over a restated one
             point.update(value=shown, numeric=m.value, out_of_range=m.out_of_range, reference=m.reference_text,
-                         document_id=entry.document_id if entry else None)
+                         ref=(m.ref_low, m.ref_high), document_id=entry.document_id if entry else None)
             line["papers"].add(m.entry_id)
     out = []
     for line in lines.values():

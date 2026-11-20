@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** step 10 (UI redesign, Option A), slice e: Waiting for you (10a to 10d live).
+**Now (2026-11-20):** step 10 (UI redesign, Option A), slice f: the rest — Health, Things, Papers, Coming up, Problems and the gear's pages (10a to 10e live).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -137,25 +137,57 @@ and said tweaks will come from using it.
   merchants as a bulk table with the best guess filled in. Existing behaviour, new look.
   Found 2026-11-20: the "See it" link of an AI answer waiting for a person goes to `/transactions?q=…`, a page that
   does not exist (45 live items); fix the link the queue writes and the items already stored, with 10e.
-  ◐ 2026-11-20, built and tested, deploying (`app/services/queue_view.py`): `/waiting` opens with one row per area
+  ✅ 2026-11-20, live (`a5480ab`, deploy 44675573672; `app/services/queue_view.py`): `/waiting` opens with one row per area
   (count, the first item, how old the oldest is, "Open the first ›") and the merchants on their own row ("Open the
   table ›"), then the list as before. `/waiting/one?area=…` shows one item at a time: the paper on the left when the
   item is about one (a statement that doesn't add up, a line on a statement, a health paper read with doubts), the
   question and its answers on the right; Enter = the first answer, L = later, J / K = next / previous (moving along
   answers nothing). Merchants are a table: name, the category the Hub filed it under, its number of lines; tick the
   right ones and confirm them in one go (a merchant with no guess is chosen on its own page). The answers and what
-  they do are unchanged. The "See it" link is fixed for new items and a migration repairs the stored ones.
+  they do are unchanged. The "See it" link is fixed for new items and a migration repairs the stored ones (live: 45 repaired, 0 left).
 - f. The rest, with what exists: Health (name tiles, no faces; a strip of follow-ups; a person's page with results and
   the reference range, timeline), Things (house and items as today), Papers (everything filed; category chips; search),
   Coming up with To-Dos as a tab, Problems and the gear's pages. Papers is the same list pattern as All lines (not drawn).
+  ◐ 2026-11-20, built and tested (full suite 2 841 passed; the 2 failures it found fixed: Waiting counted before the queue was brought up to date; the card used an old variable name), deploying. Health opens on `/health/family` (`/health` is the server's health
+  check, so it cannot be a page): a tile per person (name, next follow-up, latest paper, papers; no faces), the
+  follow-ups across the family (open Health To-Dos, overdue first), papers by approved area or condition with the
+  proposed and unsorted counts linking to their pages; a person's page `/health/people/{id}`: conditions, each result
+  drawn on the chart component against the range printed on the paper (last 8 points; "Every result ›" keeps the full
+  table), and a timeline (papers, and follow-ups ahead). Coming up's Dates tab adds the dated To-Dos of an area (a
+  general To-Do stays on To-Dos only, as before; a bill's own To-Do is its bill), an area chip per row and chips to
+  show one area; each month's total stays the money due. Papers (`/papers`): everything filed, newest first, a chip
+  per category, and the search inside a chip. The gear's page: a card per setting with what it says today (open
+  problems, bank connections, how many kinds of paper per level, the jobs and their last run, the facts the Hub
+  knows), each opening its own page. House and To-Dos in the card style; their content is unchanged. Things stays
+  the house and policies as today (a car or an ID is step 8). (Claude, 2026-11-20; Pedro may change: the tab names
+  Family and Dates; a person's tile shows the full name as the paper prints it.)
 - g. Ask: the answer card (one plain sentence, one matching visual, sources, Open the page / Save to wiki; no
   suggested-question chips). **New behaviour:** three tiers of action (undoable with Undo; a confirm card for what
   changes what the family sees; never from Ask: delete, privacy levels, bank connections) and a file attached to a
   question (goes to the Inbox as a suggestion). Through the existing Ask tools; tripwire tests cover each.
+  **Waiting on Pedro (2026-11-20):** Undo and Confirm need the Hub to remember, for each answer, what Ask did or
+  proposed, which means one new small table; the run's rule stops step 10 before any data-model change. The answer
+  card's new look and the file attached to a question (it uses 10h's "Add a paper") wait with it.
 - h. Phone: Home, Ask, and **new behaviour** a light "approve a paper" card (the file, four key fields, Approve / Edit /
   Later) for a paper uploaded on the run, using the Inbox's existing approval.
+  ◐ 2026-11-20, built and tested, deploying with 10f. The Inbox had no way to add a paper from the page (only email
+  and Telegram), so the + now opens "Add a paper" (`/inbox/add`: choose a file or take a photo, an optional note);
+  the paper goes to the Inbox exactly as an emailed one (same recognition, same reading in a High run, same duplicate
+  check) and opens its card (`/inbox/{id}/card`): the file, "Filed as" the Hub's guess, up to three of that kind's
+  fields (the required ones first), Approve (the Inbox's own approval; a missing field comes back on the card),
+  Edit (the full Inbox card) and Later. An unsure paper says so and sends you to choose. (Claude, 2026-11-20; Pedro
+  may change: 25 MB limit from the page; the note is shown to whoever files it.)
 - i. **New behaviour:** the Who chip works (Everyone / a person) on Papers, Coming up, Waiting for you and Ask; people
   come from the subjects registry; it filters and hides nothing from anyone's login.
+  ◐ 2026-11-20, built and tested, deploying with 10f and 10h (`app/services/who.py`). The header chip lists Everyone
+  and each person in the subjects registry (an alias counts as its person); the choice is kept in this browser
+  (a cookie) and hides nothing from anyone. A paper is about a person when the Hub already links them: a Health
+  paper through its person, a bank paper through the owner of the account its lines are on. Papers and Waiting for
+  you show only that person's papers and items; Coming up shows their bills and To-Dos, says how many rows about
+  nobody in particular are left out, and each month's total is theirs; Ask writes "About Rute: …" into the question
+  (seen on the page; nothing hidden is added). Each filtered page says whose things it shows, with "Show everyone".
+  (Claude, 2026-11-20; Pedro may change: commitments and papers with no person are left out while one person is
+  chosen; the registry still lists loan contacts and duplicate spellings until they are merged.)
 - Done when: every desktop and phone screen of `option-a.html` exists live and matches it in layout and chart rules; the
   family can do everything they could before; the privacy tripwires and the suite are green.
 
@@ -235,6 +267,7 @@ brackets); tick off here when done.
 | Tier for the Privatemode rows gpt-oss-120b and deepseek-ocr-2 (2026-10-15) | More High models |
 | Google Calendar set-up for Health appointments (`docs/SYSADMIN.md`, "Google Calendar") | Step 7c bookings reach the calendar (7c is built without it) |
 | Matias's loan: reconcile where it stands (he parked it, 2026-11-03) | — |
+| Step 10g: may Ask's actions get one small new table that remembers what each answer did or proposed (so Undo and Confirm work)? (2026-11-20) | Step 10g |
 | The live smoke test together: a Telegram upload, an emailed bill, approve, discard, a duplicate, a stranger's message; and a few real Ask questions (2026-10-28) | Confidence in the channels |
 
 ---

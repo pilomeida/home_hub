@@ -164,6 +164,25 @@ async def _read_in_background(session_factory, document_id: int) -> None:
                 raise
 
 
+@router.get("/family")
+async def health_home(request: Request, session: Session = Depends(get_session)):
+    """Health (step 10f): a tile per person, the follow-ups across the family, papers by area."""
+    from app.services.health_page import health_home as build
+    return templates.TemplateResponse(request, "health/home.html", {"h": build(session)})
+
+
+@router.get("/people/{person_id}")
+async def person_page(request: Request, person_id: int, session: Session = Depends(get_session)):
+    """A person's page (step 10f): conditions, results against the reference range, timeline."""
+    from app.services.health_page import person_page as build
+    page = build(session, person_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail={
+            "what": "Nothing to show.", "why": "That person is no longer listed (perhaps merged into someone else).",
+            "next_step": "Go back to Health and open them from there."})
+    return templates.TemplateResponse(request, "health/person.html", {"p": page})
+
+
 @router.get("/records")
 async def landing(request: Request, session: Session = Depends(get_session)):
     f = browse.parse_filters(request.query_params)

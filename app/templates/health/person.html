@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ p.person.name }} — Health{% endblock %}
+{% block content %}
+<p><a href="/health/family">← Health</a></p>
+<div class="ph1"><span class="pn big s">{{ p.person.name }}</span><span class="sub">{{ p.papers }} paper{{ "s" if p.papers != 1 }}
+  · <a href="/health/records?person={{ p.person.id }}">every paper ›</a></span></div>
+<div class="g3 pp">
+  <section class="card">
+    <div class="card-h"><span>Conditions</span></div>
+    {% for c in p.conditions %}<div class="cond"><a href="{{ c.link }}"><b>{{ c.name }}</b></a><span class="sub">{{ c.papers }} paper{{ "s" if c.papers != 1 }}</span></div>
+    {% else %}<p class="sub">No condition filed for {{ p.person.name }}.</p>{% endfor %}
+  </section>
+  <section class="card">
+    <div class="card-h"><span>Latest results</span><a class="card-r" href="/health/people/{{ p.person.id }}/results">Every result ›</a></div>
+    {% for r in p.results %}
+    <div class="res">
+      <div><b>{{ r.name }}</b>{% if r.unit %} <span class="sub">({{ r.unit }})</span>{% endif %}{% if not r.approved %} <span class="chip">new</span>{% endif %}
+        <span class="rv{% if r.latest.out_of_range %} bad{% endif %}">{{ r.latest.value }}</span>
+        <span class="sub">{{ r.latest.date.isoformat() }}</span>
+        {% if r.latest.document_id %}<a class="sub" href="/health/documents/{{ r.latest.document_id }}">paper</a>{% endif %}</div>
+      {% if r.numeric %}{{ charts.columns(r.items, kind="e", fmt=charts.plain, w=420, h=170, ref=r.ref, title=r.name ~ " over time") }}
+      {% elif r.latest.reference %}<div class="sub">Reference: {{ r.latest.reference }}</div>{% endif %}
+    </div>
+    {% else %}<p class="sub">No lab results for {{ p.person.name }} yet.</p>{% endfor %}
+  </section>
+  <section class="card">
+    <div class="card-h"><span>Timeline</span></div>
+    <ul class="tl">
+    {% for t in p.timeline %}<li><b>{{ t.when.isoformat() if t.when else "no date" }}</b> <a href="{{ t.link }}">{{ t.what }}</a>
+      {% if t.ahead %}<i>{{ t.note }}</i>{% elif t.note %}<span class="sub">{{ t.note }}</span>{% endif %}</li>
+    {% else %}<li class="sub">Nothing yet.</li>{% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

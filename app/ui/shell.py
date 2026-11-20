@@ -71,12 +71,12 @@ def sections() -> list[Section]:
         Section("home", "Home", "/", ("/", "/ask", "/inbox", "/overview"),
                 [Link("Home", "/"), Link("Overview", "/overview"), Link("Ask", "/ask"), Link("Inbox", "/inbox")]),
         Section("money", "Money", "/money", ("/money", "/financials", "/budget", "/to-check"), money),
-        Section("health", "Health", "/health/records", ("/health",), _category_links("health")),
+        Section("health", "Health", "/health/family", ("/health",), [Link("Family", "/health/family")] + _category_links("health")),
         Section("things", "Things", "/house", ("/house", "/insurance"), _category_links("house", "insurance")),
-        Section("papers", "Papers", "/search", ("/search", "/other", "/documents"),
-                [Link("Search", "/search")] + _category_links("other") + _unplaced_links()),
+        Section("papers", "Papers", "/papers", ("/papers", "/search", "/other", "/documents"),
+                [Link("All papers", "/papers"), Link("Search", "/search")] + _category_links("other") + _unplaced_links()),
         Section("coming", "Coming up", "/financials/coming-up", ("/financials/coming-up", "/todos"),
-                [Link("Coming up", "/financials/coming-up"), Link("To-Dos", "/todos")]),
+                [Link("Dates", "/financials/coming-up"), Link("To-Dos", "/todos")]),
         Section("waiting", "Waiting for you", "/waiting", ("/waiting",), [Link("Waiting for you", "/waiting")]),
     ]
 

@@ -45,11 +45,11 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-@router.get("/")
-async def connections_page(request: Request, session: Session = Depends(get_session)):
+def connection_rows(session: Session, now: datetime) -> list[dict]:
+    """One row per supported bank and owner: its state in words, days left, last update, the hint to show. Shared by
+    this page and the Settings summary (step 10f)."""
     by_bank = latest_connections(session)
     links = session.exec(select(BankAccountLink)).all()
-    now = _utcnow()
     rows = []
     for bank_key, (bank_name, _country) in SUPPORTED_BANKS.items():
         owner = owner_of(bank_key)
@@ -81,6 +81,13 @@ async def connections_page(request: Request, session: Session = Depends(get_sess
             # An ended access explains itself through the hint; the stored sync error only adds noise there.
             "error": errors[0] if errors and hint is None else None,
         })
+    return rows
+
+
+@router.get("/")
+async def connections_page(request: Request, session: Session = Depends(get_session)):
+    now = _utcnow()
+    rows = connection_rows(session, now)
     return templates.TemplateResponse(request, "bank/connections.html", {
         "rows": rows, "now": now, "notices": bank_notices(session),
     })

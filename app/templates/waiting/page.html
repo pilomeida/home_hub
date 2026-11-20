@@ -13,6 +13,7 @@
 <p class="merchant-line"><a href="/waiting?area={{ merchants_key }}">{{ "{:,}".format(merchants) }} new merchant{{ "s" if merchants != 1 }} not confirmed yet</a>
   · the Hub filed them itself; confirm them when you have time.</p>
 {% endif %}
+{% if person %}<p class="whonote">Showing what is about <b>{{ person.name }}</b>. <a href="/who?back={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}">Show everyone</a></p>{% endif %}
 {% if groups %}
 <section class="card wlist">
   {% for g in groups %}

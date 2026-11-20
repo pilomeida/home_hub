@@ -47,6 +47,7 @@ class ComingItem:
     kind: str                     # "commitment" | "bill"
     link: str
     note: str = ""
+    document_id: Optional[int] = None   # the bill's paper (the Who chip, step 10i)
 
 
 @dataclass
@@ -112,12 +113,12 @@ def coming_up(session: Session, today: date, months: int = HORIZON_MONTHS) -> Co
     for txn, document in _unpaid_bills(session, until):
         todo = session.exec(select(Todo).where(Todo.transaction_id == txn.id)).first()
         item = ComingItem(txn.due_date, txn.description, txn.amount, _place(session, txn.category_id), "bill",
-                          f"/financials/bills/{document.id}")
+                          f"/financials/bills/{document.id}", document_id=document.id)
         if txn.due_date >= today:
             bills.append((txn, item))
         elif todo is not None:                         # past due and its to-do still open: it is overdue
             overdue.append(ComingItem(item.when, item.name, item.amount, item.place, "bill", item.link,
-                                      note="overdue: not paid yet"))
+                                      note="overdue: not paid yet", document_id=document.id))
 
     items = [item for _txn, item in bills]
     for commitment in session.exec(select(Commitment)).all():

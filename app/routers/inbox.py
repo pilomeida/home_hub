@@ -7,7 +7,8 @@ domain is named here. DOCUMENT and RECORD categories are handled the same way
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
 from app.db import get_session
@@ -20,6 +21,7 @@ from app.privacy.settings import TierHeld
 from app.routers.subjects import section_html as same_person_section
 from app.routers.to_check import section_html as to_check_section
 from app.services import inbox_service
+from app.problems import Problem
 from app.services.paper_uses import PaperInUse
 from app.templating import templates
 
@@ -74,6 +76,109 @@ def _entry_or_404(session: Session, document_id: int):
     if entry is None:
         raise HTTPException(status_code=404, detail="Not in the Inbox")
     return entry
+
+
+# --- add a paper from the page, and the light approve card (PLAN step 10h) ----------------------------------------
+
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+KEY_FIELDS = 3                      # the card shows "Filed as" and up to three of the kind's fields
+
+
+@router.get("/add")
+async def add_page(request: Request, problem: str = ""):
+    return templates.TemplateResponse(request, "inbox/add.html", {"problem": _ADD_PROBLEMS.get(problem)})
+
+
+_ADD_PROBLEMS = {
+    "empty": Problem("Not added.", "No file was chosen, so there was nothing to put in the Inbox.",
+                     "Choose a file or take a photo, then press Add."),
+    "big": Problem("Not added.", "The file is bigger than 25 MB, which the Hub does not take from the page.",
+                   "Send a smaller scan or photo, or email it to the Hub's address."),
+    "type": Problem("Not added.", "The Hub only takes PDFs, photos and short videos, and this file is none of those.",
+                    "Save it as a PDF or take a photo of it, then add it again."),
+}
+
+
+def get_inbox_classifier():
+    """What reads a paper no rule recognises (inside a High run, decision D20). Tests override this dependency."""
+    return inbox_service.suggest_category_and_kind
+
+
+@router.post("/add")
+async def add_paper(request: Request, file: UploadFile = File(None), note: str = Form(""),
+                    session: Session = Depends(get_session), classify=Depends(get_inbox_classifier)):
+    """A paper added from the page goes to the Inbox exactly as one sent by email or Telegram (same recognition,
+    same reading, same approval), then opens its approve card."""
+    from app.models.document import DocumentSource
+    from app.services.ingestion import IncomingFile
+    if file is None or not file.filename:
+        return RedirectResponse("/inbox/add?problem=empty", status_code=303)
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not content:
+        return RedirectResponse("/inbox/add?problem=empty", status_code=303)
+    if len(content) > MAX_UPLOAD_BYTES:
+        return RedirectResponse("/inbox/add?problem=big", status_code=303)
+    if media_kind_for(file.filename).value == "other":
+        return RedirectResponse("/inbox/add?problem=type", status_code=303)
+    receipt = await inbox_service.receive_document(
+        session, IncomingFile(filename=file.filename, content=content, source=DocumentSource.MANUAL,
+                              uploaded_by=getattr(request.state, "user_email", None)),
+        context_text=note.strip() or None, external_ref=None, classify=classify)
+    return RedirectResponse(f"/inbox/{receipt.document.id}/card" + ("?duplicate=1" if receipt.duplicate else ""),
+                            status_code=303)
+
+
+def _light_card(session: Session, entry, values: Optional[dict] = None, errors: Optional[dict] = None) -> dict:
+    ctx = _card_context(session, entry, values=values, errors=errors)
+    fields = ctx["form_fields"]
+    required = [f for f in fields if f.spec.required]
+    shown = (required or fields)[:KEY_FIELDS]
+    return {**ctx, "key_fields": shown, "too_many": len(required) > KEY_FIELDS,
+            "media": media_kind_for(entry.document.filename).value}
+
+
+@router.get("/{document_id}/card")
+async def approve_card(request: Request, document_id: int, duplicate: int = 0,
+                       session: Session = Depends(get_session)):
+    entry = inbox_service.entry_for(session, document_id)
+    if entry is None or entry.document.status.value != "pending_review":
+        from app.models.document import Document
+        document = session.get(Document, document_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail={
+                "what": "Nothing to approve.", "why": "That paper is not in the Hub.",
+                "next_step": "Add it again from the + button."})
+        return templates.TemplateResponse(request, "inbox/card.html", {
+            "filed": document, "in_place": document.category is not None, "duplicate": bool(duplicate),
+            "label": inbox_service.describe(document.category, document.paper_kind),
+            "document_href": document_url(document) if document.category else "/inbox"})
+    return templates.TemplateResponse(request, "inbox/card.html", {**_light_card(session, entry),
+                                                                   "duplicate": bool(duplicate)})
+
+
+@router.post("/{document_id}/card")
+async def approve_from_card(request: Request, document_id: int, session: Session = Depends(get_session)):
+    """Approve from the light card: the Inbox's own approval, unchanged; a refusal comes back on the card."""
+    entry = _entry_or_404(session, document_id)
+    form = {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
+    category_value, category = form.get("domain", ""), form.get("category", "") or None
+    fields = {k: v for k, v in form.items() if k not in _SELECTOR_KEYS}
+    try:
+        document = await inbox_service.approve(
+            session, document_id, category_value=category_value, paper_kind=category, fields=fields,
+            reviewed_by=getattr(request.state, "user_email", None))
+    except TierHeld:
+        return templates.TemplateResponse(request, "inbox/card.html", {**_light_card(session, entry, fields), "held": True},
+                                          status_code=200)
+    except InvalidClassification as exc:
+        return templates.TemplateResponse(request, "inbox/card.html", {**_light_card(session, entry, fields, exc.errors)})
+    except inbox_service.InboxError as exc:
+        raise HTTPException(status_code=409, detail={
+            "what": "Not approved.", "why": str(exc), "next_step": "Open the Inbox to see where the paper is now."})
+    record = record_for_document(session, document)
+    return templates.TemplateResponse(request, "inbox/card.html", {
+        "filed": document, "approved": True, "label": inbox_service.describe(document.category, document.paper_kind),
+        "document_href": record_url(record) if record is not None else document_url(document)})
 
 
 @router.get("")

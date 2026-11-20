@@ -2,10 +2,10 @@
 {% block title %}To-Dos{% endblock %}
 {% block content %}
 <h1>To-Dos</h1>
-<form hx-post="/todos/add-general" hx-target="#todo-lists" hx-swap="innerHTML" hx-on::after-request="if (event.detail.successful) this.reset()">
-  <input name="title" placeholder="Add a to-do that is not tied to a house area (work, a domain name, ...)" required size="60">
+<form class="card addtodo" hx-post="/todos/add-general" hx-target="#todo-lists" hx-swap="innerHTML" hx-on::after-request="if (event.detail.successful) this.reset()">
+  <input name="title" placeholder="Add a to-do that is not tied to a house area (work, a domain name, ...)" required>
   <input type="date" name="due_date">
-  <button type="submit">Add</button>
+  <button class="btn pri" type="submit">Add</button>
 </form>
 <div id="todo-lists">
   {% include "todos/_lists.html" %}

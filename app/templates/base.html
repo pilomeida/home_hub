@@ -20,8 +20,15 @@
       {% endfor %}
     </nav>
     <div class="tools">
-      <span class="who" title="Choosing one person comes in a later step; everyone sees the same">Who: Everyone</span>
-      <a class="add" href="/inbox">+ Add a paper</a>
+      {% set who_people, who_chosen = who_header(request.cookies.get("who") if request else None) %}
+      {% set back = (request.url.path ~ ("?" ~ request.url.query if request.url.query else "")) if request else "/" %}
+      <details class="who"><summary>Who: {{ who_chosen.name if who_chosen else "Everyone" }} ▾</summary>
+        <div class="who-menu">
+          <a href="/who?back={{ back|urlencode }}"{% if not who_chosen %} class="on"{% endif %}>Everyone</a>
+          {% for p in who_people %}<a href="/who?id={{ p.id }}&back={{ back|urlencode }}"{% if who_chosen and who_chosen.id == p.id %} class="on"{% endif %}>{{ p.name }}</a>{% endfor %}
+          <span class="hint">A filter for you on Papers, Coming up, Waiting for you and Ask; it hides nothing from anyone.</span>
+        </div></details>
+      <a class="add" href="/inbox/add">+ Add a paper</a>
       <a class="gear" href="/settings" title="Settings" aria-label="Settings">⚙</a>
       {% if n_problems %}<a class="alert" href="/problems" title="Problems: {{ n_problems }} need{{ 's' if n_problems == 1 else '' }} you" aria-label="Problems: {{ n_problems }}">{{ n_problems }}</a>{% endif %}
     </div>
@@ -39,8 +46,8 @@
   <nav class="phonebar" aria-label="Menu">
     <a class="pn2{% if here and here.key == 'home' %} on{% endif %}" href="/"><span>⌂</span>Home</a>
     <a class="pn2{% if here and here.key == 'money' %} on{% endif %}" href="/money"><span>€</span>Money</a>
-    <a class="pn2 fab" href="/inbox" aria-label="Add a paper">+</a>
-    <a class="pn2{% if here and here.key == 'health' %} on{% endif %}" href="/health/records"><span>+</span>Health</a>
+    <a class="pn2 fab" href="/inbox/add" aria-label="Add a paper">+</a>
+    <a class="pn2{% if here and here.key == 'health' %} on{% endif %}" href="/health/family"><span>+</span>Health</a>
     <a class="pn2{% if not here or here.key not in ('home', 'money', 'health') %} on{% endif %}" href="/more"><span>≡</span>More{% if n_waiting %} <em>{{ n_waiting }}</em>{% endif %}</a>
   </nav>
   <main>
