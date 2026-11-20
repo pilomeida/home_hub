@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "_message.html" import three_part %}
 {% block title %}Add a paper{% endblock %}
 {% block content %}
 <h1>Add a paper</h1>
-{% if problem %}<div class="problem"><strong>{{ problem.what }}</strong> {{ problem.why }} {{ problem.next_step }}</div>{% endif %}
+{% if problem %}<div class="problem">{{ three_part(problem) }}</div>{% endif %}
 <form class="card addp" method="post" action="/inbox/add" enctype="multipart/form-data">
   <label class="drop"><input type="file" name="file" accept="application/pdf,image/*,video/*" capture="environment" required>
     <span>Choose a file, or take a photo</span></label>

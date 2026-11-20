@@ -16,7 +16,7 @@
   <tbody>
   {% for r in results %}
   <tr>
-    <td>{% if r.url %}<a href="{{ r.url }}">{{ r.document.filename }}</a>{% else %}{{ r.document.filename }}{% endif %}<br><small>added {{ r.document.created_at.strftime('%Y-%m-%d') }}</small></td>
+    <td>{% if r.url %}<a href="{{ r.url }}">{{ r.document.filename }}</a>{% else %}{{ r.document.filename }}{% endif %}<br><small>added {{ r.document.created_at|display_date }}</small></td>
     <td>{{ r.where }}</td>
     <td>{{ r.level }}</td>
     <td>{% if r.line %}…{{ r.line }}…{% else %}<small>in its title or details</small>{% endif %}</td>

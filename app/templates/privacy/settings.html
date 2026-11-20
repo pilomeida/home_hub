@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "_message.html" import three_part %}
 {% block title %}Privacy{% endblock %}
 {% block content %}
 <h1>Privacy</h1>
 <p>Every kind of document has a privacy level. The level decides which AI services may read it. You can change any of them here; documents already filed change with it.</p>
 
-{% if refused %}<p class="needs-attention"><strong>{{ refused.what }}</strong> {{ refused.why }} {{ refused.next_step }}</p>{% endif %}
+{% if refused %}<p class="needs-attention">{{ three_part(refused) }}</p>{% endif %}
 
 <section>
   <h2>Levels are {% if enforcing %}binding{% else %}not binding yet{% endif %}</h2>

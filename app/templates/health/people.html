@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "_message.html" import three_part %}
 {% block title %}Health people{% endblock %}
 {% block content %}
 <p><a href="/health/records">← Health</a></p>
 <h1>People</h1>
 <p>The Hub adds a person the first time a name appears on a paper. Confirm each one, or merge it into someone already listed.</p>
-{% if error %}<p class="needs-attention"><strong>{{ error.what }}</strong> {{ error.why }} {{ error.next_step }}</p>{% endif %}
+{% if error %}<p class="needs-attention">{{ three_part(error) }}</p>{% endif %}
 <table class="review-table">
   <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
   <tbody>

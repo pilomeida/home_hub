@@ -11,7 +11,7 @@
   <tbody>
   {% for p in papers %}
   <tr>
-    <td style="white-space:nowrap">{{ p.date or p.document.created_at.strftime('%Y-%m-%d') }}</td>
+    <td style="white-space:nowrap">{{ p.date or p.document.created_at|display_date }}</td>
     <td><a href="/other/documents/{{ p.document.id }}">{{ p.title }}</a></td>
     <td>{{ p.about }}</td>
     <td>{{ p.summary|truncate(160) }}</td>

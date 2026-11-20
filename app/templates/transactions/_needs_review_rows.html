@@ -101,7 +101,7 @@
         <select name="existing_debt_id">
           <option value="">(none — new loan above)</option>
           {% for d in opt.debts %}
-          <option value="{{ d.id }}">{{ d.person }} — {{ "they owe us" if d.lent else "we owe them" }} — €{{ "{:,.2f}".format(d.balance) }}{% if d.role %} → {{ d.role }}{% endif %}</option>
+          <option value="{{ d.id }}">{{ d.person }} — {{ "they owe us" if d.lent else "we owe them" }} — {{ d.balance|money }}{% if d.role %} → {{ d.role }}{% endif %}</option>
           {% endfor %}
         </select>
         <select name="role"{% if is_transfer %} required{% endif %}>

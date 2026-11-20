@@ -191,79 +191,6 @@ and said tweaks will come from using it.
 - Done when: every desktop and phone screen of `option-a.html` exists live and matches it in layout and chart rules; the
   family can do everything they could before; the privacy tripwires and the suite are green.
 
-### Step 6. Wiki facts point at subjects, and answers agree (E3, with C7) · M
-- a. Wiki pages about a person, account, policy or thing carry its subject; entity keys come from the registry
-  (B4's next step).
-- b. One provider written two ways becomes one subject with aliases, so its facts stop flip-flopping; the two Telecom
-  pages (Amigo, Vodafone Portugal) merge, and the duplicate keys (provider/Provider, category/Category) fold together.
-  ✅ a and b 2026-11-20 live (5333737, home_hub fe9d046, deploy 44692748973); `scripts/settle_wiki_subjects.py`
-  applied on the live wiki after a backup (`data/backup-2026-11-20-before-wiki-subjects.db`): 21 pages given their
-  subject, 4 spellings of Amigo made aliases of Vodafone Portugal, the Amigo page joined into Vodafone Portugal's,
-  44 keys folded, 6 duplicate current facts made history; 124 facts before and after (none deleted), 75 → 69
-  current; a second run changes nothing. Amigo/Vodafone now has one current provider, "Vodafone Portugal".
-  Each wiki page carries the subject it is about (`app/services/wiki_subjects.py`): a person's, policy's or thing's
-  page its subject; a topic page "Telecom — Amigo" the provider after the dash; "Pedro: check-ups" a person the
-  registry already holds (a topic title never creates a person). A provider written another way leads to its subject
-  through its aliases, so it reuses the provider's page and its "provider" fact is written as the provider's name;
-  fact keys have one spelling ("Provider" is "provider"). Ask's wiki index says whom a page is about, and reading a
-  page lists the other pages about the same subject. Joining two subjects carries their pages. (Claude, 2026-11-20;
-  Pedro may change: the name kept for Amigo is "Vodafone Portugal", with Amigo, Amigo (Vodafone), Amigo (Vodafone
-  Portugal) and Vodafone as its other spellings.)
-- c. (C7) The same spending question gives the same number on the Overview, Ask and the budget; the wiki's names are
-  per category; the orphan check is fixed while links are rare. Language (Pedro, 2026-11-19): areas, topics and
-  wiki guidance in English; each paper's own summary and wording stay in its language, shown as printed. Existing
-  Portuguese area and topic names get English names, the Portuguese kept as an alias.
-  ✅ c 2026-11-20 live (77499c9 + 4de8954, deploy 44710554332 green, journal clean, Problems nothing new);
-  `scripts/english_names.py` applied after a backup (`data/backup-2026-11-20-before-english-names.db`): 6 areas
-  joined their English names and 2 conditions got English ones (areas 18 → 20 rows, the Portuguese kept as aliases),
-  3 wiki topics renamed (old titles kept as aliases); wiki pages 20 and facts 124 before and after; a second run
-  changes nothing. Home's and the
-  Overview's Earnings and Spending now use the one rule the budget and Ask use (`spend_of`, new `earning_of`): live
-  2026-11 so far, Spending was €7,384 on Home and €4,461 in the budget and Ask; the difference was loan instalments
-  (€2,178) and moves between the family's own accounts (€600), and Earnings counted €2,312 of moves between own
-  accounts since 2026-08. Home names what is not counted under Spending ("Not counted as spending this month: loan
-  instalments €…, moves between your own accounts €…"). The wiki's names are per category (the same title in
-  another category is another page); the orphan check counts a page about a subject as connected (all 21 live pages
-  were flagged while no page had a link). Language: the readers name new areas, conditions, page titles and fact
-  names in English, the paper's own summary and values as printed; the six Portuguese areas join their English
-  twins, the two conditions get English names, the three Portuguese topic pages are renamed; each Portuguese name
-  stays an alias that still leads there. (Claude, 2026-11-20; Pedro may change: loan instalments are not spending
-  (they are named under it); the translations "Ischaemic stroke", "Atheromatous plaque", "Pedro: check-ups and
-  tests", "Pedro: conditions and diagnoses", "Vicente: eyes".)
-- Done when: Rute's facts are found from her subject, whichever page holds them; Amigo's provider fact keeps one value
-  across bills.
-
-### Step 7. Health conditions, visits and medication · L (four slices)
-Design and data model: `docs/superpowers/plans/2026-10-19-conditions-master-plan.md` (its phases 1 and 1B are done).
-The Hub only proposes; a person confirms. A condition is a subject (step 6).
-- a. Conditions: `health_conditions`, `health_entry_conditions`; a condition page; a suggestion on each paper's box
-  (confirm, pick another, none); "propose a new condition"; a one-time review of filed papers and the old guessed
-  labels (through step 3).
-- b. Follow-ups and reminders: `health_follow_ups`; a "next due" line; Health to-dos, overdue in red; a proposal from
-  report text ("repetir em 12 meses"); due follow-ups reach the phone through the notices (C6).
-- c. Visits, notes, medication: booked and done visits, notes (note, own reading, episode), medication and its
-  changes; one timeline per condition.
-- d. Ask and the Overview: Health Ask tools for conditions, topics, visits and medication (through
-  `app/privacy/reach.py`, tier High, tripwire tests); an Overview card.
-- Done when: a condition page shows its papers, visits, medication and next follow-up, and its reminder reaches the
-  phone once.
-  ✅ a–d 2026-11-20 live with 6c (deploy 44710554332; the first deploy, 77499c9, stopped at its test gate: the
-  privacy tripwire's full Ask turn did not yet call the new conditions tool; fixed in the next commit) (`app/categories/health/conditions.py`, `follow_ups.py`,
-  `care.py`; three new tables in three migrations; `/health/conditions/{id}`). a: a condition is a record per person
-  and a subject ("Ischaemic stroke — Pedro Almeida"); each paper's box suggests the person's conditions named alike
-  (confirm, pick another, none of these; a re-read keeps the answer); the old guessed condition labels are proposals
-  on the person's page and on Waiting for you ("A condition for Pedro Almeida? …"), created only on a yes, with their
-  papers attached; a paper deleted takes its links with it. b: a follow-up is a Health To-Do 14 days before it is due
-  (titled with what and for whom, never the condition), "Next due" on the condition page, overdue in red; a paper's
-  words ("repetir RM em 12 meses", "controlo dentro de 6 meses", "review in one year") propose one dated from the
-  paper, never twice and never after a no; it reaches the phone once ("A Health follow-up for Pedro is due on
-  2026-12-01: see To-Dos."). c: visits booked then done (done books the next), notes (note, own reading with its
-  value, episode), medication whose changes are added, never overwritten; one timeline per condition, newest first.
-  d: Ask's `health_conditions` tool (tier High, fail-closed, in the tripwire test); the Overview's Health card says
-  "N conditions followed" and "next follow-up yyyy-mm-dd" or "N overdue", never a name. Left: bookings reach Google
-  Calendar once Pedro sets it up (section 2). (Claude, 2026-11-20; Pedro may change: reminders 14 days before; the
-  follow-up words read are Portuguese and English "repeat / control / review in N weeks, months or years".)
-
 ### Step 8. New categories · M each
 Reuse: sysadminsmedia/homebox's "a thing with typed fields and attachments" (AGPL: idea only).
 - a. Identity & Legal: ID card, passport, driving licence, residence papers, wills; holder (a subject), number,
@@ -316,7 +243,7 @@ Whatever the steps above did not already touch.
 | D1 | Retire dead tables and columns (`wiki_changes`, `doc_type`, `health_entries.amount_*`, legacy Health kinds); the statement reader's unread `category_hint` (paid output) and the bill reader's own 15-word utility list ✅ 2026-11-20 built and tested: migration b8d1f3a5c702 drops `wiki_changes`, `documents.doc_type` and the three Health amount columns; the wiki's "Earlier history" and Health's "this paper is a bill" notice are gone with them; legacy Health kinds removed; the statement reader no longer asks for a word per line (nothing read it); the bill reader's word list is the three the Hub uses (electricity, water, telecom) plus other |
 | D2 | Router logic into services (transactions, loans, health); no router imports a router; spending-tree slugs out of services |
 | D3 | No swallowed or logged-only failure in the intake paths; no raw exception or bank error on screen; the last field-level hints in `app/categories/fields.py` and the import script's `--dry-run` line follow the messages rule ✅ 2026-11-20 built and tested: the email and Telegram channels already record every failure as a Problem (logging only when recording itself fails); a paper that could not be read shows the plain three-part message on the new categories' pages (never the error text); the field hints now say what was not saved, why and what to do ("Item is missing, so nothing was saved. Fill it in, then save again.", a date or choice the Hub cannot read likewise); the import script's dry run says not imported, why and what to do; a problem that cannot be recorded is logged instead of dropped silently |
-| D4 | One money filter and one date filter in templates; one three-part message macro |
+| D4 | One money filter and one date filter in templates; one three-part message macro ✅ 2026-11-20 built and tested (full local run 2,897 of 2,898; the one failure, a name clash on the wiki check page, fixed and its pages rerun, 286 passed): `money` filter (€1,234.56, or whole euros) for every amount shown with €; `display_date` for every yyyy-mm-dd; `_message.html` `three_part(p)` for every what/why/what-to-do (bank and loan macros now call it; the Problems page's link and details come from it). Plain numbers under a "€" column heading stay plain; the Settings page's three-line problem layout stays its own. A test refuses hand-made money, date or message markup in templates |
 | D5 | The mailbox check is never stuck behind bank sync or the wiki check. ✅ 2026-11-20 built and tested: the scheduler has two lanes, each its own process on its own 5-minute timer (`home-hub-scheduler` quick: mailbox, notices, reminders; `home-hub-scheduler-long`: bank sync, wiki check, backup, paper text, privacy self-test); before, a running bank sync stopped every later tick for up to 45 minutes |
 | D6 | ARCHITECTURE.md, SYSADMIN.md and `.env.example` up to date |
 | D7 | The test database enforces foreign keys everywhere, not only in `fk_session` (how the Health delete-order bug passed) ◐ 2026-11-20 tried: turning links on in the shared test database fails 16 tests (5 bank-classification tests, 7 card-figure tests, one that tests a missing merchant on purpose, one credit-default test), all of which insert rows pointing at ids that do not exist. Left: make those tests build the rows they point at (the missing-merchant one keeps its own unlinked database), then turn it on; kept out of the step 8 push |
@@ -382,6 +309,8 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-11-03 → 11-05 | **B** foundation: glossary and renames (B1), the kind carries its level, reader and filing (B2), one spending tree (B3), Coming up (B3b), registry of subjects slice 1 (B4), bank lines take their statement's level (B5), every paper has a kind (B6), one copy of each paper and no voids (B7) |
 | 2026-11-19 | **Step 4 (C5)** statements against the bank feed (371d90c → f597040): a statement line the feed or another statement of the account already holds is kept but settled by its twin (dimmed, linked, counted once; checked lines untouched); a new Money kind "Credit card statement" through the normal intake (Rute's by Telegram, checked to the cent); the bank-download wrapper stripped on every channel; a line type in the reader's own words no longer refuses a statement. Re-read on the server: Santander 2024-03 (104 lines), 2025-02 (108), 2022-08 (1), all adding up; live totals unchanged (the only move was the 18:30 bank sync's five lines). Leftover D11 (document 51) in step 9 |
 | 2026-11-19 | **Step 5 (C4)** shared reading blocks, Health first (39aa82a → e5680ae): one reading block (one error type, Portuguese numbers and dates, a 25 MB guard before upload); lab results matched to known tests, one line per test on a person's results page (88 live results → 65 tests; a new test is asked only when it looks like one listed: 3 asked); lab sheets get topics; one check-result shape for the statement, positions, card and Health checks, Health doubts on "Waiting for you"; "Read again" keeps a person's fields; the PDF's own layout settles headings and references; wrapper headings dropped; a finding or reference cut short completed from the second reading; a provider learnt once from the names a person confirmed. Benchmark: 0/2 before, 2/2 on two runs after (the benchmark now reads as the Hub does; `--fresh` without what it has learnt). Choices (Claude; Pedro may change): a new test is asked only when it looks like one listed; a history point shows once on a person's results while each paper keeps what it printed; the benchmark runner stays with Health until a second reader has cases; the benchmark reads with what the Hub has learnt. Leftover D12 in step 9 |
+| 2026-11-20 | **Step 6 (E3, C7)** wiki facts point at subjects, and answers agree (5333737, 77499c9, 4de8954): each wiki page carries the subject it is about; a provider written another way leads to its one page and one "provider" value (Amigo's four spellings are aliases of Vodafone Portugal; 21 pages given subjects, 44 keys folded, 124 facts before and after); Home, the Overview, Ask and the budget count spending one way, and Home names what it leaves out (loan instalments, moves between own accounts); areas, topics and page titles in English with the Portuguese kept as aliases (6 areas joined, 2 conditions and 3 topics renamed). Choices (Claude; Pedro may change): "Vodafone Portugal" as Amigo's name; loan instalments are not spending; the five translations |
+| 2026-11-20 | **Step 7** Health conditions, follow-ups, visits and medication (77499c9, 4de8954): a condition per person, suggested on each paper and confirmed by a person, old guessed labels proposed on Waiting for you; follow-ups become Health To-Dos 14 days before they are due and reach the phone once, proposed from a paper's words; visits, notes and medication with every change kept, one timeline per condition; Ask's conditions tool at High; the Overview's Health card never names a condition. Left: bookings to Google Calendar once Pedro sets it up (section 2). Choices (Claude; Pedro may change): reminders 14 days before; the Portuguese and English follow-up words |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |

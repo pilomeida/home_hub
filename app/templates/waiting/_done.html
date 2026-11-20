@@ -1,5 +1,5 @@
 <div class="domain-card" id="review-{{ item.id }}" style="margin-bottom:12px;opacity:.7">
   <strong>{{ item.title }}</strong> —
-  {% if item.status == "snoozed" %}back on the list on {{ item.snoozed_until.strftime('%Y-%m-%d') }}{% elif item.status == "approved" %}done{% else %}left as it was{% endif %},
+  {% if item.status == "snoozed" %}back on the list on {{ item.snoozed_until|display_date }}{% elif item.status == "approved" %}done{% else %}left as it was{% endif %},
   by {{ item.decided_by }}{% if item.remembered and item.status == "approved" %}; remembered for next time{% endif %}.
 </div>

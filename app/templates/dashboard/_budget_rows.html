@@ -4,9 +4,9 @@
 <div class="bud-head {{ cls[status] }}">
   <span class="bud-name">{{ name }}</span>
   <span></span>
-  <span class="bud-num">€{{ eur.format(spent) }}</span>
-  <span class="bud-num">{% if bud %}€{{ eur.format(bud) }}{% endif %}</span>
-  <span class="bud-num bud-est">€{{ eur.format(expected) }}</span>
+  <span class="bud-num">{{ spent|money(whole=True) }}</span>
+  <span class="bud-num">{% if bud %}{{ bud|money(whole=True) }}{% endif %}</span>
+  <span class="bud-num bud-est">{{ expected|money(whole=True) }}</span>
 </div>
 {% endmacro %}
 {% for group in budget.groups %}
@@ -23,12 +23,12 @@
         {% if line.budget_in_period %}<span class="bud-fill" style="display:block;width: {{ '%.0f'|format([pct, 0]|max) }}%;"></span>
         {% else %}<span class="bud-fill thin" style="display:block;width: 6%;"></span>{% endif %}
       </span>
-      <span class="bud-num">€{{ eur.format(line.spent) }}</span>
+      <span class="bud-num">{{ line.spent|money(whole=True) }}</span>
       <input type="checkbox" class="bud-toggle" id="bud-toggle-{{ line.node_id }}" aria-label="Edit budget for {{ line.name }}">
       <label class="bud-num bud-set {{ '' if line.budget is not none else 'unset' }}" for="bud-toggle-{{ line.node_id }}">
-        {% if line.budget is not none %}€{{ eur.format(line.budget) }}{% else %}set budget{% endif %}
+        {% if line.budget is not none %}{{ line.budget|money(whole=True) }}{% else %}set budget{% endif %}
       </label>
-      <span class="bud-num bud-est" title="{{ est_label }}">€{{ eur.format(line.expected) }}</span>
+      <span class="bud-num bud-est" title="{{ est_label }}">{{ line.expected|money(whole=True) }}</span>
       <form class="bud-form" hx-post="/overview/budget/{{ line.node_id }}" hx-target="#budget-panel" hx-swap="outerHTML">
         <input type="hidden" name="view" value="{{ budget_view }}">
         <label>€ <input type="number" name="amount" step="0.01" min="0" required

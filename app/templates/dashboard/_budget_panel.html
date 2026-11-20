@@ -1,6 +1,5 @@
 {% set est_label = "Month-end estimate" if budget_view == "month" else "Year-end estimate" %}
-{% macro eurs(v) %}{{ "−" if v < -0.5 else "" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
-{% set eur = "{:,.0f}" %}
+{% macro eurs(v) %}{{ "−" if v < -0.5 else "" }}{{ (v|abs)|money(whole=True) }}{% endmacro %}
 {% set loans_total = budget.loan_instalments + budget.loan_instalments_paid %}
 <div id="budget-panel">
   <div class="fc-section">
@@ -26,23 +25,23 @@
     <div class="bud-cards">
       <div class="fc-card">
         <div class="fc-card-label"><span>Income</span></div>
-        <div class="fc-card-val">€{{ eur.format(budget.income.low) }} – €{{ eur.format(budget.income.high) }}</div>
-        <div class="fc-card-caption">{{ est_label }}: €{{ eur.format(budget.income.expected) }} expected</div>
-        <div class="fc-card-caption">€{{ eur.format(budget.income_received) }} received so far</div>
+        <div class="fc-card-val">{{ budget.income.low|money(whole=True) }} – {{ budget.income.high|money(whole=True) }}</div>
+        <div class="fc-card-caption">{{ est_label }}: {{ budget.income.expected|money(whole=True) }} expected</div>
+        <div class="fc-card-caption">{{ budget.income_received|money(whole=True) }} received so far</div>
         {% if budget.unsorted_received > 0 %}
-        <div class="fc-card-caption"><a href="{{ nf_url }}">+ €{{ eur.format(budget.unsorted_received) }} income not filed yet</a></div>
+        <div class="fc-card-caption"><a href="{{ nf_url }}">+ {{ budget.unsorted_received|money(whole=True) }} income not filed yet</a></div>
         {% endif %}
       </div>
       <div class="fc-card">
         <div class="fc-card-label"><span>Spending</span></div>
-        <div class="fc-card-val">€{{ eur.format(budget.spend_spent) }} <span style="font-size:12px;font-weight:400;color:#888">so far</span></div>
-        <div class="fc-card-caption">{{ est_label }}: €{{ eur.format(budget.spend_expected) }}</div>
-        <div class="fc-card-caption">€{{ eur.format(budget.spend_if_budget_respected) }} if budgets are respected</div>
+        <div class="fc-card-val">{{ budget.spend_spent|money(whole=True) }} <span style="font-size:12px;font-weight:400;color:#888">so far</span></div>
+        <div class="fc-card-caption">{{ est_label }}: {{ budget.spend_expected|money(whole=True) }}</div>
+        <div class="fc-card-caption">{{ budget.spend_if_budget_respected|money(whole=True) }} if budgets are respected</div>
         {% if budget.unsorted_spent > 0 %}
-        <div class="fc-card-caption"><a href="{{ nf_url }}">+ €{{ eur.format(budget.unsorted_spent) }} not filed yet</a></div>
+        <div class="fc-card-caption"><a href="{{ nf_url }}">+ {{ budget.unsorted_spent|money(whole=True) }} not filed yet</a></div>
         {% endif %}
         {% if loans_total > 0 %}
-        <div class="fc-card-caption"><a href="/financials/loans">+ €{{ eur.format(loans_total) }} loan instalments</a></div>
+        <div class="fc-card-caption"><a href="/financials/loans">+ {{ loans_total|money(whole=True) }} loan instalments</a></div>
         {% endif %}
       </div>
       <div class="fc-card">
@@ -50,7 +49,7 @@
         <div class="fc-card-val">{{ eurs(budget.net.expected) }}</div>
         <div class="fc-card-caption">{{ est_label }}</div>
         <div class="fc-card-caption">range {{ eurs(budget.net.low) }} to {{ eurs(budget.net.high) }}</div>
-        <div class="fc-card-caption">{{ 'after loan instalments' if loans_total > 0 else 'before loan repayments' }}{% if budget.unsorted_received > 0 or budget.unsorted_spent > 0 %}; <a href="{{ nf_url }}">not filed yet: {% if budget.unsorted_received > 0 %}€{{ eur.format(budget.unsorted_received) }} income{% endif %}{% if budget.unsorted_received > 0 and budget.unsorted_spent > 0 %}, {% endif %}{% if budget.unsorted_spent > 0 %}€{{ eur.format(budget.unsorted_spent) }} spending{% endif %}</a>{% endif %}</div>
+        <div class="fc-card-caption">{{ 'after loan instalments' if loans_total > 0 else 'before loan repayments' }}{% if budget.unsorted_received > 0 or budget.unsorted_spent > 0 %}; <a href="{{ nf_url }}">not filed yet: {% if budget.unsorted_received > 0 %}{{ budget.unsorted_received|money(whole=True) }} income{% endif %}{% if budget.unsorted_received > 0 and budget.unsorted_spent > 0 %}, {% endif %}{% if budget.unsorted_spent > 0 %}{{ budget.unsorted_spent|money(whole=True) }} spending{% endif %}</a>{% endif %}</div>
       </div>
     </div>
 
@@ -65,7 +64,7 @@
 
     {% if budget.unsorted_spent > 0 %}
     <a class="bud-notfiled" href="/financials/transactions/needs-review">
-      <span>Not filed yet</span><span>€{{ eur.format(budget.unsorted_spent) }}</span>
+      <span>Not filed yet</span><span>{{ budget.unsorted_spent|money(whole=True) }}</span>
     </a>
     {% endif %}
   </div>

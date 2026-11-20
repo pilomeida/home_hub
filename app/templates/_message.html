@@ -1,0 +1,6 @@
+{# The one what / why / what-to-do message (Messages rule; decision D14). `technical` is optional raw detail, collapsed;
+   a message with a `link` gets a link named `link_text`. #}
+{% macro three_part(p, technical=none, link_text="Open") -%}
+<strong>{{ p.what }}</strong> {{ p.why }} {{ p.next_step }}{% if p.link %} <a href="{{ p.link }}">{{ link_text }}</a>{% endif %}
+{%- if technical %}<details><summary>Technical details</summary><code>{{ technical }}</code></details>{% endif %}
+{%- endmacro %}

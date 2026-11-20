@@ -38,8 +38,8 @@
       <a class="fc-cat-row" href="{{ row.drill_down_url }}">
         <div class="fc-cat-name">{{ row.category }}</div>
         <div></div>
-        <div class="fc-cat-val">€{{ "{:,.0f}".format(row.current_value) }}</div>
-        <div class="fc-cat-avg">€{{ "{:,.0f}".format(row.rolling_avg_value) }}</div>
+        <div class="fc-cat-val">{{ row.current_value|money(whole=True) }}</div>
+        <div class="fc-cat-avg">{{ row.rolling_avg_value|money(whole=True) }}</div>
         <div class="fc-cat-delta {{ 'up' if row.delta_pct and row.delta_pct > 0 else 'down' if row.delta_pct and row.delta_pct < 0 else '' }}">{{ "{:+.1f}%".format(row.delta_pct) if row.delta_pct is not none else "—" }}</div>
       </a>
       {% else %}

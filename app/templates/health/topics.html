@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_message.html" import three_part %}
 {% block title %}Health topics{% endblock %}
 {% block content %}
 <p><a href="/health/records">← Health</a></p>
@@ -6,7 +7,7 @@
 <p>The headings the Hub found in your written reports (scans, consultations, exams). The same heading in a later report
 lands on the same topic, so you can follow one finding over the years. The Hub proposes them; approve a proposal, rename it,
 or merge it into another.</p>
-{% if error %}<p class="needs-attention"><strong>{{ error.what }}</strong> {{ error.why }} {{ error.next_step }}</p>{% endif %}
+{% if error %}<p class="needs-attention">{{ three_part(error) }}</p>{% endif %}
 <table class="review-table">
   <thead><tr><th>Topic</th><th>Status</th><th></th></tr></thead>
   <tbody>

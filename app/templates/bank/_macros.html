@@ -1,5 +1,3 @@
+{% from "_message.html" import three_part %}
 {# One what / why / what-to-do message (decision D14). `technical` is optional raw detail, collapsed. #}
-{% macro problem(p, technical=none) -%}
-<strong>{{ p.what }}</strong> {{ p.why }} {{ p.next_step }}{% if p.link %} <a href="{{ p.link }}">Open</a>{% endif %}
-{%- if technical %}<details><summary>Technical details</summary><code>{{ technical }}</code></details>{% endif %}
-{%- endmacro %}
+{% macro problem(p, technical=none) -%}{{ three_part(p, technical) }}{%- endmacro %}

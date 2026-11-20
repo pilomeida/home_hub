@@ -59,8 +59,16 @@ from app.services.overview_charts import cash_flow_items as _cash_flow_items  # 
 templates.env.globals["charts_items"] = _cash_flow_items
 templates.env.globals["category_bars"] = _category_bars
 templates.env.globals["day_of_month"] = _day_of_month
-templates.env.filters["display_date"] = display_date
+templates.env.filters["display_date"] = display_date          # the one date format (yyyy-mm-dd)
 templates.env.filters["display_datetime"] = display_datetime
+
+
+def money(value, whole: bool = False) -> str:
+    """The one way a euro amount is shown: €1,234.56, or €1,235 with whole=True (PLAN step 9, D4)."""
+    return f"€{value:,.0f}" if whole else f"€{value:,.2f}"
+
+
+templates.env.filters["money"] = money
 
 
 def _utility_items(rows):

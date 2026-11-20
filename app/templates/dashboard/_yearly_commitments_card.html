@@ -3,7 +3,7 @@
   <div>
     <div class="fc-yc-top"><span>Yearly commitments</span><span>{{ card.pct_of_year_elapsed }}% of year</span></div>
     {% if card.has_commitments %}
-    <div class="fc-yc-val">€{{ "{:,.0f}".format(card.actual_total) }} <span>of €{{ "{:,.0f}".format(card.planned_total) }}</span></div>
+    <div class="fc-yc-val">{{ card.actual_total|money(whole=True) }} <span>of {{ card.planned_total|money(whole=True) }}</span></div>
     {% endif %}
   </div>
   {% if card.has_commitments %}
@@ -15,7 +15,7 @@
     <div class="fc-yc-sub">No budget set · {{ card.pct_of_year_elapsed }}% of year elapsed</div>
     {% endif %}
     {% if card.next_item_label %}
-    <div class="fc-yc-sub">Next: {{ card.next_item_label }}, {{ card.next_item_date.strftime('%Y-%m-%d') }}</div>
+    <div class="fc-yc-sub">Next: {{ card.next_item_label }}, {{ card.next_item_date|display_date }}</div>
     {% endif %}
   </div>
   {% else %}

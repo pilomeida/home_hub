@@ -23,7 +23,7 @@
   <tbody>
   {% for r in rows %}
   <tr><td>{% if r.url %}<a href="{{ r.url }}">{{ r.document.filename }}</a>{% else %}{{ r.document.filename }}{% endif %}</td>
-    <td>{{ r.where }}</td><td>{{ r.document.created_at.strftime('%Y-%m-%d') }}</td><td><span class="chip">{{ r.level }}</span></td>
+    <td>{{ r.where }}</td><td>{{ r.document.created_at|display_date }}</td><td><span class="chip">{{ r.level }}</span></td>
     {% if q %}<td>{% if r.line %}…{{ r.line }}…{% else %}<span class="sub">in its title or details</span>{% endif %}</td>{% endif %}</tr>
   {% endfor %}
   </tbody>

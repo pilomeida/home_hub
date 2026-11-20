@@ -1,7 +1,8 @@
-{% macro date(d) %}{{ d.strftime('%Y-%m-%d') }}{% endmacro %}
-{% macro eur0(v) %}{{ "−" if v < 0 else "" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
-{% macro eur2(v) %}{{ "−" if v < 0 else "" }}€{{ "{:,.2f}".format(v|abs) }}{% endmacro %}
-{% macro signed0(v) %}{{ "+" if v >= 0 else "−" }}€{{ "{:,.0f}".format(v|abs) }}{% endmacro %}
+{% from "_message.html" import three_part %}
+{% macro date(d) %}{{ d|display_date }}{% endmacro %}
+{% macro eur0(v) %}{{ "−" if v < 0 else "" }}{{ (v|abs)|money(whole=True) }}{% endmacro %}
+{% macro eur2(v) %}{{ "−" if v < 0 else "" }}{{ (v|abs)|money }}{% endmacro %}
+{% macro signed0(v) %}{{ "+" if v >= 0 else "−" }}{{ (v|abs)|money(whole=True) }}{% endmacro %}
 {% macro freshness(as_of, stale_days, stale_after=150) %}
 {%- if as_of -%}
 {%- if stale_days is not none and stale_days > stale_after -%}
@@ -72,4 +73,4 @@
 {% endmacro %}
 {% macro pct(v) %}{% if v is none %}—{% else %}{{ "%.3f"|format(v) }}%{% endif %}{% endmacro %}
 {% macro insurance_line(r) %}{% if r.insurance_paid %}<div><span class="loan-k">Insurance paid (linked debits)</span>{{ eur2(r.insurance_paid) }}{% if r.last_premium is not none %} <span class="loan-sub">· last premium {{ eur2(r.last_premium) }}{% if r.last_premium_date %} on {{ date(r.last_premium_date) }}{% endif %}</span>{% endif %}</div>{% endif %}{% endmacro %}
-{% macro three_parts(p, technical=None) %}<strong>{{ p.what }}</strong> {{ p.why }} {{ p.next_step }}{% if technical %}<details><summary>Technical details</summary><code>{{ technical }}</code></details>{% endif %}{% endmacro %}
+{% macro three_parts(p, technical=None) %}{{ three_part(p, technical) }}{% endmacro %}

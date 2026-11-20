@@ -1,7 +1,7 @@
 {% macro kpi_card(card, position=False) %}
 <a class="fc-card {{ 'position' if position else '' }}" href="{{ card.drill_down_url }}">
   <div class="fc-card-label"><span>{{ card.label }}</span><span class="go">↗</span></div>
-  <div class="fc-card-val">€{{ "{:,.0f}".format(card.value) }}</div>
+  <div class="fc-card-val">{{ card.value|money(whole=True) }}</div>
   {% if card.caption %}
   <div class="fc-card-caption">{{ card.caption }}</div>
   {% endif %}
