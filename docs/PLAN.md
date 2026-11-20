@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** stopped for Pedro: step 8's deploy stopped twice at its test gate (2816bfc: a Health privacy test counted 7 locked rows, now 12 with Identity; 24a9d14: two deploy-unit tests did not know the scheduler's new long lane). Nothing reached the server either time; both fixed. Since then, committed locally and not pushed: 7187d0c (D10, D1), b4e7260 (D4), bfbf9e5 (D6), 04e777c (D7) and D2; a full local run with link checks on passed 2,898 of 2,898, and after D2 (db4797a) 2,902 of 2,902 (2026-11-20, 1h48). Waiting for Pedro's word to push. Live: steps 6 and 7 (moved to section 4). Left in step 9: D8, D9, D11 (after the push), D12. The choices made for Pedro are listed in section 2. Step 10 is live except 10g, which waits on Pedro (section 2).
+**Now (2026-11-20):** step 8 is live (039ce55, 2026-11-20 21:27; deploy green), with step 9's D1, D2, D4–D7 and D10; checked live and moved to section 4. Next in step 9: D8 (payment entities and supermarkets into rules), then D9 (new-merchant AI calls in batches), then D11 (large Revolut statement read in parts); D12 partly waits on Pedro's Health papers. The choices made for Pedro are listed in section 2. Step 10 is live except 10g, which waits on Pedro (section 2).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -191,51 +191,6 @@ and said tweaks will come from using it.
 - Done when: every desktop and phone screen of `option-a.html` exists live and matches it in layout and chart rules; the
   family can do everything they could before; the privacy tripwires and the suite are green.
 
-### Step 8. New categories · M each
-Reuse: sysadminsmedia/homebox's "a thing with typed fields and attachments" (AGPL: idea only).
-- a. Identity & Legal: ID card, passport, driving licence, residence papers, wills; holder (a subject), number,
-  expiry; a reminder before expiry; suggested High.
-  ✅ a 2026-11-20, built and tested (`app/categories/identity/`, `/identity`, under Papers in the menu). Five kinds (ID
-  card, passport, driving licence, residence papers, will); the reader fills whose it is, the number, issue and expiry
-  dates and the country, keeping what a person typed; the holder is put in the subjects registry and written as the
-  name it keeps; a renewal To-Do 90 days before expiry ("Renew Pedro's passport (expires yyyy-mm-dd)", never the
-  number), told once on the phone when it comes ("Pedro's passport expires on yyyy-mm-dd: see To-Dos."); a paper whose
-  expiry was not found says so on its page and gets its To-Do when the date is typed; the Overview card counts papers
-  and the next expiry, never a name. "Suggested High" became always High (forced, like Health): a suggestion does
-  nothing until Pedro confirms it and his levels are not binding, so a passport could otherwise reach a cheaper route.
-  (Claude, 2026-11-20; Pedro may change: always High; 90 days before; the holder is kept as a name on the paper that
-  leads to its subject, not a new link column.)
-- b. Contracts and letters: contracts (telecom, service agreement, NDA) and bank letters (the Handelsbanken FATCA/CRS
-  letters) move out of "Other papers" into their own kinds, each with a level on the Privacy page.
-  ✅ b 2026-11-20, built and tested: Other papers has three kinds (Other paper, Contract, Letter), each its own row
-  on the Privacy page (suggested Mid; with c–e, 25 suggestions); the upload asks which; the page shows Contracts, Letters
-  and Other papers as sections; the Inbox still offers "Other paper" when nothing fits. The papers filed before move
-  by their own title and summary words (`app/categories/other/refile.py`, `scripts/refile_other_papers.py`: contract
-  words first, then letter words; anything else stays). Then the script on the live data. (Claude, 2026-11-20; Pedro
-  may change: contracts and letters stay inside Other papers as kinds rather than a category of their own.)
-- c. Vehicles: the car as a subject; insurance, inspection (IPO), road tax (IUC), service; reminders.
-- d. Education: school papers per child, diplomas; dates and fees into Coming up.
-- e. Pet (Pedro, 2026-11-19): a pet as a thing with a type, like the car: vet papers, vaccinations, insurance; reminders.
-  Built with step 10's components.
-- Done when: a passport is uploaded, read, and its expiry reminder appears on To-Dos and reaches the phone once.
-  ✅ c–e 2026-11-20, built and tested, on shared pieces that a new category of papers now reuses: a paper kind
-  declares its date reminder (`app/categories/reminders.py`: which date, how many days before, the To-Do's title and
-  the phone line, whose and what kind only, never a number); filing and editing keep the To-Do in step; one phone
-  notice kind tells each once when its day comes; one set of pages (add a paper, its page, its details:
-  `app/routers/paper_pages.py`) and one reader for typed papers (`app/categories/paper_reading.py`,
-  `typed_handler.py`). c Vehicles (`/vehicles`, under Things): registration, inspection (IPO), road tax (IUC),
-  service; the plate written one way and the car a subject; one card per car with its papers, its next inspection,
-  road tax and service (soon amber, past red) and the Insurance policies that name its plate; To-Dos 30 / 14 / 21
-  days before; a road tax already paid reminds next year's. d Education (`/education`, under Papers): school papers
-  per child (a date to act on), school fees (amount and due date), diplomas; the pupil a person of the registry; a
-  date or fee is a To-Do 7 days before, so it shows in Coming up's Dates with an Education chip and reaches the
-  phone once. e Pets (`/pets`, under Things): a pet is a thing of the registry with a type (dog, cat, other); vet
-  visits and vaccinations, the next date a To-Do 14 days before; pet insurance is filed under Insurance ("Pets" is
-  a new section there) and shows on the pet's card. All suggested Mid on the Privacy page. Then deploy. (Claude,
-  2026-11-20; Pedro may change: the days before each date; Education under Papers and Vehicles and Pets under
-  Things; school fees as Education papers with a To-Do rather than bills under Money; a car's and a pet's insurance
-  stay under Insurance.)
-
 ### Step 9. What clean-up is left · S–M each
 Whatever the steps above did not already touch.
 | ID | What |
@@ -324,6 +279,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-11-19 | **Step 5 (C4)** shared reading blocks, Health first (39aa82a → e5680ae): one reading block (one error type, Portuguese numbers and dates, a 25 MB guard before upload); lab results matched to known tests, one line per test on a person's results page (88 live results → 65 tests; a new test is asked only when it looks like one listed: 3 asked); lab sheets get topics; one check-result shape for the statement, positions, card and Health checks, Health doubts on "Waiting for you"; "Read again" keeps a person's fields; the PDF's own layout settles headings and references; wrapper headings dropped; a finding or reference cut short completed from the second reading; a provider learnt once from the names a person confirmed. Benchmark: 0/2 before, 2/2 on two runs after (the benchmark now reads as the Hub does; `--fresh` without what it has learnt). Choices (Claude; Pedro may change): a new test is asked only when it looks like one listed; a history point shows once on a person's results while each paper keeps what it printed; the benchmark runner stays with Health until a second reader has cases; the benchmark reads with what the Hub has learnt. Leftover D12 in step 9 |
 | 2026-11-20 | **Step 6 (E3, C7)** wiki facts point at subjects, and answers agree (5333737, 77499c9, 4de8954): each wiki page carries the subject it is about; a provider written another way leads to its one page and one "provider" value (Amigo's four spellings are aliases of Vodafone Portugal; 21 pages given subjects, 44 keys folded, 124 facts before and after); Home, the Overview, Ask and the budget count spending one way, and Home names what it leaves out (loan instalments, moves between own accounts); areas, topics and page titles in English with the Portuguese kept as aliases (6 areas joined, 2 conditions and 3 topics renamed). Choices (Claude; Pedro may change): "Vodafone Portugal" as Amigo's name; loan instalments are not spending; the five translations |
 | 2026-11-20 | **Step 7** Health conditions, follow-ups, visits and medication (77499c9, 4de8954): a condition per person, suggested on each paper and confirmed by a person, old guessed labels proposed on Waiting for you; follow-ups become Health To-Dos 14 days before they are due and reach the phone once, proposed from a paper's words; visits, notes and medication with every change kept, one timeline per condition; Ask's conditions tool at High; the Overview's Health card never names a condition. Left: bookings to Google Calendar once Pedro sets it up (section 2). Choices (Claude; Pedro may change): reminders 14 days before; the Portuguese and English follow-up words |
+| 2026-11-20 | **Step 8** new categories (2816bfc, 24a9d14; live 039ce55, deploy run 44819070261 green after two stops at the test gate): Identity & Legal (always High, renewal To-Do 90 days before expiry, told once on the phone); Contracts and Letters as kinds of Other papers; Vehicles, Education and Pets on shared paper pages, one typed reader and date reminders. Live check: /identity, /vehicles, /education, /pets, /other, /search and the money pages load; no new problem. Refile of Other papers on live: backup, dry run 0, applied 0 (no paper is filed under Other papers yet; 69 wait in the Inbox). With it went step 9 D1, D2, D4, D5, D6, D7, D10 |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |
