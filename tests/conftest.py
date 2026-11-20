@@ -32,6 +32,8 @@ def engine(tmp_path):
     test_engine = create_engine(
         f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
     )
+    from app.db import register_foreign_keys_pragma
+    register_foreign_keys_pragma(test_engine)       # links enforced, like production (PLAN step 9, D7)
     from app import models  # noqa: F401 — registers tables on SQLModel.metadata
 
     SQLModel.metadata.create_all(test_engine)

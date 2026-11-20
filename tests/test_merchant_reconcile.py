@@ -8,6 +8,7 @@ from app.models.transaction import Transaction, TransactionType
 from app.services.merchant_reconcile import reconcile_merchants
 from app.services.merchant_rules import keyword_node_slug
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, file_transaction, get_node, is_refund
+from tests.fakes.records import a_loan
 
 SM, FUEL, REST = "food.groceries.supermarket", "transport.car-running-costs.fuel", "food.eat-out.restaurants"
 ATM = "cash-giving.cash.atm-withdrawals"
@@ -107,7 +108,7 @@ def test_loan_linked_rows_and_transfers_are_never_moved(session):
     ensure_taxonomy(session)
     m = _merchant(session, "Banco", FUEL, confirmed=True)
     loan = _t(session, m, "loans-debt.loan-repayments.car-loan", debt_id=None)
-    loan.debt_id = 1; session.add(loan)
+    loan.debt_id = a_loan(session).id; session.add(loan)
     transfer = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER)
     session.commit()
     before = (loan.category_id, transfer.category_id)

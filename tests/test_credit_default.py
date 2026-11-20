@@ -10,6 +10,7 @@ from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node, look
 from app.services.transfer_direction import direction_from_description, recover_transfer_directions
 from tests.fakes.fake_gateway import FakeGateway
 from tests.test_merchant_reconcile import _merchant, _t
+from tests.fakes.records import a_loan
 
 TAX = "taxes-financial-costs.taxes.social-security"
 BENEFIT = "income.benefits-refunds-from-the-state.family-or-other-benefits"
@@ -110,7 +111,7 @@ def test_a_category_instruction_is_applied_per_direction_and_sets_the_matching_d
     ensure_taxonomy(session)
     m = _merchant(session, "Segurança Social")
     out = _t(session, m, UNSORTED_SLUG); inn = _t(session, m, UNSORTED_SLUG, TransactionType.CREDIT)
-    loan = _t(session, m, UNSORTED_SLUG); loan.debt_id = 1; session.add(loan); session.commit()
+    loan = _t(session, m, UNSORTED_SLUG); loan.debt_id = a_loan(session).id; session.add(loan); session.commit()
     dry = apply_merchant_category(session, m.id, BENEFIT, TAX, dry_run=True)
     assert dry.filed == 2
     apply_merchant_category(session, m.id, BENEFIT, TAX)

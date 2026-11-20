@@ -5,6 +5,7 @@ from app.models.transaction import TransactionType
 from app.services.merchant_assign import assign_category, list_merchants
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from tests.test_merchant_reconcile import _merchant, _t
+from tests.fakes.records import a_loan
 
 SM, FUEL, REST = "food.groceries.supermarket", "transport.car-running-costs.fuel", "food.eat-out.restaurants"
 
@@ -49,7 +50,7 @@ def test_dry_run_counts_without_writing(session):
 def test_loan_linked_rows_and_transfers_are_never_moved_and_credits_follow_the_refund_rule(session):
     ensure_taxonomy(session)
     m = _merchant(session, "Bank")
-    loan = _t(session, m, "loans-debt.loan-repayments.mortgage"); loan.debt_id = 1; session.add(loan)
+    loan = _t(session, m, "loans-debt.loan-repayments.mortgage"); loan.debt_id = a_loan(session).id; session.add(loan)
     transfer = _t(session, m, UNSORTED_SLUG, TransactionType.TRANSFER)
     purchase = _t(session, m, UNSORTED_SLUG)
     refund = _t(session, m, UNSORTED_SLUG, TransactionType.CREDIT)

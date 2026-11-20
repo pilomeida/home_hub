@@ -6,6 +6,7 @@ from app.services.merchant_relabel import relabel_structured
 from app.services.structured_providers import ALL, LENDER, structured_merchant
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from tests.test_merchant_reconcile import _merchant, _t
+from tests.fakes.records import a_loan
 
 # provider texts exactly as they sit in the live database
 LOAN = ["COB.REC.31.000317997064096 (prestação crédito habitação)",
@@ -43,8 +44,9 @@ def test_relabel_collapses_the_invented_merchants_and_leaves_categories_and_loan
     mort = "loans-debt.loan-repayments.mortgage"
     junk = [_merchant(session, n) for n in ("Caixa Geral de Depósitos", "Banco do Brasil - Conta de Débito", "COB Electricity")]
     rows = [_t(session, m, mort, description=p) for m, p in zip(junk, LOAN[:3])]
+    loan = a_loan(session)
     for t in rows:
-        t.debt_id = 1; session.add(t)
+        t.debt_id = loan.id; session.add(t)
     edf = _merchant(session, "EDF")
     ins = _t(session, edf, "insurances.home.building-insurance-house-loan", description="SEG:EDF 2026-09-02/2026-10-01")
     other = _t(session, junk[0], UNSORTED_SLUG, description="TRANSFERENCIA XYZ")

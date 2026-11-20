@@ -4,6 +4,7 @@ from datetime import date
 import pytest
 from sqlmodel import select
 
+from app.models.account import Account, AccountType
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
@@ -37,6 +38,11 @@ Data Operação  Descrição  Montante (EUR)
 @pytest.fixture()
 def card(session):
     ensure_taxonomy(session)
+    # The accounts these tests name, with their live ids: the joint current account, Pedro's card, Rute's card.
+    session.add_all([Account(id=1, name="Conta Santander", institution="Santander"),
+                     Account(id=3, name="Cartão Pedro", institution="Santander", account_type=AccountType.CARD),
+                     Account(id=4, name="Cartão Rute", institution="Santander", account_type=AccountType.CARD)])
+    session.commit()
     doc = make_document(session, category=Category.FINANCIALS, paper_kind="statement", filename="card.pdf")
     first = Transaction(document_id=doc.id, description="COMPRA ESTRANG 1835 AIR CAN", amount=587.17, account_id=3,
                         transaction_type=TransactionType.DEBIT, paid_date=date(2026, 9, 5))

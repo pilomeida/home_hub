@@ -720,8 +720,17 @@ def test_needs_review_survives_a_transaction_whose_merchant_is_missing(client, s
     ensure_taxonomy(session)
     doc = Document(filename="o.pdf", file_path="/tmp/o.pdf", content_hash="h-orphan", source=DocumentSource.MANUAL)
     session.add(doc); session.commit()
-    session.add(Transaction(document_id=doc.id, description="ORPHAN", amount=1.0, merchant_id=987654))
-    session.commit()
+    # A row from before links were enforced (the live database still has such rows): written with the check off.
+    from sqlalchemy import insert
+    with session.get_bind().connect() as conn:
+        conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        row = Transaction(document_id=doc.id, description="ORPHAN", amount=1.0, merchant_id=987654)
+        from sqlalchemy import inspect as sa_inspect
+        values = {a.columns[0].name: getattr(row, a.key) for a in sa_inspect(Transaction).column_attrs
+                  if getattr(row, a.key) is not None}
+        conn.execute(insert(Transaction.__table__).values(**values))
+        conn.commit()
+        conn.exec_driver_sql("PRAGMA foreign_keys=ON")
     r = client.get("/financials/transactions/needs-review")
     assert r.status_code == 200
 

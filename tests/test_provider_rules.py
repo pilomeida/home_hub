@@ -10,6 +10,7 @@ from app.services.provider_rules import (
 )
 from app.services.taxonomy import UNSORTED_SLUG, ensure_taxonomy, get_node
 from tests.test_merchant_reconcile import _merchant, _t
+from tests.fakes.records import a_loan
 
 FAMILY = "loans-debt.money-lent-out.to-family"
 SM, REST = "food.groceries.supermarket", "food.eat-out.restaurants"
@@ -76,7 +77,7 @@ def test_loan_linked_rows_never_move_and_a_debit_cannot_take_an_inflow_node(sess
     ensure_taxonomy(session)
     m = _merchant(session, "Santander")
     loan = _t(session, m, "loans-debt.loan-repayments.mortgage", description="COB.REC.31.000317997064096/3")
-    loan.debt_id = 1; session.add(loan)
+    loan.debt_id = a_loan(session).id; session.add(loan)
     debit = _t(session, m, UNSORTED_SLUG, description="COB.REC.31.000317997064096/4")
     session.commit()
     node = get_node(session, "income.psi.sessions")
