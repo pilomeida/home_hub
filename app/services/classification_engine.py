@@ -200,7 +200,7 @@ async def classify_transaction(
     from the result. Does not commit — the caller controls the
     transaction boundary. This is the single entry point both the live
     ingestion pipeline and the historical backfill script use."""
-    structured = structured_merchant(transaction.description)
+    structured = structured_merchant(session, transaction.description)
     if structured is not None:  # a loan instalment / loan insurance debit: one fixed merchant, no model call
         merchant, created_new_merchant = ensure_structured_merchant(session, structured)
         normalized_key = structured.key
@@ -211,7 +211,7 @@ async def classify_transaction(
 
     resolved_node_slug = None
     if merchant is None:
-        keyword = keyword_match(transaction.description)
+        keyword = keyword_match(session, transaction.description)
         if keyword:  # a fixed ruling, no LLM call
             keyword_slug, chain_name = keyword
             resolved = ResolvedMerchant(canonical_name=chain_name, node_slug=keyword_slug, nature=Nature.ESSENTIAL)

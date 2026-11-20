@@ -64,6 +64,18 @@ def session(engine):
 
 
 @pytest.fixture()
+def payee_rules(session):
+    """Pedro's payee rules (entities, payment texts, supermarket chains) as live has them since PLAN step 9 D8,
+    written by the production seed over the seeded tree. Returns the session."""
+    from app.services.payment_entities import seed
+    from app.services.taxonomy import ensure_taxonomy
+    ensure_taxonomy(session)
+    seed(session)
+    session.commit()
+    return session
+
+
+@pytest.fixture()
 def client(engine, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 

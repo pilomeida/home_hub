@@ -9,6 +9,8 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from sqlmodel import Session
+
 from app.services import tree_slugs
 from app.services.loan_insurance import BUILDING_SLUG, LIFE_SLUG, insurance_key, key_component
 
@@ -38,10 +40,10 @@ def entity_merchant(entity) -> StructuredMerchant:
     return StructuredMerchant(f"entity:{entity.number}", entity.name, entity.node_slug)
 
 
-def structured_merchant(provider: Optional[str]) -> Optional[StructuredMerchant]:
+def structured_merchant(session: Session, provider: Optional[str]) -> Optional[StructuredMerchant]:
     text = provider or ""
     from app.services.payment_entities import payee_of   # a Multibanco payment: the entity is the payee
-    entity = payee_of(text)
+    entity = payee_of(session, text)
     if entity is not None:
         return entity_merchant(entity)
     if _LOAN_COLLECTION.match(text):

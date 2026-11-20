@@ -18,19 +18,19 @@ INSURANCE = {"SEG:LAR 2023-07-26/2023-09-01": "seguro-multirriscos", "SEG VIDA 2
 
 
 @pytest.mark.parametrize("text", LOAN)
-def test_loan_collections_map_to_the_one_lender_merchant(text):
-    assert structured_merchant(text) is LENDER
+def test_loan_collections_map_to_the_one_lender_merchant(payee_rules, text):
+    assert structured_merchant(payee_rules, text) is LENDER
 
 
 @pytest.mark.parametrize("text,fragment", INSURANCE.items())
-def test_insurance_debits_map_to_their_fixed_merchants(text, fragment):
-    assert fragment in structured_merchant(text).key
+def test_insurance_debits_map_to_their_fixed_merchants(payee_rules, text, fragment):
+    assert fragment in structured_merchant(payee_rules, text).key
 
 
 @pytest.mark.parametrize("text", ["SEGURANCA SOCIAL", "COB.REC.31", "COB.REC.31.123", "MODELO HIPER", "", None,
                                   "PAG.CTA.CART.31005126887780011", "DÉBITO DIRETO-REALVSEGUROS-91038975002"])
-def test_everything_else_is_left_to_the_normal_path(text):
-    assert structured_merchant(text) is None
+def test_everything_else_is_left_to_the_normal_path(payee_rules, text):
+    assert structured_merchant(payee_rules, text) is None
 
 
 def test_every_structured_merchant_targets_a_real_node(session):
@@ -39,8 +39,7 @@ def test_every_structured_merchant_targets_a_real_node(session):
         get_node(session, spec.node_slug)
 
 
-def test_relabel_collapses_the_invented_merchants_and_leaves_categories_and_loan_links(session):
-    ensure_taxonomy(session)
+def test_relabel_collapses_the_invented_merchants_and_leaves_categories_and_loan_links(session, payee_rules):
     mort = "loans-debt.loan-repayments.mortgage"
     junk = [_merchant(session, n) for n in ("Caixa Geral de Depósitos", "Banco do Brasil - Conta de Débito", "COB Electricity")]
     rows = [_t(session, m, mort, description=p) for m, p in zip(junk, LOAN[:3])]
@@ -86,11 +85,10 @@ async def test_new_instalments_share_one_merchant_and_never_ask_the_model(sessio
     assert session.get(Merchant, made[0]).canonical_name == LENDER.name
 
 
-def test_the_three_insurance_kinds_share_one_counterparty_merchant(session):
+def test_the_three_insurance_kinds_share_one_counterparty_merchant(session, payee_rules):
     from app.services.merchant_relabel import ensure_structured_merchant
     from app.services.structured_providers import structured_merchant
-    ensure_taxonomy(session)
-    merchants = {ensure_structured_merchant(session, structured_merchant(p))[0].id
+    merchants = {ensure_structured_merchant(session, structured_merchant(session, p))[0].id
                  for p in ("SEG:LAR 2026-10-02/2026-11-01", "SEG VIDA 15.268206-2026/09/21", "SEG:EDF 2026-10-02/2026-11-01")}
     assert len(merchants) == 1
     survivor = session.get(Merchant, merchants.pop())
@@ -100,20 +98,20 @@ def test_the_three_insurance_kinds_share_one_counterparty_merchant(session):
 
 # --- Multibanco payment entities (descriptions as the bank prints them) ---
 
-def test_a_multibanco_payment_names_its_payee_by_entity_not_by_the_text_around_it():
-    from app.services.payment_entities import entity_of
+def test_a_multibanco_payment_names_its_payee_by_entity_not_by_the_text_around_it(payee_rules):
+    from app.services.payment_entities import entity_number, payee_of
     for text, entity in (("PAG SERVICOS  1835 27134-627088996", "27134"),
                          ("PAG SERVICOS *1835 12442-540006308 AMIGO*EASYPAY.P", "12442"),
                          ("AMIGO*EASYPAY.P 12442-540006308", "12442"),
                          ("PAG SERVICOS 20160-402818490", "20160")):
-        assert entity_of(text).number == entity
-    assert entity_of("PAG SERVICOS 1835 99999-123456789") is None      # an entity nobody has named yet
-    assert entity_of("7303599-00-PAG.CTA.CARTAO") is None
-    assert structured_merchant("PAG SERVICOS 23332-200645166").name == "Câmara Municipal de Mafra"
-    assert structured_merchant("PAG SERVICOS 23332-200645166").key == "entity:23332"
+        assert entity_number(text) == entity and payee_of(payee_rules, text).number == entity
+    assert payee_of(payee_rules, "PAG SERVICOS 1835 99999-123456789") is None      # an entity nobody has named yet
+    assert entity_number("7303599-00-PAG.CTA.CARTAO") is None
+    assert structured_merchant(payee_rules, "PAG SERVICOS 23332-200645166").name == "Câmara Municipal de Mafra"
+    assert structured_merchant(payee_rules, "PAG SERVICOS 23332-200645166").key == "entity:23332"
 
 
-def test_refile_by_entity_moves_a_mistaken_electricity_entry_and_spares_a_checked_one(session):
+def test_refile_by_entity_moves_a_mistaken_electricity_entry_and_spares_a_checked_one(session, payee_rules):
     from datetime import date
     from app.models.category import Category
     from app.models.transaction import Transaction, TransactionType
@@ -141,8 +139,11 @@ def test_refile_by_entity_moves_a_mistaken_electricity_entry_and_spares_a_checke
     assert checked.category_id == other.category_id == electricity.id
 
 
-def test_payees_named_by_text_alone_are_recognised_and_the_wrong_look_alikes_are_not():
-    from app.services.payment_entities import payee_of
+def test_payees_named_by_text_alone_are_recognised_and_the_wrong_look_alikes_are_not(payee_rules):
+    from app.services.payment_entities import payee_of as _payee_of
+
+    def payee_of(text):
+        return _payee_of(payee_rules, text)
     assert payee_of("PAG SERVICOS BGA").name == "Brave Generation Academy"
     assert payee_of("EUPAGO*LIGAT TE").name == payee_of("PAG SERVICOS EUPAGO*LIGATE").name == "LigaT Telecom"
     assert payee_of("PAG SERVICOS 1835 22255-102450350 Eupago Ligat Te").number == "22255"
@@ -151,4 +152,4 @@ def test_payees_named_by_text_alone_are_recognised_and_the_wrong_look_alikes_are
     assert payee_of("COMPRA MBW 5990 EUPAGO- INST PAG LDA PORTO") is None      # not card 3315: left for review
     assert payee_of("EUPAGO- INST PAG LDA PORTO") is None                      # the MB Way top-up transfers
     assert payee_of("PAG SERVICOS") is None
-    assert structured_merchant("PAG SERVICOS BGA").key == "entity:text:bga"
+    assert structured_merchant(payee_rules, "PAG SERVICOS BGA").key == "entity:text:bga"

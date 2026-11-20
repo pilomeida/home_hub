@@ -11,9 +11,9 @@ from app.services import tree_slugs
 from app.services.taxonomy import ensure_taxonomy
 
 APP = Path(__file__).resolve().parent.parent / "app"
-# Seed and history data that only lists slugs; payment entities move into rules in step 9 D8.
+# Seed and history data that only lists slugs (payee_seed: Pedro's first payee rulings, loaded into rules in D8).
 _DATA_FILES = {"services/tree_slugs.py", "services/taxonomy_slugmap.py", "services/tag_seed.py",
-               "services/payment_entities.py"}
+               "services/payee_seed.py"}
 
 
 def _tree(session) -> set[str]:

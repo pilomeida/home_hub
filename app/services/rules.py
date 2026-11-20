@@ -111,13 +111,22 @@ def remember_merchant(session: Session, merchant, node, *, by: Optional[str] = N
                     note="Remembered when a person confirmed this merchant's category")
 
 
+def is_payee_rule(rule: Rule) -> bool:
+    """A rule that reads who was paid from the bank text (PLAN step 9 D8: an entity, a payment text, a supermarket
+    chain). It settles a new line's merchant (app/services/payment_entities.py); the line's category then follows
+    that merchant, so a person's later answer about the merchant is never outranked by it."""
+    from app.models.rule import DESCRIPTION, ENTITY
+    return rule.looks_at in (DESCRIPTION, ENTITY) and bool(rule.merchant)
+
+
 def person_spending_rule(session: Session, *, description: Optional[str] = None,
                          counterparty: Optional[str] = None) -> Optional[Rule]:
     """A person's spending answer for a bank line: by its bank text first (the more specific), then by its
     counterparty. Only person rules: the caller falls back to its own defaults, never above a person."""
     from app.models.rule import COUNTERPARTY, DESCRIPTION
     for facts in ({DESCRIPTION: description}, {COUNTERPARTY: counterparty}):
-        hit = next((r for r in candidates(session, SPENDING, facts) if r.source == PERSON), None)
+        hit = next((r for r in candidates(session, SPENDING, facts) if r.source == PERSON and not is_payee_rule(r)),
+                   None)
         if hit is not None:
             return hit
     return None
@@ -142,5 +151,5 @@ def remember_alias(session: Session, spelling: str, merchant: str, *, by: Option
                     merchant=merchant, example=spelling, note="Another spelling of this merchant (merged by a person)")
 
 
-__all__ = ["merchant_alias", "remember_alias", "remember_merchant", "person_spending_rule", "SPENDING", "MERCHANT", "PAPER_KIND", "PERSON", "AI", "SYSTEM", "CONTAINS", "EXACT", "KEY", "PREFIX",
+__all__ = ["is_payee_rule", "merchant_alias", "remember_alias", "remember_merchant", "person_spending_rule", "SPENDING", "MERCHANT", "PAPER_KIND", "PERSON", "AI", "SYSTEM", "CONTAINS", "EXACT", "KEY", "PREFIX",
            "REGEX", "find", "candidates", "matches", "ordered", "remember"]

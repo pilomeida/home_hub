@@ -70,9 +70,9 @@ async def test_an_ordinary_counterparty_that_already_exists_is_reused_with_its_o
     assert t.category_id == get_node(session, "food.groceries.supermarket").id
 
 
-def test_the_chain_rule_names_the_chain_not_the_store():
+def test_the_chain_rule_names_the_chain_not_the_store(payee_rules):
     from app.services.merchant_rules import keyword_match
-    assert keyword_match("MODELO HIPER 2640-MAFR") == ("food.groceries.supermarket", "Modelo Hiper")
-    assert keyword_match("PINGO DOCE 1234 LISBOA")[1] == "Pingo Doce"
-    assert keyword_match("COMPRA 3315 INTERMARCHE MAFRA")[1] == "Intermarché"
-    assert keyword_match("Banco Modelos") is None
+    assert keyword_match(payee_rules, "MODELO HIPER 2640-MAFR") == ("food.groceries.supermarket", "Modelo Hiper")
+    assert keyword_match(payee_rules, "PINGO DOCE 1234 LISBOA")[1] == "Pingo Doce"
+    assert keyword_match(payee_rules, "COMPRA 3315 INTERMARCHE MAFRA")[1] == "Intermarché"
+    assert keyword_match(payee_rules, "Banco Modelos") is None

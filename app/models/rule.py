@@ -35,6 +35,9 @@ class Rule(RefusesUnknownFields, SQLModel, table=True):
     pattern: str = Field(index=True)
     # The answer: any of these, as the rule's purpose needs.
     merchant: Optional[str] = None
+    # A payee rule (PLAN step 9 D8) whose payee fixes the merchant: every line it matches is the one merchant with
+    # this key (`entity:27134`). Empty for every other rule, a supermarket chain included.
+    merchant_key: Optional[str] = None
     node_id: Optional[int] = Field(default=None, foreign_key="category_nodes.id")   # spending leaf
     category: Optional[str] = None                                                   # kind of paper: category ...
     paper_kind: Optional[str] = None                                                 # ... and kind

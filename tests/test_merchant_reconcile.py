@@ -38,13 +38,13 @@ def _t(session, m, slug, ttype=TransactionType.DEBIT, amount=10.0, description=N
 
 @pytest.mark.parametrize("text", ["Modelo Hiper", "MO MODELO CONTINENTE", "LIDL & CO", "ALDI Sul", "Pingo  Doce",
                                   "Intermarché", "INTERMARCHE", "CCR-MODELO HIPER reembolso"])
-def test_keyword_rule_matches_the_chains(text):
-    assert keyword_node_slug(text) == SM
+def test_keyword_rule_matches_the_chains(payee_rules, text):
+    assert keyword_node_slug(payee_rules, text) == SM
 
 
 @pytest.mark.parametrize("text", ["Aldina Cabeleireira", "Banco Modelos", "Valdivia", "Continentes Lda", None, ""])
-def test_keyword_rule_ignores_lookalikes(text):
-    assert keyword_node_slug(text) is None
+def test_keyword_rule_ignores_lookalikes(payee_rules, text):
+    assert keyword_node_slug(payee_rules, text) is None
 
 
 def test_is_refund_only_for_a_credit_under_a_spending_node(session):
@@ -56,7 +56,7 @@ def test_is_refund_only_for_a_credit_under_a_spending_node(session):
     assert not is_refund(credit, get_node(session, UNSORTED_SLUG)) and not is_refund(credit, None)
 
 
-def test_supermarket_rule_overrides_every_other_filing_even_a_confirmed_merchant(session):
+def test_supermarket_rule_overrides_every_other_filing_even_a_confirmed_merchant(session, payee_rules):
     ensure_taxonomy(session)
     m = _merchant(session, "Modelo Hiper", ATM, confirmed=True)
     a, b = _t(session, m, ATM, description="MO 2640-000 MAFR"), _t(session, m, SM)
@@ -117,7 +117,7 @@ def test_loan_linked_rows_and_transfers_are_never_moved(session):
     assert (loan.category_id, transfer.category_id) == before
 
 
-def test_dry_run_changes_nothing_but_reports_and_logs_every_move(session):
+def test_dry_run_changes_nothing_but_reports_and_logs_every_move(session, payee_rules):
     ensure_taxonomy(session)
     m = _merchant(session, "Continente", ATM)
     t = _t(session, m, ATM)
@@ -147,7 +147,7 @@ def test_merchant_with_only_unsorted_rows_and_no_default_is_left_unresolved(sess
 
 
 @pytest.mark.asyncio
-async def test_new_chain_merchant_is_filed_by_the_rule_without_asking_the_llm(session):
+async def test_new_chain_merchant_is_filed_by_the_rule_without_asking_the_llm(session, payee_rules):
     from app.services.classification_engine import classify_transaction
     from tests.fakes.fake_gateway import FakeGateway
 
