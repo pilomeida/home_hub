@@ -18,7 +18,7 @@ from app.llm_gateway import (
     VISION_EXTRACTION,
     get_gateway,
 )
-from app.services.document_input import build_content_block
+from app.services.document_input import build_content_block, pdf_pages_block
 from app.services.json_utils import strip_json_fences
 from app.services.reading import ReadingError, day, number
 
@@ -272,9 +272,35 @@ def _optional_flag(value) -> bool:
 
 async def extract_statement_transactions(file_path: str, gateway=None) -> ExtractedStatement:
     """Extract every transaction line item from a bank statement document."""
-    gw = gateway or get_gateway()
-    content_block = build_content_block(file_path)
+    return await _read_statement(build_content_block(file_path), gateway)
 
+
+async def extract_statement_in_parts(file_path: str, first_page: int, last_page: int, *, pages_per_part: int = 4,
+                                     gateway=None) -> ExtractedStatement:
+    """Read pages first_page..last_page of a statement too big to read whole (PLAN step 9 D11), a few pages per
+    call. The parts never share a page, so no line is read twice; the opening balance is the first part's and the
+    closing balance the last part's. A part that cannot be read fails the whole reading, naming its pages."""
+    lines: list[ExtractedTransaction] = []
+    opening = closing = period = None
+    for start in range(first_page, last_page + 1, pages_per_part):
+        end = min(start + pages_per_part - 1, last_page)
+        try:
+            part = await _read_statement(pdf_pages_block(file_path, start, end), gateway)
+        except ReadingError as exc:
+            raise StatementExtractionError(f"pages {start}-{end} could not be read: {exc}") from exc
+        for line in part.transactions:
+            if line.page is not None:
+                line.page += start - 1               # the part's page 1 is the paper's page `start`
+        lines.extend(part.transactions)
+        opening = part.opening_balance if opening is None and start == first_page else opening
+        closing = part.closing_balance
+        period = period or part.statement_period
+    return ExtractedStatement(statement_period=period, transactions=lines, opening_balance=opening,
+                              closing_balance=closing)
+
+
+async def _read_statement(content_block: dict, gateway=None) -> ExtractedStatement:
+    gw = gateway or get_gateway()
     result = await gw.run(
         VISION_EXTRACTION,
         _STATEMENT_SYSTEM_PROMPT,

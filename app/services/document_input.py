@@ -1,6 +1,7 @@
 """Builds Claude content blocks (document or image) for an uploaded file."""
 
 import base64
+from io import BytesIO
 from pathlib import Path
 
 from app.services.reading import ReadingError, check_size
@@ -39,6 +40,27 @@ def build_content_block(file_path: str) -> dict:
             "source": {"type": "base64", "media_type": _IMAGE_MEDIA_TYPES[suffix], "data": data},
         }
     raise UnsupportedFileTypeError(f"Unsupported file type: {suffix}")
+
+
+def pdf_page_count(file_path: str) -> int:
+    from pypdf import PdfReader
+    return len(PdfReader(file_path).pages)
+
+
+def pdf_pages_block(file_path: str, first_page: int, last_page: int) -> dict:
+    """A `document` block holding only pages first_page..last_page (1-based, inclusive) of a PDF: a paper too big
+    for one reading is read in parts (PLAN step 9 D11)."""
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(file_path)
+    if not 1 <= first_page <= last_page <= len(reader.pages):
+        raise ReadingError(f"pages {first_page}-{last_page} are not in this {len(reader.pages)}-page paper")
+    writer = PdfWriter()
+    for index in range(first_page - 1, last_page):
+        writer.add_page(reader.pages[index])
+    buffer = BytesIO()
+    writer.write(buffer)
+    data = base64.b64encode(buffer.getvalue()).decode()
+    return {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": data}}
 
 
 def is_model_readable(file_path: str) -> bool:
