@@ -15,7 +15,7 @@ from app.models.wiki import (  # noqa: F401
     ClaimStatus, WikiClaim, WikiClaimSource, WikiLink, WikiLogEntry, WikiOperation, WikiPage,
 )
 from app.models.utility_reading import UtilityReading  # noqa: F401
-from app.models.ask import AskConversation, AskStatus, AskTurn  # noqa: F401
+from app.models.ask import AskAction, AskConversation, AskStatus, AskTurn  # noqa: F401
 from app.models.wiki_lint import LintFinding, LintRun  # noqa: F401
 from app.models.category_node import CategoryNode  # noqa: F401
 from app.models.budget import Budget  # noqa: F401

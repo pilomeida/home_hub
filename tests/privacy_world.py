@@ -215,6 +215,12 @@ def ask_script(w, final="The boiler is in the kitchen [[wiki:%d]]."):
         {"id": "t12", "name": "health_find_records", "input": {"person": "Maria", "query": "Maria"}},
         {"id": "t13", "name": "health_measurements", "input": {"person": "Maria", "test": "LDL"}},
         {"id": "t14", "name": "health_conditions", "input": {"person": "Maria"}},
+        # Step 10g's actions: an excluded paper answers like a missing one; the Inbox proposal returns a count only.
+        {"id": "t15", "name": "add_todo", "input": {"title": "Check the boiler pressure"}},
+        {"id": "t16", "name": "propose_mark_bill_paid", "input": {"document_id": w.d.id}},
+        {"id": "t17", "name": "propose_mark_bill_paid", "input": {"document_id": w.b.id}},
+        {"id": "t18", "name": "propose_approve_inbox", "input": {}},
+        {"id": "t19", "name": "propose_merchant_category", "input": {"merchant": "Nobody", "category": "x"}},
     ]
     return [gateway_tool_result(calls), gateway_text_result(final % w.page_clean.id)]
 

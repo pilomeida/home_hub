@@ -1,5 +1,6 @@
 """Ask chat: an AskConversation holds ordered AskTurns (one question and
-its answer each). A turn is also the handle for "Save to wiki"."""
+its answer each). A turn is also the handle for "Save to wiki". An AskAction is what one answer did
+(and can undo) or proposed (and waits for Confirm or Cancel): PLAN step 10g."""
 
 from datetime import datetime
 from enum import Enum
@@ -50,3 +51,23 @@ class AskTurn(SQLModel, table=True):
     saved_wiki_page_id: Optional[int] = Field(default=None, foreign_key="wiki_pages.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     answered_at: Optional[datetime] = None
+
+
+class AskAction(SQLModel, table=True):
+    """One thing an answer did or proposed (PLAN step 10g, Pedro's yes 2026-11-21).
+    tier: "undoable" (done at once, Undo offered) or "confirm" (nothing happens until a person confirms).
+    status: done -> undone; proposed -> confirmed | cancelled; failed (the confirmed change could not be made).
+    params_json is what to do (ids the action acts on); result_json what came of it (ids made, per-item outcomes)."""
+    __tablename__ = "ask_actions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    turn_id: int = Field(foreign_key="ask_turns.id", index=True)
+    kind: str                                    # app.services.ask.actions.KINDS
+    tier: str
+    status: str
+    summary: str                                 # one plain line, as the card shows it
+    params_json: str = Field(default="{}")
+    result_json: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    decided_at: Optional[datetime] = None
+    decided_by: Optional[str] = None

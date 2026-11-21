@@ -27,6 +27,7 @@
       </form>
     {% endif %}
   {% endif %}
+  {% for view in actions or [] %}{% include "ask/_action.html" %}{% endfor %}
   {% for note in notices %}
     <p class="ask-note ask-left-out">{{ three_part(note, link_text="Privacy page") }}</p>
   {% endfor %}

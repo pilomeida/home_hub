@@ -1,0 +1,33 @@
+{# What an answer did or proposed (PLAN step 10g). `view` = {action, headers, rows, outcome}. #}
+{% set a, v = view.action, view %}
+<div class="ask-action ask-action-{{ a.tier }} ask-action-{{ a.status }}" id="action-{{ a.id }}">
+  {% if a.tier == "undoable" %}
+    {% if a.status == "done" %}
+      <span class="toast">{{ a.summary }}
+        <button type="button" class="link" hx-post="/ask/actions/{{ a.id }}/undo" hx-target="#action-{{ a.id }}" hx-swap="outerHTML">Undo</button></span>
+    {% else %}
+      <span class="ask-note">Undone: {{ a.summary[0]|lower }}{{ a.summary[1:] }}</span>
+    {% endif %}
+  {% elif a.status == "proposed" %}
+    <div class="confirm">
+      <div class="ct">{{ a.summary }} Nothing changes until you press “Do it”.</div>
+      {% if v.rows %}
+        <table class="tbl mini"><thead><tr>{% for h in v.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for row in v.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+      {% endif %}
+      <div class="btns">
+        <button type="button" class="btn pri" hx-post="/ask/actions/{{ a.id }}/confirm" hx-target="#action-{{ a.id }}" hx-swap="outerHTML" hx-disabled-elt="this">Do it</button>
+        <button type="button" class="btn" hx-post="/ask/actions/{{ a.id }}/cancel" hx-target="#action-{{ a.id }}" hx-swap="outerHTML">Cancel</button>
+      </div>
+    </div>
+  {% elif a.status == "cancelled" %}
+    <p class="ask-note">Cancelled: {{ a.summary[0]|lower }}{{ a.summary[1:] }} Nothing changed.</p>
+  {% else %}
+    <div class="confirm done">
+      {% for line in v.outcome.get("done", []) %}<p>✓ {{ line }}</p>{% endfor %}
+      {% for what, why, link in v.outcome.get("not_done", []) %}
+        <p class="needs-attention">{{ what }} {{ why }}{% if link %} <a href="{{ link }}">Open it ›</a>{% endif %}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

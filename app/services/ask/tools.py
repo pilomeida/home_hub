@@ -1,5 +1,6 @@
 """Core Ask tools (wiki, sources, todos) + collection of domain tools
-declared on the registry. All read-only. The ONLY place Ask/Lint decide
+declared on the registry. All read-only, apart from the actions in
+actions.py (step 10g), which record what they did or propose. The ONLY place Ask/Lint decide
 which sources are visible: settled_entries() / is_settled() /
 is_settled_source(). Claim sources are read only via claim_sources(),
 which excludes withdrawn links.
@@ -293,4 +294,5 @@ def category_tools() -> list[AskTool]:
 
 
 def available_tools() -> list[AskTool]:
-    return core_tools() + category_tools()
+    from app.services.ask.actions import action_tools     # PLAN step 10g: what Ask may do (Undo / Confirm)
+    return core_tools() + category_tools() + action_tools()

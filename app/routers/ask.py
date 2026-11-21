@@ -1,5 +1,7 @@
 """Ask: cross-domain natural-language chat (wiki-first)."""
 
+from typing import Optional
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlmodel import Session
@@ -7,6 +9,7 @@ from sqlmodel import Session
 from app.db import get_session, get_session_factory
 from app.llm_gateway import GatewayClient, get_gateway
 from app.models.ask import AskConversation, AskStatus, AskTurn
+from app.services.ask import actions as ask_actions
 from app.services.ask import messages as ask_messages
 from app.services.ask.citations import render_turn
 from app.services.ask.conversation import TurnInProgress, add_turn, recent_conversations, start_conversation, turns_of
@@ -42,9 +45,17 @@ def _about(request: Request, session: Session, question: str) -> str:
     return f"About {person.name}: {question}"
 
 
-def _turn_view(turn: AskTurn) -> dict:
+def _action_view(session: Session, action) -> dict:
+    return {"action": action, "headers": ask_actions.card_headers(action),
+            "rows": ask_actions.card_rows(session, action) if action.status == ask_actions.PROPOSED else [],
+            "outcome": ask_actions.result(action) if action.tier == ask_actions.CONFIRM else {}}
+
+
+def _turn_view(turn: AskTurn, session: Optional[Session] = None) -> dict:
     failed = ask_messages.failure(turn) if turn.status == AskStatus.FAILED else None
-    return {"turn": turn, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
+    actions = ([_action_view(session, a) for a in ask_actions.for_turn(session, turn.id)]
+               if session is not None and turn.status != AskStatus.PENDING else [])
+    return {"turn": turn, "actions": actions, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
             "failure": failed[0] if failed else None, "failure_technical": failed[1] if failed else None,
             "notices": [] if turn.status == AskStatus.PENDING else ask_messages.notices(turn),
             "private": turn_is_private(turn)}
@@ -77,7 +88,7 @@ async def conversation_page(request: Request, conversation_id: int, session: Ses
     conv = session.get(AskConversation, conversation_id)
     if conv is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    turns = [_turn_view(t) for t in turns_of(session, conversation_id)]
+    turns = [_turn_view(t, session) for t in turns_of(session, conversation_id)]
     return templates.TemplateResponse(request, "ask/conversation.html", {"conversation": conv, "turns": turns})
 
 
@@ -103,7 +114,7 @@ async def turn_partial(request: Request, turn_id: int, session: Session = Depend
     turn = session.get(AskTurn, turn_id)
     if turn is None:
         raise HTTPException(status_code=404, detail="Question not found")
-    return templates.TemplateResponse(request, "ask/_turn.html", _turn_view(turn))
+    return templates.TemplateResponse(request, "ask/_turn.html", _turn_view(turn, session))
 
 
 @router.post("/turns/{turn_id}/save")
@@ -115,3 +126,44 @@ async def save_turn(turn_id: int, title: str = Form(""), session: Session = Depe
         raise HTTPException(status_code=400, detail=(
             {"what": p.what, "why": p.why, "next_step": p.next_step} if p else str(exc)))
     return RedirectResponse(f"/wiki/{page.id}", status_code=303)
+
+
+# --- what an answer did or proposed (PLAN step 10g) ---------------------------------------------------------------
+
+def _action_or_404(session: Session, action_id: int):
+    from app.models.ask import AskAction
+    action = session.get(AskAction, action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail={
+            "what": "Nothing changed.", "why": "That action is not in the Hub any more.",
+            "next_step": "Reload the conversation and ask again if it is still needed."})
+    return action
+
+
+async def _decide(request: Request, session: Session, action_id: int, how) -> Response:
+    action = _action_or_404(session, action_id)
+    try:
+        result = how(session, action, by=getattr(request.state, "user_email", None))
+        if hasattr(result, "__await__"):
+            result = await result
+    except ask_actions.ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=exc.problem.as_detail())
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(request, "ask/_action.html", {"view": _action_view(session, result)})
+    turn = session.get(AskTurn, result.turn_id)
+    return RedirectResponse(f"/ask/c/{turn.conversation_id}#turn-{turn.id}", status_code=303)
+
+
+@router.post("/actions/{action_id}/undo")
+async def undo_action(request: Request, action_id: int, session: Session = Depends(get_session)):
+    return await _decide(request, session, action_id, ask_actions.undo)
+
+
+@router.post("/actions/{action_id}/confirm")
+async def confirm_action(request: Request, action_id: int, session: Session = Depends(get_session)):
+    return await _decide(request, session, action_id, ask_actions.confirm)
+
+
+@router.post("/actions/{action_id}/cancel")
+async def cancel_action(request: Request, action_id: int, session: Session = Depends(get_session)):
+    return await _decide(request, session, action_id, ask_actions.cancel)

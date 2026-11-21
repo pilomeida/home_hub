@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-20):** the run is done as far as it can go without Pedro. Steps 1–9 are live and in section 4; step 10 is live except 10g. What is left waits on Pedro (section 2): step 10g's question and step 9 D12's papers and corrections. The choices made for Pedro are listed in section 2.
+**Now (2026-11-21):** step 10g (Ask acts: Undo and Confirm, the answer card, a file attached to a question), after Pedro's yes to its small table. Step 9 D12 is parked until Pedro uploads new Health papers (section 3).
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -165,9 +165,20 @@ and said tweaks will come from using it.
   suggested-question chips). **New behaviour:** three tiers of action (undoable with Undo; a confirm card for what
   changes what the family sees; never from Ask: delete, privacy levels, bank connections) and a file attached to a
   question (goes to the Inbox as a suggestion). Through the existing Ask tools; tripwire tests cover each.
-  **Waiting on Pedro (2026-11-20):** Undo and Confirm need the Hub to remember, for each answer, what Ask did or
-  proposed, which means one new small table; the run's rule stops step 10 before any data-model change. The answer
-  card's new look and the file attached to a question (it uses 10h's "Add a paper") wait with it.
+  Pedro said yes to the small table (2026-11-21): one table `ask_actions` remembers, for each answer, what Ask did
+  (Undo) or proposed (Confirm / Cancel) and what came of it. Three slices: (1) the table, the actions and their cards;
+  (2) the answer card's look and its one visual; (3) a file attached to a question. Actions (Claude, 2026-11-21; Pedro
+  may change): at once with Undo: add a to-do (with a date it is the reminder); a confirm card first: mark a bill paid
+  (its to-do ticked, as on To-Dos), approve the Inbox papers the Hub is sure of (as suggested; a paper that needs a
+  detail says so and links its card), give a merchant its category (as the merchants page does); never from Ask:
+  deleting, privacy levels, bank connections (Ask points to the page). Re-reading a statement is left out: there is no
+  "read again" for statements to reuse.
+  ◐ Slice 1 (2026-11-21): `ask_actions` table (migration d1a7e3c5f920), `app/services/ask/actions.py` (four tools:
+  add_todo; propose_mark_bill_paid, propose_approve_inbox, propose_merchant_category), the Undo toast and the confirm
+  card under an answer (`ask/_action.html`, `/ask/actions/{id}/undo|confirm|cancel`), the never-from-Ask line in
+  the prompt. A bill outside the run's reach answers like a missing one; the Inbox proposal tells the AI a count
+  only (the card lists the papers for the person). Both privacy tripwires cover the four tools; 9 new tests.
+  Left: slice 2 (the answer card) and slice 3 (a file attached to a question).
 - h. Phone: Home, Ask, and **new behaviour** a light "approve a paper" card (the file, four key fields, Approve / Edit /
   Later) for a paper uploaded on the run, using the Inbox's existing approval.
   ✅ 2026-11-20 live with 10f (3f6aa39). The Inbox had no way to add a paper from the page (only email
@@ -212,8 +223,6 @@ brackets); tick off here when done.
 | Tier for the Privatemode rows gpt-oss-120b and deepseek-ocr-2 (2026-10-15) | More High models |
 | Google Calendar set-up for Health appointments (`docs/SYSADMIN.md`, "Google Calendar") | Step 7c bookings reach the calendar (7c is built without it) |
 | Matias's loan: reconcile where it stands (he parked it, 2026-11-03) | — |
-| Step 9 D12, Health reading "first time right" (moved here 2026-11-20): the 3–5 Health papers above, and correcting any field the Hub got wrong on a Health paper's page (none corrected yet, so nothing per provider to learn). Each part is built against those: findings written as prose kept as their own records (today one long text in a result); a person's corrections remembered per provider (today only the provider's name is learnt); shaded bands on lab sheets (needs a second PDF reader and a sheet that has them); the benchmark grows with each paper | Step 9 D12 |
-| Step 10g: may Ask's actions get one small new table that remembers what each answer did or proposed (so Undo and Confirm work)? (2026-11-20) | Step 10g |
 | The live smoke test together: a Telegram upload, an emailed bill, approve, discard, a duplicate, a stranger's message; and a few real Ask questions (2026-10-28) | Confidence in the channels |
 
 
@@ -232,6 +241,11 @@ its step; tell Claude which to change.
 ---
 
 ## 3. Parked (not scheduled)
+- Step 9 D12, Health reading "first time right" (parked by Pedro 2026-11-21 until he can upload new Health
+  documents): built against 3–5 Health papers from other providers and his first corrections of a field the Hub got
+  wrong. Its parts: findings written as prose kept as their own records; a person's corrections remembered per
+  provider; shaded bands on lab sheets (needs a second PDF reader and a sheet that has them); the benchmark grows with
+  each paper.
 - Share a person's Health records with a doctor (an export).
 - Hard deletion of a stored file (withdrawing everything derived and hiding it is built; raw files stay immutable).
 - Backups of Health data following the document and data levels (a separate discussion).

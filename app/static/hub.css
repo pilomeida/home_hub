@@ -162,6 +162,14 @@ main { padding: 8px 20px 40px; max-width: 1240px; margin: 0 auto; }
 .one-t { font-size: 1.25em; margin: 4px 0 8px; }
 .btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 .btns .btn[disabled] { opacity: .4; cursor: default; }
+/* Ask's actions (step 10g): a toast with Undo, a confirm card that lists what will change */
+.ask-action { margin-top: 10px; }
+.toast { display: inline-flex; gap: 12px; align-items: center; background: var(--ink); color: #fff; border-radius: var(--radius-pill);
+  padding: 6px 16px; font-size: var(--fs-small); }
+.toast .link { background: none; border: 0; color: #fff; text-decoration: underline; font: inherit; cursor: pointer; padding: 0; }
+.confirm { border: 1.5px solid var(--accent); border-radius: var(--radius-s); padding: 12px 14px; }
+.confirm .ct { font-weight: 600; margin-bottom: 8px; } .confirm.done { border-color: var(--line); }
+.confirm.done p { margin: 4px 0; } .tbl.mini td, .tbl.mini th { padding: 6px 8px; }
 .kbdh { color: var(--muted); font-size: .8em; margin-top: 10px; }
 .bulk { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .bulk .sp { flex: 1; }
 @media (max-width: 1100px) { .g2.rv { grid-template-columns: 1fr; } .paper-view { height: 50vh; } }

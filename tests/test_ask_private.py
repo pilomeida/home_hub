@@ -194,6 +194,11 @@ def _calls(w) -> dict:
         "health_find_records": [{"query": "Maria"}],
         "health_measurements": [{}],
         "health_conditions": [{}, {"person": "Maria"}],
+        # Step 10g's actions: they return only what they did or a count, and an excluded paper looks missing.
+        "add_todo": [{"title": "Check the boiler pressure"}],
+        "propose_mark_bill_paid": [{"document_id": d.id} for d in (w.b, w.c, w.d, w.e, w.health)],
+        "propose_approve_inbox": [{}],
+        "propose_merchant_category": [{"merchant": "Nobody", "category": "x"}],
     }
 
 
@@ -217,6 +222,9 @@ def test_every_tool_that_returns_private_content_reports_high(session, world, sc
     levels, sentinels, files, must_hit = _SCENARIOS[scenario]
     pw.set_levels(session, **levels)
     calls, hit = _calls(world), set()
+    from app.services.ask.actions import current_turn
+    from app.services.ask.conversation import start_conversation
+    token = current_turn.set(start_conversation(session, "tripwire", started_by=None).id)   # actions need a turn
     with reachable_scope(session):
         for tool in available_tools():
             assert tool.name in calls, f"add tripwire arguments for {tool.name}"
@@ -229,6 +237,7 @@ def test_every_tool_that_returns_private_content_reports_high(session, world, sc
                     assert out.opened, f"{tool.name}{args} did not say what it opened"
                 if scenario == "statement_is_high" and tool.name.startswith("financials_"):
                     assert out.tier == Tier.HIGH, f"{tool.name}{args}: aggregates of a High statement are private too"
+    current_turn.reset(token)
     assert hit >= must_hit, f"positive control failed, never saw private content from {must_hit - hit}"
 
 

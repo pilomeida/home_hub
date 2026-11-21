@@ -1,6 +1,7 @@
 """Ask engine: answers one AskTurn with a bounded tool-use loop over the
 wiki (first) and raw sources (fallback), with the conversation's bounded
-history in front. Read-only except for the turn row itself.
+history in front. Read-only except for the turn row itself and the actions the
+person asked for (app/services/ask/actions.py: an undoable to-do, or a proposal to confirm).
 
 Runs through the LLM gateway (llmsel): one `job_id` (uuid4) per question,
 re-sent every turn; the same tools in the same order each turn;
@@ -30,6 +31,7 @@ from app.privacy.scope import reachable_scope
 from app.privacy.tiers import Tier
 from app.problems import Problem, record_problem
 from app.services.ask import messages as ask_messages
+from app.services.ask.actions import current_turn
 from app.services.ask.citations import cited_refs
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
 from app.services.ask.context import build_system_prompt
@@ -71,7 +73,11 @@ async def run_turn(session: Session, turn_id: int, gateway=None,
         turn = session.get(AskTurn, turn_id)
         start = Tier.HIGH if chat_is_private(session, turn) else reach.tier
         with ratchet_scope(start) as ratchet:
-            return await _answer(session, turn_id, gateway, today, reach, ratchet)
+            token = current_turn.set(turn_id)          # an action knows which answer made it (step 10g)
+            try:
+                return await _answer(session, turn_id, gateway, today, reach, ratchet)
+            finally:
+                current_turn.reset(token)
 
 
 async def _answer(session: Session, turn_id: int, gateway, today: Optional[date], reach: Reach,
