@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from app.models.category_node import CategoryNode
 from app.models.document import Document
 from app.models.merchant import Merchant
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.privacy.reach import reach_for
 from app.privacy.tiers import Tier
 from app.services.ask.contracts import AskTool, Citable, ToolOutput
@@ -61,6 +61,10 @@ def _label(nodes: dict[int, CategoryNode], node: Optional[CategoryNode]) -> str:
     return " › ".join(n.name for n in reversed(parts[-2:]))
 
 
+def _today() -> date:
+    return date.today()
+
+
 def _spending(session: Session, args: dict) -> ToolOutput:
     date_from, date_to = date.fromisoformat(args["date_from"]), date.fromisoformat(args["date_to"])
     group_by, category = args.get("group_by", "category"), args.get("category")
@@ -76,6 +80,8 @@ def _spending(session: Session, args: dict) -> ToolOutput:
                                           Transaction.paid_date >= date_from, Transaction.paid_date <= date_to)
     merchants = _merchant_names(session) if group_by == "merchant" else {}
     totals: dict[str, list] = defaultdict(lambda: [0.0, 0])
+    same_day: dict[str, float] = defaultdict(float)       # each month by the same day of the month as today
+    today = _today()
     counted = []
     for t in _readable(session, session.exec(statement).all()):
         node = nodes.get(t.category_id) if t.category_id is not None else None
@@ -87,6 +93,8 @@ def _spending(session: Session, args: dict) -> ToolOutput:
                else f"{t.paid_date:%Y-%m}" if group_by == "month" else _label(nodes, node))
         totals[key][0] += amount
         totals[key][1] += 1
+        if t.paid_date.day <= today.day:
+            same_day[key] += amount
     ordered = sorted(totals.items()) if group_by == "month" else sorted(totals.items(), key=lambda kv: -kv[1][0])
     lines = [f"Spending (by paid date, refunds taken off, as the budget counts it) {date_from}–{date_to}, grouped by {group_by}"
              + (f", category {category}" if category else "") + f": total €{sum(v[0] for v in totals.values()):,.2f}"]
@@ -96,7 +104,24 @@ def _spending(session: Session, args: dict) -> ToolOutput:
         label=f"Transactions {date_from} to {date_to}" + (f" ({category})" if category else ""),
         url=_txn_url(date_from=date_from.isoformat(), date_to=date_to.isoformat(), category_node=category))
     tier, opened = _private(session, counted)
-    return ToolOutput(text="\n".join(lines), citables=[citable], used_raw_sources=True, tier=tier, opened=opened)
+    return ToolOutput(text="\n".join(lines), citables=[citable], used_raw_sources=True, tier=tier, opened=opened,
+                      visual=_spending_visual(group_by, ordered, same_day, today))
+
+
+def _spending_visual(group_by: str, ordered: list, same_day: dict, today: date) -> Optional[dict]:
+    """The answer card's visual, on the chart rules: a past month is its full month with the part up to today's day,
+    the current month only what has happened so far; a ranking is a table."""
+    if not ordered:
+        return None
+    if group_by == "month":
+        current = f"{today:%Y-%m}"
+        items = [({"label": k, "value": round(v[0], 2), "current": True} if k == current
+                  else {"label": k, "value": round(same_day[k], 2), "full": round(v[0], 2)})
+                 for k, v in ordered if k <= current]
+        return {"kind": "columns", "items": items[-12:], "fmt": "euros", "colour": "s"} if len(items) > 1 else \
+            {"kind": "number", "value": f"€{ordered[0][1][0]:,.2f}", "label": ordered[0][0]}
+    return {"kind": "table", "headers": ["", "Spent", "Payments"],
+            "rows": [[k, f"€{v[0]:,.2f}", str(v[1])] for k, v in ordered[:6]]}
 
 
 def _find_transactions(session: Session, args: dict) -> ToolOutput:
@@ -117,7 +142,11 @@ def _find_transactions(session: Session, args: dict) -> ToolOutput:
     citables = [Citable(ref=f"financials:txn:{t.id}", label=f"Transaction: {t.description} ({t.paid_date})",
                         url=_txn_url(transaction_id=t.id)) for t in shown]
     tier, opened = _private(session, matches)       # the total and the count cover every match, not only those shown
-    return ToolOutput(text="\n".join(lines), citables=citables, used_raw_sources=True, tier=tier, opened=opened)
+    visual = {"kind": "table", "headers": ["Date", "Merchant", "Amount"],
+              "rows": [[str(t.paid_date or "-"), merchants.get(t.merchant_id, t.description),
+                        f"{'+' if t.transaction_type == TransactionType.CREDIT else ''}€{t.amount:,.2f}"] for t in shown[:6]]}
+    return ToolOutput(text="\n".join(lines), citables=citables, used_raw_sources=True, tier=tier, opened=opened,
+                      visual=visual if shown else None)
 
 
 FINANCIALS_ASK_TOOLS: tuple[AskTool, ...] = (

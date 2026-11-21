@@ -4,12 +4,14 @@
 <p><a href="/ask">← All conversations</a> · <a href="/ask" class="ask-new">New chat</a></p>
 <h1>{{ conversation.title }}</h1>
 <div id="turns">
-  {% for view in turns %}{% with turn=view.turn, rendered=view.rendered, failure=view.failure, failure_technical=view.failure_technical, notices=view.notices, private=view.private, actions=view.actions %}{% include "ask/_turn.html" %}{% endwith %}{% endfor %}
+  {% for view in turns %}{% with turn=view.turn, rendered=view.rendered, failure=view.failure, failure_technical=view.failure_technical, notices=view.notices, private=view.private, actions=view.actions, visual=view.visual, open_url=view.open_url %}{% include "ask/_turn.html" %}{% endwith %}{% endfor %}
 </div>
 <form method="post" action="/ask/c/{{ conversation.id }}/turns"
       hx-post="/ask/c/{{ conversation.id }}/turns" hx-target="#turns" hx-swap="beforeend"
-      hx-on::after-request="if(event.detail.successful) this.reset()" hx-disabled-elt="find button" class="ask-form">
-  <textarea name="question" rows="2" maxlength="1000" required placeholder="Ask a follow-up…"></textarea>
+      hx-on::after-request="if(event.detail.successful) this.reset()" hx-disabled-elt="find button" class="ask-form" enctype="multipart/form-data" hx-encoding="multipart/form-data">
+    <label class="ask-attach" title="Attach a file or take a photo: it goes to the Inbox as a suggestion">+<input type="file" name="file" accept="application/pdf,image/*,video/*" hidden onchange="this.closest('form').querySelector('.ask-file').textContent=this.files[0]?this.files[0].name:''"></label>
+  <span class="ask-file sub"></span>
+  <textarea name="question" rows="2" maxlength="1000" placeholder="Ask a follow-up… Or attach a paper with +"></textarea>
   <button type="submit">Send</button>
 </form>
 {% endblock %}

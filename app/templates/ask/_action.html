@@ -1,7 +1,13 @@
 {# What an answer did or proposed (PLAN step 10g). `view` = {action, headers, rows, outcome}. #}
 {% set a, v = view.action, view %}
 <div class="ask-action ask-action-{{ a.tier }} ask-action-{{ a.status }}" id="action-{{ a.id }}">
-  {% if a.tier == "undoable" %}
+  {% if a.kind == "add_paper" %}
+    <div class="attach"><span class="file">▤</span> <span>{{ a.summary }}</span>
+      {% if a.status != "undone" %}<a class="btn" href="/inbox/{{ v.outcome.get("document_id") or "" }}/card">Review it now</a>{% endif %}
+      {% if a.status == "done" %}<button type="button" class="btn" hx-post="/ask/actions/{{ a.id }}/undo" hx-target="#action-{{ a.id }}" hx-swap="outerHTML">Undo</button>{% endif %}
+      {% if a.status == "undone" %}<span class="ask-note">Taken out of the Inbox (the file is kept).</span>{% endif %}
+    </div>
+  {% elif a.tier == "undoable" %}
     {% if a.status == "done" %}
       <span class="toast">{{ a.summary }}
         <button type="button" class="link" hx-post="/ask/actions/{{ a.id }}/undo" hx-target="#action-{{ a.id }}" hx-swap="outerHTML">Undo</button></span>

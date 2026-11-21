@@ -88,6 +88,7 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
     job_id = str(uuid.uuid4())
     file_reads, used_raw, in_tokens, out_tokens = 0, False, 0, 0
     answer: Optional[str] = None
+    visuals: list[tuple[dict, set]] = []          # (visual, refs its tool made citable), in the order they came
     failure: Optional[tuple[Problem, Optional[str]]] = None
 
     try:
@@ -134,6 +135,8 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
                 if output.tier is not None:
                     raised.append(output)
                 known.update({c.ref: c for c in output.citables})
+                if output.visual and not output.is_error:
+                    visuals.append((output.visual, {c.ref for c in output.citables}))
                 used_raw = used_raw or output.used_raw_sources
                 results.append(_tool_result(block_id, output))
             if raised:        # one escalation per round, naming everything this round opened
@@ -157,7 +160,11 @@ async def _answer(session: Session, turn_id: int, gateway, today: Optional[date]
     turn.escalation_json = ratchet.to_json() if (ratchet.escalations or ratchet.started_private) else None
     if answer:
         turn.status, turn.answer_text = AskStatus.ANSWERED, answer
-        turn.citations_json = json.dumps([asdict(known[r]) for r in cited_refs(answer, known)])
+        cited = cited_refs(answer, known)
+        turn.citations_json = json.dumps([asdict(known[r]) for r in cited])
+        # One visual: the last one whose data the answer actually cites (none if it cites none of them).
+        shown = next((v for v, refs in reversed(visuals) if refs & set(cited)), None)
+        turn.visual_json = json.dumps(shown) if shown else None
     else:
         turn.status = AskStatus.FAILED
         turn.error = ask_messages.encode(*failure)

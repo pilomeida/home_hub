@@ -49,6 +49,7 @@ class AskTurn(SQLModel, table=True):
     input_tokens: int = Field(default=0)
     output_tokens: int = Field(default=0)
     saved_wiki_page_id: Optional[int] = Field(default=None, foreign_key="wiki_pages.id")
+    visual_json: Optional[str] = None            # the answer card's one visual (step 10g), from a cited tool's data
     created_at: datetime = Field(default_factory=datetime.utcnow)
     answered_at: Optional[datetime] = None
 

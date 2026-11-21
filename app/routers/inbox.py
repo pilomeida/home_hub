@@ -80,23 +80,14 @@ def _entry_or_404(session: Session, document_id: int):
 
 # --- add a paper from the page, and the light approve card (PLAN step 10h) ----------------------------------------
 
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_UPLOAD_BYTES = inbox_service.MAX_PAGE_UPLOAD_BYTES
 KEY_FIELDS = 3                      # the card shows "Filed as" and up to three of the kind's fields
 
 
 @router.get("/add")
 async def add_page(request: Request, problem: str = ""):
-    return templates.TemplateResponse(request, "inbox/add.html", {"problem": _ADD_PROBLEMS.get(problem)})
-
-
-_ADD_PROBLEMS = {
-    "empty": Problem("Not added.", "No file was chosen, so there was nothing to put in the Inbox.",
-                     "Choose a file or take a photo, then press Add."),
-    "big": Problem("Not added.", "The file is bigger than 25 MB, which the Hub does not take from the page.",
-                   "Send a smaller scan or photo, or email it to the Hub's address."),
-    "type": Problem("Not added.", "The Hub only takes PDFs, photos and short videos, and this file is none of those.",
-                    "Save it as a PDF or take a photo of it, then add it again."),
-}
+    return templates.TemplateResponse(request, "inbox/add.html",
+                                      {"problem": inbox_service.PAGE_UPLOAD_PROBLEMS.get(problem)})
 
 
 def get_inbox_classifier():
@@ -109,21 +100,13 @@ async def add_paper(request: Request, file: UploadFile = File(None), note: str =
                     session: Session = Depends(get_session), classify=Depends(get_inbox_classifier)):
     """A paper added from the page goes to the Inbox exactly as one sent by email or Telegram (same recognition,
     same reading, same approval), then opens its approve card."""
-    from app.models.document import DocumentSource
-    from app.services.ingestion import IncomingFile
-    if file is None or not file.filename:
-        return RedirectResponse("/inbox/add?problem=empty", status_code=303)
-    content = await file.read(MAX_UPLOAD_BYTES + 1)
-    if not content:
-        return RedirectResponse("/inbox/add?problem=empty", status_code=303)
-    if len(content) > MAX_UPLOAD_BYTES:
-        return RedirectResponse("/inbox/add?problem=big", status_code=303)
-    if media_kind_for(file.filename).value == "other":
-        return RedirectResponse("/inbox/add?problem=type", status_code=303)
-    receipt = await inbox_service.receive_document(
-        session, IncomingFile(filename=file.filename, content=content, source=DocumentSource.MANUAL,
-                              uploaded_by=getattr(request.state, "user_email", None)),
-        context_text=note.strip() or None, external_ref=None, classify=classify)
+    content = await file.read(MAX_UPLOAD_BYTES + 1) if file is not None and file.filename else b""
+    try:
+        receipt = await inbox_service.add_from_page(
+            session, file.filename if file is not None else None, content,
+            uploaded_by=getattr(request.state, "user_email", None), note=note, classify=classify)
+    except inbox_service.UploadRefused as exc:
+        return RedirectResponse(f"/inbox/add?problem={exc.key}", status_code=303)
     return RedirectResponse(f"/inbox/{receipt.document.id}/card" + ("?duplicate=1" if receipt.duplicate else ""),
                             status_code=303)
 

@@ -1,8 +1,10 @@
 """Ask: cross-domain natural-language chat (wiki-first)."""
 
+import json
+
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from sqlmodel import Session
 
@@ -17,6 +19,7 @@ from app.services.ask.engine import run_turn
 from app.services.ask.private import turn_is_private
 from app.services.ask.save import AnswerNotSaveable, save_answer_as_wiki_page
 from app.templating import templates
+from app.ui import ask_visual
 
 router = APIRouter(prefix="/ask", tags=["ask"])
 
@@ -48,17 +51,49 @@ def _about(request: Request, session: Session, question: str) -> str:
 def _action_view(session: Session, action) -> dict:
     return {"action": action, "headers": ask_actions.card_headers(action),
             "rows": ask_actions.card_rows(session, action) if action.status == ask_actions.PROPOSED else [],
-            "outcome": ask_actions.result(action) if action.tier == ask_actions.CONFIRM else {}}
+            "outcome": ask_actions.result(action) if action.tier == ask_actions.CONFIRM or action.kind == ask_actions.ADD_PAPER
+            else {}}
 
 
 def _turn_view(turn: AskTurn, session: Optional[Session] = None) -> dict:
     failed = ask_messages.failure(turn) if turn.status == AskStatus.FAILED else None
-    actions = ([_action_view(session, a) for a in ask_actions.for_turn(session, turn.id)]
-               if session is not None and turn.status != AskStatus.PENDING else [])
-    return {"turn": turn, "actions": actions, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
+    actions = [_action_view(session, a) for a in ask_actions.for_turn(session, turn.id)] if session is not None else []
+    answered = turn.status == AskStatus.ANSWERED
+    citations = json.loads(turn.citations_json or "[]") if answered else []
+    return {"turn": turn, "actions": actions,
+            "visual": ask_visual.render(turn.visual_json, citations) if answered else "",
+            "open_url": citations[0]["url"] if citations else None, "rendered": render_turn(turn) if turn.status == AskStatus.ANSWERED else None,
             "failure": failed[0] if failed else None, "failure_technical": failed[1] if failed else None,
             "notices": [] if turn.status == AskStatus.PENDING else ask_messages.notices(turn),
             "private": turn_is_private(turn)}
+
+
+def get_ask_inbox_classifier():
+    """What reads an attached paper no rule recognises (as the Inbox's "Add a paper"). Tests override this."""
+    from app.services import inbox_service
+    return inbox_service.suggest_category_and_kind
+
+
+async def _attached(request: Request, session: Session, file: Optional[UploadFile], classify):
+    """A file attached to a question goes to the Inbox as a suggestion (step 10g), checked before anything else."""
+    from app.services import inbox_service
+    if file is None or not file.filename:
+        return None
+    content = await file.read(inbox_service.MAX_PAGE_UPLOAD_BYTES + 1)
+    try:
+        return await inbox_service.add_from_page(session, file.filename, content, note=None, classify=classify,
+                                                 uploaded_by=getattr(request.state, "user_email", None))
+    except inbox_service.UploadRefused as exc:
+        raise HTTPException(status_code=400, detail=exc.problem.as_detail())
+
+
+def _paper_only(session: Session, turn: AskTurn) -> None:
+    """A file with no question: nothing to ask the AI, so the turn is answered by the paper's card alone (no text,
+    so it is never replayed to the AI as history: the paper is not filed yet)."""
+    from datetime import datetime
+    turn.status, turn.answered_at = AskStatus.ANSWERED, datetime.utcnow()
+    session.add(turn)
+    session.commit()
 
 
 async def _answer_in_background(session_factory, turn_id: int, gateway) -> None:
@@ -73,10 +108,20 @@ async def ask_home(request: Request, session: Session = Depends(get_session)):
 
 @router.post("")
 async def new_chat(request: Request, background_tasks: BackgroundTasks, question: str = Form(""),
+                   file: Optional[UploadFile] = File(None),
                    session: Session = Depends(get_session), session_factory=Depends(get_session_factory),
-                   gateway=Depends(get_ask_gateway)):
-    turn = start_conversation(session, _about(request, session, _clean(question)), started_by=getattr(request.state, "user_email", None))
-    background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
+                   gateway=Depends(get_ask_gateway), classify=Depends(get_ask_inbox_classifier)):
+    has_file = file is not None and bool(file.filename)
+    asked = _about(request, session, _clean(question)) if question.strip() or not has_file else None
+    receipt = await _attached(request, session, file, classify)
+    started_by = getattr(request.state, "user_email", None)
+    turn = start_conversation(session, asked or "Added a paper", started_by=started_by)
+    if receipt is not None:
+        ask_actions.paper_attached(session, turn.id, receipt)
+    if asked:
+        background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
+    else:
+        _paper_only(session, turn)
     url = f"/ask/c/{turn.conversation_id}"
     if request.headers.get("HX-Request"):
         return Response(status_code=200, headers={"HX-Redirect": url})
@@ -94,18 +139,32 @@ async def conversation_page(request: Request, conversation_id: int, session: Ses
 
 @router.post("/c/{conversation_id}/turns")
 async def follow_up(request: Request, conversation_id: int, background_tasks: BackgroundTasks,
-                    question: str = Form(""), session: Session = Depends(get_session),
-                    session_factory=Depends(get_session_factory), gateway=Depends(get_ask_gateway)):
+                    question: str = Form(""), file: Optional[UploadFile] = File(None),
+                    session: Session = Depends(get_session), session_factory=Depends(get_session_factory),
+                    gateway=Depends(get_ask_gateway), classify=Depends(get_ask_inbox_classifier)):
+    has_file = file is not None and bool(file.filename)
+    asked = _about(request, session, _clean(question)) if question.strip() or not has_file else None
     try:
-        turn = add_turn(session, conversation_id, _about(request, session, _clean(question)),
+        turn = add_turn(session, conversation_id, asked or "Added a paper",
                         asked_by=getattr(request.state, "user_email", None))
     except KeyError:
         raise HTTPException(status_code=404, detail="Conversation not found")
     except TurnInProgress as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
+    try:
+        receipt = await _attached(request, session, file, classify)
+    except HTTPException:
+        session.delete(turn)            # the file was refused: nothing is left behind
+        session.commit()
+        raise
+    if receipt is not None:
+        ask_actions.paper_attached(session, turn.id, receipt)
+    if asked:
+        background_tasks.add_task(_answer_in_background, session_factory, turn.id, gateway)
+    else:
+        _paper_only(session, turn)
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(request, "ask/_turn.html", _turn_view(turn))
+        return templates.TemplateResponse(request, "ask/_turn.html", _turn_view(turn, session))
     return RedirectResponse(f"/ask/c/{conversation_id}", status_code=303)
 
 

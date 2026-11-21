@@ -37,7 +37,8 @@ from app.services.names import fold
 UNDOABLE, CONFIRM = "undoable", "confirm"
 DONE, UNDONE, PROPOSED, CONFIRMED, CANCELLED, FAILED = "done", "undone", "proposed", "confirmed", "cancelled", "failed"
 ADD_TODO, MARK_PAID, APPROVE_INBOX, MERCHANT_CATEGORY = "add_todo", "mark_bill_paid", "approve_inbox", "merchant_category"
-KINDS = {ADD_TODO: UNDOABLE, MARK_PAID: CONFIRM, APPROVE_INBOX: CONFIRM, MERCHANT_CATEGORY: CONFIRM}
+ADD_PAPER = "add_paper"        # a file attached to a question: to the Inbox as a suggestion (not a tool: the person did it)
+KINDS = {ADD_TODO: UNDOABLE, ADD_PAPER: UNDOABLE, MARK_PAID: CONFIRM, APPROVE_INBOX: CONFIRM, MERCHANT_CATEGORY: CONFIRM}
 
 # The turn being answered: the engine sets it around its tool loop, so an action knows which answer made it.
 current_turn: ContextVar[Optional[int]] = ContextVar("ask_current_turn", default=None)
@@ -100,16 +101,53 @@ def _add_todo(session: Session, args: dict) -> ToolOutput:
                            "say in one sentence that it was added.", citables=[citable_for_todo(todo)])
 
 
+def paper_attached(session: Session, turn_id: int, receipt) -> AskAction:
+    """A file attached to a question went to the Inbox (app/services/inbox_service.add_from_page). A paper the Hub
+    already had is only pointed to: Undo would take away someone else's paper."""
+    doc = receipt.document
+    summary = (f"{doc.filename} is already in the Hub." if receipt.duplicate
+               else f"{doc.filename} sent to the Inbox as a suggestion. Not filed yet.")
+    action = AskAction(turn_id=turn_id, kind=ADD_PAPER, tier=UNDOABLE, status=CONFIRMED if receipt.duplicate else DONE,
+                       summary=summary, params_json=json.dumps({"document_id": doc.id}),
+                       result_json=json.dumps({"document_id": doc.id, "duplicate": receipt.duplicate}))
+    session.add(action)
+    session.commit()
+    session.refresh(action)
+    return action
+
+
 def undo(session: Session, action: AskAction, *, by: Optional[str]) -> AskAction:
     if action.tier != UNDOABLE or action.status != DONE:
         raise ActionRefused(Problem("Not undone.", "This action was already undone, or it is not one Ask can undo.",
                                     "Make the change on its own page if it is still needed."))
+    if action.kind == ADD_PAPER:
+        return _undo_paper(session, action, by)
     todo = session.get(Todo, result(action).get("todo_id"))
     if todo is not None and todo.done:
         raise ActionRefused(Problem("Not undone.", "The to-do was already ticked off, so someone has used it.",
                                     "Untick or remove it on To-Dos.", link="/todos"))
     if todo is not None:
         session.delete(todo)                     # the row Ask itself made a moment ago
+    action.status, action.decided_at, action.decided_by = UNDONE, datetime.utcnow(), by
+    session.add(action)
+    session.commit()
+    return action
+
+
+def _undo_paper(session: Session, action: AskAction, by: Optional[str]) -> AskAction:
+    """Taken out of the Inbox as the Inbox's own Discard does (the file is kept)."""
+    from app.services import inbox_service
+    from app.services.paper_uses import PaperInUse
+    document_id = result(action).get("document_id")
+    try:
+        inbox_service.discard(session, document_id, reviewed_by=by)
+    except inbox_service.InboxError:
+        raise ActionRefused(Problem("Not undone.", "The paper was already filed or discarded in the Inbox.",
+                                    "Open it in the Inbox or on Papers to change it.", link="/inbox")) from None
+    except PaperInUse:
+        raise ActionRefused(Problem("Not undone.", "Something in the Hub already uses this paper.",
+                                    "Open it in the Inbox to see what uses it.", link=f"/inbox/{document_id}/card")) from None
+    action = session.get(AskAction, action.id)
     action.status, action.decided_at, action.decided_by = UNDONE, datetime.utcnow(), by
     session.add(action)
     session.commit()

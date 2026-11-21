@@ -178,7 +178,17 @@ and said tweaks will come from using it.
   card under an answer (`ask/_action.html`, `/ask/actions/{id}/undo|confirm|cancel`), the never-from-Ask line in
   the prompt. A bill outside the run's reach answers like a missing one; the Inbox proposal tells the AI a count
   only (the card lists the papers for the person). Both privacy tripwires cover the four tools; 9 new tests.
-  Left: slice 2 (the answer card) and slice 3 (a file attached to a question).
+  ✅ live 2026-11-21 (d91a0b9).
+  ◐ Slices 2 and 3 (2026-11-21): the answer card: the question, one plain sentence in bold, one visual, then
+  "Read from N sources" (folded), Open the page and Save to wiki; no suggested-question chips. The visual is drawn
+  from the data of a tool the answer cites, never from the AI's text (`ToolOutput.visual`, kept as
+  `ask_turns.visual_json`, migration e3b9f1d7a264): spending by month as columns on the chart rules (a past month in
+  full with the part up to today's day, the current month so far), a ranking or a list of lines as a short table,
+  one person's one test as columns with the printed range; otherwise the first paper it cites, as a card that opens
+  it. A file attached to a question (+ beside the box) goes to the Inbox through "Add a paper"'s own checks
+  (moved into `inbox_service.add_from_page`); the card says "sent to the Inbox as a suggestion. Not filed yet." with
+  Review it now and Undo (the Inbox's Discard; the file is kept). A file with no question asks the AI nothing; the
+  AI never sees an unfiled paper; a paper the Hub already had is pointed to, with no Undo. 16 new tests.
 - h. Phone: Home, Ask, and **new behaviour** a light "approve a paper" card (the file, four key fields, Approve / Edit /
   Later) for a paper uploaded on the run, using the Inbox's existing approval.
   ✅ 2026-11-20 live with 10f (3f6aa39). The Inbox had no way to add a paper from the page (only email

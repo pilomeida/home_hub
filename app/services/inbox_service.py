@@ -56,6 +56,46 @@ class InboxReceipt:
     duplicate: bool
 
 
+# --- a paper added from a page (the + "Add a paper", PLAN step 10h; a file attached to an Ask question, step 10g) --
+
+MAX_PAGE_UPLOAD_BYTES = 25 * 1024 * 1024
+
+PAGE_UPLOAD_PROBLEMS = {
+    "empty": Problem("Not added.", "No file was chosen, so there was nothing to put in the Inbox.",
+                     "Choose a file or take a photo, then press Add."),
+    "big": Problem("Not added.", "The file is bigger than 25 MB, which the Hub does not take from the page.",
+                   "Send a smaller scan or photo, or email it to the Hub's address."),
+    "type": Problem("Not added.", "The Hub only takes PDFs, photos and short videos, and this file is none of those.",
+                    "Save it as a PDF or take a photo of it, then add it again."),
+}
+
+
+class UploadRefused(Exception):
+    """A file from a page was not added; `key` names its message in PAGE_UPLOAD_PROBLEMS."""
+
+    def __init__(self, key: str):
+        super().__init__(key)
+        self.key = key
+        self.problem = PAGE_UPLOAD_PROBLEMS[key]
+
+
+async def add_from_page(session: Session, filename: Optional[str], content: bytes, *, uploaded_by: Optional[str],
+                        note: Optional[str], classify=None) -> InboxReceipt:
+    """A paper added from a page goes to the Inbox exactly as one sent by email or Telegram (same recognition, same
+    reading, same approval). Raises UploadRefused before anything is stored."""
+    from app.categories.fields import media_kind_for
+    from app.models.document import DocumentSource
+    if not filename or not content:
+        raise UploadRefused("empty")
+    if len(content) > MAX_PAGE_UPLOAD_BYTES:
+        raise UploadRefused("big")
+    if media_kind_for(filename).value == "other":
+        raise UploadRefused("type")
+    return await receive_document(
+        session, IncomingFile(filename=filename, content=content, source=DocumentSource.MANUAL, uploaded_by=uploaded_by),
+        context_text=(note or "").strip() or None, external_ref=None, classify=classify or suggest_category_and_kind)
+
+
 @dataclass
 class InboxEntry:
     item: InboxItem

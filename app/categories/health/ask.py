@@ -128,7 +128,22 @@ def _measurements(session: Session, args: dict) -> ToolOutput:
                      f" | {value}{rng}{flag}{check} | doc:{e.document_id}")
         docs.append(e.document_id)
     cites = [citable_for_document(d) for d in session.exec(select(Document).where(Document.id.in_(set(docs)))).all()] if docs else []
-    return _output("\n".join(lines), len(rows[:200]), cites)
+    out = _output("\n".join(lines), len(rows[:200]), cites)
+    out.visual = _measurement_visual(rows)
+    return out
+
+
+def _measurement_visual(rows: list) -> Optional[dict]:
+    """One person's one test over time, as the person page draws it: the range printed on the latest paper."""
+    points = [(when, m) for when, m, _e in rows if m.value is not None and when != date.min]
+    if len(points) < 2 or len({(m.person_id, m.test_key) for _w, m in points}) != 1:
+        return None
+    points = points[-8:]
+    last = points[-1][1]
+    ref = [last.ref_low, last.ref_high] if (last.ref_low is not None or last.ref_high is not None) else None
+    return {"kind": "columns", "fmt": "plain", "colour": "e", "ref": ref, "title": f"{last.test} over time",
+            "items": [{"label": f"{w:%Y-%m}", "value": m.value, "current": i == len(points) - 1}
+                      for i, (w, m) in enumerate(points)]}
 
 
 _PERSON = {"type": "string", "description": "Part of the person's name."}

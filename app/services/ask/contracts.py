@@ -38,6 +38,10 @@ class ToolOutput:
     is_error: bool = False
     tier: Optional[Tier] = None   # HIGH: the output holds private content; the engine raises the run's ratchet
     opened: str = ""              # plain words for the notice, e.g. "3 private records"
+    # The answer card's one visual (step 10g), built by the tool from the data it read, never from the AI's text:
+    # {"kind": "columns", "items": [...], "fmt", "colour", "ref", "title"} | {"kind": "table", "headers", "rows"} |
+    # {"kind": "number", "value", "label"}. Drawn for the person only (app/ui/ask_visual.py); never sent to the AI.
+    visual: Optional[dict] = None
 
 
 @dataclass(frozen=True)
