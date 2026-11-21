@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-21):** step 10g (Ask acts: Undo and Confirm, the answer card, a file attached to a question), after Pedro's yes to its small table. Step 9 D12 is parked until Pedro uploads new Health papers (section 3).
+**Now (2026-11-21):** every step is done and live; step 10g (Ask's Undo, Confirm, answer card and attached file) landed today. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -68,150 +68,8 @@ accuracy work, then Health reading, subjects in the wiki, Health conditions (a c
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
 
-### Step 10. UI redesign, Option A (Pedro, 2026-11-19) · XL (nine slices; run after step 5, before step 6)
-Numbered 10 so no other step is renumbered; it is listed here because steps 6–8 add pages, and those should be built in
-the new look instead of redone (Claude, 2026-11-19; Pedro may change). Pedro chose Option A ("super clean and readable")
-and said tweaks will come from using it.
-- **Spec (read before any slice):** `docs/design/ux-workflow-and-screens.md` (workflow, menu, the chart rules);
-  `docs/design/mockups/option-a.html` and `chart-rules.html` (sample data; generator `_build/build_mockups.py`, whose
-  `make_scale` and chart functions are the reference for the scale rule); `docs/design-references/` (the 13 inspirations);
-  `Personal/brainstorms/2026-11-19-hub-ui-workflow-and-screens.md` (the reasoning and Pedro's exact words). Options B and
-  C are archived: do not build them. Light theme only; no gradients; no faces or avatars.
-- **What keeps this step from interfering with the others:**
-  - Presentation only, unless a slice says "new behaviour": templates, one stylesheet, one chart component. The same
-    queries, the same privacy reach (`app/privacy/reach.py`), the same routes and tables: a re-skinned page shows exactly
-    what it showed. No data-model change and no reader change in this step.
-  - A page that needs something a later step builds (a condition's page, visits, medication: step 7; a car, an ID, a
-    school paper: step 8; the wiki by subject under "What the Hub knows": step 6) is drawn with what exists today.
-    That later step builds its block with the new components. Those steps' "Done when" lines do not change.
-  - Each new behaviour is its own slice with its own tests; privacy tripwires for anything the AI reads.
-- **Each slice:** tests, commit with PLAN.md, deploy, then check the live page at desktop and phone width against
-  the mock-up (a screenshot, e.g. Playwright), health page answers, journal clean, Problems has nothing new. Every page
-  that is present today stays reachable, and old URLs keep working.
-- a. Foundation: design tokens (colour, type, spacing, radii), one stylesheet, shared components (card, button, chip,
-  tab, table, the three-part message, empty state) and **one chart component** (columns, history line, trendline,
-  horizontal bars) on one scale function: real axis values, floor computed from the data and capped at 1.5 times the real
-  difference (`MAX_EXAGGERATION`), the current month only as far as it has happened, past months with their full month
-  and the value by the same day. Tests: for every existing chart, built from the code that feeds its page, the cap
-  holds, no current-month value is past today, no forecast or budget is drawn. Every chart already on the Hub moves to it. ✅ 2026-11-19 (`app/ui/charts.py`: `make_scale`, columns, history line with
-  trendline and reference band, horizontal bars; `app/static/hub.css`: Option A tokens, card, button, chip, tab,
-  table, three-part message, empty state, and base.html's rules moved in unchanged). The Overview's trend cards,
-  cash flow (now Income and Expenses side by side, each past month full and up to today's day), "Where it went" (this
-  month so far on last month in full) and the Utilities series all draw through it; negative values (net flow) span
-  zero. 316 tests.
-- b. Shell: the menu (Home · Money · Health · Things · Papers · Coming up · Waiting for you (n)), the header (Ask/search,
-  Who chip showing Everyone, + Add a paper, the gear, a Problems dot only when something is wrong), the phone bottom bar
-  with a central +. The gear holds Privacy, Scheduled jobs, Bank connections and What the Hub knows, as they are today. ✅ 2026-11-20, b7851bf, live with 10a (deploy 44651773605 green, journal clean, Problems nothing new) (`app/ui/shell.py`: the seven sections, each with
-  its own row of pages from the category registry; a category no section names yet shows under Papers; "Ask or
-  search" in a bar under the header, as in the mock-up; Settings (`/settings`) behind the gear; the phone's More
-  (`/more`) lists every page; the Problems dot only when something is open; old URLs unchanged). The "Who" chip shows
-  Everyone until 10i. The 10a deploy failed once on a test that counted a style rule moved into the stylesheet (fixed
-  with 10b; nothing reached the live Hub). Four older tests that looked for menu links on the Overview now look where
-  the links live (Money's row, the gear).
-- c. Home: Ask box first; Money this month (Earnings and Spending, three months each, past months filled to the same day;
-  available balance after the bills due this month); Coming up with To-Dos; Waiting for you as four slim cards (area,
-  count, button). Earnings = incoming bank lines without the family's own transfers; available balance = cash balance
-  minus bills due this month (Claude, 2026-11-19; Pedro may change). The menu's Waiting count leaves out the unconfirmed
-  merchants, which show as their own line inside the queue (changes step 3's count; Claude; Pedro may change). ✅ 2026-11-20 (`app/services/home.py`, `home.html`;
-  "/" is Home, the old Overview is unchanged at `/overview`, linked from Home's row and "Money this month › Open".
-  Available = the bank's balance plus lines since, minus unpaid bills and expected payments to the month's end and
-  anything overdue; the chip says what the balance rests on (there is no "matches the bank" check to show). Coming up
-  shows the next six by date: bills, regular payments and dated To-Dos, a bill's own to-do once. Waiting: Inbox,
-  Money, Health, Merchants; the menu, the heading and the queue's "All" leave out the merchants, which are one line
-  and their own tab on /waiting (live: 105 waiting plus 1,149 merchants). Older tests that read the Overview at "/"
-  now read it at /overview.) The first 10c deploy (44654408534) failed on three more such tests that the local run
-  had not covered; fixed, with the tests that assert something is absent from the Overview moved with it (so they
-  still check something); nothing reached the live Hub. ✅ live 2026-11-20 with 10d (`5aa4370`, deploy 44666588749).
-- d. Money: one page, tabs Spending, Bills & due, Loans, Utilities, All lines; the headline row; the breakdown with its
-  trend. **New behaviour:** category history (any category at any level, a number of months; view columns, line,
-  trendline or bars). ✅ 2026-11-20, live (`5aa4370`; `app/services/money_page.py`, `/money`, `/money/history`; the
-  Money menu item and the phone's € open `/money`). Headline row: spent this month (with "if budgets are respected"
-  as the budget panel says it), cash balance (what it rests on), due in the next 7 days plus overdue, open loans
-  and red flags; each opens its page. Tabs are the section row: Spending (`/money`), Bills & due, Loans, Utilities,
-  All lines (their pages, unchanged), Category history. Category history: every spending category at every level
-  plus "Not filed yet", 3/6/12/24 months, columns / history line / trendline / bars, counted with the budget's rule
-  (agrees with the Overview's breakdown, tested); a table by month (spent, by the same day, top merchant, its lines).
-  The budget is not drawn and not in the history table: a yearly line has no monthly budget to compare (Claude; Pedro
-  may change). The Overview stays at `/overview`.
-- e. Waiting for you: the grouped list; a paper card by card (paper left, what the Hub read right, keyboard shortcuts);
-  merchants as a bulk table with the best guess filled in. Existing behaviour, new look.
-  Found 2026-11-20: the "See it" link of an AI answer waiting for a person goes to `/transactions?q=…`, a page that
-  does not exist (45 live items); fix the link the queue writes and the items already stored, with 10e.
-  ✅ 2026-11-20, live (`a5480ab`, deploy 44675573672; `app/services/queue_view.py`): `/waiting` opens with one row per area
-  (count, the first item, how old the oldest is, "Open the first ›") and the merchants on their own row ("Open the
-  table ›"), then the list as before. `/waiting/one?area=…` shows one item at a time: the paper on the left when the
-  item is about one (a statement that doesn't add up, a line on a statement, a health paper read with doubts), the
-  question and its answers on the right; Enter = the first answer, L = later, J / K = next / previous (moving along
-  answers nothing). Merchants are a table: name, the category the Hub filed it under, its number of lines; tick the
-  right ones and confirm them in one go (a merchant with no guess is chosen on its own page). The answers and what
-  they do are unchanged. The "See it" link is fixed for new items and a migration repairs the stored ones (live: 45 repaired, 0 left).
-- f. The rest, with what exists: Health (name tiles, no faces; a strip of follow-ups; a person's page with results and
-  the reference range, timeline), Things (house and items as today), Papers (everything filed; category chips; search),
-  Coming up with To-Dos as a tab, Problems and the gear's pages. Papers is the same list pattern as All lines (not drawn).
-  ✅ 2026-11-20 live (3f6aa39, home_hub 128df36, deploy 44691099183; the full suite found 2 failures, fixed before the commit: Waiting counted before the queue was brought up to date; the card used an old variable name). Health opens on `/health/family` (`/health` is the server's health
-  check, so it cannot be a page): a tile per person (name, next follow-up, latest paper, papers; no faces), the
-  follow-ups across the family (open Health To-Dos, overdue first), papers by approved area or condition with the
-  proposed and unsorted counts linking to their pages; a person's page `/health/people/{id}`: conditions, each result
-  drawn on the chart component against the range printed on the paper (last 8 points; "Every result ›" keeps the full
-  table), and a timeline (papers, and follow-ups ahead). Coming up's Dates tab adds the dated To-Dos of an area (a
-  general To-Do stays on To-Dos only, as before; a bill's own To-Do is its bill), an area chip per row and chips to
-  show one area; each month's total stays the money due. Papers (`/papers`): everything filed, newest first, a chip
-  per category, and the search inside a chip. The gear's page: a card per setting with what it says today (open
-  problems, bank connections, how many kinds of paper per level, the jobs and their last run, the facts the Hub
-  knows), each opening its own page. House and To-Dos in the card style; their content is unchanged. Things stays
-  the house and policies as today (a car or an ID is step 8). (Claude, 2026-11-20; Pedro may change: the tab names
-  Family and Dates; a person's tile shows the full name as the paper prints it.)
-- g. Ask: the answer card (one plain sentence, one matching visual, sources, Open the page / Save to wiki; no
-  suggested-question chips). **New behaviour:** three tiers of action (undoable with Undo; a confirm card for what
-  changes what the family sees; never from Ask: delete, privacy levels, bank connections) and a file attached to a
-  question (goes to the Inbox as a suggestion). Through the existing Ask tools; tripwire tests cover each.
-  Pedro said yes to the small table (2026-11-21): one table `ask_actions` remembers, for each answer, what Ask did
-  (Undo) or proposed (Confirm / Cancel) and what came of it. Three slices: (1) the table, the actions and their cards;
-  (2) the answer card's look and its one visual; (3) a file attached to a question. Actions (Claude, 2026-11-21; Pedro
-  may change): at once with Undo: add a to-do (with a date it is the reminder); a confirm card first: mark a bill paid
-  (its to-do ticked, as on To-Dos), approve the Inbox papers the Hub is sure of (as suggested; a paper that needs a
-  detail says so and links its card), give a merchant its category (as the merchants page does); never from Ask:
-  deleting, privacy levels, bank connections (Ask points to the page). Re-reading a statement is left out: there is no
-  "read again" for statements to reuse.
-  ◐ Slice 1 (2026-11-21): `ask_actions` table (migration d1a7e3c5f920), `app/services/ask/actions.py` (four tools:
-  add_todo; propose_mark_bill_paid, propose_approve_inbox, propose_merchant_category), the Undo toast and the confirm
-  card under an answer (`ask/_action.html`, `/ask/actions/{id}/undo|confirm|cancel`), the never-from-Ask line in
-  the prompt. A bill outside the run's reach answers like a missing one; the Inbox proposal tells the AI a count
-  only (the card lists the papers for the person). Both privacy tripwires cover the four tools; 9 new tests.
-  ✅ live 2026-11-21 (d91a0b9).
-  ◐ Slices 2 and 3 (2026-11-21): the answer card: the question, one plain sentence in bold, one visual, then
-  "Read from N sources" (folded), Open the page and Save to wiki; no suggested-question chips. The visual is drawn
-  from the data of a tool the answer cites, never from the AI's text (`ToolOutput.visual`, kept as
-  `ask_turns.visual_json`, migration e3b9f1d7a264): spending by month as columns on the chart rules (a past month in
-  full with the part up to today's day, the current month so far), a ranking or a list of lines as a short table,
-  one person's one test as columns with the printed range; otherwise the first paper it cites, as a card that opens
-  it. A file attached to a question (+ beside the box) goes to the Inbox through "Add a paper"'s own checks
-  (moved into `inbox_service.add_from_page`); the card says "sent to the Inbox as a suggestion. Not filed yet." with
-  Review it now and Undo (the Inbox's Discard; the file is kept). A file with no question asks the AI nothing; the
-  AI never sees an unfiled paper; a paper the Hub already had is pointed to, with no Undo. 16 new tests.
-- h. Phone: Home, Ask, and **new behaviour** a light "approve a paper" card (the file, four key fields, Approve / Edit /
-  Later) for a paper uploaded on the run, using the Inbox's existing approval.
-  ✅ 2026-11-20 live with 10f (3f6aa39). The Inbox had no way to add a paper from the page (only email
-  and Telegram), so the + now opens "Add a paper" (`/inbox/add`: choose a file or take a photo, an optional note);
-  the paper goes to the Inbox exactly as an emailed one (same recognition, same reading in a High run, same duplicate
-  check) and opens its card (`/inbox/{id}/card`): the file, "Filed as" the Hub's guess, up to three of that kind's
-  fields (the required ones first), Approve (the Inbox's own approval; a missing field comes back on the card),
-  Edit (the full Inbox card) and Later. An unsure paper says so and sends you to choose. (Claude, 2026-11-20; Pedro
-  may change: 25 MB limit from the page; the note is shown to whoever files it.)
-- i. **New behaviour:** the Who chip works (Everyone / a person) on Papers, Coming up, Waiting for you and Ask; people
-  come from the subjects registry; it filters and hides nothing from anyone's login.
-  ✅ 2026-11-20 live with 10f and 10h (3f6aa39, `app/services/who.py`). The header chip lists Everyone
-  and each person in the subjects registry (an alias counts as its person); the choice is kept in this browser
-  (a cookie) and hides nothing from anyone. A paper is about a person when the Hub already links them: a Health
-  paper through its person, a bank paper through the owner of the account its lines are on. Papers and Waiting for
-  you show only that person's papers and items; Coming up shows their bills and To-Dos, says how many rows about
-  nobody in particular are left out, and each month's total is theirs; Ask writes "About Rute: …" into the question
-  (seen on the page; nothing hidden is added). Each filtered page says whose things it shows, with "Show everyone".
-  (Claude, 2026-11-20; Pedro may change: commitments and papers with no person are left out while one person is
-  chosen; the registry still lists loan contacts and duplicate spellings until they are merged.)
-- Done when: every desktop and phone screen of `option-a.html` exists live and matches it in layout and chart rules; the
-  family can do everything they could before; the privacy tripwires and the suite are green.
-
+Nothing left in order: every step is done (section 4). New work goes here when it comes up; what waits on Pedro is
+in section 2, what is parked in section 3.
 
 ---
 
@@ -245,7 +103,7 @@ its step; tell Claude which to change.
 | Step 5 | A new lab test is asked about only when it looks like one already listed; a history point shows once on a person's results while each paper keeps what it printed |
 | Step 6 | "Vodafone Portugal" as Amigo's name; loan instalments are not spending; the English names for areas, topics and page titles (Portuguese kept as aliases) |
 | Step 7 | Health follow-up reminders 14 days before; the Portuguese and English follow-up words |
-| Step 10 | Built before steps 6–8 so their pages came out in the new look; Home's earnings leave out the family's own transfers and "available" is cash minus bills due this month; the Waiting count leaves out unconfirmed merchants (their own line in the queue); the tab names Family and Dates; a person's tile shows the full name as printed; while one person is chosen, commitments and papers with no person are left out |
+| Step 10 | Built before steps 6–8 so their pages came out in the new look; Home's earnings leave out the family's own transfers and "available" is cash minus bills due this month; the Waiting count leaves out unconfirmed merchants (their own line in the queue); the tab names Family and Dates; a person's tile shows the full name as printed; while one person is chosen, commitments and papers with no person are left out; 10g: Ask's actions are a to-do (Undo), and after a confirm card: mark a bill paid, approve the Inbox papers the Hub is sure of, give a merchant its category (no re-reading a statement: there is no "read again" for statements); a file with no question asks the AI nothing; Ask never reads an unfiled paper |
 | Step 8 | Identity papers always High, reminded 90 days before; the holder kept as a name on the paper leading to its subject; the reminder days for vehicles, education and pets; Education under Papers, Vehicles and Pets under Things; school fees as Education papers with a To-Do rather than bills under Money; a car's and a pet's insurance stay under Insurance |
 
 ---
@@ -290,6 +148,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-11-20 | **Step 7** Health conditions, follow-ups, visits and medication (77499c9, 4de8954): a condition per person, suggested on each paper and confirmed by a person, old guessed labels proposed on Waiting for you; follow-ups become Health To-Dos 14 days before they are due and reach the phone once, proposed from a paper's words; visits, notes and medication with every change kept, one timeline per condition; Ask's conditions tool at High; the Overview's Health card never names a condition. Left: bookings to Google Calendar once Pedro sets it up (section 2). Choices (Claude; Pedro may change): reminders 14 days before; the Portuguese and English follow-up words |
 | 2026-11-20 | **Step 8** new categories (2816bfc, 24a9d14; live 039ce55, deploy run 44819070261 green after two stops at the test gate): Identity & Legal (always High, renewal To-Do 90 days before expiry, told once on the phone); Contracts and Letters as kinds of Other papers; Vehicles, Education and Pets on shared paper pages, one typed reader and date reminders. Live check: /identity, /vehicles, /education, /pets, /other, /search and the money pages load; no new problem. Refile of Other papers on live: backup, dry run 0, applied 0 (no paper is filed under Other papers yet; 69 wait in the Inbox). With it went step 9 D1, D2, D4, D5, D6, D7, D10 |
 | 2026-11-20 | **Step 9** clean-up (7187d0c, b4e7260, bfbf9e5, 04e777c, db4797a, 6639a7e, a178e3a, ad3158e, a37bfc9; all live by c77005f): dead tables and columns retired (D1); router logic into services, no router imports a router, tree slugs named once (D2); no swallowed failure in the intake paths (D3); one money, date and message format (D4); long jobs in their own scheduler lane (D5); docs up to date (D6); links checked in the test database (D7); payee numbers, payment texts and supermarkets as Pedro's rules, 4,041 texts unchanged (D8); new merchants asked of the AI together (D9); Health outlines on Waiting for you (D10); Revolut 2022-08 → 2023-12 read in parts and filed, 584 lines, totals unchanged (D11). D12 moved to section 2: it waits on Pedro's papers |
+| 2026-11-21 | **Step 10** UI redesign, Option A (slices a–i; 10a–10f, 10h, 10i live 2026-11-19 → 11-20, see git; 10g live 2026-11-21: d91a0b9, 060f73f): one stylesheet and one chart component on Pedro's scale rule; the menu, header and phone bar; Home; Money with category history; Waiting for you card by card and merchants in bulk; Health person-first, Papers, Coming up, the gear; "Add a paper" and the light approve card; the Who chip; Ask's answer card (one sentence, one visual from the cited data, sources, Open the page / Save to wiki), actions in three tiers (a to-do with Undo; mark a bill paid, approve sure Inbox papers, give a merchant its category after Do it; never delete, privacy or bank connections) kept in `ask_actions`, and a file attached to a question going to the Inbox as a suggestion. The full text of the step is in git history (PLAN.md before this commit) |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |
 | 2026-11-19 | **Step 1 (E2)** search over papers (83a96f2, 6f3f46b): every filed paper has its text (`paper_texts`: 191 own PDF text, 4 read by the AI, 4 with nothing readable, of 199 on file), FTS5 search with accents folded behind a box at the top of the menu and inside Ask's `find_sources` (privacy tripwires cover it), the hourly "Paper text" job, **Other papers** (catch-all, offered by the Inbox when nothing fits), unsupported or oversized files listed under "Not added". Choices recorded in git (commit 83a96f2) and ARCHITECTURE.md; "search results are shown to every family member, with each paper's level" (Claude, 2026-11-19; Pedro may change) |

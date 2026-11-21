@@ -165,7 +165,7 @@ main { padding: 8px 20px 40px; max-width: 1240px; margin: 0 auto; }
 /* Ask's answer card (step 10g): question, one plain sentence, one visual, sources and two buttons */
 .ask-turn.ans { max-width: 820px; } .ask-turn .q { font-weight: 600; margin-bottom: 8px; }
 .ask-paragraph.lead { font-weight: 600; font-size: 1.05em; }
-.ask-visual { display: block; margin: 12px 0; overflow-x: auto; }
+.ask-visual { display: block; margin: 12px 0; overflow-x: auto; } .ask-visual svg { max-width: 520px; height: auto; }
 .ask-paper { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-s);
   padding: 10px 14px; color: var(--ink); text-decoration: none; } .ask-paper .file { color: var(--accent); }
 .src { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--fs-small); color: var(--muted); margin-top: 10px; }
