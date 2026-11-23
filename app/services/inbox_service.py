@@ -150,8 +150,26 @@ async def receive_document(
                     document_id=document.id, external_ref=external_ref)
         return InboxReceipt(document=document, inbox_item=item_for(session, document.id), duplicate=True)
 
+    suggestion, _ = await _suggest(session, document, incoming.filename, incoming.content, context_text, classify)
+    item = InboxItem(
+        document_id=document.id, context_text=context_text, external_ref=external_ref,
+        suggested_category=suggestion.category.value if suggestion.category is not None else None,
+        suggested_paper_kind=suggestion.paper_kind,
+        confidence=suggestion.confidence, classifier_note=suggestion.note,
+        guess_json=_guess_json(suggestion, document),
+    )
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return InboxReceipt(document=document, inbox_item=item, duplicate=False)
+
+
+async def _suggest(session: Session, document: Document, filename: str, content: bytes, context_text: Optional[str],
+                   classify) -> tuple[CategorySuggestion, bool]:
+    """What a paper is: rules first, then the AI inside a High run. The same path for a new arrival and for a paper
+    guessed again (PLAN step 12b). The flag is False when the AI could not be asked (the reason is in the note)."""
     # 1. Known, recurring documents are recognised by rules, with no AI (D13).
-    recognised = recognise(session, filename=incoming.filename, content=incoming.content, context_text=context_text)
+    recognised = recognise(session, filename=filename, content=content, context_text=context_text)
     if recognised is not None:
         suggestion = CategorySuggestion(Category(recognised.category), recognised.paper_kind, 1.0,
                                       "Recognised from " + "; ".join(recognised.reasons))
@@ -166,24 +184,54 @@ async def receive_document(
             # document -- it arrives without a suggestion and a human chooses.
             problem = explain("Automatic sorting didn't work.", str(exc))
             note = problem.text + " Tell me what it is."
-            suggestion = CategorySuggestion(None, None, 0.0, note)
+            failed = CategorySuggestion(None, None, 0.0, note)
             try:    # nobody is watching this step: keep it on the Problems page too (a down private route shows there)
                 record_problem(session, area="Reading documents", ref=f"document:{document.id}",
                                problem=Problem(problem.what, problem.why, problem.next_step, "/inbox"),
                                technical=str(exc))
             except Exception:
                 pass    # reporting a problem must never create another one
+            return failed, False
+    return suggestion, True
 
-    item = InboxItem(
-        document_id=document.id, context_text=context_text, external_ref=external_ref,
-        suggested_category=suggestion.category.value if suggestion.category is not None else None,
-        suggested_paper_kind=suggestion.paper_kind,
-        confidence=suggestion.confidence, classifier_note=suggestion.note,
-    )
+
+def _guess_json(suggestion: CategorySuggestion, document: Document) -> str:
+    """The guess as kept: the filed name falls back to the day the paper ARRIVED (not the day it was guessed)."""
+    import json
+    from app.services.paper_names import name_for_guess
+    guess = dict(getattr(suggestion, "guess", None) or {})
+    if guess:
+        if guess.get("new_kind"):
+            kind_label = guess["new_kind"]
+        elif suggestion.category is not None and is_implemented(suggestion.category):
+            spec = get_spec(suggestion.category)
+            kind_label = spec.kind_label(suggestion.paper_kind) if suggestion.paper_kind else spec.label
+        else:
+            kind_label = "Paper"
+        guess["filed_name"] = name_for_guess(guess, kind_label, document.created_at)
+    return json.dumps(guess, ensure_ascii=False)
+
+
+class GuessFailed(Exception):
+    """The AI could not be asked to guess again; the waiting paper keeps its old guess."""
+
+
+async def guess_again(session: Session, document_id: int, classify=suggest_category_and_kind) -> InboxItem:
+    """Guess a waiting paper again (PLAN step 12b: the September guesses predate step 8), through the same path."""
+    from pathlib import Path
+    document, item = _pending(session, document_id)
+    content = Path(document.file_path).read_bytes()
+    suggestion, asked = await _suggest(session, document, document.filename, content, item.context_text, classify)
+    if not asked:
+        raise GuessFailed(suggestion.note)            # the old guess stays; the reason is on the Problems page
+    item.suggested_category = suggestion.category.value if suggestion.category is not None else None
+    item.suggested_paper_kind = suggestion.paper_kind
+    item.confidence, item.classifier_note = suggestion.confidence, suggestion.note
+    item.guess_json = _guess_json(suggestion, document)
     session.add(item)
     session.commit()
     session.refresh(item)
-    return InboxReceipt(document=document, inbox_item=item, duplicate=False)
+    return item
 
 
 def suggested_category(item: InboxItem) -> Optional[Category]:
@@ -212,10 +260,30 @@ def is_confident(item: InboxItem) -> bool:
     return item.suggested_paper_kind in {c.value for c in spec.kinds}
 
 
+def guess_of(item: InboxItem) -> dict:
+    import json
+    try:
+        guess = json.loads(item.guess_json or "{}")
+    except ValueError:
+        return {}
+    return guess if isinstance(guess, dict) else {}
+
+
+def suggestion_label(item: InboxItem) -> Optional[str]:
+    """The card's "Best guess": a new area or kind the Hub proposes is named, marked new (PLAN step 12b)."""
+    guess = guess_of(item)
+    category = suggested_category(item)
+    if category is None and guess.get("new_area") and guess.get("new_kind"):
+        return f"{guess['new_area']} (new area) › {guess['new_kind']} (new)"
+    if category is not None and item.suggested_paper_kind is None and guess.get("new_kind"):
+        return f"{get_spec(category).label} › {guess['new_kind']} (new)"
+    return describe(category, item.suggested_paper_kind)
+
+
 def _entry(item: InboxItem, document: Document) -> InboxEntry:
     return InboxEntry(
         item=item, document=document, confident=is_confident(item),
-        suggestion_label=describe(suggested_category(item), item.suggested_paper_kind),
+        suggestion_label=suggestion_label(item),
     )
 
 

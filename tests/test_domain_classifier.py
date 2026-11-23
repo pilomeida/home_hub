@@ -60,7 +60,8 @@ def test_prompt_is_built_from_the_registry(two_categories):
 async def test_valid_answer_and_wire_shape(pdf, two_categories):
     client = _answer(domain="house", category="manual", confidence=0.93, reason="a manual")
     result = await suggest_category_and_kind(pdf, "Email subject: boiler", gateway=client)
-    assert result == CategorySuggestion(Category.HOUSE, "manual", 0.93, "a manual")
+    assert (result.category, result.paper_kind, result.confidence, result.note) == (Category.HOUSE, "manual", 0.93, "a manual")
+    assert result.guess["filed_name"].endswith(" · Manual")              # the rest of the guess (PLAN step 12b)
     _assert_wire(client, expect_context=True)
 
 

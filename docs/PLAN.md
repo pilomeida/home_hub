@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; next slice 12b (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again). Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; slice 12b is built and being deployed (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again). Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -106,8 +106,10 @@ Slices (Claude, 2026-11-23):
 - **12a Foundation:** the family list and the room list defined once; areas and kinds can be added from an approval;
   the "Other" area retired, its papers re-sorted into real types (W1: backup, dry run, apply, verify). ✅ 2026-11-23
   (full suite 2,970 green; deploy run 45252742638 failed: "re-read now" depended on the machine's clock, fixed with a
-  flag and a test; the family and rooms are seeded on the server by `scripts/seed_household.py` after the
-  deploy, counts recorded with 12b). How (Claude, 2026-11-23):
+  flag and a test; live 2026-11-23, deploy run 45254678146, commits 6db54b5 and
+  76c2b2a; `scripts/seed_household.py` applied on the server after a named backup: Pedro (#7) and Rute (#8) marked as
+  family, Matias and Vicente added, 17 rooms added; a second run changed nothing; health 200, no errors, problems
+  still 3). How (Claude, 2026-11-23):
   - An area is an open value, no longer a fixed list in code: the nine built-in areas stay as they are, an area Pedro
     approves is a row in a new `paper_types` table (one row per added area or added kind). Stored the same way as
     today, so no paper changes (S2).
@@ -125,7 +127,19 @@ Slices (Claude, 2026-11-23):
     and filing an item in a room not on it adds that room.
 - **12b The guess:** caption or subject first, then the paper; it returns area and kind (or a new one, marked new),
   who, items with rooms, free tags, a date to act on and the filed name. Papers already waiting in the Inbox are
-  guessed again (their September guesses predate step 8).
+  guessed again (their September guesses predate step 8). ◐ built 2026-11-23 (full suite 2985 passed); deploy and the re-guess of the waiting papers follow. How (Claude, 2026-11-23):
+  - Still ONE AI call per paper, inside the High run as today (D20), its answer checked by code before it is kept
+    (Q1: AI output is untrusted): an area or kind must exist or be offered as new (never confident: Pedro looks at
+    every new type); "who" matched to the family list, else kept as a name; rooms matched to the room list, else
+    marked new; dates must be real dates; at most 20 items and 10 tags.
+  - The prompt names the family and the rooms (from the subjects, S5) and says the caption or subject is the
+    strongest clue.
+  - The whole guess is kept on the Inbox item (a new `guess_json` column) for 12c to show and 12d to file; the
+    card's "Best guess" line already names a new area or kind, marked new.
+  - The filed name is built by code, one formatter (W2): `date · kind · what it is · who or item`, no accents, no
+    characters a file name cannot hold; the date is the paper's own, else the day it arrived.
+  - Guessing again goes through the same path as a new arrival (rules first, then the AI at High):
+    `scripts/guess_waiting_again.py`, dry run first, then in small batches (W1); cents in total.
 - **12c The Inbox card:** item rows (edit, remove, add); "New" badges on a new kind, area, room or person; tags shown
   and editable; approving creates what is new.
 - **12d Filing and finding:** approval files under the new name, one card per item, tags stored; House filters by room,

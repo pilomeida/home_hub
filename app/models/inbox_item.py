@@ -28,6 +28,9 @@ class InboxItem(RefusesUnknownFields, SQLModel, table=True):
     suggested_paper_kind: Optional[str] = Field(default=None, sa_column=Column("suggested_category", AutoString))
     confidence: Optional[float] = None      # 0.0-1.0 as reported by the classifier
     classifier_note: Optional[str] = None   # classifier's one-line reason, or why it couldn't run
+    # The rest of the guess, checked by code (PLAN step 12b): new area/kind, who, items with rooms, tags, a date to
+    # act on, the paper's date, what it is, the filed name. JSON; "{}" when there is none.
+    guess_json: str = Field(default="{}")
     received_at: datetime = Field(default_factory=datetime.utcnow)
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[datetime] = None
