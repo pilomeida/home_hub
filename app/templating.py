@@ -93,3 +93,16 @@ templates.env.globals["shell_active"] = _shell.active
 
 from app.services.who import header as _who_header  # noqa: E402
 templates.env.globals["who_header"] = _who_header        # the Who chip (PLAN step 10i)
+
+
+def _asset_version(path: str = "app/static/hub.css") -> str:
+    """A stamp of the stylesheet's content, so a browser fetches it again after each deploy (PLAN step 11a)."""
+    import hashlib
+    from pathlib import Path
+    try:
+        return hashlib.sha1(Path(path).read_bytes()).hexdigest()[:10]
+    except OSError:
+        return "0"
+
+
+templates.env.globals["css_version"] = _asset_version()

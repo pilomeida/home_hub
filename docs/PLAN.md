@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-21):** every step is done and live; step 10g (Ask's Undo, Confirm, answer card and attached file) landed today. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** step 11 (desktop UI rework), slice 11b (11a landed). Steps 1–10 are done and live. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -68,8 +68,30 @@ accuracy work, then Health reading, subjects in the wiki, Health conditions (a c
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
 
-Nothing left in order: every step is done (section 4). New work goes here when it comes up; what waits on Pedro is
-in section 2, what is parked in section 3.
+### Step 11 — Desktop UI rework (Pedro, 2026-11-23) · M
+Pedro's screenshots on a 1920px screen: the content is a narrow ~830px column with ~11px text, the sub-menu sits in
+the far-left corner, pages each look different (Inbox raw forms, Ask bare, Overview its own headers, Waiting grey
+buttons, bill pages bare tables), and only Health papers show the paper beside what was read. Presentation only: no
+behaviour or data changes; every page shows the same data as before.
+- **11a** Use the desktop screen: a wider content area that grows with the screen (sensible max), a larger base font
+  and type scale, the sub-menu with the page it belongs to, top nav and search sized to match; phone (375px) as good
+  as now. ✅ 2026-11-23: text grows with the screen (15px on phones and laptops, ~17px at 1920, 20px from ~2700);
+  one content width of 96rem (≈1,920px on Pedro's ~2,880px-wide screen, the full width on smaller ones) shared by
+  the header, the menu row and the page; the section's own pages and search share the second row; the stylesheet
+  link carries a version stamp so a browser fetches the new look after each deploy. (Claude, 2026-11-23; Pedro may
+  change the sizes.)
+- **11b** One look across every page, built around Home: shared tokens and components in `hub.css` (no per-page
+  patches), applied to Inbox, Ask, Overview, Waiting for you, Coming up, Money pages (bills/{id}, All lines), Health
+  records, Things, Papers, Privacy, Problems, Schedules; `docs/STYLE.md` written (tokens, components, layout and width
+  rules, desktop and phone) and referenced from CLAUDE.md.
+- **11c** Every document page (bills and statements, Health, Papers/other papers, House, Insurance, Inbox cards)
+  shows what was read plus a small preview of the original's first page; clicking it opens a viewer where the person
+  chooses full view or side by side with what was read. One shared component; the paper is served only through the
+  Hub's existing file route (nothing leaves the server, no third-party viewer); a paper that can't be previewed says
+  so plainly.
+
+Done when: all three slices are live, STYLE.md exists, every page listed follows it, tests cover the preview route and
+the component on each document page, and each touched page was checked at 1920, 1366 and 375 width.
 
 ---
 

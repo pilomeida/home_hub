@@ -69,3 +69,16 @@ def test_old_urls_still_answer(client):
     for url in ("/ask", "/inbox", "/waiting", "/todos", "/privacy", "/schedules", "/problems", "/wiki",
                 "/financials/transactions", "/financials/coming-up", "/health/records", "/house", "/insurance", "/other"):
         assert client.get(url).status_code == 200, url
+
+
+def test_the_section_pages_sit_with_search_inside_the_page_width(client):
+    """PLAN step 11a: the section's own pages and search share one row inside the one content width; type and width
+    grow with the screen (the stylesheet's tokens)."""
+    html = client.get("/financials/transactions").text
+    row = re.search(r'<div class="subbar">(.*?)</form>\s*</div>', html, re.S).group(1)
+    assert row.index('class="sectionbar"') < row.index('class="nav-search"')
+    assert ">All lines</a>" in row
+    css = open("app/static/hub.css").read()
+    assert "--page-max: 96rem" in css and "clamp(15px" in css
+    assert ".topnav, .subbar, main { max-width: var(--page-max)" in css
+    assert "1240px" not in css

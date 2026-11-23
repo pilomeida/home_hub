@@ -5,7 +5,7 @@
   <title>{% block title %}Home & Family{% endblock %}</title>
   <script src="/static/htmx.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/hub.css">
+  <link rel="stylesheet" href="/static/hub.css?v={{ css_version }}">
 </head>
 <body>
   {% set all_sections = shell_sections() %}
@@ -34,15 +34,15 @@
     </div>
   </header>
   <div class="subbar">
+    {% if here and here.links|length > 1 %}
+    <nav class="sectionbar" aria-label="{{ here.label }} pages">
+      {% for l in here.links %}<a class="tab{% if request and (request.url.path == l.url or request.url.path.rstrip('/') == l.url.rstrip('/')) %} on{% endif %}" href="{{ l.url }}">{{ l.label }}</a>{% endfor %}
+    </nav>
+    {% endif %}
     <form action="/search" method="get" role="search" class="nav-search">
-        <input type="search" name="q" placeholder="Ask or search…" aria-label="Search papers" value="{{ request.query_params.get('q', '') if request and request.url.path == '/search' else '' }}">
-      </form>
+      <input type="search" name="q" placeholder="Ask or search…" aria-label="Search papers" value="{{ request.query_params.get('q', '') if request and request.url.path == '/search' else '' }}">
+    </form>
   </div>
-  {% if here and here.links|length > 1 %}
-  <nav class="sectionbar" aria-label="{{ here.label }} pages">
-    {% for l in here.links %}<a class="tab{% if request and (request.url.path == l.url or request.url.path.rstrip('/') == l.url.rstrip('/')) %} on{% endif %}" href="{{ l.url }}">{{ l.label }}</a>{% endfor %}
-  </nav>
-  {% endif %}
   <nav class="phonebar" aria-label="Menu">
     <a class="pn2{% if here and here.key == 'home' %} on{% endif %}" href="/"><span>⌂</span>Home</a>
     <a class="pn2{% if here and here.key == 'money' %} on{% endif %}" href="/money"><span>€</span>Money</a>
