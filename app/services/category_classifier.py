@@ -96,7 +96,8 @@ def build_system_prompt(categories: Sequence, family: Sequence[str] = (), rooms:
         '"tags": ["<a few words that describe the paper: area, kind, level, grade, issuer...>"], '
         '"act_by": {"date": "YYYY-MM-DD", "what": "<what must be done or ends then>"} or null, '
         '"paper_date": "YYYY-MM-DD or null (the date the paper was issued or signed)", '
-        '"what": "<what the paper is, a few words in its own language, e.g. issuer and subject>"}',
+        '"what": "<what the paper is in at most 8 words, in its own language: issuer and subject, no amounts, no '
+        'reference numbers, no names of people; e.g. \"Fatura AEG eletrodomesticos cozinha\">"}',
         "",
         "confidence is how sure you are that the whole answer is right.",
     ]

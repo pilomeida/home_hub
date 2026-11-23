@@ -127,7 +127,7 @@ Slices (Claude, 2026-11-23):
     and filing an item in a room not on it adds that room.
 - **12b The guess:** caption or subject first, then the paper; it returns area and kind (or a new one, marked new),
   who, items with rooms, free tags, a date to act on and the filed name. Papers already waiting in the Inbox are
-  guessed again (their September guesses predate step 8). ◐ built 2026-11-23 (full suite 2985 passed); deploy and the re-guess of the waiting papers follow. How (Claude, 2026-11-23):
+  guessed again (their September guesses predate step 8). ◐ live 2026-11-23 (dea8cac, deploy 45278065682; full suite 2985 passed; backup `data/backups/before-12b-2026-11-23.db`). First 3 re-guessed live: the diploma (#164) is now Education › Diploma, who Pedro, dated 2002-12-06; the AEG invoice (#100) has its 6 items, all Kitchen; a Seguranca Social letter (#160) got a new area "Social benefits", marked new. Found: the AI's "what it is" ran to a sentence (amounts, numbers) and the name was cut mid-word; fixed the same day (prompt asks at most 8 words; the formatter keeps 12 words and cuts at a word). Left: re-guess the other 66. How (Claude, 2026-11-23):
   - Still ONE AI call per paper, inside the High run as today (D20), its answer checked by code before it is kept
     (Q1: AI output is untrusted): an area or kind must exist or be offered as new (never confident: Pedro looks at
     every new type); "who" matched to the family list, else kept as a name; rooms matched to the room list, else

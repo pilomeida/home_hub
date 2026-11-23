@@ -201,3 +201,22 @@ def test_the_script_lists_what_it_would_guess_again_without_calling_the_ai(sessi
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.waiting(session) == []                                               # nothing waiting, nothing called
+
+
+def test_a_long_what_is_cut_to_a_few_words_never_mid_word():
+    """Live 2026-11-23: the AI's "what" for a Seguranca Social letter ran to a sentence and the name ended in "Ped"."""
+    what = ("Seguranca Social – Notificacao de decisao indeferimento do requerimento de Rendimento Social de Insercao "
+            "de Pedro Santos Almeida")
+    name = paper_names.filed_name(paper_date="2026-05-08", received=datetime(2026, 9, 28), kind="Benefit decision notice",
+                                  what=what, who="Pedro")
+    assert name == ("2026-05-08 · Benefit decision notice · Seguranca Social – Notificacao de decisao indeferimento do "
+                    "requerimento de Rendimento Social · Pedro")
+    long_name = paper_names.filed_name(paper_date=None, received=datetime(2026, 9, 28), kind="k" * 60,
+                                       what="palavra " * 12, who="Pedro")
+    assert len(long_name) <= 150 and long_name.endswith(" · Pedro") and "palavr ·" not in long_name
+
+
+def test_the_prompt_asks_for_a_short_what_without_amounts_or_numbers():
+    from app.services.category_classifier import build_system_prompt
+    prompt = build_system_prompt([])
+    assert "at most 8 words" in prompt and "no amounts" in prompt
