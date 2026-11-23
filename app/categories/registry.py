@@ -34,6 +34,7 @@ RECHECK_SECONDS = 3.0
 session_factory: Optional[Callable[[], object]] = None
 _merged: Optional[tuple[tuple, dict[Category, CategorySpec]]] = None   # (stamp, specs)
 _checked_at = 0.0
+_stale = True            # set by forget_types: re-read on the next lookup, whatever the clock says
 
 
 class UnknownCategoryError(KeyError):
@@ -77,18 +78,18 @@ def _read_rows() -> tuple[tuple, list]:
 
 def forget_types() -> None:
     """Re-read the added types on the next lookup (after an approval adds one, or in a test)."""
-    global _checked_at
-    _checked_at = 0.0
+    global _stale
+    _stale = True
 
 
 def _specs() -> dict[Category, CategorySpec]:
-    global _merged, _checked_at
+    global _merged, _checked_at, _stale
     built_in = _built_in()
     now = time.monotonic()
-    if _merged is not None and _merged[0][0] is built_in and now - _checked_at < RECHECK_SECONDS:
+    if not _stale and _merged is not None and _merged[0][0] is built_in and now - _checked_at < RECHECK_SECONDS:
         return _merged[1]
     stamp, rows = _read_rows()
-    _checked_at = now
+    _checked_at, _stale = now, False
     if _merged is not None and _merged[0][0] is built_in and _merged[0][1] == stamp:
         return _merged[1]
     from app.categories.generic.spec import added_area, with_added_kinds

@@ -105,7 +105,8 @@ Designed with Pedro 2026-11-23 (grill-me; notes in `Personal/brainstorms/2026-11
 Slices (Claude, 2026-11-23):
 - **12a Foundation:** the family list and the room list defined once; areas and kinds can be added from an approval;
   the "Other" area retired, its papers re-sorted into real types (W1: backup, dry run, apply, verify). ✅ 2026-11-23
-  (full suite 2,970 green; the family and rooms are seeded on the server by `scripts/seed_household.py` after the
+  (full suite 2,970 green; deploy run 45252742638 failed: "re-read now" depended on the machine's clock, fixed with a
+  flag and a test; the family and rooms are seeded on the server by `scripts/seed_household.py` after the
   deploy, counts recorded with 12b). How (Claude, 2026-11-23):
   - An area is an open value, no longer a fixed list in code: the nine built-in areas stay as they are, an area Pedro
     approves is a row in a new `paper_types` table (one row per added area or added kind). Stored the same way as

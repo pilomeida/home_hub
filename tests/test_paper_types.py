@@ -225,3 +225,11 @@ async def test_an_item_filed_in_a_room_not_on_the_list_adds_it(session, inbox_do
                  Classification(category=Category.HOUSE, paper_kind="house_appliance",
                                 fields={"item_name": "Lawnmower", "room": "Garden shed"}))
     assert "Garden shed" in [s.name for s in household.rooms(session)]
+
+
+def test_a_new_type_is_seen_at_once_on_a_machine_that_just_started(session, monkeypatch):
+    """The deploy's test machine had been up for minutes: "re-read now" must not depend on the clock (run 45252742638)."""
+    monkeypatch.setattr(registry.time, "monotonic", lambda: 5.0)
+    registry.implemented_categories()
+    paper_types.add_area(session, "Work", "", first_kind="Payslip", by=None)
+    assert is_implemented(Category("work"))
