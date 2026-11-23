@@ -680,6 +680,7 @@ body.pv-side .paper-page { grid-template-columns: minmax(0, 1fr); } body.pv-side
 /* Health paper page: a result outside its range (moved from health/detail.html) */
 .oor { color: var(--bad); font-weight: 700; white-space: nowrap; }
 tr.oor-row td { background: #FBE3DC; } tr.oor-row td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.why-box { background: var(--t2); border-radius: var(--radius); padding: var(--pad); margin-bottom: var(--gap); }
 .why-box form { margin: .5rem 0; } .why-box p { margin: .4rem 0; }
 .inbox-remember { margin: .6rem 0; font-size: .9em; display: flex; flex-direction: column; gap: .35rem; }
 .inbox-remember label { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }

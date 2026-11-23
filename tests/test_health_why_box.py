@@ -24,9 +24,10 @@ async def _filed(session, tmp_path, reply):
 
 
 def _why_box(html):
-    """Only the text of the "Why this was done" box: from its opening tag to the grid that follows it."""
+    """Only the text of the "Why this was done" box: from its opening tag to the "What the Hub read" card that
+    follows it (PLAN step 11c)."""
     assert 'class="why-box"' in html
-    return html.split('class="why-box"', 1)[1].split('<div style="display:grid', 1)[0]
+    return html.split('class="why-box"', 1)[1].split('<h2 class="card-h">What the Hub read</h2>', 1)[0]
 
 
 @pytest.mark.asyncio
