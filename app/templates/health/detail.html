@@ -1,11 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ description.filename }} — Health{% endblock %}
 {% block content %}
-<style>
-  .oor { color:#b3261e; font-weight:700; white-space:nowrap; }
-  tr.oor-row td { background:#fff1f0; }
-  tr.oor-row td:first-child { box-shadow: inset 3px 0 0 #b3261e; }
-</style>
 <p><a href="/health/records">← Health</a></p>
 <h1>{{ description.filename }}</h1>
 <p>{{ description.kind_label or "Kind of paper not known yet" }} (<a href="/documents/{{ document.id }}/edit">change</a>) · {{ entry.entry_date if entry and entry.entry_date else "undated" }}</p>
@@ -13,7 +8,7 @@
 {% if is_report %}<p><strong>Written report</strong> — the Hub keeps its headings and what is written under them; the numbers it prints are in the Metrics table.</p>{% endif %}
 {% if document.status.value == "pending" %}
 <meta http-equiv="refresh" content="10">
-<div class="needs-attention" class="msg info">
+<div class="msg info">
   <strong>Being read.</strong> The Hub is reading this paper at the highest privacy level (Privatemode). A long paper can
   take several minutes. This page refreshes by itself; the empty boxes below fill in when it is done.
   {% if can_reread %}<form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
@@ -21,43 +16,39 @@
   </form>{% endif %}
 </div>
 {% elif document.status.value == "needs_attention" %}
-<div class="needs-attention" style="border:1px solid #d96a6a;background:#fdecea;padding:10px 14px;margin:12px 0;">
+<div class="msg">
   <strong>Not read.</strong> {{ document.failure_reason|friendly_reason }}
   {% if can_reread %}<form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
     <button type="submit">Read again</button> <small>or fill the boxes below by hand, or delete the paper.</small>
   </form>{% endif %}
 </div>
 {% endif %}
-<div class="why-box" style="border:1px solid #9bb8e0;background:#f3f8ff;padding:10px 14px;margin:12px 0;">
+<div class="paper-page">
+<div class="paper-read">
+<div class="why-box card tint2">
   <strong>Why this was done</strong>
-  {% if why.indication %}<p style="margin:6px 0;">{{ why.indication }}</p>
-  {% elif document.status.value == "pending" %}<p style="margin:6px 0;"><em>Being read — the reason will appear here when the reading is done.</em></p>
-  {% elif document.status.value == "needs_attention" %}<p style="margin:6px 0;"><em>Not read, so the Hub does not know why it was made. Read it again or write the reason in the boxes below.</em></p>
-  {% else %}<p style="margin:6px 0;"><em>The paper does not say why it was made. Write it here.</em></p>{% endif %}
-  {% if why.clinical_notes %}<p style="margin:6px 0;"><small>Clinical notes</small><br>{{ why.clinical_notes }}</p>{% endif %}
-  {% if why.requested_by or why.performed_by %}<p style="margin:6px 0;">
+  {% if why.indication %}<p>{{ why.indication }}</p>
+  {% elif document.status.value == "pending" %}<p><em>Being read — the reason will appear here when the reading is done.</em></p>
+  {% elif document.status.value == "needs_attention" %}<p><em>Not read, so the Hub does not know why it was made. Read it again or write the reason in the boxes below.</em></p>
+  {% else %}<p><em>The paper does not say why it was made. Write it here.</em></p>{% endif %}
+  {% if why.clinical_notes %}<p><small>Clinical notes</small><br>{{ why.clinical_notes }}</p>{% endif %}
+  {% if why.requested_by or why.performed_by %}<p>
     {% if why.requested_by %}<small>Requested by</small> {{ why.requested_by }}{% endif %}
     {% if why.requested_by and why.performed_by %} · {% endif %}
     {% if why.performed_by %}<small>Done by</small> {{ why.performed_by }}{% endif %}</p>{% endif %}
-  {% if document.status.value == "processed" %}<form method="post" action="/health/documents/{{ document.id }}/why" style="margin:6px 0;">
-    <textarea name="indication" rows="2" style="width:100%;" aria-label="Why this was done">{{ why.indication }}</textarea>
+  {% if document.status.value == "processed" %}<form method="post" action="/health/documents/{{ document.id }}/why">
+    <textarea name="indication" rows="2" aria-label="Why this was done">{{ why.indication }}</textarea>
     <button type="submit" class="pri">Save</button>
   </form>{% endif %}
-  {% if why.details %}<details><summary>Details</summary><pre style="white-space:pre-wrap;">{{ why.details }}</pre></details>{% endif %}
+  {% if why.details %}<details><summary>Details</summary><pre>{{ why.details }}</pre></details>{% endif %}
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-  <section>
-    <h2>The paper</h2>
-    {% if media_kind == "image" %}<img src="{{ description.file_url }}" alt="" style="max-width:100%;">
-    {% else %}<iframe src="{{ description.file_url }}" style="width:100%;height:70vh;border:1px solid var(--line);"></iframe>
-    <p><a href="{{ description.file_url }}">Open the file</a></p>{% endif %}
-  </section>
-  <section>
-    <h2>What the Hub read</h2>
+  <section class="card">
+    <h2 class="card-h">What the Hub read</h2>
     <form method="post" action="/health/documents/{{ document.id }}/fields">
       {% include "domains/_field_inputs.html" %}
       <button type="submit" class="pri">Save</button>
     </form>
+  </section>
     {% if conditions_box %}{% set cb = conditions_box %}
     <section class="card" id="conditions">
       <div class="card-h"><span>Conditions this paper is about</span></div>
@@ -76,13 +67,16 @@
         <button class="btn" name="action" value="create">Create it</button></form>
     </section>
     {% endif %}
-    <h3>Areas and conditions</h3>
-    <form method="post" action="/health/documents/{{ document.id }}/tags">
+  <section class="card">
+    <h2 class="card-h">Areas and conditions</h2>
+    <form method="post" action="/health/documents/{{ document.id }}/tags" class="form-row">
       <div class="field"><label>Areas (comma-separated) <input type="text" name="areas" value="{{ area_names }}"></label></div>
       <div class="field"><label>Conditions (comma-separated) <input type="text" name="conditions" value="{{ condition_names }}"></label></div>
-      <button type="submit" class="pri">Save tags</button>
+      <div class="field"><button type="submit" class="pri">Save tags</button></div>
     </form>
   </section>
+</div>
+  <aside class="paper-aside">{% include "documents/_preview.html" %}</aside>
 </div>
 {% if document.status.value == "processed" and can_reread %}
 <form method="post" action="/health/documents/{{ document.id }}/reread" style="margin:8px 0;"
@@ -91,9 +85,9 @@
 </form>
 {% endif %}
 {% if check_notes %}
-<div class="needs-attention" class="msg info">
+<div class="msg info">
   <strong>{{ check_notes|length }} thing{{ "s" if check_notes|length != 1 }} to look at.</strong> The Hub checked its reading (against the paper's own text, or by reading it twice) and could not settle:
-  <ul style="margin:6px 0;">{% for n in check_notes %}<li>{{ n }}</li>{% endfor %}</ul>
+  <ul>{% for n in check_notes %}<li>{{ n }}</li>{% endfor %}</ul>
   <form method="post" action="/health/documents/{{ document.id }}/notes/ok"><button type="submit" title="I looked at the paper and these are fine">I've looked</button></form>
 </div>
 {% endif %}
@@ -159,7 +153,7 @@
 </table>
 {% else %}<p>No results on this paper.</p>{% endif %}
 {% endif %}
-{% if entry and entry.full_text %}<details><summary>Full text as read</summary><pre style="white-space:pre-wrap;">{{ entry.full_text }}</pre></details>{% endif %}
+{% if entry and entry.full_text %}<details><summary>Full text as read</summary><pre>{{ entry.full_text }}</pre></details>{% endif %}
 <form method="post" action="/health/documents/{{ document.id }}/delete" style="margin-top:24px;"
       onsubmit="return confirm('Delete this paper and everything read from it? The original file is kept on the server but is no longer used anywhere.');">
   <button type="submit" class="danger">Delete this paper</button>

@@ -5,25 +5,27 @@
 <h1>{{ kind_label }}</h1>
 <p>Entered {{ record.created_at|display_date }}{% if record.entered_by %} by {{ record.entered_by }}{% endif %}
  · <a href="/records/{{ record.id }}/edit">Edit / re-file</a></p>
+<div class="paper-page">
+<div class="paper-read">
 
-{% if attachment %}
-<div class="doc-preview">
-  {% if media_kind == "image" %}<img src="{{ attachment_description.file_url }}" alt="{{ attachment.filename }}">{% endif %}
-  <p>Attached: <a href="{{ attachment_description.file_url }}" target="_blank" rel="noopener">{{ attachment.filename }}</a></p>
-</div>
-{% else %}
-<form action="/house/records/{{ record.id }}/attachment" method="post" enctype="multipart/form-data">
+{% if not attachment %}
+<form action="/house/records/{{ record.id }}/attachment" method="post" enctype="multipart/form-data" class="card">
   <label for="f-attach">Attach a file (receipt, report or photo)</label>
   <input type="file" id="f-attach" name="file" accept="application/pdf,image/*">
-    <small class="scan-notice" style="display:block; color:var(--muted); margin-top:4px;">{{ scan_notice }}</small>
+    <small class="scan-notice hint" style="display:block;">{{ scan_notice }}</small>
   <button type="submit" class="pri">Attach</button>
 </form>
 {% endif %}
 {% if errors.get("file") %}<p class="needs-attention">{{ errors["file"] }}</p>{% endif %}
 
-<h2>Details</h2>
+<section class="card">
+<h2 class="card-h">Details</h2>
 <form action="/house/records/{{ record.id }}/fields" method="post">
   {% include "domains/_field_inputs.html" %}
   <button type="submit" class="pri">Save</button>
 </form>
+</section>
+</div>
+  <aside class="paper-aside">{% if attachment %}{% with document=attachment %}{% include "documents/_preview.html" %}{% endwith %}{% endif %}</aside>
+</div>
 {% endblock %}

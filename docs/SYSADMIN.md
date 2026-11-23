@@ -20,6 +20,7 @@ A single-tenant FastAPI web app that ingests bank statements/bills (PDF/image, v
 | Virtualenv | `/srv/home-hub/venv/` (Python 3.14.4, `python3 -m venv`, no system-site-packages) |
 | Database | `/srv/home-hub/app/data/home_family.db` (SQLite, single file) |
 | Uploaded/imported documents | `/srv/home-hub/app/app/static/documents/` (~23 MB at last check) |
+| Paper previews | `/srv/home-hub/app/data/previews/` — the first page of each PDF as a small picture, drawn by `pdftoppm` the first time its page is opened (PLAN step 11c). A cache: not backed up, safe to delete, redrawn on demand |
 | Systemd unit | `/etc/systemd/system/home-hub.service` |
 | Background-job units | `~home-hub/.config/systemd/user/{home-hub-scheduler.service,home-hub-scheduler.timer,home-hub-scheduler-long.service,home-hub-scheduler-long.timer,home-hub-telegram.service}` — two scheduler timers (every 5 minutes) start the scheduled jobs in two lanes (since 2026-11-20, PLAN D5): `home-hub-scheduler` the quick ones (mailbox check, phone notices, statement reminder, things to check), `home-hub-scheduler-long` the long ones (bank sync, wiki check, backup, paper text, privacy self-test), so a long job never holds up the mailbox; the Telegram bot is the one long-running unit. These are systemd **user** units of the `home-hub` account (no sudo, no root system-unit dir); installed/refreshed from `deploy/systemd/` on every deploy by `deploy/install_user_units.sh` |
 | Nginx site | `/etc/nginx/sites-enabled/home-hub` |

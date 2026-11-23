@@ -9,7 +9,7 @@
   <p class="btns">{% if document_href %}<a class="btn pri" href="{{ document_href }}">Open it ›</a>{% endif %}
     <a class="btn" href="/inbox/add">Add another</a> <a class="btn" href="/">Home</a></p>
 {% else %}
-  <div class="pdoc">{% if media == "image" %}<img class="paper-view" src="{{ file_href }}" alt="The paper">{% elif media == "pdf" %}<iframe class="paper-view" src="{{ file_href }}" title="The paper"></iframe>{% else %}<a href="{{ file_href }}">Open the file</a>{% endif %}</div>
+  <div class="pdoc">{% with document = entry.document %}{% include "documents/_preview.html" %}{% endwith %}</div>
   {% if duplicate %}<p class="msg info">This exact paper was already waiting in the Inbox; here it is.</p>{% endif %}
   {% if held %}<div class="problem"><strong>Not filed.</strong> This kind of paper has no privacy level yet, so nothing may read it. <a href="/privacy">Set its level on the Privacy page</a>, then press Approve again.</div>{% endif %}
   <form method="post" action="/inbox/{{ entry.document.id }}/card">

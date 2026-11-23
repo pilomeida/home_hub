@@ -2,18 +2,22 @@
 {% block title %}{{ document.filename }} — Bills & Bank{% endblock %}
 {% block content %}
 <h1>{{ document.filename }}</h1>
-<p>Status: {{ document.status.value }}</p>
+<div class="paper-page">
+<div class="paper-read">
+<p class="sub">Status: {{ document.status.value }}{% if not feed %} · <a href="/documents/{{ document.id }}/edit">Edit / re-file</a>{% endif %}</p>
 {% if feed %}<p>The bank feed's statement: these lines came from the bank itself, not from a paper, so there is no file and it can't be re-filed. To change a line, open it in <a href="/financials/transactions">Transactions</a>.</p>
-{% else %}<p><a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>{% endif %}
+{% endif %}
 {% if document.failure_reason %}
 <p class="needs-attention">{{ document.failure_reason | friendly_reason }}</p>
 {% elif document.status.value == "needs_attention" %}
 <p class="needs-attention"><strong>This document needs attention.</strong> The Hub couldn't finish filing it and no reason was recorded. Use “Edit / re-file” to correct its details, or upload it again.</p>
 {% endif %}
 {% if transactions %}
-<table>
+<section class="card flush">
+<div class="card-h pad">What the Hub read · {{ transactions|length }} line{{ "s" if transactions|length != 1 }}</div>
+<table class="tbl">
   <thead>
-    <tr><th>Description</th><th>Category</th><th>Type</th><th>Amount</th><th>Date</th><th>Statement period</th><th>Bank</th></tr>
+    <tr><th>Description</th><th>Category</th><th>Type</th><th class="num">Amount</th><th>Date</th><th>Statement period</th><th>Bank</th></tr>
   </thead>
   <tbody>
     {% for transaction in transactions %}
@@ -21,13 +25,17 @@
       <td>{{ transaction.description }}</td>
       <td>{{ node_labels.get(transaction.id) or "Not filed yet" }}</td>
       <td>{{ transaction.transaction_type.value }}</td>
-      <td>{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</td>
-      <td>{{ transaction.due_date or transaction.paid_date or "—" }}</td>
+      <td class="num">{{ "%.2f"|format(transaction.amount) }} {{ transaction.currency }}</td>
+      <td class="date">{{ transaction.due_date or transaction.paid_date or "—" }}</td>
       <td>{{ transaction.statement_period or "—" }}</td>
       <td>{% if transaction.settled_by_id %}<a href="/financials/transactions?transaction_id={{ transaction.settled_by_id }}">paid &mdash; see the bank entry</a>{% else %}not matched to a bank entry yet &mdash; it matches by itself when the payment shows up in the bank sync{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</section>
 {% endif %}
+</div>
+  <aside class="paper-aside">{% include "documents/_preview.html" %}</aside>
+</div>
 {% endblock %}

@@ -77,8 +77,17 @@ one, the button that makes something (`.empty .btn`).
 
 **Charts:** the one chart component (`app/ui/charts.py`, `.chart`), on Pedro's scale rule; never a second chart style.
 
+**Paper preview** (step 11c): see section 4.
 
-## 4. Writing on the page
+## 4. A paper and what the Hub read (step 11c)
+
+Every page about one paper shows what the Hub read **and** a small preview of the paper's first page, from the one
+shared include `documents/_preview.html`. Clicking the preview opens the viewer, where the person picks **Full view**
+or **Side by side** (the paper on the left, what was read on the right). The preview picture comes from
+`/documents/{id}/preview.png` (made on the server from the file; nothing leaves the server); the paper itself only
+from its own file route. A paper that can't be shown says so in plain words.
+
+## 5. Writing on the page
 
 Plain English, sentence case (no capitals-and-tracking labels), dates `yyyy-mm-dd`, money `€1,234.56`. Every warning
 says what, why and what to do (section 3, Messages).

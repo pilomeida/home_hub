@@ -106,3 +106,7 @@ def _asset_version(path: str = "app/static/hub.css") -> str:
 
 
 templates.env.globals["css_version"] = _asset_version()
+
+from app.ui.paper_preview import paper_view as _paper_view  # noqa: E402
+templates.env.globals["paper_view"] = _paper_view        # a paper beside what the Hub read (PLAN step 11c)
+templates.env.globals["js_version"] = _asset_version("app/static/paper.js")

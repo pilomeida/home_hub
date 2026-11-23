@@ -4,26 +4,25 @@
 <p><a href="/house">← House</a></p>
 <h1>{{ document.filename }}</h1>
 <p><span class="badge">{{ description.kind_label }}</span> · added {{ document.created_at|display_date }} · <a href="/documents/{{ document.id }}/edit">Edit / re-file</a></p>
+<div class="paper-page">
+<div class="paper-read">
 {% if document.failure_reason %}<p class="needs-attention">{{ document.failure_reason | friendly_reason("Enter it manually below.") }}</p>{% endif %}
 
-<div class="doc-preview">
-  {% if media_kind == "image" %}
-  <img src="{{ description.file_url }}" alt="{{ document.filename }}">
-  {% elif media_kind == "video" %}
-  <video src="{{ description.file_url }}" controls></video>
-  {% endif %}
-  <p><a href="{{ description.file_url }}" target="_blank" rel="noopener">Open the file</a></p>
-</div>
 
 {% if item_page %}
 <p>Item page: <a href="/wiki/{{ item_page.id }}">{{ item_page.topic }}</a></p>
 {% endif %}
 
-<h2>Details</h2>
+<section class="card">
+<h2 class="card-h">What the Hub read</h2>
 {% set derived = description.fields %}
 {% if document.paper_kind == "warranty_invoice" and warranty_note %}<p><em>{{ warranty_note }}</em></p>{% endif %}
 <form action="/house/documents/{{ document.id }}/fields" method="post">
   {% include "domains/_field_inputs.html" %}
   <button type="submit" class="pri">Save</button>
 </form>
+</section>
+</div>
+  <aside class="paper-aside">{% include "documents/_preview.html" %}</aside>
+</div>
 {% endblock %}

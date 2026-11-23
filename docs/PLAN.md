@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** step 11 (desktop UI rework), slice 11c (11a, 11b landed). Steps 1–10 are done and live. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** every step is done and live; step 11 (desktop UI rework: wider pages, one look in docs/STYLE.md, a paper preview on every paper page) landed today. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -68,34 +68,8 @@ accuracy work, then Health reading, subjects in the wiki, Health conditions (a c
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
 
-### Step 11 — Desktop UI rework (Pedro, 2026-11-23) · M
-Pedro's screenshots on a 1920px screen: the content is a narrow ~830px column with ~11px text, the sub-menu sits in
-the far-left corner, pages each look different (Inbox raw forms, Ask bare, Overview its own headers, Waiting grey
-buttons, bill pages bare tables), and only Health papers show the paper beside what was read. Presentation only: no
-behaviour or data changes; every page shows the same data as before.
-- **11a** Use the desktop screen: a wider content area that grows with the screen (sensible max), a larger base font
-  and type scale, the sub-menu with the page it belongs to, top nav and search sized to match; phone (375px) as good
-  as now. ✅ 2026-11-23: text grows with the screen (15px on phones and laptops, ~17px at 1920, 20px from ~2700);
-  one content width of 96rem (≈1,920px on Pedro's ~2,880px-wide screen, the full width on smaller ones) shared by
-  the header, the menu row and the page; the section's own pages and search share the second row; the stylesheet
-  link carries a version stamp so a browser fetches the new look after each deploy. (Claude, 2026-11-23; Pedro may
-  change the sizes.)
-- **11b** One look across every page, built around Home: shared tokens and components in `hub.css` (no per-page
-  patches), applied to Inbox, Ask, Overview, Waiting for you, Coming up, Money pages (bills/{id}, All lines), Health
-  records, Things, Papers, Privacy, Problems, Schedules; `docs/STYLE.md` written (tokens, components, layout and width
-  rules, desktop and phone) and referenced from CLAUDE.md. ✅ 2026-11-23: plain buttons, fields, tables and links
-  take Home's look without a class; the older page styles (Overview, Inbox, loans, review tables) moved onto the
-  tokens, sized in rem, sentence case, dark-mode leftovers removed (the Hub is light-only); one orange per form
-  (`.pri`), a Save on each table row stays white; Inbox, Ask, Waiting for you, Coming up, Schedules, Problems,
-  Health records and the edit form restyled; filters as chips. (Claude, 2026-11-23; Pedro may change.)
-- **11c** Every document page (bills and statements, Health, Papers/other papers, House, Insurance, Inbox cards)
-  shows what was read plus a small preview of the original's first page; clicking it opens a viewer where the person
-  chooses full view or side by side with what was read. One shared component; the paper is served only through the
-  Hub's existing file route (nothing leaves the server, no third-party viewer); a paper that can't be previewed says
-  so plainly.
-
-Done when: all three slices are live, STYLE.md exists, every page listed follows it, tests cover the preview route and
-the component on each document page, and each touched page was checked at 1920, 1366 and 375 width.
+Nothing left in order: every step is done (section 4). New work goes here when it comes up; what waits on Pedro is
+in section 2, what is parked in section 3.
 
 ---
 
@@ -174,6 +148,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-11-20 | **Step 7** Health conditions, follow-ups, visits and medication (77499c9, 4de8954): a condition per person, suggested on each paper and confirmed by a person, old guessed labels proposed on Waiting for you; follow-ups become Health To-Dos 14 days before they are due and reach the phone once, proposed from a paper's words; visits, notes and medication with every change kept, one timeline per condition; Ask's conditions tool at High; the Overview's Health card never names a condition. Left: bookings to Google Calendar once Pedro sets it up (section 2). Choices (Claude; Pedro may change): reminders 14 days before; the Portuguese and English follow-up words |
 | 2026-11-20 | **Step 8** new categories (2816bfc, 24a9d14; live 039ce55, deploy run 44819070261 green after two stops at the test gate): Identity & Legal (always High, renewal To-Do 90 days before expiry, told once on the phone); Contracts and Letters as kinds of Other papers; Vehicles, Education and Pets on shared paper pages, one typed reader and date reminders. Live check: /identity, /vehicles, /education, /pets, /other, /search and the money pages load; no new problem. Refile of Other papers on live: backup, dry run 0, applied 0 (no paper is filed under Other papers yet; 69 wait in the Inbox). With it went step 9 D1, D2, D4, D5, D6, D7, D10 |
 | 2026-11-20 | **Step 9** clean-up (7187d0c, b4e7260, bfbf9e5, 04e777c, db4797a, 6639a7e, a178e3a, ad3158e, a37bfc9; all live by c77005f): dead tables and columns retired (D1); router logic into services, no router imports a router, tree slugs named once (D2); no swallowed failure in the intake paths (D3); one money, date and message format (D4); long jobs in their own scheduler lane (D5); docs up to date (D6); links checked in the test database (D7); payee numbers, payment texts and supermarkets as Pedro's rules, 4,041 texts unchanged (D8); new merchants asked of the AI together (D9); Health outlines on Waiting for you (D10); Revolut 2022-08 → 2023-12 read in parts and filed, 584 lines, totals unchanged (D11). D12 moved to section 2: it waits on Pedro's papers |
+| 2026-11-23 | **Step 11** desktop UI rework (Pedro's screenshots, 2026-11-23; 7c1ab11, cafec77, and the 11c commit): 11a type grows with the screen (15px → 20px) and one 96rem content width shared by header, section row and page, the section's pages beside search; 11b plain elements take Home's look, older page styles on the tokens (rem, sentence case, light-only), one orange per form, the listed pages restyled, `docs/STYLE.md` written and referenced from CLAUDE.md; 11c every page about one paper shows what was read beside a small first-page preview (one include, drawn on the server, kept in `data/previews/`), opening on Full view or Side by side. Choices (Claude; Pedro may change): the sizes and the 96rem width; Full view first; no Side by side under 900px |
 | 2026-11-21 | **Step 10** UI redesign, Option A (slices a–i; 10a–10f, 10h, 10i live 2026-11-19 → 11-20, see git; 10g live 2026-11-21: d91a0b9, 060f73f): one stylesheet and one chart component on Pedro's scale rule; the menu, header and phone bar; Home; Money with category history; Waiting for you card by card and merchants in bulk; Health person-first, Papers, Coming up, the gear; "Add a paper" and the light approve card; the Who chip; Ask's answer card (one sentence, one visual from the cited data, sources, Open the page / Save to wiki), actions in three tiers (a to-do with Undo; mark a bill paid, approve sure Inbox papers, give a merchant its category after Do it; never delete, privacy or bank connections) kept in `ask_actions`, and a file attached to a question going to the Inbox as a suggestion. The full text of the step is in git history (PLAN.md before this commit) |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |

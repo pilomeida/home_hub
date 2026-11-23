@@ -1,0 +1,28 @@
+{# A small preview of the paper's first page beside what the Hub read (PLAN step 11c, docs/STYLE.md section 4).
+   Needs `document`. Clicking the preview opens the viewer: Full view, or Side by side with this page. #}
+{% set pv = paper_view(document) %}
+{% if pv %}
+<figure class="pv" data-pv-file="{{ pv.file_url }}" data-pv-kind="{{ pv.kind or '' }}" data-pv-name="{{ pv.filename }}">
+  {% if pv.kind in ("pdf", "image") %}
+  <button type="button" class="pv-thumb" data-pv-open aria-label="Open {{ pv.filename }}: full view or side by side">
+    <img src="{{ pv.preview_url }}" alt="First page of {{ pv.filename }}" loading="lazy" data-pv-img>
+    <span class="pv-hint">Open · full view or side by side</span>
+  </button>
+  <div class="msg pv-problem" hidden data-pv-failed>
+    <div class="what">No preview.</div>
+    <div class="why">The Hub couldn't draw this paper's first page; it may be damaged.</div>
+    <div class="next">Open the file to see it.</div>
+  </div>
+  {% elif pv.kind == "video" %}
+  <video class="pv-video" src="{{ pv.file_url }}" controls preload="metadata"></video>
+  {% else %}
+  <div class="msg info pv-problem">
+    <div class="what">{{ pv.problem.what }}</div>
+    <div class="why">{{ pv.problem.why }}</div>
+    <div class="next">{{ pv.problem.next_step }}</div>
+  </div>
+  {% endif %}
+  <figcaption class="pv-cap"><span class="pv-name">{{ pv.filename }}</span>
+    {% if pv.kind %}<a href="{{ pv.file_url }}" target="_blank" rel="noopener">Open the file</a>{% endif %}</figcaption>
+</figure>
+{% endif %}

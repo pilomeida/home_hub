@@ -630,3 +630,60 @@ main h1 + p, .page-h + p { color: var(--muted); max-width: 80ch; }
 }
 .filters { align-items: flex-end; } .filters > label { display: flex; flex-direction: column; gap: .25rem; font-size: .92em; }
 .narrow-form { max-width: 40rem; }
+
+/* --- a paper beside what the Hub read (step 11c) ------------------------------------------------------------ */
+.paper-page { display: grid; grid-template-columns: minmax(0, 1fr) clamp(12rem, 20vw, 17rem); gap: var(--gap) calc(var(--gap) * 1.5);
+  align-items: start; }
+.paper-page > .paper-aside { position: sticky; top: 1rem; }
+.paper-read > .card:last-child { margin-bottom: 0; }
+.pv { margin: 0; background: var(--surface); border-radius: var(--radius); padding: .7rem; }
+.pv-thumb { display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden;
+  background: #fff; cursor: zoom-in; position: relative; }
+.pv-thumb img { display: block; width: 100%; max-height: 24rem; object-fit: cover; object-position: top; }
+.pv-hint { position: absolute; left: .5rem; right: .5rem; bottom: .5rem; background: rgba(42,32,25,.82); color: #fff;
+  border-radius: var(--radius-pill); font-size: var(--fs-xs); padding: .3rem .6rem; text-align: center; opacity: 0; transition: opacity .15s; }
+.pv-thumb:hover .pv-hint, .pv-thumb:focus-visible .pv-hint { opacity: 1; }
+.pv-video { width: 100%; border-radius: var(--radius-s); }
+.pv-problem { margin: 0; font-size: .9em; }
+.pv-cap { display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; font-size: var(--fs-small); color: var(--muted);
+  margin-top: .5rem; } .pv-name { overflow-wrap: anywhere; }
+.inbox-card.has-pv { display: grid; grid-template-columns: minmax(0, 1fr) clamp(9rem, 14vw, 12rem); gap: 1.25rem; align-items: start; }
+.inbox-card .pv { padding: 0; background: none; } .inbox-card .pv-thumb img { max-height: 15rem; }
+/* the viewer */
+.pv-viewer { position: fixed; inset: 0; z-index: 50; background: rgba(42,32,25,.55); display: flex; flex-direction: column;
+  padding: 1rem; box-sizing: border-box; }
+.pv-bar { display: flex; align-items: center; gap: .6rem; background: var(--surface); border-radius: var(--radius-s) var(--radius-s) 0 0;
+  padding: .55rem .8rem; flex-wrap: wrap; }
+.pv-title { font-weight: 600; flex: 1; min-width: 8rem; overflow-wrap: anywhere; }
+.pv-modes { display: flex; gap: .3rem; background: var(--bg); border-radius: var(--radius-pill); padding: .2rem; }
+.pv-modes button { border: 0; background: transparent; } .pv-modes button[aria-pressed=true] { background: var(--ink); color: #fff; }
+.pv-body { flex: 1; background: #fff; border-radius: 0 0 var(--radius-s) var(--radius-s); overflow: auto; display: flex; }
+.pv-body iframe { border: 0; width: 100%; height: 100%; flex: 1; }
+.pv-body img { max-width: 100%; margin: 0 auto; object-fit: contain; align-self: flex-start; }
+body.pv-open { overflow: hidden; }
+/* side by side: the paper pinned on the left half, the page on the right half */
+.pv-viewer.side { right: auto; width: 50vw; background: var(--bg); padding: .75rem 0 .75rem .75rem; }
+body.pv-side { overflow: auto; }
+body.pv-side .topnav, body.pv-side .subbar, body.pv-side main { margin-left: 50vw; max-width: none; }
+body.pv-side .paper-page { grid-template-columns: minmax(0, 1fr); } body.pv-side .paper-aside { display: none; }
+@media (max-width: 1100px) { .paper-page { grid-template-columns: minmax(0, 1fr) 12rem; } }
+@media (max-width: 900px) { .pv-side-btn { display: none; } }
+@media (max-width: 760px) {
+  .paper-page, .inbox-card.has-pv { grid-template-columns: 1fr; }
+  .paper-page > .paper-aside { position: static; order: -1; }
+  .pv { display: flex; gap: .8rem; align-items: center; } .pv-thumb { width: 6.5rem; flex: none; }
+  .pv-thumb img { max-height: 8rem; } .pv-hint { display: none; } .pv-cap { flex-direction: column; margin: 0; }
+  .inbox-card .pv { order: -1; }
+  .pv-viewer { padding: 0; } .pv-bar, .pv-body { border-radius: 0; }
+}
+.card-h.pad { padding: var(--pad) var(--pad) 0; } .card.flush .tbl th:first-child, .card.flush .tbl td:first-child { padding-left: var(--pad); }
+/* Health paper page: a result outside its range (moved from health/detail.html) */
+.oor { color: var(--bad); font-weight: 700; white-space: nowrap; }
+tr.oor-row td { background: #FBE3DC; } tr.oor-row td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.why-box form { margin: .5rem 0; } .why-box p { margin: .4rem 0; }
+.inbox-remember { margin: .6rem 0; font-size: .9em; display: flex; flex-direction: column; gap: .35rem; }
+.inbox-remember label { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.pcard .pdoc .pv { padding: 0; background: none; margin-bottom: .8rem; } .pcard .pdoc .pv-thumb { max-width: 16rem; }
+body.pv-side { overflow-x: hidden; } body.pv-side .topnav .pills, body.pv-side .topnav .tools { display: none; }
+body.pv-side .phonebar { display: none; }
+.tbl td.nowrap, .tbl .date { white-space: nowrap; }

@@ -153,3 +153,18 @@ async def refile_record_route(request: Request, record_id: int, session: Session
         return templates.TemplateResponse(request, "documents/edit.html",
                                           _context(session, **base, errors={}, refused=str(exc)), status_code=409)
     return RedirectResponse(_home_of(session, result), status_code=303)
+
+
+@router.get("/documents/{document_id}/preview.png")
+def document_preview(document_id: int, session: Session = Depends(get_session)):
+    """The first page of a filed paper as a small picture (PLAN step 11c), drawn on the server and cached. A 404
+    means there is no picture to show; the page around it then says why in plain words."""
+    from fastapi.responses import FileResponse
+    from app.ui.paper_preview import first_page_png
+    document = session.get(Document, document_id)
+    png = first_page_png(document) if document is not None else None
+    if png is None:
+        raise HTTPException(status_code=404, detail={
+            "what": "No preview.", "why": "The Hub couldn't draw this paper's first page.",
+            "next_step": "Open the file to see it."})
+    return FileResponse(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
