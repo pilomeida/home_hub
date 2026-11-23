@@ -15,7 +15,7 @@
   {% else %}
   <p>For now the Hub works as it always did, whatever is set below. When you switch levels on, a document whose type has no level is held until you set one.
   {% if unset_count %}<strong>{{ unset_count }}</strong> type{{ "s have" if unset_count != 1 else " has" }} no level yet — confirm the suggestions first.{% endif %}</p>
-  <p style="font-size:13px;">Once levels are binding, Ask and the weekly wiki check read only documents whose type has a Low or Mid level and does not hide personal details. The rest is left out, and each answer and each check says how many documents were left out and why.</p>
+  <p style="font-size:.87rem;">Once levels are binding, Ask and the weekly wiki check read only documents whose type has a Low or Mid level and does not hide personal details. The rest is left out, and each answer and each check says how many documents were left out and why.</p>
   <form method="post" action="/privacy/enforce"><input type="hidden" name="on" value="1"><button>Switch levels on</button></form>
   {% endif %}
 </section>
@@ -35,24 +35,24 @@
   {% for r in rows %}
   {% set fid = "f-" ~ r.info.category ~ "-" ~ r.info.paper_kind %}
   <tr>
-    <td>{{ r.info.label }}<div style="font-size:12px;color:#666;">{{ r.info.description }}</div>
+    <td>{{ r.info.label }}<div style="font-size:.8rem;color:var(--muted);">{{ r.info.description }}</div>
       <form id="{{ fid }}" method="post" action="/privacy/types">
         <input type="hidden" name="domain" value="{{ r.info.category }}"><input type="hidden" name="category" value="{{ r.info.paper_kind }}">
       </form></td>
     <td>
       {% if r.locked %}
       <strong>High (always)</strong>
-      <div style="font-size:12px;color:#666;">{{ r.info.category_label }} papers are always private. This cannot be changed.</div>
+      <div style="font-size:.8rem;color:var(--muted);">{{ r.info.category_label }} papers are always private. This cannot be changed.</div>
       {% else %}
       <select name="tier" form="{{ fid }}">
         {% for value, text in tier_labels.items() %}
         <option value="{{ value }}"{% if value == r.shown_tier.value %} selected{% endif %}>{{ text }}</option>
         {% endfor %}
       </select>
-      {% if not r.is_saved %}<div style="font-size:12px;color:#b36b00;">Suggested, not set yet</div>{% endif %}
+      {% if not r.is_saved %}<div style="font-size:.8rem;color:var(--warn);">Suggested, not set yet</div>{% endif %}
       {% endif %}
     </td>
-    <td>{% if r.locked %}<span style="color:#999;">not applicable</span>{% else %}<label><input type="checkbox" name="redact" value="1" form="{{ fid }}"{% if r.redact %} checked{% endif %}> on</label>{% endif %}</td>
+    <td>{% if r.locked %}<span style="color:var(--muted);">not applicable</span>{% else %}<label><input type="checkbox" name="redact" value="1" form="{{ fid }}"{% if r.redact %} checked{% endif %}> on</label>{% endif %}</td>
     <td>{% if not r.locked %}<button form="{{ fid }}">Save</button>{% endif %}</td>
   </tr>
   {% endfor %}
@@ -68,7 +68,7 @@
   <thead><tr><th>Rule</th><th>Means it is</th><th>Used</th><th></th></tr></thead>
   <tbody>
   {% for r, name in rules %}
-  <tr><td>{{ kinds[r.looks_at] }}: <strong>{{ r.pattern }}</strong><div style="font-size:12px;color:#666;">{{ r.note }}</div></td>
+  <tr><td>{{ kinds[r.looks_at] }}: <strong>{{ r.pattern }}</strong><div style="font-size:.8rem;color:var(--muted);">{{ r.note }}</div></td>
       <td>{{ name }}</td><td>{{ r.hits }}×</td>
       <td><form method="post" action="/privacy/rules/{{ r.id }}/delete"><button>Delete</button></form></td></tr>
   {% endfor %}
@@ -93,7 +93,7 @@
   {% for j in jobs %}
   {% set fid = "j-" ~ j.workload_type %}
   <tr>
-    <td style="min-width:15em;">{{ j.label }}<div style="font-size:12px;color:#666;">{{ j.blurb }}</div>
+    <td style="min-width:15em;">{{ j.label }}<div style="font-size:.8rem;color:var(--muted);">{{ j.blurb }}</div>
       <form id="{{ fid }}" method="post" action="/privacy/jobs"><input type="hidden" name="workload_type" value="{{ j.workload_type }}"></form></td>
     <td>{{ j.model_display or j.model }}</td>
     <td>
@@ -107,7 +107,7 @@
         <option value=""{% if not j.min_quality_tier.override %} selected{% endif %}>Standard ({{ quality_labels.get(j.min_quality_tier.type, j.min_quality_tier.type) }})</option>
         {% for value, text in quality_labels.items() %}<option value="{{ value }}"{% if j.min_quality_tier.override == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
       </select>
-      {% if saved_job == j.workload_type and not job_problem %}<div style="font-size:12px;color:#2e7d32;">Saved</div>{% endif %}
+      {% if saved_job == j.workload_type and not job_problem %}<div style="font-size:.8rem;color:var(--good);">Saved</div>{% endif %}
     </td>
     <td><button form="{{ fid }}">Save</button></td>
   </tr>

@@ -34,7 +34,7 @@
   <input type="hidden" name="cat" value="{{ view.cat }}"><input type="hidden" name="min" value="{{ view.min }}">
   <input type="hidden" name="date_from" value="{{ view.date_from }}"><input type="hidden" name="date_to" value="{{ view.date_to }}">
   <input type="hidden" name="sort" value="{{ view.sort }}"><input type="hidden" name="page" value="{{ view.page }}">
-  <button type="submit">Apply</button>
+  <button type="submit" class="pri">Apply</button>
   <a href="/financials/transactions/bulk?{{ view_qs }}">Back</a>
 </form>
 {% endblock %}

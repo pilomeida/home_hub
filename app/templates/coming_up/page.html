@@ -35,10 +35,11 @@
 <div class="empty">Nothing due in the next three months{% if dates.area %} in this area{% endif %}: no commitment is set up yet, no bill is waiting to be paid and no To-Do has a date. Add a commitment below, or press “↻ repeats” on a bank line in <a href="/financials/transactions">Transactions</a>.</div>
 {% endif %}
 
-<h2 id="add">Add a commitment</h2>
-<p>A spend you know is coming: a subscription, a yearly tax, an insurance. It shows here on its dates; it does not change any budget.</p>
+<section class="card">
+<h2 id="add" class="card-h">Add a commitment</h2>
+<p class="sub">A spend you know is coming: a subscription, a yearly tax, an insurance. It shows here on its dates; it does not change any budget.</p>
 {% if problem %}<p class="needs-attention">{{ three_part(problem) }}</p>{% endif %}
-<form method="post" action="/financials/coming-up/commitments">
+<form method="post" action="/financials/coming-up/commitments" class="form-row">
   <div class="field"><label>Name <input name="name" value="{{ values.get('name', '') }}" required></label></div>
   <div class="field"><label>Amount (€) <input name="amount" inputmode="decimal" value="{{ values.get('amount', '') }}" required></label></div>
   <div class="field"><label>How often
@@ -48,8 +49,9 @@
     <select name="category_id" required><option value="">Choose…</option>
       {% for o in leaves %}<option value="{{ o.id }}"{% if values.get('category_id') == o.id|string %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
     </select></label></div>
-  <button type="submit">Save</button>
+  <div class="field"><button type="submit" class="pri">Save</button></div>
 </form>
+</section>
 
 {% if commitments %}
 <h2>Your commitments</h2>

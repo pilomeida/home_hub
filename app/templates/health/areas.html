@@ -16,7 +16,7 @@
     <td>{{ a.kind }}</td>
     <td>{{ "approved" if a.approved else "proposed" }}</td>
     <td style="display:flex;gap:8px;">
-      {% if not a.approved %}<form method="post" action="/health/areas/{{ a.id }}/approve"><button type="submit">Approve</button></form>{% endif %}
+      {% if not a.approved %}<form method="post" action="/health/areas/{{ a.id }}/approve"><button type="submit" class="pri">Approve</button></form>{% endif %}
       {% set others = areas|selectattr("kind", "equalto", a.kind)|rejectattr("id", "equalto", a.id)|list %}
       {% if others %}<form method="post" action="/health/areas/{{ a.id }}/merge"><select name="into">
         {% for b in others %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}

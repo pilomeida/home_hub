@@ -10,7 +10,7 @@
     {% endfor %}
   </select>
   <input type="file" name="file" required>
-    <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ scan_notice }}</small>
-  <button type="submit">Upload</button>
+    <small class="scan-notice" style="display:block; color:var(--muted); margin-top:4px;">{{ scan_notice }}</small>
+  <button type="submit" class="pri">Upload</button>
 </form>
 {% endblock %}

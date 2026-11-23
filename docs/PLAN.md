@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** step 11 (desktop UI rework), slice 11b (11a landed). Steps 1–10 are done and live. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** step 11 (desktop UI rework), slice 11c (11a, 11b landed). Steps 1–10 are done and live. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -83,7 +83,11 @@ behaviour or data changes; every page shows the same data as before.
 - **11b** One look across every page, built around Home: shared tokens and components in `hub.css` (no per-page
   patches), applied to Inbox, Ask, Overview, Waiting for you, Coming up, Money pages (bills/{id}, All lines), Health
   records, Things, Papers, Privacy, Problems, Schedules; `docs/STYLE.md` written (tokens, components, layout and width
-  rules, desktop and phone) and referenced from CLAUDE.md.
+  rules, desktop and phone) and referenced from CLAUDE.md. ✅ 2026-11-23: plain buttons, fields, tables and links
+  take Home's look without a class; the older page styles (Overview, Inbox, loans, review tables) moved onto the
+  tokens, sized in rem, sentence case, dark-mode leftovers removed (the Hub is light-only); one orange per form
+  (`.pri`), a Save on each table row stays white; Inbox, Ask, Waiting for you, Coming up, Schedules, Problems,
+  Health records and the edit form restyled; filters as chips. (Claude, 2026-11-23; Pedro may change.)
 - **11c** Every document page (bills and statements, Health, Papers/other papers, House, Insurance, Inbox cards)
   shows what was read plus a small preview of the original's first page; clicking it opens a viewer where the person
   chooses full view or side by side with what was read. One shared component; the paper is served only through the

@@ -1,6 +1,6 @@
-<table class="fc-tag-table" style="width:100%; border-collapse:collapse; font-size:14px;">
+<table class="fc-tag-table" style="width:100%; border-collapse:collapse; font-size:.93rem;">
   <thead>
-    <tr style="text-align:right; color:#888; font-size:12px;">
+    <tr style="text-align:right; color:var(--muted); font-size:.8rem;">
       <th style="text-align:left; font-weight:600;">Tag</th>
       <th style="font-weight:600;">This month</th><th style="font-weight:600;">Last month</th>
       <th style="font-weight:600;">Year to date</th><th style="font-weight:600;">Last year</th>
@@ -8,7 +8,7 @@
   </thead>
   <tbody>
     {% for t in tags %}
-    <tr style="text-align:right; border-top:1px solid #ececec;">
+    <tr style="text-align:right; border-top:1px solid var(--line);">
       <td style="text-align:left; padding:6px 0;"><a href="/financials/transactions?tag={{ t.name }}">{{ t.label }}</a></td>
       <td>{{ "{:,.0f}".format(t.month_to_date) }}</td><td>{{ "{:,.0f}".format(t.previous_month) }}</td>
       <td>{{ "{:,.0f}".format(t.year_to_date) }}</td><td>{{ "{:,.0f}".format(t.last_year) }}</td>

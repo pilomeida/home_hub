@@ -2,16 +2,17 @@
 {% block title %}Scheduled jobs{% endblock %}
 {% block content %}
 <h1>Scheduled jobs</h1>
-<p>Background jobs that run on their own. Times are Lisbon time. If the Hub was off at the planned moment, the job runs once as soon as it is back.</p>
+<p class="lede">Background jobs that run on their own. Times are Lisbon time. If the Hub was off at the planned moment, the job runs once as soon as it is back.</p>
 {% if problem %}<p class="needs-attention">{{ problem }}</p>{% endif %}
 
+<div class="grid2">
 {% for r in rows %}
-<section style="margin-bottom:1.5rem;">
-  <h2>{{ r.job.label }}</h2>
-  <p>{{ r.job.description }}</p>
-  {% if r.job.max_runs_per_day %}<p style="color:#666;">Limit: at most {{ r.job.max_runs_per_day }} runs a day ({{ r.job.max_runs_reason }}). A schedule that could go over is refused.</p>{% endif %}
-  <p><strong>{{ r.text }}</strong>{% if not r.custom %} <span style="color:#666;">(the usual setting)</span>{% endif %}
-    {% if saved == r.job.key %}<span style="color:#2e7d32;"> Saved.</span>{% endif %}<br>
+<section class="card">
+  <h2 class="card-h">{{ r.job.label }}</h2>
+  <p class="sub">{{ r.job.description }}</p>
+  {% if r.job.max_runs_per_day %}<p class="hint">Limit: at most {{ r.job.max_runs_per_day }} runs a day ({{ r.job.max_runs_reason }}). A schedule that could go over is refused.</p>{% endif %}
+  <p><strong>{{ r.text }}</strong>{% if not r.custom %} <span class="hint">(the usual setting)</span>{% endif %}
+    {% if saved == r.job.key %}<span class="ok-text"> Saved.</span>{% endif %}<br>
     {% if r.spec.enabled %}Next run: {% if r.due_now %}at the next check (within {{ check_minutes }} minutes){% else %}{{ r.next | lisbon }}{% endif %}{% endif %}</p>
   {% if r.latest %}
   <p>Last run: {{ r.latest.started_at | lisbon }} ({{ "by hand" if r.latest.trigger == "manual" else "on schedule" }}) —
@@ -31,9 +32,10 @@
     <label><input type="checkbox" name="enabled" value="1"{% if r.spec.enabled %} checked{% endif %}> switched on</label>
     <button>Save</button>
   </form>
-  <form method="post" action="/schedules/{{ r.job.key }}/run" style="margin-top:6px;"><button>Run now</button></form>
+  <form method="post" action="/schedules/{{ r.job.key }}/run" class="mt-s"><button>Run now</button></form>
 </section>
 {% endfor %}
+</div>
 
 {% if fixed %}
 <h2>Still on fixed timers</h2>

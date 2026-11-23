@@ -18,7 +18,7 @@
      {% if view.by == "merchant" %}style="font-weight:700"{% endif %}>By merchant</a> &middot;
   <a href="?{{ qs_nb }}{{ '&' if qs_nb else '' }}by=provider"
      {% if view.by == "provider" %}style="font-weight:700"{% endif %}>By description</a>
-  <small style="color:#777">&mdash;
+  <small style="color:var(--muted)">&mdash;
     {% if view.by == "merchant" %}one category for everything a merchant does.{% else %}one category per kind of statement description (numbers ignored), for counterparties such as Santander that do many different things.{% endif %}</small>
 </p>
 
@@ -57,7 +57,7 @@
   <input type="hidden" name="cat" value="{{ view.cat }}"><input type="hidden" name="min" value="{{ view.min }}">
   <input type="hidden" name="date_from" value="{{ view.date_from }}"><input type="hidden" name="date_to" value="{{ view.date_to }}">
   <input type="hidden" name="sort" value="{{ view.sort }}"><input type="hidden" name="page" value="{{ view.page }}">
-  <div style="position:sticky; top:0; background:var(--bg, #fff); padding:8px 0; z-index:2; border-bottom:1px solid #ececec;">
+  <div style="position:sticky; top:0; background:var(--bg, #fff); padding:8px 0; z-index:2; border-bottom:1px solid var(--line);">
     <select name="category_node" required>
       <option value="">Apply this category to the ticked rows&hellip;</option>
       {% for group, options in leaf_groups %}
@@ -71,7 +71,7 @@
     <label><input type="checkbox" name="remember" value="1" checked> remember for future entries with this description</label>
     <label title="Stop applying these merchants' own category to new entries; only rules and review decide"><input type="checkbox" name="per_entry" value="1"> these merchants do many things (decide entry by entry)</label>
     {% endif %}
-    <button type="submit">Review &amp; apply</button>
+    <button type="submit" class="pri">Review &amp; apply</button>
   </div>
 
   {% if view.by == "merchant" %}

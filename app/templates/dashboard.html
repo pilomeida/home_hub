@@ -7,7 +7,7 @@
 {% include "dashboard/_domain_cards.html" %}
 <div class="fc-frame">
   <div class="fc-topbar">
-    <div class="fc-brand">HOME &amp; FAMILY — FINANCE</div>
+    <div class="fc-brand">Money</div>
     <div class="fc-period">
       <span class="pill">{{ today.strftime('%Y-%m') }} ▾</span>
       <span class="pill">vs Previous month ▾</span>
@@ -35,7 +35,7 @@
 
   {% if overview.narrative %}
   <div class="fc-insight">
-    <span style="font-size:16px">💡</span>
+    <span style="font-size:1.05rem">💡</span>
     <span>{{ overview.narrative }}</span>
   </div>
   {% endif %}

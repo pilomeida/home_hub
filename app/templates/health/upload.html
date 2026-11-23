@@ -9,11 +9,11 @@
   <div class="field">
     <label for="f-file">File *</label>
     <input type="file" id="f-file" name="file" accept="application/pdf,image/*">
-    <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ scan_notice }}</small>
-    <small class="scan-notice" style="display:block; color:#666; margin-top:4px;">{{ health_notice }}</small>
+    <small class="scan-notice" style="display:block; color:var(--muted); margin-top:4px;">{{ scan_notice }}</small>
+    <small class="scan-notice" style="display:block; color:var(--muted); margin-top:4px;">{{ health_notice }}</small>
     {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
     {% if errors.get("category") %}<span class="needs-attention">{{ errors["category"] }}</span>{% endif %}
   </div>
-  <button type="submit">Upload</button>
+  <button type="submit" class="pri">Upload</button>
 </form>
 {% endblock %}

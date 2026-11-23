@@ -17,6 +17,6 @@
     <input type="file" id="f-file" name="file" accept="application/pdf,image/*">
     {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
   </div>
-  <button type="submit">Upload</button>
+  <button type="submit" class="pri">Upload</button>
 </form>
 {% endblock %}

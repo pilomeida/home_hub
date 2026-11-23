@@ -19,7 +19,7 @@
     </div>
 
     {% if budget_view == "month" %}
-    <p class="bud-hint" style="color:#888;font-size:12px;margin:0 0 8px">Yearly items without a due month show in the Year view</p>
+    <p class="bud-hint" style="color:var(--muted);font-size:.8rem;margin:0 0 8px">Yearly items without a due month show in the Year view</p>
     {% endif %}
     {% set nf_url = "/financials/transactions/needs-review" %}
     <div class="bud-cards">
@@ -34,7 +34,7 @@
       </div>
       <div class="fc-card">
         <div class="fc-card-label"><span>Spending</span></div>
-        <div class="fc-card-val">{{ budget.spend_spent|money(whole=True) }} <span style="font-size:12px;font-weight:400;color:#888">so far</span></div>
+        <div class="fc-card-val">{{ budget.spend_spent|money(whole=True) }} <span style="font-size:.8rem;font-weight:400;color:var(--muted)">so far</span></div>
         <div class="fc-card-caption">{{ est_label }}: {{ budget.spend_expected|money(whole=True) }}</div>
         <div class="fc-card-caption">{{ budget.spend_if_budget_respected|money(whole=True) }} if budgets are respected</div>
         {% if budget.unsorted_spent > 0 %}

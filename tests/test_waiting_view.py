@@ -69,7 +69,7 @@ def test_the_list_opens_with_one_row_per_area_and_the_merchants_apart(client, se
                                                              ("Merchants", 3, "Open the table")]
     html = client.get("/waiting").text
     assert 'href="/waiting/one?area=money"' in html and 'href="/waiting?area=merchants"' in html
-    assert html.count('class="domain-card"') == 1                 # the whole list is still there, merchants apart
+    assert html.count('class="card witem"') == 1                 # the whole list is still there, merchants apart
 
 
 def test_one_at_a_time_answers_moves_along_and_stops_at_the_end(client, session, levels_not_binding):

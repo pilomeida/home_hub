@@ -12,7 +12,7 @@
   {% for p in people %}
   <tr><td><a href="/health/records?person={{ p.id }}">{{ p.name }}</a></td><td>{{ "confirmed" if p.confirmed else "new" }} · <a href="/health/people/{{ p.id }}/results">Results</a></td>
     <td style="display:flex;gap:8px;">
-      {% if not p.confirmed %}<form method="post" action="/health/people/{{ p.id }}/confirm"><button type="submit">Confirm</button></form>{% endif %}
+      {% if not p.confirmed %}<form method="post" action="/health/people/{{ p.id }}/confirm"><button type="submit" class="pri">Confirm</button></form>{% endif %}
       {% set others = people|rejectattr("id", "equalto", p.id)|list %}
       {% if others %}<form method="post" action="/health/people/{{ p.id }}/merge"><select name="into">
         {% for q in others %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}

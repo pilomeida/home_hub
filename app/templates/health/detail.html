@@ -13,7 +13,7 @@
 {% if is_report %}<p><strong>Written report</strong> — the Hub keeps its headings and what is written under them; the numbers it prints are in the Metrics table.</p>{% endif %}
 {% if document.status.value == "pending" %}
 <meta http-equiv="refresh" content="10">
-<div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
+<div class="needs-attention" class="msg info">
   <strong>Being read.</strong> The Hub is reading this paper at the highest privacy level (Privatemode). A long paper can
   take several minutes. This page refreshes by itself; the empty boxes below fill in when it is done.
   {% if can_reread %}<form method="post" action="/health/documents/{{ document.id }}/reread" style="margin-top:6px;">
@@ -41,7 +41,7 @@
     {% if why.performed_by %}<small>Done by</small> {{ why.performed_by }}{% endif %}</p>{% endif %}
   {% if document.status.value == "processed" %}<form method="post" action="/health/documents/{{ document.id }}/why" style="margin:6px 0;">
     <textarea name="indication" rows="2" style="width:100%;" aria-label="Why this was done">{{ why.indication }}</textarea>
-    <button type="submit">Save</button>
+    <button type="submit" class="pri">Save</button>
   </form>{% endif %}
   {% if why.details %}<details><summary>Details</summary><pre style="white-space:pre-wrap;">{{ why.details }}</pre></details>{% endif %}
 </div>
@@ -49,14 +49,14 @@
   <section>
     <h2>The paper</h2>
     {% if media_kind == "image" %}<img src="{{ description.file_url }}" alt="" style="max-width:100%;">
-    {% else %}<iframe src="{{ description.file_url }}" style="width:100%;height:70vh;border:1px solid #ddd;"></iframe>
+    {% else %}<iframe src="{{ description.file_url }}" style="width:100%;height:70vh;border:1px solid var(--line);"></iframe>
     <p><a href="{{ description.file_url }}">Open the file</a></p>{% endif %}
   </section>
   <section>
     <h2>What the Hub read</h2>
     <form method="post" action="/health/documents/{{ document.id }}/fields">
       {% include "domains/_field_inputs.html" %}
-      <button type="submit">Save</button>
+      <button type="submit" class="pri">Save</button>
     </form>
     {% if conditions_box %}{% set cb = conditions_box %}
     <section class="card" id="conditions">
@@ -80,7 +80,7 @@
     <form method="post" action="/health/documents/{{ document.id }}/tags">
       <div class="field"><label>Areas (comma-separated) <input type="text" name="areas" value="{{ area_names }}"></label></div>
       <div class="field"><label>Conditions (comma-separated) <input type="text" name="conditions" value="{{ condition_names }}"></label></div>
-      <button type="submit">Save tags</button>
+      <button type="submit" class="pri">Save tags</button>
     </form>
   </section>
 </div>
@@ -91,7 +91,7 @@
 </form>
 {% endif %}
 {% if check_notes %}
-<div class="needs-attention" style="border:1px solid #d9b44a;background:#fff8e1;padding:10px 14px;margin:12px 0;">
+<div class="needs-attention" class="msg info">
   <strong>{{ check_notes|length }} thing{{ "s" if check_notes|length != 1 }} to look at.</strong> The Hub checked its reading (against the paper's own text, or by reading it twice) and could not settle:
   <ul style="margin:6px 0;">{% for n in check_notes %}<li>{{ n }}</li>{% endfor %}</ul>
   <form method="post" action="/health/documents/{{ document.id }}/notes/ok"><button type="submit" title="I looked at the paper and these are fine">I've looked</button></form>
@@ -123,7 +123,7 @@
   {% for row in metrics %}{% set m = row.m %}
   <tr{% if m.needs_check %} class="needs-attention"{% elif m.out_of_range %} class="oor-row"{% endif %}>
     <td>{{ m.group_path }}</td>
-    <td>{{ m.test }}{% if m.method %}<br><small style="color:#777;">{{ m.method }}</small>{% endif %}</td>
+    <td>{{ m.test }}{% if m.method %}<br><small style="color:var(--muted);">{{ m.method }}</small>{% endif %}</td>
     <td>{{ "%g"|format(m.value) }} {{ m.unit or "" }}
       {% if m.out_of_range %}<span class="oor" title="Outside the reference range">⚠ {% if row.flag == "high" %}▲ high{% elif row.flag == "low" %}▼ low{% else %}out of range{% endif %}</span>{% endif %}</td>
     <td>{{ row.reference }}</td>
@@ -146,7 +146,7 @@
   <tr class="group-row"><th colspan="5" style="text-align:left;padding-left:{{ depth * 18 + 6 }}px;{% if depth == 0 %}background:#e9e9e9;{% else %}background:#f4f4f4;font-weight:600;{% endif %}">{{ name }}</th></tr>
   {% endfor %}
   <tr{% if m.needs_check %} class="needs-attention"{% elif m.out_of_range %} class="oor-row"{% endif %}>
-    <td style="padding-left:{{ (m.group_path.split(path_sep)|length if m.group_path else 0) * 18 + 6 }}px;">{{ m.test }}{% if m.method %}<br><small style="color:#777;padding-left:0;">{{ m.method }}</small>{% endif %}</td>
+    <td style="padding-left:{{ (m.group_path.split(path_sep)|length if m.group_path else 0) * 18 + 6 }}px;">{{ m.test }}{% if m.method %}<br><small style="color:var(--muted);padding-left:0;">{{ m.method }}</small>{% endif %}</td>
     <td>{% if m.value is not none %}{{ "%g"|format(m.value) }} {{ m.unit or "" }}{% else %}{{ m.value_text or "?" }}{% if m.value_text and m.unit %} {{ m.unit }}{% endif %}{% endif %}
       {% if m.out_of_range %}<span class="oor" title="Outside the reference range">⚠ {% if row.flag == "high" %}▲ high{% elif row.flag == "low" %}▼ low{% else %}out of range{% endif %}</span>{% endif %}</td>
     <td>{{ row.reference }}</td>
@@ -162,6 +162,6 @@
 {% if entry and entry.full_text %}<details><summary>Full text as read</summary><pre style="white-space:pre-wrap;">{{ entry.full_text }}</pre></details>{% endif %}
 <form method="post" action="/health/documents/{{ document.id }}/delete" style="margin-top:24px;"
       onsubmit="return confirm('Delete this paper and everything read from it? The original file is kept on the server but is no longer used anywhere.');">
-  <button type="submit">Delete this paper</button>
+  <button type="submit" class="danger">Delete this paper</button>
 </form>
 {% endblock %}

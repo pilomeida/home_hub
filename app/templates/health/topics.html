@@ -23,7 +23,7 @@ or merge it into another.</p>
     </td>
     <td>{{ "approved" if t.approved else "proposed" }}</td>
     <td style="display:flex;gap:8px;">
-      {% if not t.approved %}<form method="post" action="/health/topics/{{ t.id }}/approve"><button type="submit">Approve</button></form>{% endif %}
+      {% if not t.approved %}<form method="post" action="/health/topics/{{ t.id }}/approve"><button type="submit" class="pri">Approve</button></form>{% endif %}
       {% if row.targets %}<form method="post" action="/health/topics/{{ t.id }}/merge"><select name="into" aria-label="Merge {{ row.path }} into">
         {% for o in row.targets %}<option value="{{ o.id }}">{{ o.path }}</option>{% endfor %}
       </select><button type="submit">Merge into</button></form>{% endif %}

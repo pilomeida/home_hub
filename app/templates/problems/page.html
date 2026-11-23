@@ -10,7 +10,7 @@
   <tbody>
   {% for p in open %}
   <tr>
-    <td>{{ p.at | lisbon }}{% if p.times > 1 %}<div style="font-size:12px;color:#666;">{{ p.times }}×</div>{% endif %}</td>
+    <td>{{ p.at | lisbon }}{% if p.times > 1 %}<div style="font-size:.8rem;color:var(--muted);">{{ p.times }}×</div>{% endif %}</td>
     <td>{{ p.area }}</td>
     <td>{{ three_part(p, p.technical) }}</td>
     <td><form method="post" action="/problems/{{ p.id }}/dismiss"><button>Dismiss</button></form></td>
@@ -18,7 +18,7 @@
   {% endfor %}
   </tbody>
 </table>
-{% else %}<p>Nothing is stuck right now.</p>{% endif %}
+{% else %}<div class="empty">Nothing is stuck right now.</div>{% endif %}
 {% if resolved %}
 <h2>Recently cleared</h2>
 <table class="review-table">

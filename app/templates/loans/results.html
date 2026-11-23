@@ -9,7 +9,7 @@
     <div class="fc-period"><a href="/financials/loans">← Loans &amp; Savings</a></div>
   </div>
   <div class="fc-section">
-    {% if error %}<p class="loan-error" role="alert" style="color:#a8504a">{{ m.three_parts(error) }}</p>{% endif %}
+    {% if error %}<p class="loan-error" role="alert" style="color:var(--bad)">{{ m.three_parts(error) }}</p>{% endif %}
     <table class="loan-results">
       <thead><tr><th>File</th><th>Result</th></tr></thead>
       <tbody>
@@ -35,7 +35,7 @@
                   <select name="loan_type">
                     <option value="mortgage">mortgage</option><option value="personal">personal</option><option value="other">other</option>
                   </select></label></p>
-              <p><button type="submit">Assign</button></p>
+              <p><button type="submit" class="pri">Assign</button></p>
             </form>
           {% else %}{{ m.three_parts(r.problem, r.technical) }}
           {% endif %}

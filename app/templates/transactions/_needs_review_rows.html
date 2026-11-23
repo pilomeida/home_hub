@@ -37,7 +37,7 @@
             <option value="{{ n.value }}" {% if m.default_nature and n == m.default_nature %}selected{% endif %}>{{ n.value }}</option>
             {% endfor %}
           </select>
-          <label style="display:block; font-size:12px; color:#666;"><input type="checkbox" name="refile_existing" value="1" checked> also move earlier entries</label>
+          <label style="display:block; font-size:.8rem; color:var(--muted);"><input type="checkbox" name="refile_existing" value="1" checked> also move earlier entries</label>
         </td>
         <td>
           <button
@@ -69,7 +69,7 @@
       </select>
       <input type="number" step="0.01" name="planned_amount" placeholder="planned amount" required>
       <input type="number" name="year" placeholder="year (yearly only)">
-      <button type="submit">Create Commitment</button>
+      <button type="submit" class="pri">Create Commitment</button>
     </form>
     <button hx-post="/financials/transactions/merchants/{{ m.id }}/dismiss-recurring" hx-target="#needs-review-body" hx-swap="innerHTML">Dismiss</button>
   </div>

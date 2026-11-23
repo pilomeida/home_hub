@@ -24,6 +24,6 @@
 {% if document.paper_kind == "warranty_invoice" and warranty_note %}<p><em>{{ warranty_note }}</em></p>{% endif %}
 <form action="/house/documents/{{ document.id }}/fields" method="post">
   {% include "domains/_field_inputs.html" %}
-  <button type="submit">Save</button>
+  <button type="submit" class="pri">Save</button>
 </form>
 {% endblock %}

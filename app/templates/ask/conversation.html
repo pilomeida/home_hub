@@ -12,6 +12,6 @@
     <label class="ask-attach" title="Attach a file or take a photo: it goes to the Inbox as a suggestion">+<input type="file" name="file" accept="application/pdf,image/*,video/*" hidden onchange="this.closest('form').querySelector('.ask-file').textContent=this.files[0]?this.files[0].name:''"></label>
   <span class="ask-file sub"></span>
   <textarea name="question" rows="2" maxlength="1000" placeholder="Ask a follow-up… Or attach a paper with +"></textarea>
-  <button type="submit">Send</button>
+  <button type="submit" class="pri">Send</button>
 </form>
 {% endblock %}

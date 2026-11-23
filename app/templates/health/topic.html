@@ -27,7 +27,7 @@
 {% for metric in metrics %}
 <table class="review-table" style="margin-bottom:12px;">
   <caption style="text-align:left;font-weight:600;">{{ metric.label }}{% if metric.unit %} ({{ metric.unit }}){% endif %}
-    {% if metric.caption %}<small style="font-weight:400;color:#777;"> · {{ metric.caption }}</small>{% endif %}</caption>
+    {% if metric.caption %}<small style="font-weight:400;color:var(--muted);"> · {{ metric.caption }}</small>{% endif %}</caption>
   <thead><tr><th>Date</th><th>Value</th></tr></thead>
   <tbody>{% for when, value in metric.points %}<tr><td>{{ when|display_date }}</td><td>{{ "%g"|format(value) }}{% if metric.unit %} {{ metric.unit }}{% endif %}</td></tr>{% endfor %}</tbody>
 </table>

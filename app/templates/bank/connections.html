@@ -26,7 +26,7 @@
       <td>
         {% if row.status == "Connected" %}
           <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
-            <button type="submit">Renew</button>
+            <button type="submit" class="pri">Renew</button>
           </form>
           {% if row.connection %}
           <form method="post" action="/financials/bank/{{ row.connection.id }}/sync" class="inline">
@@ -39,7 +39,7 @@
           </form>
         {% elif row.status == "Access has ended" %}
           <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">
-            <button type="submit">Renew</button>
+            <button type="submit" class="pri">Renew</button>
           </form>
         {% else %}
           <form method="post" action="/financials/bank/connect/{{ row.key }}" class="inline">

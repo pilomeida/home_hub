@@ -18,7 +18,7 @@
     {% for line in cat.lines %}
     {% set pct = ([100, line.spent / line.budget_in_period * 100] | min) if line.budget_in_period else 0 %}
     <div class="bud-line {{ cls[line.status] }}">
-      <span class="bud-name">{{ line.name }}{% if line.inherited %} <span class="bud-carried" style="color:#888;font-size:11px">carried over</span>{% endif %}</span>
+      <span class="bud-name">{{ line.name }}{% if line.inherited %} <span class="bud-carried" style="color:var(--muted);font-size:.75rem">carried over</span>{% endif %}</span>
       <span class="bud-track" title="{{ line.status.replace('_', ' ') }}">
         {% if line.budget_in_period %}<span class="bud-fill" style="display:block;width: {{ '%.0f'|format([pct, 0]|max) }}%;"></span>
         {% else %}<span class="bud-fill thin" style="display:block;width: 6%;"></span>{% endif %}

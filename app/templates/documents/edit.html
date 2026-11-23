@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Edit / re-file: {{ title }}</h1>
 {% if refused %}<p class="needs-attention">{{ refused }}</p>{% endif %}
-<form action="{{ action }}" method="post">
+<form action="{{ action }}" method="post" class="card narrow-form">
   <div class="field">
     <label for="f-domain">Category *</label>
     <select id="f-domain" name="domain" hx-get="/documents/edit/categories" hx-target="#category-slot" hx-trigger="change">
@@ -20,6 +20,6 @@
     {% if errors.get("file") %}<span class="needs-attention">{{ errors["file"] }}</span>{% endif %}
   </div>
   <div id="edit-fields">{% include "domains/_field_inputs.html" %}</div>
-  <button type="submit">Save</button>
+  <button type="submit" class="pri">Save</button>
 </form>
 {% endblock %}

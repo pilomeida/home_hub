@@ -2,16 +2,19 @@
 {% block title %}Ask — Home & Family{% endblock %}
 {% block content %}
 <h1>Ask</h1>
-<h2>New chat</h2>
+<section class="card tint1 hero">
+<h2 class="hero-t">New chat</h2>
 <p class="ask-hint">Ask anything about the household, e.g. “When was the boiler last serviced?” or “Which warranties expire this year?” You can ask follow-up questions in the same chat.</p>
 <form method="post" action="/ask" hx-post="/ask" class="ask-form" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button">
     <label class="ask-attach" title="Attach a file or take a photo: it goes to the Inbox as a suggestion">+<input type="file" name="file" accept="application/pdf,image/*,video/*" hidden onchange="this.closest('form').querySelector('.ask-file').textContent=this.files[0]?this.files[0].name:''"></label>
   <span class="ask-file sub"></span>
   <textarea name="question" rows="2" maxlength="1000" placeholder="Type your question… Or attach a paper with +"></textarea>
-  <button type="submit">Ask</button>
+  <button type="submit" class="pri">Ask</button>
 </form>
-<h2>Recent conversations</h2>
-<ul class="ask-recent">
+</section>
+<section class="card">
+<div class="card-h">Recent conversations</div>
+<ul class="ask-recent cl">
   {% for s in conversations %}
   <li>
     <a href="/ask/c/{{ s.conversation.id }}">{{ s.conversation.title }}</a>
@@ -21,4 +24,5 @@
   <li>No conversations yet.</li>
   {% endfor %}
 </ul>
+</section>
 {% endblock %}

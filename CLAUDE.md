@@ -1,6 +1,7 @@
 # CLAUDE.md — Home & Family Hub
 
-Operations, secrets and deploy: `docs/SYSADMIN.md`. Every LLM call goes through the llmsel gateway (`app/llm_gateway.py`) — never a provider SDK, model name or API key in this app.
+Operations, secrets and deploy: `docs/SYSADMIN.md`. Look of every page: `docs/STYLE.md` (tokens and components in
+`app/static/hub.css`; update STYLE.md in the same commit when a component changes; no inline `style=`). Every LLM call goes through the llmsel gateway (`app/llm_gateway.py`) — never a provider SDK, model name or API key in this app.
 
 ## Test data must come from the production path (recurring defect class)
 A green suite has hidden production bugs when a test used a value typed by hand instead of one produced by the real code (e.g. error text the app never actually stores). Rules:
