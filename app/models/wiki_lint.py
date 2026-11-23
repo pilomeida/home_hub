@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy import Column, Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
-from app.models.category import Category
+from app.models.category import Category, CategoryType
 from app.models.strict import RefusesUnknownFields
 
 
@@ -61,7 +61,7 @@ class LintFinding(RefusesUnknownFields, SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     fingerprint: str = Field(index=True)
     kind: LintFindingKind
-    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", CategoryType()))
     summary: str
     suggested_action: Optional[str] = None
     wiki_page_ids_json: str = Field(default="[]")   # order kept (MISSING_LINK/STALE_LINK = [from, to])

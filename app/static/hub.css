@@ -687,4 +687,4 @@ tr.oor-row td { background: #FBE3DC; } tr.oor-row td:first-child { box-shadow: i
 .pcard .pdoc .pv { padding: 0; background: none; margin-bottom: .8rem; } .pcard .pdoc .pv-thumb { max-width: 16rem; }
 body.pv-side { overflow-x: hidden; } body.pv-side .topnav .pills, body.pv-side .topnav .tools { display: none; }
 body.pv-side .phonebar { display: none; }
-.tbl td.nowrap, .tbl .date { white-space: nowrap; }
+td.nowrap, .tbl .date { white-space: nowrap; }

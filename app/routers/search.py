@@ -49,7 +49,7 @@ async def papers(request: Request, q: Optional[str] = None, category: Optional[s
         filed = filed + (Document.id.in_(who.document_ids(session, person.id)),)
     counts = dict(session.exec(select(Document.category, func.count()).where(*filed).group_by(Document.category)).all())
     chips = sorted(((c.value, get_spec(c).label if is_implemented(c) else c.value.title(), n) for c, n in counts.items()),
-                   key=lambda c: (c[0] == "other", c[1]))
+                   key=lambda c: c[1])
     chosen = next((c for c in counts if c.value == category), None)
     page = max(1, page)
     if query:

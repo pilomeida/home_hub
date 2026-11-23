@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ spec.label }}{% endblock %}
+{% block content %}
+<h1>{{ spec.label }}</h1>
+<p>{{ spec.description }} Find a paper by any word in it with the search box at the top.</p>
+<p><a href="/inbox/add">+ Add a paper</a></p>
+{% for title, papers in sections %}
+<h2>{{ title }}</h2>
+<table class="review-table">
+  <thead><tr><th>Date</th><th>Paper</th><th>About</th><th>Summary</th></tr></thead>
+  <tbody>
+  {% for p in papers %}
+  <tr>
+    <td class="nowrap">{{ p.date or p.document.created_at|display_date }}</td>
+    <td><a href="{{ spec.home_url }}/documents/{{ p.document.id }}">{{ p.title }}</a></td>
+    <td>{{ p.about }}</td>
+    <td>{{ p.summary|truncate(160) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No paper here yet.</p>
+{% endfor %}
+{% endblock %}

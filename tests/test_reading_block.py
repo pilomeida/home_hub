@@ -8,7 +8,7 @@ import pytest
 
 from app.categories.health.extraction import HealthExtractionError, extract_health_document
 from app.categories.house.warranty import WarrantyExtractionError
-from app.categories.other.reader import OtherReadingError, read_other_paper
+from app.categories.generic.reader import GenericReadingError, read_paper
 from app.problems import classify_reason
 from app.services import reading
 from app.services.document_input import UnsupportedFileTypeError, build_content_block
@@ -53,17 +53,17 @@ def test_what_is_no_date_is_none(raw):
 
 def test_every_reader_error_is_a_reading_error():
     for error in (ExtractionError, ClassificationError, StatementExtractionError, UtilityDetailExtractionError,
-                  HealthExtractionError, OtherReadingError, WarrantyExtractionError, PositionExtractionError,
+                  HealthExtractionError, GenericReadingError, WarrantyExtractionError, PositionExtractionError,
                   UnsupportedFileTypeError, FileTooLargeError):
         assert issubclass(error, ReadingError), error
 
 
 def test_json_object_raises_the_readers_own_error():
     assert json_object('```json\n{"a": 1}\n```') == {"a": 1}
-    with pytest.raises(OtherReadingError):
-        json_object("not json", error=OtherReadingError)
-    with pytest.raises(OtherReadingError):
-        json_object("[1, 2]", error=OtherReadingError)
+    with pytest.raises(GenericReadingError):
+        json_object("not json", error=GenericReadingError)
+    with pytest.raises(GenericReadingError):
+        json_object("[1, 2]", error=GenericReadingError)
 
 
 def test_a_file_too_big_is_refused_before_upload_with_a_plain_reason(tmp_path, monkeypatch):
@@ -117,6 +117,6 @@ def test_health_values_with_a_decimal_comma_are_kept(tmp_path):
 
 def test_a_long_other_paper_is_cut_and_the_reader_is_told(tmp_path):
     gateway = FakeGateway([gateway_text_result(json.dumps({"title": "T", "date": "01/02/2024", "about": "", "summary": "S"}))])
-    out = asyncio.run(read_other_paper(str(tmp_path / "x.pdf"), "palavra " * 10_000, gateway=gateway))
+    out = asyncio.run(read_paper(str(tmp_path / "x.pdf"), "palavra " * 10_000, gateway=gateway))
     assert out.paper_date == date(2024, 2, 1)
     assert "only its beginning is given" in gateway.requests[0]["user"]

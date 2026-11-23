@@ -3,6 +3,15 @@
 Operations, secrets and deploy: `docs/SYSADMIN.md`. Look of every page: `docs/STYLE.md` (tokens and components in
 `app/static/hub.css`; update STYLE.md in the same commit when a component changes; no inline `style=`). Every LLM call goes through the llmsel gateway (`app/llm_gateway.py`) — never a provider SDK, model name or API key in this app.
 
+## Design principles decide (Pedro, 2026-11-23)
+Before any design work on the Hub, read `~/.claude/skills/structure-project/references/architecture-principles.md`
+and the Goal at the top of `docs/PLAN.md`. Ask Pedro only what W4 makes his (workflow, wording, categories, money);
+anything a principle settles, or any technical choice, is decided by the principles and recorded as "(Claude, date,
+per <principle>)". Every recommendation names the principle it follows; never recommend against one. If a principle
+looks wrong for a case, say so as a proposed change to that principle. Standing outcomes: every paper has a type,
+there is no catch-all "Other"; a kind of paper gets its own fields only once the same question keeps being asked
+about it (S4), everything else is tags plus the paper's text read by the AI.
+
 ## Test data must come from the production path (recurring defect class)
 A green suite has hidden production bugs when a test used a value typed by hand instead of one produced by the real code (e.g. error text the app never actually stores). Rules:
 - Build test inputs with the production objects that make them — e.g. `str(GatewayError(status, detail))`, not a typed string; the shared `tests/fakes/fake_gateway.py`, not an ad-hoc fake.

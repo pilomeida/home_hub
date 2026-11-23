@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import Column, Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
-from app.models.category import Category
+from app.models.category import Category, CategoryType
 from app.models.strict import RefusesUnknownFields
 
 
@@ -21,5 +21,5 @@ class Todo(RefusesUnknownFields, SQLModel, table=True):
     transaction_id: Optional[int] = Field(default=None, foreign_key="transactions.id")
     document_id: Optional[int] = Field(default=None, foreign_key="documents.id", index=True)
     record_id: Optional[int] = Field(default=None, foreign_key="records.id", index=True)
-    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", CategoryType()))
     created_at: datetime = Field(default_factory=datetime.utcnow)

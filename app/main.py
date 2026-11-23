@@ -17,7 +17,7 @@ static_dir = Path("app/static")
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 from app.routers import (  # noqa: E402
-    ask, bank, bills, coming_up, dashboard, subjects, documents, education, health, house, inbox, identity, insurance, loans, money, other, pets, privacy, problems, schedules, search, settings, to_check, todos, transactions, utilities, vehicles, waiting, wiki, wiki_lint,
+    ask, bank, bills, coming_up, dashboard, subjects, documents, education, health, house, inbox, identity, insurance, loans, money, areas, pets, privacy, problems, schedules, search, settings, to_check, todos, transactions, utilities, vehicles, waiting, wiki, wiki_lint,
 )
 
 app.include_router(dashboard.router)
@@ -36,7 +36,8 @@ app.include_router(education.router)
 app.include_router(pets.router)
 app.include_router(inbox.router)
 app.include_router(loans.router)
-app.include_router(other.router)
+app.include_router(areas.router)
+app.include_router(areas.other_router)
 app.include_router(privacy.router)
 app.include_router(schedules.router)
 app.include_router(search.router)

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** every step is done and live; step 11 (desktop UI rework: wider pages, one look in docs/STYLE.md, a paper preview on every paper page) landed today. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; next slice 12b (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again). Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -68,8 +68,72 @@ accuracy work, then Health reading, subjects in the wiki, Health conditions (a c
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
 
-Nothing left in order: every step is done (section 4). New work goes here when it comes up; what waits on Pedro is
-in section 2, what is parked in section 3.
+### Step 12: the Inbox sorts every paper by what it is (Pedro, 2026-11-23)
+Pedro's Inbox screenshots, 2026-11-23: the AEG invoice came in with item and room blank; the Católica diploma got
+"Not sure where this belongs" although the Hub had seen it was a diploma; every paper keeps the name Telegram gave it.
+What he asked for (paraphrase agreed 2026-11-23):
+- **House or people first.** The Inbox decides whether a paper is about the house (an appliance, a room, a repair) or
+  about a person (a diploma, an ID, a medical letter), instead of only trying Money or House.
+- **House papers:** read out each item bought (an invoice can list several), take the purchase date (the warranty runs
+  from it) and suggest a room for each item, for Pedro to approve. Room becomes a filter later.
+- **People papers:** tag them by what they are: area (e.g. Education), kind of paper (diploma or certificate), level
+  or degree, grade if there is one, and the person. If no existing category fits, suggest one, clearly marked as new.
+- **A sensible name.** Every filed paper gets a name that says what it is (e.g. "2025-12 Certificado conclusão gestão
+  TIC — Católica — Pedro"), not the name Telegram or the email gave it.
+- **The caption or subject first.** A Telegram caption or email subject is the strongest clue for kind, person, tags
+  and name; the paper's text comes after.
+- Pedro still approves everything in the Inbox; the Hub only fills in its guesses.
+
+Designed with Pedro 2026-11-23 (grill-me; notes in `Personal/brainstorms/2026-11-23-hub-inbox-sorts-by-what-it-is.md`):
+- Papers go straight to an area; no separate house-or-people question. "Who" only on papers about a person, from one
+  family list (Pedro, Rute, Matias, Vicente, + added; unknown = "New person") (S5).
+- Rooms from one fixed list: Kitchen, Matias' bedroom, Vicente's bedroom, Suite bedroom, Social restroom, 1st floor
+  restroom, Suite restroom, Solarium, Living/dining room, Store room (annex), Outside restroom, Garden, Parking, Office,
+  Hall, Porch, Whole house. Unknown room = "New room", added on approval (S5).
+- A house paper listing several things: one editable row per physical item (name, room, warranty end = purchase date
+  + 3-year legal guarantee unless the paper says otherwise); fees are not items; each item gets its own card with the
+  paper attached.
+- Tagging: a small fixed core (who, area, kind, room, a date to act on) + free tags + the paper's text read by the AI;
+  no per-area forms (S4).
+- Every paper has a type; no "Other". Nothing fits = a new kind or new area suggested, marked new, created on approval
+  even for one paper; a new area is a foundation entry with a derived page, not new code (S2/S3).
+- Filed name: `date · kind · what it is · who or item` (e.g. `2025-12-15 · Certificate · Gestão TIC, Católica ·
+  Pedro`) everywhere, downloads included (clarified 2026-11-23); the file's content is kept as received (Q4), the
+  original name only as a "where it came from" line. No accents in names, as a general rule: ç → c, ã → a, every
+  accent dropped (Pedro, 2026-11-23). Papers already received are renamed too (Pedro, 2026-11-23).
+
+Slices (Claude, 2026-11-23):
+- **12a Foundation:** the family list and the room list defined once; areas and kinds can be added from an approval;
+  the "Other" area retired, its papers re-sorted into real types (W1: backup, dry run, apply, verify). ✅ 2026-11-23
+  (full suite 2,970 green; the family and rooms are seeded on the server by `scripts/seed_household.py` after the
+  deploy, counts recorded with 12b). How (Claude, 2026-11-23):
+  - An area is an open value, no longer a fixed list in code: the nine built-in areas stay as they are, an area Pedro
+    approves is a row in a new `paper_types` table (one row per added area or added kind). Stored the same way as
+    today, so no paper changes (S2).
+  - The registry merges the built-in areas with those rows. Every process (web, Telegram bot, both schedulers)
+    notices a new row within seconds (S2/S3).
+  - An added kind or area is read by the generic paper reader (Other's, moved: title, date, who or what it is about,
+    summary) with the generic fields; an added area gets its pages at `/areas/<name>` from the shared paper pages;
+    its kinds appear on the Privacy page, suggested Mid (S3/S4, D16 unchanged).
+  - Inbox: "+ New kind of paper" under every area and "+ New area" in the area list; approving creates it, then files
+    the paper. 12c adds the Hub's own suggestion with its "New" badge.
+  - "Other" retired: the live Hub has 0 papers, records, to-dos or wiki pages in it (checked 2026-11-23), so nothing
+    to re-sort; its area, pages and nav link go, old `/other` links lead to All papers.
+  - The family and the rooms are subjects (S5): a household flag marks Pedro, Rute, Matias and Vicente; rooms are a
+    new subject kind with the 17 rooms; both seeded by a migration. House's room field suggests from the room list,
+    and filing an item in a room not on it adds that room.
+- **12b The guess:** caption or subject first, then the paper; it returns area and kind (or a new one, marked new),
+  who, items with rooms, free tags, a date to act on and the filed name. Papers already waiting in the Inbox are
+  guessed again (their September guesses predate step 8).
+- **12c The Inbox card:** item rows (edit, remove, add); "New" badges on a new kind, area, room or person; tags shown
+  and editable; approving creates what is new.
+- **12d Filing and finding:** approval files under the new name, one card per item, tags stored; House filters by room,
+  every people page by who; checked live on the AEG invoice and the Católica diploma (guess only; Pedro approves).
+- **12e Rename what is already in:** the 273 papers on the live Hub (2026-11-23: 184 Money, 70 waiting in the Inbox,
+  16 Insurance, 3 Health) get names by the same rule. A name is built from what the Hub already knows of the paper;
+  the AI reads it only where that is not enough, through the privacy gate (D16). W1: backup, a dry run whose list of
+  old → new names is read (a sample shown to Pedro), apply, verify, a second run changes nothing. The 70 Inbox papers
+  get theirs from 12b's new guess.
 
 ---
 
@@ -148,7 +212,7 @@ Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and D
 | 2026-11-20 | **Step 7** Health conditions, follow-ups, visits and medication (77499c9, 4de8954): a condition per person, suggested on each paper and confirmed by a person, old guessed labels proposed on Waiting for you; follow-ups become Health To-Dos 14 days before they are due and reach the phone once, proposed from a paper's words; visits, notes and medication with every change kept, one timeline per condition; Ask's conditions tool at High; the Overview's Health card never names a condition. Left: bookings to Google Calendar once Pedro sets it up (section 2). Choices (Claude; Pedro may change): reminders 14 days before; the Portuguese and English follow-up words |
 | 2026-11-20 | **Step 8** new categories (2816bfc, 24a9d14; live 039ce55, deploy run 44819070261 green after two stops at the test gate): Identity & Legal (always High, renewal To-Do 90 days before expiry, told once on the phone); Contracts and Letters as kinds of Other papers; Vehicles, Education and Pets on shared paper pages, one typed reader and date reminders. Live check: /identity, /vehicles, /education, /pets, /other, /search and the money pages load; no new problem. Refile of Other papers on live: backup, dry run 0, applied 0 (no paper is filed under Other papers yet; 69 wait in the Inbox). With it went step 9 D1, D2, D4, D5, D6, D7, D10 |
 | 2026-11-20 | **Step 9** clean-up (7187d0c, b4e7260, bfbf9e5, 04e777c, db4797a, 6639a7e, a178e3a, ad3158e, a37bfc9; all live by c77005f): dead tables and columns retired (D1); router logic into services, no router imports a router, tree slugs named once (D2); no swallowed failure in the intake paths (D3); one money, date and message format (D4); long jobs in their own scheduler lane (D5); docs up to date (D6); links checked in the test database (D7); payee numbers, payment texts and supermarkets as Pedro's rules, 4,041 texts unchanged (D8); new merchants asked of the AI together (D9); Health outlines on Waiting for you (D10); Revolut 2022-08 → 2023-12 read in parts and filed, 584 lines, totals unchanged (D11). D12 moved to section 2: it waits on Pedro's papers |
-| 2026-11-23 | **Step 11** desktop UI rework (Pedro's screenshots, 2026-11-23; 7c1ab11, cafec77, and the 11c commit): 11a type grows with the screen (15px → 20px) and one 96rem content width shared by header, section row and page, the section's pages beside search; 11b plain elements take Home's look, older page styles on the tokens (rem, sentence case, light-only), one orange per form, the listed pages restyled, `docs/STYLE.md` written and referenced from CLAUDE.md; 11c every page about one paper shows what was read beside a small first-page preview (one include, drawn on the server, kept in `data/previews/`), opening on Full view or Side by side. Choices (Claude; Pedro may change): the sizes and the 96rem width; Full view first; no Side by side under 900px |
+| 2026-11-23 | **Step 11** desktop UI rework (Pedro's screenshots, 2026-11-23; 7c1ab11, cafec77, f994a69, af77579): 11a type grows with the screen (15px → 20px) and one 96rem content width shared by header, section row and page, the section's pages beside search; 11b plain elements take Home's look, older page styles on the tokens (rem, sentence case, light-only), one orange per form, the listed pages restyled, `docs/STYLE.md` written and referenced from CLAUDE.md; 11c every page about one paper shows what was read beside a small first-page preview (one include, drawn on the server, kept in `data/previews/`), opening on Full view or Side by side. Choices (Claude): the sizes and the 96rem width; Full view first; no Side by side under 900px. Pedro saw it on his screen and approved the look, 2026-11-23 |
 | 2026-11-21 | **Step 10** UI redesign, Option A (slices a–i; 10a–10f, 10h, 10i live 2026-11-19 → 11-20, see git; 10g live 2026-11-21: d91a0b9, 060f73f): one stylesheet and one chart component on Pedro's scale rule; the menu, header and phone bar; Home; Money with category history; Waiting for you card by card and merchants in bulk; Health person-first, Papers, Coming up, the gear; "Add a paper" and the light approve card; the Who chip; Ask's answer card (one sentence, one visual from the cited data, sources, Open the page / Save to wiki), actions in three tiers (a to-do with Undo; mark a bill paid, approve sure Inbox papers, give a merchant its category after Do it; never delete, privacy or bank connections) kept in `ask_actions`, and a file attached to a question going to the Inbox as a suggestion. The full text of the step is in git history (PLAN.md before this commit) |
 | 2026-11-19 | **Step 3 (C1)** one review queue, "Waiting for you" (db786d8 →): `review_items`, the `/waiting` page with area filters, 50 a page, "Ask me in a week" (7 days), "Remember this answer" (writes a step-2 rule); one count in the menu in place of the To-check counter. On it: AI answers saved switched off, To-check lines, statements that don't add up, Needs Review's unconfirmed merchants (1,138 money items live), Health areas, people and topics, Inbox "Same person?"; one question per thing; an answer given on an item's own page closes it with that answer's who and when. Leftover D10 in step 9 |
 | 2026-11-19 | **Step 2 (C2, C3)** one memory of past answers (d0f2c6a → 7be06d1): the `rules` table and one reader (a person, then the AI, then the system; then priority); provider and recognition rules moved in; confirming a merchant writes one person's rule (92 earlier confirmations given theirs on the server) and no batch pass overrides it; the merchant AI states its confidence, below 0.8 its rule is saved switched off and the merchant waits in Needs Review; a provider written two ways resolves to one merchant through a rule, and merges remember each spelling; a paper's kind is decided once (the bill-or-statement prompt after approval is gone). Leftovers D8, D9 in step 9. "Approving in the Inbox writes one rule" read as: with "Remember this" ticked (Claude, 2026-11-19; Pedro may change) |

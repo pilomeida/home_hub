@@ -21,7 +21,7 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, Enum as SAEnum, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
-from app.models.category import Category
+from app.models.category import Category, CategoryType
 from app.models.strict import RefusesUnknownFields
 
 TOPIC_PAGE_TYPE = "topic"
@@ -35,7 +35,7 @@ class WikiPage(RefusesUnknownFields, SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     topic: str = Field(unique=True, index=True)
     facts_json: str = Field(default="{}")
-    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", CategoryType()))
     page_type: str = Field(default=TOPIC_PAGE_TYPE, index=True)
     entity_key: Optional[str] = None
     # Who or what the page is about (PLAN step 6a): a person, a policy, a thing, a provider. Pages about one subject

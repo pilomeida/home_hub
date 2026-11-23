@@ -81,7 +81,7 @@ def test_no_picture_for_a_missing_file_a_non_pdf_or_an_unknown_paper(client, ses
 @pytest.mark.parametrize("category,kind,fields", [
     (Category.FINANCIALS, "bill", None), (Category.FINANCIALS, "statement", None),
     (Category.HOUSE, "house_appliance", {"item_name": "Boiler"}), (Category.INSURANCE, "policy", None),
-    (Category.OTHER, "letter", None), (Category.IDENTITY, "passport", None), (Category.VEHICLES, "inspection", None),
+    (Category.IDENTITY, "passport", None), (Category.VEHICLES, "inspection", None),
 ])
 def test_every_paper_page_shows_what_was_read_beside_the_preview(client, session, category, kind, fields):
     doc = _paper(session, category, kind, fields=fields)
@@ -122,19 +122,31 @@ def test_a_house_record_shows_its_attached_paper(client, session):
     assert _has_component(client.get(f"/house/records/{record.id}").text, attached)
 
 
+def _letters(session):
+    from app.services import paper_types
+    paper_types.add_area(session, "Letters", "", first_kind="Letter", by=None)        # an added area (step 12a)
+    return Category("letters")
+
+
+def test_an_added_areas_paper_page_shows_the_preview_too(client, session):
+    doc = _paper(session, _letters(session), "letter")
+    assert _has_component(client.get(f"/areas/letters/documents/{doc.id}").text, doc)
+
+
 def test_a_paper_that_cannot_be_shown_says_what_why_and_what_to_do(client, session):
-    gone = make_document(session, category=Category.OTHER, paper_kind="letter", filename="gone.pdf",
+    letters = _letters(session)
+    gone = make_document(session, category=letters, paper_kind="letter", filename="gone.pdf",
                          file_path=str(settings.DOCUMENTS_DIR / "gone.pdf"))
-    html = client.get(f"/other/documents/{gone.id}").text
+    html = client.get(f"/areas/letters/documents/{gone.id}").text
     assert "No preview." in html and "is not on the server" in html and "+ Add a paper" in html
-    heic = _paper(session, Category.OTHER, "letter", filename="scan.heic", content=b"heic")
-    html = client.get(f"/other/documents/{heic.id}").text
+    heic = _paper(session, letters, "letter", filename="scan.heic", content=b"heic")
+    html = client.get(f"/areas/letters/documents/{heic.id}").text
     assert "No preview." in html and "HEIC" in html and "Open the file" in html and "preview.png" not in html
 
 
 def test_an_image_previews_through_its_own_file_route(client, session):
-    photo = _paper(session, Category.OTHER, "letter", filename="letter.jpg", content=b"\xff\xd8\xff jpeg")
-    html = client.get(f"/other/documents/{photo.id}").text
+    photo = _paper(session, _letters(session), "letter", filename="letter.jpg", content=b"\xff\xd8\xff jpeg")
+    html = client.get(f"/areas/letters/documents/{photo.id}").text
     assert f'<img src="{file_url(photo)}"' in html and "preview.png" not in html
 
 

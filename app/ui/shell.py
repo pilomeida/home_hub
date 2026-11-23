@@ -41,11 +41,11 @@ SETTINGS = [Link("Privacy", "/privacy"), Link("Scheduled jobs", "/schedules"), L
 OTHER_APPS = [Link("Recipes", "https://recipes.cdafamily.casa"), Link("Exercise", "https://gym.cdafamily.casa")]
 
 
-_PLACED = ("financials", "health", "house", "insurance", "other", "identity", "vehicles", "education", "pets")     # the categories a section names below
+_PLACED = ("financials", "health", "house", "insurance", "identity", "vehicles", "education", "pets")     # the built-in areas a section names below
 
 
 def _unplaced_links() -> list[Link]:
-    """Pages of a category no section names yet (a new one, step 8): in Papers until it is given its place."""
+    """Pages of an area no section names: one Pedro added in the Inbox (step 12a) shows in Papers."""
     from app.categories.registry import implemented_categories
     return [Link(l.label, l.url) for spec in implemented_categories() if spec.category.value not in _PLACED
             for l in spec.nav_links]
@@ -74,8 +74,8 @@ def sections() -> list[Section]:
         Section("health", "Health", "/health/family", ("/health",), [Link("Family", "/health/family")] + _category_links("health")),
         Section("things", "Things", "/house", ("/house", "/insurance", "/vehicles", "/pets"),
                 _category_links("house", "insurance", "vehicles", "pets")),
-        Section("papers", "Papers", "/papers", ("/papers", "/search", "/other", "/identity", "/education", "/documents"),
-                [Link("All papers", "/papers"), Link("Search", "/search")] + _category_links("other", "identity", "education")
+        Section("papers", "Papers", "/papers", ("/papers", "/search", "/areas", "/identity", "/education", "/documents"),
+                [Link("All papers", "/papers"), Link("Search", "/search")] + _category_links("identity", "education")
                 + _unplaced_links()),
         Section("coming", "Coming up", "/financials/coming-up", ("/financials/coming-up", "/todos"),
                 [Link("Dates", "/financials/coming-up"), Link("To-Dos", "/todos")]),

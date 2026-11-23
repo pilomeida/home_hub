@@ -207,7 +207,7 @@ def test_the_search_box_is_on_every_page_and_results_show_paper_level_and_line(c
         session.commit()
         ps_.rebuild_index(session)
         doc_id = doc.id
-    assert 'action="/search"' in client.get("/").text and 'action="/search"' in client.get("/other").text
+    assert 'action="/search"' in client.get("/").text and 'action="/search"' in client.get("/papers").text
     page = client.get("/search", params={"q": "sismicos"}).text
     assert f'href="/insurance/documents/{doc_id}"' in page and "Insurance › Policy" in page and "<td>Mid</td>" in page
     assert "<mark>sísmicos</mark>" in page

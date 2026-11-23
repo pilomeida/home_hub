@@ -8,7 +8,7 @@ from sqlalchemy import Column, Enum as SAEnum
 from sqlmodel import Field, SQLModel
 from sqlmodel.sql.sqltypes import AutoString
 
-from app.models.category import Category
+from app.models.category import Category, CategoryType
 from app.models.strict import RefusesUnknownFields
 
 
@@ -46,7 +46,7 @@ class Document(RefusesUnknownFields, SQLModel, table=True):
     fields_json: str = Field(default="{}")
     # The fields a person typed or changed (JSON list of keys): "Read again" keeps them (PLAN step 5d).
     person_fields_json: str = Field(default="[]")
-    category: Optional[Category] = Field(default=None, sa_column=Column("domain", SAEnum(Category)))   # the model's category (column still `domain`)
+    category: Optional[Category] = Field(default=None, sa_column=Column("domain", CategoryType()))   # the model's category (column still `domain`)
     password_protected: bool = Field(default=False)
     failure_reason: Optional[str] = None
     uploaded_by: Optional[str] = None

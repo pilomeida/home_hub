@@ -21,16 +21,19 @@ from app.privacy.settings import TierHeld
 from app.ui.same_person import section_html as same_person_section
 from app.ui.to_check import section_html as to_check_section
 from app.services import inbox_service
+from app.services.paper_types import NEW
 from app.problems import Problem
 from app.services.paper_uses import PaperInUse
 from app.templating import templates
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
-_SELECTOR_KEYS = ("domain", "category", "remember", "remember_words")
+_SELECTOR_KEYS = ("domain", "category", "remember", "remember_words", "new_area", "new_kind")
 
 
 def _spec_for_value(category_value: Optional[str]):
+    if category_value == NEW:
+        return None
     try:
         category = Category(category_value) if category_value else None
     except ValueError:
@@ -41,19 +44,24 @@ def _spec_for_value(category_value: Optional[str]):
 def _fields_context(session: Session, entry, category_value: Optional[str], paper_kind: Optional[str],
                     values: dict, errors: dict) -> dict:
     spec = _spec_for_value(category_value)
+    new_area = category_value == NEW
+    new_kind = new_area or (spec is not None and paper_kind == NEW)
     if spec is None or paper_kind not in {c.value for c in spec.kinds}:
-        paper_kind = None   # changing the area resets the type
+        paper_kind = NEW if new_kind else None   # changing the area resets the type
+    real_kind = paper_kind if paper_kind != NEW else None
     form_fields = (
-        build_form_fields(session, spec, paper_kind, values, errors,
+        build_form_fields(session, spec, real_kind, values, errors,
                           media_kind=media_kind_for(entry.document.filename))
-        if spec is not None and (paper_kind or spec.infers_kind) else []
+        if spec is not None and (real_kind or spec.infers_kind) else []
     )
     return {
         "entry": entry,
         "domains": implemented_categories(),
         "selected_spec": spec,
-        "selected_domain": spec.category.value if spec else "",
+        "selected_domain": NEW if new_area else (spec.category.value if spec else ""),
         "selected_category": paper_kind or "",
+        "new_choice": NEW, "new_area": new_area, "new_kind": new_kind,
+        "new_area_value": values.get("new_area", ""), "new_kind_value": values.get("new_kind", ""),
         "form_fields": form_fields,
         "errors": errors,
     }
@@ -149,7 +157,8 @@ async def approve_from_card(request: Request, document_id: int, session: Session
     try:
         document = await inbox_service.approve(
             session, document_id, category_value=category_value, paper_kind=category, fields=fields,
-            reviewed_by=getattr(request.state, "user_email", None))
+            reviewed_by=getattr(request.state, "user_email", None),
+            new_area=form.get("new_area", ""), new_kind=form.get("new_kind", ""))
     except TierHeld:
         return templates.TemplateResponse(request, "inbox/card.html", {**_light_card(session, entry, fields), "held": True},
                                           status_code=200)
@@ -200,6 +209,7 @@ async def approve(request: Request, document_id: int, session: Session = Depends
         document = await inbox_service.approve(
             session, document_id, category_value=category_value, paper_kind=category, fields=fields,
             reviewed_by=getattr(request.state, "user_email", None),
+            new_area=form.get("new_area", ""), new_kind=form.get("new_kind", ""),
             remember_sender=form.get("remember") == "1" and bool(original_sender(entry.item.context_text)),
             remember_words=form.get("remember_words", "") if form.get("remember") == "1" else "",
         )
@@ -209,8 +219,9 @@ async def approve(request: Request, document_id: int, session: Session = Depends
     except inbox_service.InboxError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except InvalidClassification as exc:
+        typed = {**fields, "new_area": form.get("new_area", ""), "new_kind": form.get("new_kind", "")}
         ctx = _card_context(session, entry, category_value=category_value, paper_kind=category,
-                            values=fields, errors=exc.errors)
+                            values=typed, errors=exc.errors)
         return templates.TemplateResponse(request, "inbox/_entry.html", ctx, status_code=422)
 
     record = record_for_document(session, document)  # RECORD category => link the record, not the attachment

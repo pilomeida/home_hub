@@ -23,6 +23,7 @@ from app.categories.registry import get_spec, is_implemented
 from app.models.document import Document, DocumentStatus
 from app.models.category import Category
 from app.models.inbox_item import InboxItem, InboxSkip
+from app.models.paper_type import PaperType
 from app.models.wiki import WikiOperation
 from app.services.category_classifier import (
     CONFIDENT_THRESHOLD,
@@ -42,6 +43,8 @@ from app.problems import Problem, explain, record_problem
 from app.services.paper_uses import refuse_if_used
 from app.privacy.recognise import original_sender, recognise, remember
 from app.privacy.scope import require_ready
+from app.privacy.settings import TierHeld
+from app.services import paper_types
 from app.services.wiki_store import append_log
 
 
@@ -262,8 +265,56 @@ async def approve(
     reviewed_by: Optional[str],
     remember_sender: bool = False,
     remember_words: str = "",
+    new_area: str = "",
+    new_kind: str = "",
 ) -> Document:
     document, item = _pending(session, document_id)
+    made = _make_new_types(session, document, category_value, paper_kind, new_area, new_kind, reviewed_by)
+    if made:
+        category_value, paper_kind = made[0].area, made[-1].kind
+    try:
+        return await _approve(session, document, item, category_value=category_value, paper_kind=paper_kind,
+                              fields=fields, reviewed_by=reviewed_by, remember_sender=remember_sender,
+                              remember_words=remember_words)
+    except (InvalidClassification, TierHeld):
+        if made:
+            paper_types.take_back(session, made)      # a refused approval leaves no new type behind
+        raise
+
+
+def _make_new_types(session: Session, document: Document, category_value: str, paper_kind: Optional[str],
+                    new_area: str, new_kind: str, by: Optional[str]) -> list:
+    """The "+ New area" / "+ New kind of paper" choices (PLAN step 12a): create the type, then file under it."""
+    from app.services.paper_types import NEW, AlreadyThere
+    try:
+        if category_value == NEW:
+            if not " ".join(new_area.split()):
+                raise InvalidClassification({"domain": "Not approved. The new area has no name yet. Type its name, "
+                                                       "then approve again."})
+            if not " ".join(new_kind.split()):
+                raise InvalidClassification({"category": "Not approved. The new area needs its first kind of paper. "
+                                                         "Type what kind of paper this is, then approve again."})
+            area = paper_types.add_area(session, new_area, first_kind=new_kind, by=by, document_id=document.id)
+            return [area, *[r for r in session.exec(select(PaperType).where(PaperType.area == area.area,
+                                                                            PaperType.kind.is_not(None)))]]
+        if paper_kind == NEW:
+            if not " ".join(new_kind.split()):
+                raise InvalidClassification({"category": "Not approved. The new kind of paper has no name yet. Type "
+                                                         "its name, then approve again."})
+            try:
+                category = Category(category_value)
+            except ValueError:
+                raise InvalidClassification({"domain": "Choose a category"}) from None
+            return [paper_types.add_kind(session, category, new_kind, by=by, document_id=document.id)]
+    except AlreadyThere as exc:
+        raise InvalidClassification({"category" if category_value != NEW else "domain":
+                                     f"Not approved. {exc}. Choose it from the list instead, then approve again."}) from None
+    return []
+
+
+async def _approve(session: Session, document: Document, item: InboxItem, *, category_value: str,
+                   paper_kind: Optional[str], fields: Mapping[str, str], reviewed_by: Optional[str],
+                   remember_sender: bool, remember_words: str) -> Document:
     try:
         category = Category(category_value)
     except ValueError:

@@ -1,4 +1,4 @@
-"""The Other papers reader (PLAN step 1c): title, date, summary and who or what the paper is about.
+"""The generic paper reader (PLAN step 1c as Other papers; since step 12a every added area and kind): title, date, summary and who or what the paper is about.
 
 It reads the paper's own text when it has one (step 1a, free and exact) and the page itself otherwise. What a person
 already typed is kept: the reader fills only the empty details. The summary and title stay in the paper's own
@@ -18,7 +18,7 @@ from app.services.reading import ReadingError, cut_text, day, json_object
 _MAX_TEXT = 30_000
 _CUT_NOTE = "\n\n[The paper is longer: only its beginning is given.]"
 
-_SYSTEM = """You read one household paper that fits none of the household's usual areas (a contract, a letter, a
+_SYSTEM = """You read one household paper (a contract, a letter, a
 certificate, a receipt, a notice...). Return ONLY a JSON object:
 {"title": "...", "date": "YYYY-MM-DD or null", "about": "...", "summary": "..."}
 - title: a short, specific title, at most 8 words, naming the paper's sender and what it is
@@ -34,12 +34,12 @@ _SCHEMA = {"type": "object", "properties": {
     "about": {"type": ["string", "null"]}, "summary": {"type": ["string", "null"]}}}
 
 
-class OtherReadingError(ReadingError):
+class GenericReadingError(ReadingError):
     pass
 
 
 @dataclass(frozen=True)
-class OtherReading:
+class GenericReading:
     title: str
     paper_date: Optional[date]
     about: str
@@ -49,7 +49,7 @@ class OtherReading:
 _iso = day
 
 
-async def read_other_paper(file_path: str, text: Optional[str], *, gateway=None) -> OtherReading:
+async def read_paper(file_path: str, text: Optional[str], *, gateway=None) -> GenericReading:
     gw = gateway or get_gateway()
     if text:
         body, cut = cut_text(text, _MAX_TEXT)
@@ -58,6 +58,6 @@ async def read_other_paper(file_path: str, text: Optional[str], *, gateway=None)
     else:
         user, attachments = "Read this paper as JSON.", [await asyncio.to_thread(build_content_block, file_path)]
     result = await gw.run(VISION_EXTRACTION, _SYSTEM, user, attachments=attachments, response_schema=_SCHEMA)
-    data = json_object(result.text, error=OtherReadingError)
+    data = json_object(result.text, error=GenericReadingError)
     clean = {k: " ".join(str(data.get(k) or "").split()) for k in ("title", "about", "summary")}
-    return OtherReading(clean["title"][:120], _iso(data.get("date")), clean["about"][:120], clean["summary"][:1500])
+    return GenericReading(clean["title"][:120], _iso(data.get("date")), clean["about"][:120], clean["summary"][:1500])

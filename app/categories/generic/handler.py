@@ -1,4 +1,4 @@
-"""Other papers handler: read the paper (title, date, about, summary), keeping what a person typed."""
+"""The generic paper handler (every added area and kind, PLAN step 12a): read the paper (title, date, about, summary), keeping what a person typed."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from app.services.document_input import is_model_readable
 READ_FIELDS = ("title", "paper_date", "about", "summary")
 
 
-class OtherHandler(CategoryHandler):
+class GenericPaperHandler(CategoryHandler):
     async def process(self, session: Session, document: Document) -> Document:
-        from app.categories.other import reader
+        from app.categories.generic import reader
         from app.services.paper_search import store_pdf_text
         fields = load_fields(document)
         if any(not fields.get(k) for k in READ_FIELDS) and is_model_readable(document.file_path):
             row = store_pdf_text(session, document)           # the text first: the reader uses it when there is one
-            reading = await reader.read_other_paper(document.file_path, row.text if row is not None else None)
+            reading = await reader.read_paper(document.file_path, row.text if row is not None else None)
             found = {"title": reading.title, "about": reading.about, "summary": reading.summary,
                      "paper_date": reading.paper_date.isoformat() if reading.paper_date else ""}
             fields = {**{k: v for k, v in found.items() if v}, **{k: v for k, v in fields.items() if v}}

@@ -23,6 +23,7 @@ class SubjectKind(str, Enum):
     THING = "thing"
     POLICY = "policy"
     CONDITION = "condition"
+    ROOM = "room"            # a room of the house (PLAN step 12a): the one list House's room field suggests from
 
 
 class Subject(RefusesUnknownFields, SQLModel, table=True):
@@ -34,6 +35,7 @@ class Subject(RefusesUnknownFields, SQLModel, table=True):
     match_key: str = Field(index=True)              # app/services/names.py name_key
     confirmed: bool = Field(default=False)
     merged_into_id: Optional[int] = Field(default=None, foreign_key="subjects.id")   # an alias, not a subject
+    household: bool = Field(default=False)          # a person of the family (PLAN step 12a): Pedro, Rute, Matias, Vicente
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

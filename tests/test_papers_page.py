@@ -14,7 +14,7 @@ def _filed(session):
                          fields={"item_name": "Garden hose"}, created_at=datetime(2026, 1, 5)),
            make_document(session, category=Category.HEALTH, paper_kind="lab_result", filename="blood-2026.pdf",
                          created_at=datetime(2026, 3, 1)),
-           make_document(session, category=Category.OTHER, paper_kind="other", filename="school-letter.pdf",
+           make_document(session, category=Category.EDUCATION, paper_kind="school_paper", filename="school-letter.pdf",
                          created_at=datetime(2026, 2, 1))]
     make_document(session, category=Category.HOUSE, status=DocumentStatus.PENDING, filename="still-reading.pdf")
     for d in out:
@@ -28,7 +28,7 @@ def test_everything_filed_newest_first_with_a_chip_per_category(client, session)
     html = client.get("/papers").text
     assert html.index("blood-2026.pdf") < html.index("school-letter.pdf") < html.index("garden-hose-warranty.pdf")
     assert "still-reading.pdf" not in html and "All (3)" in html
-    assert 'href="/papers?category=health"' in html and html.index("?category=other") > html.index("?category=house")
+    assert html.index("?category=education") < html.index("?category=health") < html.index("?category=house")   # by name
     assert 'class="pill on" href="/papers"' in html
 
 

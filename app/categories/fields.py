@@ -116,7 +116,7 @@ def validate_fields(
                                           "Pick one from the list, then save again.")
         elif field_spec.kind == FieldKind.SUGGEST:
             collapsed = " ".join(text.split())
-            existing = {v.lower(): v for v in distinct_field_values(session, spec.category, field_spec.key)}
+            existing = {v.lower(): v for v in reversed(suggestions(session, spec, field_spec))}
             clean[field_spec.key] = existing.get(collapsed.lower(), collapsed)
         else:
             clean[field_spec.key] = text
@@ -180,6 +180,16 @@ class FormField:
     options: list[tuple[str, str]]  # CHOICE options, or SUGGEST suggestions
 
 
+def suggestions(session: Session, spec: CategorySpec, field_spec: FieldSpec) -> list[str]:
+    """A SUGGEST field's suggestions: its defined list first (e.g. the rooms, PLAN step 12a), then values already
+    used in the area; one spelling per value (case-insensitive, the first wins)."""
+    seen: dict[str, str] = {}
+    defined = [v for v, _ in field_spec.options(session)] if field_spec.choices_provider or field_spec.choices else []
+    for value in defined + distinct_field_values(session, spec.category, field_spec.key):
+        seen.setdefault(value.lower(), value)
+    return list(seen.values())
+
+
 def build_form_fields(
     session: Session,
     spec: CategorySpec,
@@ -193,7 +203,7 @@ def build_form_fields(
         if field_spec.kind == FieldKind.CHOICE:
             options = field_spec.options(session)
         elif field_spec.kind == FieldKind.SUGGEST:
-            options = [(v, v) for v in distinct_field_values(session, spec.category, field_spec.key)]
+            options = [(v, v) for v in suggestions(session, spec, field_spec)]
         else:
             options = []
         form_fields.append(FormField(

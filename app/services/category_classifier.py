@@ -73,17 +73,6 @@ def _empty(note: str) -> CategorySuggestion:
     return CategorySuggestion(category=None, paper_kind=None, confidence=0.0, note=note)
 
 
-def _catch_all(specs: Sequence, reason: str) -> Optional[CategorySuggestion]:
-    """Nothing else fits: offer the catch-all (PLAN step 1c), never as a confident answer, so a person decides."""
-    spec = next((s for s in specs if s.catch_all), None)
-    kind = next((c for c in spec.kinds if c.classifiable), None) if spec is not None else None
-    if kind is None:
-        return None
-    lead = f"{reason.rstrip('.')}. " if reason else ""
-    return CategorySuggestion(category=spec.category, paper_kind=kind.value, confidence=0.5,
-                              note=f"{lead}It fits none of the other areas, so it is offered as {spec.label}.")
-
-
 async def suggest_category_and_kind(
     file_path: str,
     context_text: Optional[str] = None,
@@ -122,7 +111,7 @@ async def suggest_category_and_kind(
         raise CategoryClassificationError(f"Could not parse classifier response: {exc}") from exc
 
     if category_value is None:
-        return _catch_all(specs, reason) or _empty(reason or "Didn't match any area.")
+        return _empty(reason or "Didn't match any area.")   # 12b will suggest a new area or kind here
     spec = next((s for s in specs if s.category.value == category_value), None)
     valid_category = spec is not None and (
         kind_value in {c.value for c in spec.kinds if c.classifiable}

@@ -15,6 +15,11 @@ _WARRANTY = frozenset({HouseKind.WARRANTY_INVOICE.value})
 _MAINTENANCE = frozenset({HouseKind.MAINTENANCE_LOG.value})
 _FLOOR_PLAN = frozenset({HouseKind.FLOOR_PLAN.value})
 
+def _room_options(session):
+    from app.services.household import room_options     # lazy: the household service imports the subjects service
+    return room_options(session)
+
+
 SPEC = CategorySpec(
     category=Category.HOUSE,
     label="House",
@@ -44,7 +49,8 @@ SPEC = CategorySpec(
     fields=(
         FieldSpec("item_name", "Item", FieldKind.SUGGEST, kinds=ITEM_KINDS, required=True,
                   help="The same name groups the item's manual, warranty and maintenance records."),
-        FieldSpec("room", "Room / location", FieldKind.SUGGEST, kinds=ITEM_KINDS),
+        FieldSpec("room", "Room / location", FieldKind.SUGGEST, kinds=ITEM_KINDS, choices_provider=_room_options,
+                  help="Pick a room of the house; a new name adds it to the list."),
         FieldSpec("warranty_expiry", "Warranty expires", FieldKind.DATE, kinds=_WARRANTY,
                   help="Leave blank to have it read from the document (or assumed from the purchase date)."),
         FieldSpec("purchase_date", "Purchase / invoice date", FieldKind.DATE, kinds=_WARRANTY,

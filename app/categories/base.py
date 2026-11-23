@@ -272,8 +272,6 @@ class CategorySpec:
     # A level every kind of this category always has, whatever the settings say (decision D19): Health is High.
     forced_tier: Optional[Tier] = None
     dated_by: Optional[DatedBy] = None                # how its papers are dated, unless the kind says otherwise
-    # The catch-all ("Other papers", PLAN step 1c): the Inbox offers it when the classifier finds no other fit.
-    catch_all: bool = False
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.kinds]

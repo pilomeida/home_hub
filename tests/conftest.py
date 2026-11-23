@@ -15,6 +15,21 @@ def pinned_today_for_the_stale_bill_rule(monkeypatch):
     monkeypatch.setattr("app.services.todo_engine._today", lambda: date(2026, 9, 1))
 
 
+_EMPTY = create_engine("sqlite://")       # no paper_types table: only the built-in areas
+
+
+@pytest.fixture(autouse=True)
+def added_types_from_the_test_database(monkeypatch):
+    """The registry reads added areas and kinds (PLAN step 12a) from the test's own database (set by `engine`), never
+    from the developer's data/ folder; with no test database, only the built-in areas exist."""
+    from app.categories import registry
+    monkeypatch.setattr(registry, "session_factory", lambda: Session(_EMPTY))
+    monkeypatch.setattr(registry, "RECHECK_SECONDS", 3600.0)   # re-read only when told (forget_types)
+    registry.forget_types()
+    yield
+    registry.forget_types()
+
+
 @pytest.fixture()
 def levels_not_binding():
     """For a unit test that calls a reader or the gateway directly: production always makes those calls inside a
@@ -37,6 +52,9 @@ def engine(tmp_path):
     from app import models  # noqa: F401 — registers tables on SQLModel.metadata
 
     SQLModel.metadata.create_all(test_engine)
+    from app.categories import registry
+    registry.session_factory = lambda: Session(test_engine)    # put back by the autouse fixture's monkeypatch
+    registry.forget_types()
     return test_engine
 
 

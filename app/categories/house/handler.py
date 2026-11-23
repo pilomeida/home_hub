@@ -67,11 +67,20 @@ async def _sync_derived(session: Session, document: Document, operation: WikiOpe
     await ingest_into_wiki(session, document, operation=operation)
 
 
+def _keep_room(session: Session, document: Document) -> None:
+    """An item filed in a room not on the list adds that room (PLAN step 12a, one list of rooms, S5)."""
+    from app.services.household import add_room
+    if add_room(session, load_fields(document).get("room")) is not None:
+        session.commit()
+
+
 class HouseHandler(CategoryHandler):
     async def process(self, session: Session, document: Document) -> Document:
+        _keep_room(session, document)
         return await read_by_kind(session, document, Category.HOUSE, default=read_house_paper)     # each kind declares its reader
 
     async def on_fields_changed(self, session: Session, document: Document, previous_fields: dict[str, str]) -> None:
+        _keep_room(session, document)
         await _sync_derived(session, document, WikiOperation.EDIT)
         if document.paper_kind == HouseKind.WARRANTY_INVOICE.value and not _is_warranty_without_expiry(document):
             document.failure_reason = None

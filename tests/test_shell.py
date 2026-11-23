@@ -67,7 +67,7 @@ def test_the_gear_and_more_pages_list_every_page(client):
 
 def test_old_urls_still_answer(client):
     for url in ("/ask", "/inbox", "/waiting", "/todos", "/privacy", "/schedules", "/problems", "/wiki",
-                "/financials/transactions", "/financials/coming-up", "/health/records", "/house", "/insurance", "/other"):
+                "/financials/transactions", "/financials/coming-up", "/health/records", "/house", "/insurance", "/papers"):
         assert client.get(url).status_code == 200, url
 
 
