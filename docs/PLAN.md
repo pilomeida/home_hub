@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; slice 12b landed 2026-11-23 and the 69 waiting papers carry the new guess (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again); slice 12c (the Inbox card: "What the Hub read", item rows, New badges, approval creates what is new) landed 2026-11-24; 12d (filing and finding) and 12e (rename what is in) are built and tested 2026-11-24 and being deployed; then 12e runs on the live Hub. Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-24):** steps 1 to 12 are done and live (section 4); step 12 landed 2026-11-24 with the 199 filed papers renamed. Nothing is scheduled next. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What waits on Pedro is in section 2: the 69 Inbox papers to approve on their new cards, and Rute's Santander access to renew.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -68,130 +68,7 @@ accuracy work, then Health reading, subjects in the wiki, Health conditions (a c
 categories last (they need search, reminders and the review queue). Clean-up rides along: when a step touches code a
 D item names, that D item is done in the same step.
 
-### Step 12: the Inbox sorts every paper by what it is (Pedro, 2026-11-23)
-Pedro's Inbox screenshots, 2026-11-23: the AEG invoice came in with item and room blank; the Católica diploma got
-"Not sure where this belongs" although the Hub had seen it was a diploma; every paper keeps the name Telegram gave it.
-What he asked for (paraphrase agreed 2026-11-23):
-- **House or people first.** The Inbox decides whether a paper is about the house (an appliance, a room, a repair) or
-  about a person (a diploma, an ID, a medical letter), instead of only trying Money or House.
-- **House papers:** read out each item bought (an invoice can list several), take the purchase date (the warranty runs
-  from it) and suggest a room for each item, for Pedro to approve. Room becomes a filter later.
-- **People papers:** tag them by what they are: area (e.g. Education), kind of paper (diploma or certificate), level
-  or degree, grade if there is one, and the person. If no existing category fits, suggest one, clearly marked as new.
-- **A sensible name.** Every filed paper gets a name that says what it is (e.g. "2025-12 Certificado conclusão gestão
-  TIC — Católica — Pedro"), not the name Telegram or the email gave it.
-- **The caption or subject first.** A Telegram caption or email subject is the strongest clue for kind, person, tags
-  and name; the paper's text comes after.
-- Pedro still approves everything in the Inbox; the Hub only fills in its guesses.
-
-Designed with Pedro 2026-11-23 (grill-me; notes in `Personal/brainstorms/2026-11-23-hub-inbox-sorts-by-what-it-is.md`):
-- Papers go straight to an area; no separate house-or-people question. "Who" only on papers about a person, from one
-  family list (Pedro, Rute, Matias, Vicente, + added; unknown = "New person") (S5).
-- Rooms from one fixed list: Kitchen, Matias' bedroom, Vicente's bedroom, Suite bedroom, Social restroom, 1st floor
-  restroom, Suite restroom, Solarium, Living/dining room, Store room (annex), Outside restroom, Garden, Parking, Office,
-  Hall, Porch, Whole house. Unknown room = "New room", added on approval (S5).
-- A house paper listing several things: one editable row per physical item (name, room, warranty end = purchase date
-  + 3-year legal guarantee unless the paper says otherwise); fees are not items; each item gets its own card with the
-  paper attached.
-- Tagging: a small fixed core (who, area, kind, room, a date to act on) + free tags + the paper's text read by the AI;
-  no per-area forms (S4).
-- Every paper has a type; no "Other". Nothing fits = a new kind or new area suggested, marked new, created on approval
-  even for one paper; a new area is a foundation entry with a derived page, not new code (S2/S3).
-- Filed name: `date · kind · what it is · who or item` (e.g. `2025-12-15 · Certificate · Gestão TIC, Católica ·
-  Pedro`) everywhere, downloads included (clarified 2026-11-23); the file's content is kept as received (Q4), the
-  original name only as a "where it came from" line. No accents in names, as a general rule: ç → c, ã → a, every
-  accent dropped (Pedro, 2026-11-23). Papers already received are renamed too (Pedro, 2026-11-23).
-
-Slices (Claude, 2026-11-23):
-- **12a Foundation:** the family list and the room list defined once; areas and kinds can be added from an approval;
-  the "Other" area retired, its papers re-sorted into real types (W1: backup, dry run, apply, verify). ✅ 2026-11-23
-  (full suite 2,970 green; deploy run 45252742638 failed: "re-read now" depended on the machine's clock, fixed with a
-  flag and a test; live 2026-11-23, deploy run 45254678146, commits 6db54b5 and
-  76c2b2a; `scripts/seed_household.py` applied on the server after a named backup: Pedro (#7) and Rute (#8) marked as
-  family, Matias and Vicente added, 17 rooms added; a second run changed nothing; health 200, no errors, problems
-  still 3). How (Claude, 2026-11-23):
-  - An area is an open value, no longer a fixed list in code: the nine built-in areas stay as they are, an area Pedro
-    approves is a row in a new `paper_types` table (one row per added area or added kind). Stored the same way as
-    today, so no paper changes (S2).
-  - The registry merges the built-in areas with those rows. Every process (web, Telegram bot, both schedulers)
-    notices a new row within seconds (S2/S3).
-  - An added kind or area is read by the generic paper reader (Other's, moved: title, date, who or what it is about,
-    summary) with the generic fields; an added area gets its pages at `/areas/<name>` from the shared paper pages;
-    its kinds appear on the Privacy page, suggested Mid (S3/S4, D16 unchanged).
-  - Inbox: "+ New kind of paper" under every area and "+ New area" in the area list; approving creates it, then files
-    the paper. 12c adds the Hub's own suggestion with its "New" badge.
-  - "Other" retired: the live Hub has 0 papers, records, to-dos or wiki pages in it (checked 2026-11-23), so nothing
-    to re-sort; its area, pages and nav link go, old `/other` links lead to All papers.
-  - The family and the rooms are subjects (S5): a household flag marks Pedro, Rute, Matias and Vicente; rooms are a
-    new subject kind with the 17 rooms; both seeded by a migration. House's room field suggests from the room list,
-    and filing an item in a room not on it adds that room.
-- **12b The guess:** caption or subject first, then the paper; it returns area and kind (or a new one, marked new),
-  who, items with rooms, free tags, a date to act on and the filed name. Papers already waiting in the Inbox are
-  guessed again (their September guesses predate step 8). ✅ 2026-11-23 (dea8cac, fix 81c3a25, deploy 45278065682; full suite 2985 passed; backup `data/backups/before-12b-2026-11-23.db`). First 3 re-guessed live: the diploma (#164) is now Education › Diploma, who Pedro, dated 2002-12-06; the AEG invoice (#100) has its 6 items, all Kitchen; a Seguranca Social letter (#160) got a new area "Social benefits", marked new. Found: the AI's "what it is" ran to a sentence (amounts, numbers) and the name was cut mid-word; fixed the same day (prompt asks at most 8 words; the formatter keeps 12 words and cuts at a word; deploy 45280170671). Then all 69 waiting papers re-guessed, none failed, no type created (Pedro approves new ones in 12c): 45 Brave Generation Academy invoices now Education › School fee for Matias, 9 bills, 5 policies, the diploma, the AEG invoice, and 7 new kinds or areas offered (Work, Telecom, Benefits; two Handelsbanken FATCA/CRS kinds). Problems unchanged (3 open, none new). How (Claude, 2026-11-23):
-  - Still ONE AI call per paper, inside the High run as today (D20), its answer checked by code before it is kept
-    (Q1: AI output is untrusted): an area or kind must exist or be offered as new (never confident: Pedro looks at
-    every new type); "who" matched to the family list, else kept as a name; rooms matched to the room list, else
-    marked new; dates must be real dates; at most 20 items and 10 tags.
-  - The prompt names the family and the rooms (from the subjects, S5) and says the caption or subject is the
-    strongest clue.
-  - The whole guess is kept on the Inbox item (a new `guess_json` column) for 12c to show and 12d to file; the
-    card's "Best guess" line already names a new area or kind, marked new.
-  - The filed name is built by code, one formatter (W2): `date · kind · what it is · who or item`, no accents, no
-    characters a file name cannot hold; the date is the paper's own, else the day it arrived.
-  - Guessing again goes through the same path as a new arrival (rules first, then the AI at High):
-    `scripts/guess_waiting_again.py`, dry run first, then in small batches (W1); cents in total.
-- **12c The Inbox card:** item rows (edit, remove, add); "New" badges on a new kind, area, room or person; tags shown
-  and editable; approving creates what is new. ✅ 2026-11-24 (fdf1e85, deploy 45456493856; full suite 2995 passed; backup `data/backups/before-12c-2026-11-24.db`; live health ok, no new errors, Problems still 3 open) (Pedro: "Yes"). How (Claude, 2026-11-24):
-  - The guess pre-fills the card, including a new area or kind (typed in, marked New); nothing is filed until Pedro
-    presses Approve (W4: each paper is his call), and the "not sure" line stays when the Hub is not sure.
-  - One block, "What the Hub read", on both the Inbox card and the light card (one partial, W2): who (the family,
-    else "New person: <name>", else nobody), the paper's date, what it is, tags (comma separated), and for House
-    papers one row per item (name, room from the room list or "New room: <name>", warranty end = paper date + 3
-    years), each row removable, "+ Add an item". The name the paper will carry is shown, built by the one formatter.
-  - Approving checks the edits by code (Q1, the same limits as the guess), creates a new room or person (S5,
-    subjects), and keeps the approved guess on the Inbox item; a refused approval creates nothing. 12d files under it.
-  - "New" is one chip state (`.chip.new`), written into STYLE.md.
-- **12d Filing and finding:** approval files under the new name, one card per item, tags stored; House filters by room,
-  every people page by who; the kind's own fields that repeat what the Hub read (House's Item, Room and dates;
-  Education's Who and date) are filled from the approved guess instead of asked again (seen on the 12c card,
-  2026-11-24); checked live on the AEG invoice and the Católica diploma (guess only; Pedro approves). ◐ built 2026-11-24, full suite green (3,007 tests); deploying
-  (Pedro: "Let's 12d - and subsequent steps till the end; we check stuff later"). How (Claude, 2026-11-24):
-  - The paper goes by its new name everywhere, downloads included: `documents.filename` becomes the filed name plus
-    the file's own ending, the name it came in with is kept in `original_filename` and shown as "came in as" under
-    the preview (one formatter, W2; the file's bytes and place on disk never change, Q4). Files are served from
-    `/documents/{id}/file` so saving one gives the paper's name. Recognition still reads the name it came in with.
-  - Tags (`tags_json`) and who it is about (`who_subject_id`, a person subject, S5) are stored on the paper; search
-    finds it by its new name, its old name and its tags.
-  - Each item a paper lists is a row of `paper_items` (name, room, warranty end) and a thing subject (S5); House
-    shows one card per item, an invoice of three appliances on three cards; House filters by room (chips).
-  - The Who chip (step 10i) now counts papers filed as about a person: Papers, Coming up, Waiting and Ask follow it,
-    and so do Education, Identity & Legal and every added area.
-  - A kind's own fields that repeat the guess are declared once per area (`CategorySpec.from_guess`: House's Item,
-    Room and purchase date; Education's Who and date; Identity's holder; an added area's title, date and about;
-    Vehicles' and Pets' date). The card leaves them out when the guess answers them and approval fills them from it;
-    a field the guess cannot answer is still asked.
-- **12e Rename what is already in:** the 273 papers on the live Hub (2026-11-23: 184 Money, 70 waiting in the Inbox,
-  16 Insurance, 3 Health) get names by the same rule. A name is built from what the Hub already knows of the paper;
-  the AI reads it only where that is not enough, through the privacy gate (D16). W1: backup, a dry run whose list of
-  old → new names is read (a sample shown to Pedro), apply, verify, a second run changes nothing. The 70 Inbox papers
-  get theirs from 12b's new guess. ◐ built 2026-11-24 with 12d; the live run follows the deploy (Pedro: "… and subsequent steps till the end"). How (Claude, 2026-11-24):
-  - Each area says once how its papers are named from what it already holds (`CategorySpec.name_parts`, S3): a bill
-    by its provider and period and its issue date; a statement by its account ("Santander Credit Card (Rute)") and month, dated by its last line, about
-    its account's owner; a policy by insurer, product and part, about what it covers; a Health paper by its
-    provider, about its person. Other areas use their own fields (`from_guess`).
-  - Names stay short (Claude, 2026-11-24, per W2, after reading the live dry run): a company or product is named
-    before its first ", " or " - " and without its legal ending ("MetLife Europe", not "MetLife Europe d.a.c. -
-    Sucursal em Portugal"); an insurer already in the product's name is not said twice; a Health person who is
-    family goes by their name ("Pedro"), as the guess matches who (S5); a long note in brackets is left out of who.
-  - A date written in the name a paper came in with ("detalhe_fatura_20250723.pdf") comes after the paper's own
-    date and before the day it arrived (Claude, 2026-11-24, per the naming rule's own order, after the live run
-    dated 14 papers by their arrival); `--redate` fixes those already renamed (dry run, then `--apply`).
-  - Only where nothing says what the paper is (live: 27 Vodafone call details, a photo, a Via Verde detail, the loan
-    printouts) the AI reads the paper's stored text, at the paper's own level like search's Paper text job (D16), and
-    code checks its answer (Q1: a few words and a real date, or nothing). A paper still unnamed keeps its name.
-  - `scripts/rename_filed_papers.py` (W1): backup, dry run (old -> new for every paper), a few, all, a second run
-    changes nothing; papers renamed on approval (12d) are left as they are. The 69 Inbox papers get their names when
-    approved.
+Nothing is scheduled after step 12. A new step comes from Pedro, a finding or a bug, and goes here first.
 
 ---
 
@@ -200,13 +77,14 @@ Each needs his hands or his call; nothing in section 1 waits on them unless it s
 brackets); tick off here when done.
 | What | Unblocks |
 |---|---|
+| Look at what step 12 did: the 69 Inbox papers on their new cards (approve each; the AEG invoice no longer needs an item name), and a few renamed papers on Papers (each shows "came in as" its old name) (2026-11-24) | Step 12 seen by Pedro |
 | Renew Rute's Santander access; ask her to look for a card/data-sharing setting in her Santander app (her card 5990 is not returned) (2026-11-03) | Her card in the feed; else her monthly statements stay the route |
 | Emanuel's €15,000: when it was received, and anything paid back before 2025-10-10. Eduardo's balance before 2025-10-10 (2026-11-03) | Loans shown correctly |
 | 3–5 Health papers from other providers (another lab, a clinic letter, a prescription, an insurer statement, a scan or photo), with the expected result where he has it; review paper 200's page (2026-10-19) | Step 5 benchmark |
 | Approve the proposed Health areas, people and topics from papers 199 and 200 (2026-10-28) | Moves into the step-3 queue once built |
 | Payee names for the numbers in `docs/unnamed-payment-entities.md` (2026-10-28) | Step 2 rules |
 | Configure `/privacy`; decide "Levels are binding" and "Hide personal details"; whether Ask and the wiki check may read High papers (2026-10-15) | Levels enforced everywhere |
-| Four Inbox papers: AEG appliances invoice (100, needs an item name), social-security notification (160), IRS receipt (168), paid 2022 IUC notice (161) (2026-10-18) | Filing; step 1 can take them as "Other papers" |
+| Four Inbox papers: AEG appliances invoice (100; its item name comes from the guess since 2026-11-24), social-security notification (160), IRS receipt (168), paid 2022 IUC notice (161) (2026-10-18) | Filing; step 1 can take them as "Other papers" |
 | File the papers waiting for a category as **Other papers** from the Inbox (choose "Other papers › Other paper", leave the details empty: the Hub reads them): contracts 144, 169, 170; bank letters 165–167; diploma 164; and 160, 161, 168 above. The run's server permission did not allow approving Inbox papers for you (2026-11-19) | They become searchable and readable by Ask |
 | Whether the insurance booklets (CPAP/CGAP, 48–59 pages) should be read, not just filed (2026-10-18) | — |
 | Re-point the gateway's `hub/classification` pairing to a cheap model (reclassify ~1 min per merchant) (2026-10-06) | Faster sorting |
@@ -259,6 +137,7 @@ its step; tell Claude which to change.
 Details are in git history (`git log -- "Home & Family"`), ARCHITECTURE.md and DECISIONS.md.
 | When | What |
 |---|---|
+| 2026-11-24 | **Step 12** the Inbox sorts every paper by what it is (designed with Pedro 2026-11-23; 12a–12c live by 7efea60, 12d–12e live 8a6c315 → 537e619): papers have a type, no catch-all; the guess reads the caption first and says area, kind or a new one, who, items with rooms, tags, a date to act on and the filed name; the Inbox card shows "What the Hub read", item rows with rooms and warranty end, New badges, and approving creates new rooms, people, areas and kinds; approval files the paper under its name (`date · kind · what it is · who or item`, no accents; "came in as" keeps the old name, downloads carry the new one), tags and who stored, one House card per item, House filters by room, every people page follows the Who chip, and the kind's fields the guess answers are not asked again (live: the AEG card asks only the warranty end, the diploma only the school). 12e on live: backups before-12d/12e/12e-apply-2026-11-24.db; 199 filed papers renamed (163 from what the Hub holds, 36 read by the AI at their own level, none kept), 14 re-dated from the date in the name they came in with; a second run of both changes nothing. Choices (Claude, per W2/S5): companies named short, an insurer not said twice, a family member by their name, a statement by its account, a date in the old name before the arrival day. The full text of the step is in git history (PLAN.md before this commit) |
 | 2026-10-15 | Privacy levels (house_low/mid/high, fail-closed, Privatemode for High), the `/privacy` page, recognition and "What is this?", statements checked to the cent with To-check, Problems, Schedules (the old phase (d) plan) |
 | 2026-10-16 → 10-21 | Health cluster live; checks and benchmark; papers say why they were made; outline, conclusions and numbers per section; written reports by their outline; topic baseline; read twice (Conditions phases 1 and 1B) |
 | 2026-10-28 | Billing is not Health (bills go to Bills); every Health paper read twice, differences flagged |
