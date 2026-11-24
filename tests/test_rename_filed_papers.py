@@ -135,6 +135,7 @@ def test_a_company_is_named_short_and_a_family_member_by_their_name():
     assert short_party("MetLife Europe d.a.c. - Sucursal em Portugal") == "MetLife Europe"
     assert short_party("Ligat Telecom, Soc.Unip., Lda.") == "Ligat Telecom"
     assert short_party("Fidelidade - Companhia de Seguros, S.A.") == "Fidelidade"
+    assert short_party("Vida Completa (T.A.R. - Seguro de Vida)") == "Vida Completa"
     assert short_party("amigo (Vodafone Portugal)") == "amigo (Vodafone Portugal)"
     assert short_who("Pedro and Rute (both insured death and total or permanent disability)") == "Pedro and Rute"
     assert short_who("Toyota Avensis (82-CL-65)") == "Toyota Avensis (82-CL-65)"

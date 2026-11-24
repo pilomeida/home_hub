@@ -65,6 +65,8 @@ def short_party(name: Optional[str]) -> str:
     -> "Ligat Telecom"."""
     text = " ".join((name or "").split())
     text = re.split(r",\s|\s[-–—]\s", text, maxsplit=1)[0]
+    if text.count("(") > text.count(")"):
+        text = text[:text.rfind("(")].rstrip()           # "Vida Completa (T.A.R. - Seguro de Vida)": no open bracket
     while True:
         shorter = _LEGAL.sub("", text).rstrip(" ,.-")
         if shorter == text or not shorter:
