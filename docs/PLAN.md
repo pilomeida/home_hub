@@ -141,7 +141,7 @@ Slices (Claude, 2026-11-23):
   - Guessing again goes through the same path as a new arrival (rules first, then the AI at High):
     `scripts/guess_waiting_again.py`, dry run first, then in small batches (W1); cents in total.
 - **12c The Inbox card:** item rows (edit, remove, add); "New" badges on a new kind, area, room or person; tags shown
-  and editable; approving creates what is new. ✅ 2026-11-24 (full suite 2995 passed; deploy below) (Pedro: "Yes"). How (Claude, 2026-11-24):
+  and editable; approving creates what is new. ✅ 2026-11-24 (fdf1e85, deploy 45456493856; full suite 2995 passed; backup `data/backups/before-12c-2026-11-24.db`; live health ok, no new errors, Problems still 3 open) (Pedro: "Yes"). How (Claude, 2026-11-24):
   - The guess pre-fills the card, including a new area or kind (typed in, marked New); nothing is filed until Pedro
     presses Approve (W4: each paper is his call), and the "not sure" line stays when the Hub is not sure.
   - One block, "What the Hub read", on both the Inbox card and the light card (one partial, W2): who (the family,
