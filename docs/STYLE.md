@@ -92,6 +92,10 @@ or **Side by side** (the paper on the left, what was read on the right). The pre
 `/documents/{id}/preview.png` (made on the server from the file; nothing leaves the server); the paper itself only
 from its own file route. A paper that can't be shown says so in plain words.
 
+The caption names the paper by the name it goes by (`date · kind · what it is · who or item`, step 12d); once
+renamed, a quieter `.pv-from` line under it says what it **came in as**. The file route (`/documents/{id}/file`)
+serves the file as received, and saving it gives the paper's name.
+
 ## 5. Writing on the page
 
 Plain English, sentence case (no capitals-and-tracking labels), dates `yyyy-mm-dd`, money `€1,234.56`. Every warning

@@ -24,6 +24,7 @@ SPEC = CategorySpec(
     category=Category.HOUSE,
     label="House",
     keeps_items=True,
+    from_guess={"item_name": "item", "room": "room", "purchase_date": "paper_date"},
     description=(
         "The home itself: appliance and outdoor-gear manuals, warranties and purchase invoices, "
         "maintenance records, floor plans and pipe/electrical layouts, and property ownership documents."

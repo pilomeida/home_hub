@@ -89,7 +89,8 @@ def _recognised_kind(session: Session, document: Document) -> Optional[str]:
         content = Path(document.file_path).read_bytes()
     except OSError:
         return None
-    found = recognise(session, filename=document.filename, content=content, context_text=None)
+    found = recognise(session, filename=document.original_filename or document.filename, content=content,
+                      context_text=None)                    # the name it came in with (PLAN step 12d)
     return found.paper_kind if found is not None and found.category == Category.FINANCIALS.value else None
 
 

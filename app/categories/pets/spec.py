@@ -83,6 +83,7 @@ SPEC = CategorySpec(
     description="The household's pets: vet invoices and visit records, vaccination records. Pet insurance is under "
                 "Insurance.",
     home_url="/pets",
+    from_guess={"paper_date": "paper_date"},
     kinds=(
         KindSpec(VET, "Vet visit", "A vet's invoice or record of a visit, treatment or surgery.",
                  suggested_tier=Tier.MID, reminder=NEXT_VISIT),

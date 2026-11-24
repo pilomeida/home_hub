@@ -126,6 +126,12 @@ def _fields_text(document: Document) -> tuple[str, str]:
     return f"{spec.label} {spec.kind_label(document.paper_kind)} {document.paper_kind or ''}", details
 
 
+def _title_text(document: Document) -> str:
+    """The name it goes by, the name it came in with and its tags (PLAN step 12d): any of them finds it."""
+    from app.services.paper_filing import tags_of
+    return " ".join(filter(None, [document.filename, document.original_filename, " ".join(tags_of(document))]))
+
+
 def index_document(session: Session, document: Document) -> None:
     """(Re)write one paper's index row; a paper not (or no longer) filed has none."""
     ensure_index(session)
@@ -134,7 +140,7 @@ def index_document(session: Session, document: Document) -> None:
         kind, details = _fields_text(document)
         row = text_row(session, document.id)
         session.exec(sql("INSERT INTO paper_search(rowid, title, kind, fields, body) VALUES (:id, :t, :k, :f, :b)"),
-                     params={"id": document.id, "t": document.filename, "k": kind, "f": details,
+                     params={"id": document.id, "t": _title_text(document), "k": kind, "f": details,
                              "b": row.text if row is not None else ""})
     session.commit()
 

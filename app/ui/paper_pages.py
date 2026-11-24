@@ -25,7 +25,8 @@ _NON_FIELD_KEYS = {"file", "category"}
 
 
 def paper_pages(category: Category, prefix: str, landing: Callable[[Session], dict], landing_template: str,
-                *, upload_note: str = "") -> APIRouter:
+                *, upload_note: str = "", by_who: bool = False) -> APIRouter:
+    """`by_who`: a page of people's papers (its landing's `groups`) that follows the Who chip (PLAN step 12d)."""
     """The spec is looked up per request, never at import (a test may narrow the registry before the app loads)."""
     router = APIRouter(prefix=prefix, tags=[category.value])
 
@@ -56,7 +57,14 @@ def paper_pages(category: Category, prefix: str, landing: Callable[[Session], di
 
     @router.get("")
     async def landing_page(request: Request, session: Session = Depends(get_session)):
-        return templates.TemplateResponse(request, landing_template, {"spec": get_spec(category), **landing(session)})
+        context = {"spec": get_spec(category), **landing(session)}
+        if by_who:
+            from app.services import who
+            person = who.chosen(session, request.cookies.get(who.COOKIE))
+            if person is not None:
+                context["groups"] = who.only(context.get("groups") or [], who.document_ids(session, person.id))
+                context["person"] = person
+        return templates.TemplateResponse(request, landing_template, context)
 
     @router.get("/upload")
     async def upload_form(request: Request, category: Optional[str] = None, session: Session = Depends(get_session)):

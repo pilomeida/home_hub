@@ -53,4 +53,22 @@ class Document(RefusesUnknownFields, SQLModel, table=True):
     # house_low|house_mid|house_high (app.privacy.tiers); NULL = no tier wired for this type yet.
     sensitivity_tier: Optional[str] = None
     account_id: Optional[int] = Field(default=None, foreign_key="accounts.id")
+    # PLAN step 12d: `filename` is the name the paper goes by once filed (`date · kind · what it is · who or item`,
+    # app/services/paper_names.py); the name it came in with stays here, as where it came from. NULL until renamed.
+    original_filename: Optional[str] = None
+    tags_json: str = Field(default="[]")                                   # free tags, as approved (JSON list)
+    who_subject_id: Optional[int] = Field(default=None, foreign_key="subjects.id", index=True)   # who it is about
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PaperItem(RefusesUnknownFields, SQLModel, table=True):
+    """One physical thing a filed paper lists (PLAN step 12d): an invoice of three appliances has three rows, each
+    its own card in House. The thing is a subject (S5); its room is a room of the room list."""
+    __tablename__ = "paper_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    document_id: int = Field(foreign_key="documents.id", index=True)
+    name: str
+    room: Optional[str] = None
+    warranty_end: Optional[str] = None                                     # yyyy-mm-dd
+    subject_id: Optional[int] = Field(default=None, foreign_key="subjects.id", index=True)

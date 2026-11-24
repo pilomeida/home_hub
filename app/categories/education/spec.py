@@ -64,6 +64,7 @@ SPEC = CategorySpec(
     description="The children's school papers (enrolment, reports, school letters), school fee invoices or notices, "
                 "and anyone's diplomas and certificates of study.",
     home_url="/education",
+    from_guess={"student": "who", "paper_date": "paper_date"},
     kinds=(
         KindSpec(SCHOOL_PAPER, "School paper", "A school's paper about a child: enrolment, report, letter, timetable.",
                  suggested_tier=Tier.MID, reminder=SCHOOL_DATE),

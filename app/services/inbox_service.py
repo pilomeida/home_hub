@@ -342,6 +342,14 @@ async def approve(
     made = _make_new_types(session, document, category_value, paper_kind, new_area, new_kind, reviewed_by)
     if made:
         category_value, paper_kind = made[0].area, made[-1].kind
+    spec = _spec_or_none(category_value)
+    guess = _guess_to_approve(session, item, guess_form, spec)
+    if spec is not None and guess:                    # fields that repeat what the Hub read come from it (12d)
+        from app.services.guess_card import field_values
+        fields = dict(fields)
+        for key, value in field_values(guess, spec.from_guess).items():
+            if not str(fields.get(key) or "").strip():
+                fields[key] = value
     try:
         filed = await _approve(session, document, item, category_value=category_value, paper_kind=paper_kind,
                                fields=fields, reviewed_by=reviewed_by, remember_sender=remember_sender,
@@ -350,31 +358,48 @@ async def approve(
         if made:
             paper_types.take_back(session, made)      # a refused approval leaves no new type behind
         raise
-    _keep_approved_guess(session, filed, item, guess_form, reviewed_by)
+    _keep_approved_guess(session, filed, item, guess, reviewed_by)
     return filed
 
 
-def _keep_approved_guess(session: Session, document: Document, item: InboxItem, guess_form,
-                         by: Optional[str]) -> None:
-    """The guess as Pedro approved it stays on the Inbox item (12d files under it); a new room or person is made."""
-    import json
+def _spec_or_none(category_value: str):
+    try:
+        category = Category(category_value)
+    except ValueError:
+        return None
+    return get_spec(category) if is_implemented(category) else None
+
+
+def _guess_to_approve(session: Session, item: InboxItem, guess_form, spec) -> dict:
+    """The guess as Pedro left it on the card (12c), checked like the AI's; items only where the area keeps them."""
     from app.services import guess_card
-    if document.category is None or not is_implemented(document.category):
+    guess = guess_of(item)
+    keeps_items = bool(spec and spec.keeps_items)
+    if guess_form is not None:
+        guess = guess_card.from_form(session, guess_form, guess, keeps_items=keeps_items)
+    if guess and not keeps_items:
+        guess = {**guess, "items": []}                # rows of things belong to areas that keep them (House)
+    return guess
+
+
+def _keep_approved_guess(session: Session, document: Document, item: InboxItem, guess: dict,
+                         by: Optional[str]) -> None:
+    """The approved guess stays on the Inbox item, a new room or person is made, and the paper is filed under it:
+    its new name, tags, who and items (PLAN steps 12c, 12d)."""
+    import json
+    from app.services import guess_card, paper_filing
+    if not guess or document.category is None or not is_implemented(document.category):
         return
     spec = get_spec(document.category)
-    guess = guess_of(item)
-    if guess_form is not None:
-        guess = guess_card.from_form(session, guess_form, guess, keeps_items=spec.keeps_items)
-    if not guess:
-        return
-    if not spec.keeps_items:
-        guess = {**guess, "items": []}                # rows of things belong to areas that keep them (House)
     guess_card.make_new(session, guess)
     kind_label = spec.kind_label(document.paper_kind) if document.paper_kind else spec.label
     final = guess_card.approved(guess, kind_label=kind_label, received=document.created_at, by=by)
     item.guess_json = json.dumps(final, ensure_ascii=False)
     session.add(item)
+    paper_filing.file_under(session, document, final)
     session.commit()
+    from app.services.paper_search import after_filing
+    after_filing(session, document)                   # found by its new name, old name and tags (never raises)
 
 
 def _make_new_types(session: Session, document: Document, category_value: str, paper_kind: Optional[str],

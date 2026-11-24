@@ -5,5 +5,5 @@ from app.models.category import Category
 from app.ui.paper_pages import paper_pages
 
 router = paper_pages(Category.EDUCATION, "/education", lambda session: {"groups": papers_by_student(session)},
-                     "education/landing.html", upload_note="Leave the details empty and the Hub reads them from the "
+                     "education/landing.html", by_who=True, upload_note="Leave the details empty and the Hub reads them from the "
                      "paper. A date to act on and a fee's due date become To-Dos and show in Coming up.")

@@ -11,6 +11,15 @@ from app.categories.insurance.overview import insurance_overview_card
 from app.models.category import Category
 from app.privacy.tiers import Tier
 
+def _policy_name_parts(session, document) -> dict:
+    """A policy paper by its insurer, product and part, about what it covers (PLAN step 12e)."""
+    from app.categories.fields import load_fields
+    f = load_fields(document)
+    part = dict(POLICY_PARTS).get(f.get("part", ""), "")
+    what = " ".join(dict.fromkeys(filter(None, [f.get("insurer", ""), f.get("product", ""), part])))
+    return {"paper_date": "", "what": what, "who": f.get("insured", "")}
+
+
 SPEC = CategorySpec(
     category=Category.INSURANCE,
     label="Insurance",
@@ -20,6 +29,7 @@ SPEC = CategorySpec(
         "for money: it is a bill, filed under Bills and shown on its policy."
     ),
     home_url="/insurance",
+    name_parts=_policy_name_parts,
     kinds=(
         KindSpec(InsuranceKind.POLICY.value, "Policy",
                      "A policy's own paper: general or particular conditions, schedule, summary, payment plan or "

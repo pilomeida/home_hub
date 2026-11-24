@@ -62,6 +62,7 @@ def added_area(area: PaperType, kinds: Iterable[PaperType]) -> CategorySpec:
         nav_links=(NavLink(area.label, url),), overview_card=_overview(category, area.label),
         document_url=lambda document, url=url: f"{url}/documents/{document.id}",
         dated_by=dated_by_fields("paper_date"),
+        from_guess={"title": "what", "paper_date": "paper_date", "about": "who"},
     )
 
 

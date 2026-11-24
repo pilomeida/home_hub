@@ -1,0 +1,2 @@
+{# The Who chip's note (PLAN step 10i): what this page shows when one person is chosen. #}
+{% if person %}<p class="whonote">Showing what is about <b>{{ person.name }}</b>. <a href="/who?back={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}">Show everyone</a></p>{% endif %}

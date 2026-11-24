@@ -85,6 +85,6 @@ def test_a_feed_line_shows_that_it_came_from_the_bank_not_a_broken_file_link(cli
     line = _line(session, feed, "GALP MAFRA")
     assert file_url(feed) is None
     card = line_card(session, line)
-    assert "From the bank feed" in card and "/static/documents/" not in card
+    assert "From the bank feed" in card and f"/documents/{feed.id}/file" not in card
     page = client.get(f"/financials/bills/{feed.id}", headers={"Accept": "text/html"}).text
     assert "bank feed's statement" in page and f"/documents/{feed.id}/edit" not in page

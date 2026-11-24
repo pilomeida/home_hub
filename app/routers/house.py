@@ -91,13 +91,20 @@ def _detail_context(session: Session, document: Document, values: dict, errors: 
 
 
 @router.get("")
-async def house_landing(request: Request, group_by: str = "type", session: Session = Depends(get_session)):
+async def house_landing(request: Request, group_by: str = "type", room: str = "",
+                        session: Session = Depends(get_session)):
+    """Items by type or by room; `room` shows one room's items only (PLAN step 12d)."""
     if group_by not in ("type", "room"):
         group_by = "type"
     spec = get_spec(Category.HOUSE)
+    cards = build_item_cards(session)
+    rooms = sorted({c.room for c in cards if c.room}, key=str.lower)
+    room = next((r for r in rooms if normalize_entity_key(r) == normalize_entity_key(room)), "") if room else ""
+    if room:
+        cards = [c for c in cards if c.room == room]
     return templates.TemplateResponse(request, "house/landing.html", {
-        "group_by": group_by,
-        "sections": group_item_cards(build_item_cards(session), group_by),
+        "group_by": group_by, "rooms": rooms, "room": room,
+        "sections": group_item_cards(cards, group_by),
         "reference": reference_sections(session),
         "kind_label": spec.kind_label,
         "today": date.today(),

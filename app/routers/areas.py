@@ -62,9 +62,13 @@ async def area_landing(request: Request, value: str, session: Session = Depends(
                        "date": fields.get("paper_date") or "", "about": fields.get("about") or "",
                        "summary": fields.get("summary") or "", "kind": entry.document.paper_kind})
     papers.sort(key=lambda p: (p["date"] or p["document"].created_at.strftime("%Y-%m-%d")), reverse=True)
-    sections = [(k.label, [p for p in papers if p["kind"] == k.value]) for k in spec.kinds]
+    sections = [(t, ps) for t, ps in ((k.label, [p for p in papers if p["kind"] == k.value]) for k in spec.kinds) if ps]
+    from app.services import who
+    person = who.chosen(session, request.cookies.get(who.COOKIE))      # the Who chip (PLAN step 12d)
+    if person is not None:
+        sections = who.only(sections, who.document_ids(session, person.id))
     return templates.TemplateResponse(request, "areas/landing.html",
-                                      {"spec": spec, "sections": [(t, ps) for t, ps in sections if ps]})
+                                      {"spec": spec, "sections": sections, "person": person})
 
 
 @router.get("/{value}/documents/{document_id}")

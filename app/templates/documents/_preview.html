@@ -23,6 +23,7 @@
   </div>
   {% endif %}
   <figcaption class="pv-cap"><span class="pv-name">{{ pv.filename }}</span>
+    {% if pv.came_in_as %}<span class="pv-from">came in as {{ pv.came_in_as }}</span>{% endif %}
     {% if pv.kind %}<a href="{{ pv.file_url }}" target="_blank" rel="noopener">Open the file</a>{% endif %}</figcaption>
 </figure>
 {% endif %}

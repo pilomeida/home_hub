@@ -132,7 +132,7 @@ async def test_a_new_person_is_added_on_approval_and_items_stay_in_house(session
 async def test_a_refused_approval_creates_no_room_or_person(client, session):
     doc = await _waiting(session, AEG, Category.HOUSE, "warranty_invoice")
     response = client.post(f"/inbox/{doc.id}/approve", data={
-        "domain": "house", "category": "warranty_invoice",                            # the item name is missing
+        "domain": "house", "category": "maintenance_log",                             # the service date is missing
         "g_who": "Joana", "g_paper_date": "2024-03-14", "g_what": "Fatura", "g_tags": "",
         "g_item_name": ["Lamp"], "g_item_room": ["Garage"], "g_item_warranty": [""]})
     assert response.status_code == 422

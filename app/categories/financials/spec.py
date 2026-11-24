@@ -9,6 +9,7 @@ from app.categories.base import (
 )
 from app.categories.financials.ask import FINANCIALS_ASK_TOOLS
 from app.categories.financials.kinds import FinancialsKind
+from app.categories.financials.naming import money_name_parts
 from app.categories.financials.handler import (
     FinancialsHandler, read_bill, read_card_statement_document, read_loan_history, read_statement,
     read_statement_positions,
@@ -38,6 +39,7 @@ SPEC = CategorySpec(
     label="Financials",
     description="Money: bills and invoices to pay, and bank or card account statements.",
     home_url="/financials/bills",
+    name_parts=lambda session, document: money_name_parts(session, document),
     kinds=(
         KindSpec(
             FinancialsKind.BILL.value, "Bill / invoice",

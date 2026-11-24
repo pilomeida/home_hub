@@ -78,6 +78,21 @@ def view(session: Session, guess: Mapping, *, keeps_items: bool, kind_label: str
                      family=family, rooms=rooms)
 
 
+def field_values(guess: Mapping, from_guess: Mapping[str, str]) -> dict[str, str]:
+    """The kind's own fields the guess already answers (PLAN step 12d, `CategorySpec.from_guess`); empty ones left
+    out, so the card still asks them."""
+    items = [i for i in (guess.get("items") or []) if (i.get("name") or "").strip()]
+    rooms = {i.get("room") for i in items if i.get("room")}
+    parts = {
+        "who": guess.get("who") or "",
+        "paper_date": guess.get("paper_date") or "",
+        "what": guess.get("what") or "",
+        "item": items[0]["name"] if len(items) == 1 else (guess.get("what") or "" if items else ""),
+        "room": next(iter(rooms)) if len(rooms) == 1 else "",
+    }
+    return {key: parts.get(part, "") for key, part in from_guess.items() if parts.get(part, "")}
+
+
 def blank_row() -> ItemRow:
     return ItemRow(name="", room="", warranty_end="", new_room=False)
 

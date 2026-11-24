@@ -20,7 +20,7 @@ from app.categories.house.kinds import (
     ITEM_KINDS, ITEM_TYPE_KINDS, ITEM_PAGE_TYPE, HouseKind,
 )
 from app.categories.house.warranty import REMINDER_LEAD_DAYS, effective_warranty_expiry
-from app.models.document import Document, DocumentStatus
+from app.models.document import Document, DocumentStatus, PaperItem
 from app.models.category import Category
 from app.services.wiki_store import PageRef, find_page, normalize_entity_key
 
@@ -77,10 +77,43 @@ def _later(current: Optional[date], candidate: Optional[date]) -> Optional[date]
     return candidate if current is None or candidate > current else current
 
 
+def _listed_items(session: Session) -> dict[int, list[PaperItem]]:
+    by_document: dict[int, list[PaperItem]] = {}
+    for item in session.exec(select(PaperItem).order_by(PaperItem.id)):
+        by_document.setdefault(item.document_id, []).append(item)
+    return by_document
+
+
+def _add_listed(cards: dict[str, ItemCard], entry: SourceEntry, item: PaperItem) -> None:
+    """One card per item a paper lists (PLAN step 12d): an invoice of three appliances is on three cards."""
+    key = normalize_entity_key(item.name)
+    card = cards.setdefault(key, ItemCard(key=key, name=item.name))
+    card.documents.append(entry)
+    if item.room:
+        card.room = item.room
+    explicit = field_date(entry.fields, "warranty_expiry")
+    end = explicit or _day(item.warranty_end)
+    if end is not None and (card.warranty_expiry is None or end > card.warranty_expiry):
+        card.warranty_expiry, card.warranty_assumed = end, explicit is None
+
+
+def _day(value: Optional[str]) -> Optional[date]:
+    try:
+        return date.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
 def build_item_cards(session: Session) -> list[ItemCard]:
     cards: dict[str, ItemCard] = {}
+    listed = _listed_items(session)
     for entry in category_entries(session, Category.HOUSE):
         if entry.paper_kind not in ITEM_KINDS:
+            continue
+        document_id = entry.document.id if entry.document is not None else None
+        if document_id in listed:
+            for item in listed[document_id]:
+                _add_listed(cards, entry, item)
             continue
         fields = entry.fields
         name = (fields.get("item_name") or "").strip()

@@ -18,6 +18,7 @@ SPEC = CategorySpec(
         "(IUC) notices and proofs of payment, and workshop service invoices. Car insurance is under Insurance."
     ),
     home_url="/vehicles",
+    from_guess={"paper_date": "paper_date"},
     kinds=(
         KindSpec(_K.REGISTRATION.value, "Registration", "A car's registration: Documento Único Automóvel or livrete.",
                  suggested_tier=Tier.MID),

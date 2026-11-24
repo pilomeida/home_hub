@@ -13,6 +13,7 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.models.account import Account
+from app.models.document import Document
 from app.models.health import HealthEntry, HealthPerson
 from app.models.subject import Subject, SubjectKind
 from app.models.transaction import Transaction
@@ -53,7 +54,8 @@ def chosen(session: Session, cookie: Optional[str]) -> Optional[Person]:
 
 
 def document_ids(session: Session, person_id: int) -> set[int]:
-    """The papers the Hub links to this person (Health papers, and bank papers of their accounts)."""
+    """The papers the Hub links to this person: Health papers, bank papers of their accounts, and papers filed as
+    about them."""
     by_id = _subjects(session)
     out: set[int] = set()
     hp = {p.id: p for p in session.exec(select(HealthPerson)).all()}
@@ -63,10 +65,23 @@ def document_ids(session: Session, person_id: int) -> set[int]:
             p = hp[p.merged_into_id]
         if p is not None and _root(by_id, p.subject_id) == person_id:
             out.add(e.document_id)
+    for doc_id, sid in session.exec(select(Document.id, Document.who_subject_id)
+                                    .where(Document.who_subject_id.is_not(None))).all():
+        if _root(by_id, sid) == person_id:                   # filed under who it is about (PLAN step 12d)
+            out.add(doc_id)
     mine = [a.id for a in session.exec(select(Account)).all() if _root(by_id, a.owner_subject_id) == person_id]
     if mine:
         out |= set(session.exec(select(Transaction.document_id).where(Transaction.account_id.in_(mine))).all())
     return out
+
+
+def only(groups: list, ids: set[int]) -> list:
+    """A people page's groups (title, papers) with only the chosen person's papers; empty groups left out. A paper
+    is a tuple whose first part is the document, or anything with a `.document`."""
+    def doc(p):
+        return getattr(p, "document", None) or (p[0] if isinstance(p, tuple) else p.get("document"))
+    kept = [(title, [p for p in papers if doc(p) is not None and doc(p).id in ids]) for title, papers in groups]
+    return [(title, papers) for title, papers in kept if papers]
 
 
 def header(cookie: Optional[str]) -> tuple[list[Person], Optional[Person]]:
@@ -85,4 +100,4 @@ def safe_back(url: Optional[str]) -> str:
     return url if url and url.startswith("/") and not url.startswith("//") else "/"
 
 
-__all__ = ["COOKIE", "Person", "people", "chosen", "document_ids", "header", "safe_back"]
+__all__ = ["COOKIE", "Person", "people", "chosen", "document_ids", "only", "header", "safe_back"]

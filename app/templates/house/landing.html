@@ -5,6 +5,9 @@
 <div class="chips"><span class="sub">Group by</span>
   <a href="/house?group_by=type" class="chip{{ ' on active' if group_by == 'type' else '' }}">Type</a>
   <a href="/house?group_by=room" class="chip{{ ' on active' if group_by == 'room' else '' }}">Room</a></div>
+{% if rooms %}<div class="chips"><span class="sub">Room</span>
+  <a href="/house?group_by={{ group_by }}" class="chip{{ ' on' if not room else '' }}">All rooms</a>
+  {% for r in rooms %}<a href="/house?group_by={{ group_by }}&room={{ r|urlencode }}" class="chip{{ ' on' if r == room else '' }}">{{ r }}</a>{% endfor %}</div>{% endif %}
 
 {% for title, cards in sections %}
 <section class="card">

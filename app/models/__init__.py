@@ -6,7 +6,7 @@ from app.models.person import Person  # noqa: F401
 from app.models.commitment import Cadence, Commitment  # noqa: F401
 from app.models.debt import Debt, DebtDirection, DebtKind  # noqa: F401
 from app.models.merchant import Merchant  # noqa: F401
-from app.models.document import Document  # noqa: F401
+from app.models.document import Document, PaperItem  # noqa: F401
 from app.models.inbox_item import InboxItem, InboxSkip  # noqa: F401
 from app.models.transaction import Nature, StatementCheck, Transaction  # noqa: F401
 from app.models.record import Record  # noqa: F401

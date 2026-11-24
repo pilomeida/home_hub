@@ -52,7 +52,7 @@ def _guess_view(session: Session, entry, spec, real_kind: Optional[str], new_kin
     if guess_source is not None:
         guess = guess_card.from_form(session, guess_source, guess, keeps_items=True)
     if not guess:
-        return None
+        return None, {}
     if new_kind_value:
         kind_label = new_kind_value
     elif spec is not None:
@@ -60,7 +60,7 @@ def _guess_view(session: Session, entry, spec, real_kind: Optional[str], new_kin
     else:
         kind_label = "Paper"
     return guess_card.view(session, guess, keeps_items=bool(spec and spec.keeps_items), kind_label=kind_label,
-                           received=entry.document.created_at)
+                           received=entry.document.created_at), guess
 
 
 def _fields_context(session: Session, entry, category_value: Optional[str], paper_kind: Optional[str],
@@ -76,6 +76,11 @@ def _fields_context(session: Session, entry, category_value: Optional[str], pape
                           media_kind=media_kind_for(entry.document.filename))
         if spec is not None and (real_kind or spec.infers_kind) else []
     )
+    guess_view, guess = _guess_view(session, entry, spec, real_kind, values.get("new_kind", "") if new_kind else "",
+                                    guess_source)
+    if spec is not None and guess_view is not None:   # what the Hub read is not asked again (PLAN step 12d)
+        answered = guess_card.field_values(guess, spec.from_guess)
+        form_fields = [f for f in form_fields if f.spec.key not in answered]
     return {
         "entry": entry,
         "domains": implemented_categories(),
@@ -86,8 +91,7 @@ def _fields_context(session: Session, entry, category_value: Optional[str], pape
         "new_area_value": values.get("new_area", ""), "new_kind_value": values.get("new_kind", ""),
         "form_fields": form_fields,
         "errors": errors,
-        "guess": _guess_view(session, entry, spec, real_kind, values.get("new_kind", "") if new_kind else "",
-                             guess_source),
+        "guess": guess_view,
     }
 
 

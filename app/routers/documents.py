@@ -155,6 +155,22 @@ async def refile_record_route(request: Request, record_id: int, session: Session
     return RedirectResponse(_home_of(session, result), status_code=303)
 
 
+@router.get("/documents/{document_id}/file")
+def document_file(document_id: int, session: Session = Depends(get_session)):
+    """The paper's file, as received (Q4), shown in the browser; saved, it takes the name the paper goes by
+    (PLAN step 12d: `date · kind · what it is · who or item`)."""
+    from fastapi.responses import FileResponse
+    from app.ui.paper_preview import file_path
+    document = session.get(Document, document_id)
+    path = file_path(document) if document is not None else None
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail={
+            "what": "No file.", "why": "This paper's file is not on the server.",
+            "next_step": "Add the paper again with “+ Add a paper”; what the Hub read stays as it is."})
+    return FileResponse(path, filename=document.filename, content_disposition_type="inline",
+                        headers={"Cache-Control": "private, max-age=3600"})
+
+
 @router.get("/documents/{document_id}/preview.png")
 def document_preview(document_id: int, session: Session = Depends(get_session)):
     """The first page of a filed paper as a small picture (PLAN step 11c), drawn on the server and cached. A 404

@@ -2,7 +2,7 @@
 {% block title %}{% if q %}{{ q }} — {% endif %}Papers{% endblock %}
 {% block content %}
 <div class="hh"><h1>Papers</h1><a class="btn pri" href="/inbox">+ Add a paper</a></div>
-{% if person %}<p class="whonote">Showing what is about <b>{{ person.name }}</b>. <a href="/who?back={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}">Show everyone</a></p>{% endif %}
+{% include "_whonote.html" %}
 <form action="/papers" method="get" class="field" role="search">
   {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
   <input type="search" name="q" value="{{ q }}" placeholder="Any word printed on a paper" aria-label="Search papers">

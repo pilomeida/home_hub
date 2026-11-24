@@ -30,6 +30,7 @@ class PaperView:
     kind: Optional[str]
     preview_url: Optional[str]
     problem: Optional[dict]
+    came_in_as: Optional[str] = None          # the name it arrived with, once renamed (PLAN step 12d)
 
 
 def _no_preview(why: str, next_step: str) -> dict:
@@ -51,7 +52,8 @@ def paper_view(document: Optional[Document]) -> Optional[PaperView]:
         return None
     url = file_url(document)
     path = file_path(document)
-    base = dict(document_id=document.id, filename=document.filename, file_url=url)
+    base = dict(document_id=document.id, filename=document.filename, file_url=url,
+                came_in_as=document.original_filename)
     if path is None or not path.is_file():
         return PaperView(**base, kind=None, preview_url=None, problem=_no_preview(
             "The paper's file is not on the server, so there is nothing to show.",

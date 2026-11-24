@@ -42,7 +42,8 @@ USE_TABLES = frozenset({
 # Links that only say what happened once (logs, a skipped duplicate, the Inbox card a paper waited on): not uses.
 # `paper_texts` is the paper's own text (PLAN step 1): part of the paper, not a use of it; search shows only filed papers.
 # `paper_types` names the paper whose approval created an area or kind (PLAN step 12a): where it came from, not a use.
-HISTORY_TABLES = frozenset({"inbox_items", "inbox_skips", "wiki_log", "paper_texts", "paper_types"})
+# `paper_items` are the items a paper lists (PLAN step 12d): part of the paper, shown only while it is filed.
+HISTORY_TABLES = frozenset({"inbox_items", "inbox_skips", "wiki_log", "paper_texts", "paper_types", "paper_items"})
 
 
 @dataclass(frozen=True)

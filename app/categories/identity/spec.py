@@ -17,6 +17,7 @@ SPEC = CategorySpec(
         "residence permit or certificate, and wills."
     ),
     home_url="/identity",
+    from_guess={"holder": "who"},
     kinds=(
         KindSpec(IdentityKind.ID_CARD.value, "ID card", "A national identity card (Cartão de Cidadão, BI).", reminder=RENEWAL),
         KindSpec(IdentityKind.PASSPORT.value, "Passport", "A passport, any country.", reminder=RENEWAL),

@@ -7,5 +7,5 @@ from app.models.category import Category
 from app.ui.paper_pages import paper_pages
 
 router = paper_pages(Category.IDENTITY, "/identity", lambda session: {"groups": papers_by_holder(session, date.today())},
-                     "identity/landing.html", upload_note="Leave the details empty and the Hub reads them from the "
+                     "identity/landing.html", by_who=True, upload_note="Leave the details empty and the Hub reads them from the "
                      "paper. Only the private route reads these papers.")

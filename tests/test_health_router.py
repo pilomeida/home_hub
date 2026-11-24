@@ -23,7 +23,7 @@ def test_the_filters_work_through_the_url(client, session):
 def test_the_detail_page_shows_each_value_beside_the_original(client, session):
     doc = _paper(session, "Maria Santos Almeida", date(2026, 3, 12), "test", ["Eyes"], name="eye.pdf")
     html = client.get(f"/health/documents/{doc.id}").text
-    assert "LDL" in html and f"/static/documents/" in html
+    assert "LDL" in html and f"/documents/{doc.id}/file" in html
 
 
 def test_a_non_health_document_is_a_404(client, session):

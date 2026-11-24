@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Mapping, Optional
 
 from sqlmodel import Session
 
@@ -274,6 +274,14 @@ class CategorySpec:
     dated_by: Optional[DatedBy] = None                # how its papers are dated, unless the kind says otherwise
     # True: a paper here can list physical things, one row each with a room and a warranty end (PLAN step 12c: House)
     keeps_items: bool = False
+    # The kind's own fields that repeat what the Hub read (PLAN step 12d): field key -> part of the approved guess
+    # ("who", "paper_date", "what", "item": the one item or what it is, "room": the items' one room). The Inbox
+    # card fills them from the guess instead of asking again.
+    from_guess: Mapping[str, str] = field(default_factory=dict)
+    # How a filed paper is named from what this area already holds of it (PLAN step 12e): (session, document) ->
+    # {"paper_date", "what", "who"}, any of them empty. None: from its fields, by `from_guess` (app/services/
+    # paper_names.py known_parts).
+    name_parts: Optional[Callable[[Session, Document], dict]] = None
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.kinds]

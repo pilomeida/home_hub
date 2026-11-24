@@ -92,7 +92,7 @@ def test_describe_document_uses_registry_labels(session, fake_category):
     assert description.kind_label == "Manual"
     assert description.fields == [("Item", "Boiler"), ("Seen on", "2026-01-02")]
     assert description.url == f"/fake/documents/{document.id}"
-    assert description.file_url == "/static/documents/abc.pdf"
+    assert description.file_url == f"/documents/{document.id}/file"
 
 
 def test_build_form_fields_carries_options_values_and_errors(session, fake_category):

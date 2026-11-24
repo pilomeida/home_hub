@@ -648,6 +648,7 @@ main h1 + p, .page-h + p { color: var(--muted); max-width: 80ch; }
 .pv-problem { margin: 0; font-size: .9em; }
 .pv-cap { display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; font-size: var(--fs-small); color: var(--muted);
   margin-top: .5rem; } .pv-name { overflow-wrap: anywhere; }
+.pv-from { color: var(--muted); font-size: .85em; overflow-wrap: anywhere; }
 .inbox-card.has-pv { display: grid; grid-template-columns: minmax(0, 1fr) clamp(9rem, 14vw, 12rem); gap: 1.25rem; align-items: start; }
 .inbox-card .pv { padding: 0; background: none; } .inbox-card .pv-thumb img { max-height: 15rem; }
 /* the viewer */

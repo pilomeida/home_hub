@@ -20,6 +20,18 @@ _GUIDANCE = (
 # A health paper, once read, is its Health record and its facts in the wiki (the calendar entry goes with the record).
 _HEALTH_FILES = frozenset({FiledAs.HEALTH, FiledAs.WIKI})
 
+def _health_name_parts(session, document) -> dict:
+    """A health paper by its provider, about its person (PLAN step 12e)."""
+    from sqlmodel import select
+    from app.models.health import HealthEntry, HealthPerson
+    entry = session.exec(select(HealthEntry).where(HealthEntry.document_id == document.id)).first()
+    if entry is None:
+        return {}
+    person = session.get(HealthPerson, entry.person_id) if entry.person_id else None
+    return {"paper_date": entry.entry_date.isoformat() if entry.entry_date else "", "what": entry.provider or "",
+            "who": person.name if person is not None else ""}
+
+
 SPEC = CategorySpec(
     category=Category.HEALTH,
     forced_tier=Tier.HIGH,          # nothing about Health may ever be read below High (decision D19)
@@ -30,6 +42,7 @@ SPEC = CategorySpec(
         "prescriptions, referrals, vaccination records and appointment letters."
     ),
     home_url="/health/records",
+    name_parts=_health_name_parts,
     kinds=(
         KindSpec(HealthKind.LAB_RESULT.value, "Lab result", "Blood, urine or other laboratory results.", files_as=_HEALTH_FILES),
         KindSpec(HealthKind.IMAGING_REPORT.value, "Imaging report",

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; slice 12b landed 2026-11-23 and the 69 waiting papers carry the new guess (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again); slice 12c (the Inbox card: "What the Hub read", item rows, New badges, approval creates what is new) landed 2026-11-24; 12d (filing and finding) is next. Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; slice 12b landed 2026-11-23 and the 69 waiting papers carry the new guess (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again); slice 12c (the Inbox card: "What the Hub read", item rows, New badges, approval creates what is new) landed 2026-11-24; 12d (filing and finding) and 12e (rename what is in) are built and tested 2026-11-24 and being deployed; then 12e runs on the live Hub. Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -154,12 +154,37 @@ Slices (Claude, 2026-11-23):
 - **12d Filing and finding:** approval files under the new name, one card per item, tags stored; House filters by room,
   every people page by who; the kind's own fields that repeat what the Hub read (House's Item, Room and dates;
   Education's Who and date) are filled from the approved guess instead of asked again (seen on the 12c card,
-  2026-11-24); checked live on the AEG invoice and the Católica diploma (guess only; Pedro approves).
+  2026-11-24); checked live on the AEG invoice and the Católica diploma (guess only; Pedro approves). ◐ built 2026-11-24, full suite green (3,007 tests); deploying
+  (Pedro: "Let's 12d - and subsequent steps till the end; we check stuff later"). How (Claude, 2026-11-24):
+  - The paper goes by its new name everywhere, downloads included: `documents.filename` becomes the filed name plus
+    the file's own ending, the name it came in with is kept in `original_filename` and shown as "came in as" under
+    the preview (one formatter, W2; the file's bytes and place on disk never change, Q4). Files are served from
+    `/documents/{id}/file` so saving one gives the paper's name. Recognition still reads the name it came in with.
+  - Tags (`tags_json`) and who it is about (`who_subject_id`, a person subject, S5) are stored on the paper; search
+    finds it by its new name, its old name and its tags.
+  - Each item a paper lists is a row of `paper_items` (name, room, warranty end) and a thing subject (S5); House
+    shows one card per item, an invoice of three appliances on three cards; House filters by room (chips).
+  - The Who chip (step 10i) now counts papers filed as about a person: Papers, Coming up, Waiting and Ask follow it,
+    and so do Education, Identity & Legal and every added area.
+  - A kind's own fields that repeat the guess are declared once per area (`CategorySpec.from_guess`: House's Item,
+    Room and purchase date; Education's Who and date; Identity's holder; an added area's title, date and about;
+    Vehicles' and Pets' date). The card leaves them out when the guess answers them and approval fills them from it;
+    a field the guess cannot answer is still asked.
 - **12e Rename what is already in:** the 273 papers on the live Hub (2026-11-23: 184 Money, 70 waiting in the Inbox,
   16 Insurance, 3 Health) get names by the same rule. A name is built from what the Hub already knows of the paper;
   the AI reads it only where that is not enough, through the privacy gate (D16). W1: backup, a dry run whose list of
   old → new names is read (a sample shown to Pedro), apply, verify, a second run changes nothing. The 70 Inbox papers
-  get theirs from 12b's new guess.
+  get theirs from 12b's new guess. ◐ built 2026-11-24 with 12d; the live run follows the deploy (Pedro: "… and subsequent steps till the end"). How (Claude, 2026-11-24):
+  - Each area says once how its papers are named from what it already holds (`CategorySpec.name_parts`, S3): a bill
+    by its provider and period and its issue date; a statement by its bank and month, dated by its last line, about
+    its account's owner; a policy by insurer, product and part, about what it covers; a Health paper by its
+    provider, about its person. Other areas use their own fields (`from_guess`).
+  - Only where nothing says what the paper is (live: 27 Vodafone call details, a photo, a Via Verde detail, the loan
+    printouts) the AI reads the paper's stored text, at the paper's own level like search's Paper text job (D16), and
+    code checks its answer (Q1: a few words and a real date, or nothing). A paper still unnamed keeps its name.
+  - `scripts/rename_filed_papers.py` (W1): backup, dry run (old -> new for every paper), a few, all, a second run
+    changes nothing; papers renamed on approval (12d) are left as they are. The 69 Inbox papers get their names when
+    approved.
 
 ---
 

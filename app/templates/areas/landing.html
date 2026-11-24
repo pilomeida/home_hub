@@ -2,6 +2,7 @@
 {% block title %}{{ spec.label }}{% endblock %}
 {% block content %}
 <h1>{{ spec.label }}</h1>
+{% include "_whonote.html" %}
 <p>{{ spec.description }} Find a paper by any word in it with the search box at the top.</p>
 <p><a href="/inbox/add">+ Add a paper</a></p>
 {% for title, papers in sections %}
