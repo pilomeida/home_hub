@@ -176,9 +176,13 @@ Slices (Claude, 2026-11-23):
   old → new names is read (a sample shown to Pedro), apply, verify, a second run changes nothing. The 70 Inbox papers
   get theirs from 12b's new guess. ◐ built 2026-11-24 with 12d; the live run follows the deploy (Pedro: "… and subsequent steps till the end"). How (Claude, 2026-11-24):
   - Each area says once how its papers are named from what it already holds (`CategorySpec.name_parts`, S3): a bill
-    by its provider and period and its issue date; a statement by its bank and month, dated by its last line, about
+    by its provider and period and its issue date; a statement by its account ("Santander Credit Card (Rute)") and month, dated by its last line, about
     its account's owner; a policy by insurer, product and part, about what it covers; a Health paper by its
     provider, about its person. Other areas use their own fields (`from_guess`).
+  - Names stay short (Claude, 2026-11-24, per W2, after reading the live dry run): a company or product is named
+    before its first ", " or " - " and without its legal ending ("MetLife Europe", not "MetLife Europe d.a.c. -
+    Sucursal em Portugal"); an insurer already in the product's name is not said twice; a Health person who is
+    family goes by their name ("Pedro"), as the guess matches who (S5); a long note in brackets is left out of who.
   - Only where nothing says what the paper is (live: 27 Vodafone call details, a photo, a Via Verde detail, the loan
     printouts) the AI reads the paper's stored text, at the paper's own level like search's Paper text job (D16), and
     code checks its answer (Q1: a few words and a real date, or nothing). A paper still unnamed keeps its name.

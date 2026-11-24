@@ -27,9 +27,11 @@ def _health_name_parts(session, document) -> dict:
     entry = session.exec(select(HealthEntry).where(HealthEntry.document_id == document.id)).first()
     if entry is None:
         return {}
+    from app.services.paper_names import short_party
+    from app.services.household import family_name
     person = session.get(HealthPerson, entry.person_id) if entry.person_id else None
-    return {"paper_date": entry.entry_date.isoformat() if entry.entry_date else "", "what": entry.provider or "",
-            "who": person.name if person is not None else ""}
+    return {"paper_date": entry.entry_date.isoformat() if entry.entry_date else "", "what": short_party(entry.provider),
+            "who": family_name(session, person.name) if person is not None else ""}
 
 
 SPEC = CategorySpec(

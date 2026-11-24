@@ -40,6 +40,12 @@ def family(session: Session) -> list[Subject]:
                                                    Subject.merged_into_id.is_(None)).order_by(Subject.id)).all())
 
 
+def family_name(session: Session, name: Optional[str]) -> str:
+    """The family member a name is (by full name or first name, as the guess matches who), else the name as given."""
+    from app.services.category_classifier import _match
+    return _match(name, [s.name for s in family(session)]) or (name or "")
+
+
 def rooms(session: Session) -> list[Subject]:
     return list(session.exec(select(Subject).where(Subject.kind == SubjectKind.ROOM, Subject.merged_into_id.is_(None))
                              .order_by(Subject.id)).all())

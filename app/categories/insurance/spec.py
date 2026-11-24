@@ -15,9 +15,14 @@ def _policy_name_parts(session, document) -> dict:
     """A policy paper by its insurer, product and part, about what it covers (PLAN step 12e)."""
     from app.categories.fields import load_fields
     f = load_fields(document)
+    from app.services.names import fold
+    from app.services.paper_names import short_party, short_who
     part = dict(POLICY_PARTS).get(f.get("part", ""), "")
-    what = " ".join(dict.fromkeys(filter(None, [f.get("insurer", ""), f.get("product", ""), part])))
-    return {"paper_date": "", "what": what, "who": f.get("insured", "")}
+    insurer, product = short_party(f.get("insurer")), short_party(f.get("product"))
+    if insurer and fold(product).startswith(fold(insurer)):
+        insurer = ""                                       # "Zurich Lar Seguro" already says Zurich
+    what = " ".join(dict.fromkeys(filter(None, [insurer, product, part])))
+    return {"paper_date": "", "what": what, "who": short_who(f.get("insured"))}
 
 
 SPEC = CategorySpec(

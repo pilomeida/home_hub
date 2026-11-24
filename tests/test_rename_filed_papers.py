@@ -83,7 +83,7 @@ async def test_done_when_every_kind_of_paper_gets_its_name_and_a_second_run_chan
     session.expire_all()
     name = lambda key: session.get(Document, hub[key].id).filename                    # noqa: E731
     assert name("bill") == "2026-09-25 · Bill invoice · amigo (Vodafone Portugal) 2026-09.pdf"
-    assert name("statement") == "2025-03-31 · Bank statement · Revolut Bank UAB 2025-03 · Pedro.pdf"
+    assert name("statement") == "2025-03-31 · Bank statement · Revolut Current Account 2025-03 · Pedro.pdf"
     assert name("policy").endswith(" · Policy · Zurich Lar Seguro General conditions · Mafra house.pdf")
     assert name("detail") == "2026-06-23 · Bill invoice · Fatura Vodafone detalhe de chamadas.pdf"
     assert name("health") == "2026-03-12 · Lab result · Unilabs · Maria Santos.pdf"
@@ -128,3 +128,26 @@ async def test_what_the_ai_says_is_checked_by_code(session, hub):
     assert first["paper_date"] == "" and first["what"].startswith("Fatura x") and len(first["what"]) <= 120
     assert await paper_filing.ai_parts(session, hub["detail"], gateway) == {"what": "", "paper_date": ""}
     assert await paper_filing.ai_parts(session, hub["detail"], gateway) == {"what": "", "paper_date": ""}
+
+
+def test_a_company_is_named_short_and_a_family_member_by_their_name():
+    from app.services.paper_names import short_party, short_who
+    assert short_party("MetLife Europe d.a.c. - Sucursal em Portugal") == "MetLife Europe"
+    assert short_party("Ligat Telecom, Soc.Unip., Lda.") == "Ligat Telecom"
+    assert short_party("Fidelidade - Companhia de Seguros, S.A.") == "Fidelidade"
+    assert short_party("amigo (Vodafone Portugal)") == "amigo (Vodafone Portugal)"
+    assert short_who("Pedro and Rute (both insured death and total or permanent disability)") == "Pedro and Rute"
+    assert short_who("Toyota Avensis (82-CL-65)") == "Toyota Avensis (82-CL-65)"
+
+
+@pytest.mark.asyncio
+async def test_the_insurer_is_not_said_twice_and_a_health_paper_names_the_family_member(session, hub):
+    from app.services import paper_filing
+    hub["policy"].fields_json = json.dumps({"insurer": "Zurich", "product": "Zurich Lar Seguro",
+                                            "part": "general_conditions", "insured": "Mafra house"})
+    person = session.get(HealthPerson, session.exec(__import__("sqlmodel").select(HealthEntry)).first().person_id)
+    person.name = "Pedro Nuno dos Santos Almeida"
+    session.add_all([hub["policy"], person])
+    session.commit()
+    assert paper_filing.known_parts(session, hub["policy"])["what"] == "Zurich Lar Seguro General conditions"
+    assert paper_filing.known_parts(session, hub["health"])["who"] == "Pedro"

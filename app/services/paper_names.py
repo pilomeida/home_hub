@@ -55,6 +55,28 @@ def _cut(text: str, room: int) -> str:
     return cut[:room].rstrip(" ,;-—–")
 
 
+_LEGAL = re.compile(r"\s+(s\.?a\.?|lda\.?|d\.a\.c\.?|e\.p\.e\.?|soc\.?\s?unip\.?|unipessoal|ltd\.?|plc|gmbh)$", re.I)
+_LONG_NOTE = re.compile(r"\s*\([^)]{21,}\)?")
+
+
+def short_party(name: Optional[str]) -> str:
+    """A company or product as a name says it (PLAN step 12e): before the first ", " or " - ", without its legal
+    ending. "MetLife Europe d.a.c. - Sucursal em Portugal" -> "MetLife Europe"; "Ligat Telecom, Soc.Unip., Lda."
+    -> "Ligat Telecom"."""
+    text = " ".join((name or "").split())
+    text = re.split(r",\s|\s[-–—]\s", text, maxsplit=1)[0]
+    while True:
+        shorter = _LEGAL.sub("", text).rstrip(" ,.-")
+        if shorter == text or not shorter:
+            return text
+        text = shorter
+
+
+def short_who(name: Optional[str]) -> str:
+    """Who a name is about without a long note in brackets ("Pedro and Rute (both insured ...)" -> "Pedro and
+    Rute"); a short one, such as a car's plate, stays."""
+    return " ".join(_LONG_NOTE.sub("", name or "").split())
+
 
 def name_for_guess(guess: dict, kind_label: str, received: datetime | date) -> str:
     """The filed name a guess points to: the person if the paper is about one, else its one item, else nothing."""

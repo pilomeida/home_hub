@@ -1,5 +1,5 @@
 """How a Money paper is named from what the Hub already read of it (PLAN step 12e): a bill by its provider and
-period, a statement by its bank and month, both dated by the paper; a statement's owner is who it is about."""
+period, a statement by its account and month, both dated by the paper; a statement's owner is who it is about."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from app.models.account import Account
 from app.models.document import Document
 from app.models.subject import Subject
 from app.models.transaction import Transaction
+from app.services.paper_names import short_party
 
 
 def _owner(session: Session, account: Optional[Account]) -> str:
@@ -31,9 +32,9 @@ def money_name_parts(session: Session, document: Document) -> dict:
         bill = lines[0]
         when = bill.issue_date or bill.due_date
         return {"paper_date": when.isoformat() if when else "",
-                "what": " ".join(filter(None, [bill.description, bill.statement_period])), "who": ""}
+                "what": " ".join(filter(None, [short_party(bill.description), bill.statement_period])), "who": ""}
     issued = load_fields(document).get("issued") or ""
     days = [d for d in (t.paid_date or t.issue_date for t in lines) if d is not None]
     last = issued or (max(days).isoformat() if days else "")
-    what = " ".join(filter(None, [account.institution if account else "", last[:7]])) if account else ""
+    what = " ".join(filter(None, [short_party(account.name or account.institution), last[:7]])) if account else ""
     return {"paper_date": last, "what": what, "who": _owner(session, account)}
