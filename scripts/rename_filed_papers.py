@@ -7,6 +7,8 @@ Run on the VPS, from the app folder, as the app's user (back up the database fir
     python scripts/rename_filed_papers.py                    dry run: old -> new for every paper; no AI call
     python scripts/rename_filed_papers.py --apply --limit 5  renames the first 5
     python scripts/rename_filed_papers.py --apply            all of them (the AI only for those marked "AI")
+    python scripts/rename_filed_papers.py --redate [--apply] names dated by the day they arrived take a date
+                                                             written in the name they came in with
 A paper renamed before (by this script or on approval) is left as it is, so a second run changes nothing. A paper
 for which no "what it is" can be found keeps its name, and is listed."""
 
@@ -51,6 +53,7 @@ async def run(session: Session, *, apply: bool, limit: int | None, gateway=None)
                     counts["waiting_for_level"] += 1
                     print(f"#{document.id} {document.filename}: kept (its kind has no privacy level yet)")
                     continue
+        parts["paper_date"] = parts.get("paper_date") or paper_filing.date_in_name(document)
         if apply and not (parts.get("what") or "").strip():
             counts["kept"] += 1
             print(f"#{document.id} {document.filename}: kept (nothing says what it is)")
@@ -72,12 +75,39 @@ async def run(session: Session, *, apply: bool, limit: int | None, gateway=None)
     return counts
 
 
+def redate(session: Session, *, apply: bool) -> int:
+    """Papers renamed before a date in their old name was read (2026-11-24): a name dated by the day the paper
+    arrived takes the date written in the name it came in with, where there is one. Prints old -> new."""
+    from app.services.paper_search import index_document
+    changed = 0
+    for document in session.exec(select(Document).where(Document.original_filename.is_not(None)).order_by(Document.id)):
+        arrived = document.created_at.strftime("%Y-%m-%d")
+        day = paper_filing.date_in_name(document)
+        if not document.filename.startswith(arrived) or not day or day == arrived:
+            continue
+        new = day + document.filename[len(arrived):]
+        print(f"#{document.id} {document.filename} -> {new}")
+        changed += 1
+        if apply:
+            document.filename = new
+            session.add(document)
+            session.commit()
+            index_document(session, document)
+    return changed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--redate", action="store_true", help="re-date names dated by the day the paper arrived")
     args = parser.parse_args()
     from app.db import engine
+    if args.redate:
+        with Session(engine) as session:
+            n = redate(session, apply=args.apply)
+        print(f"{'re-dated' if args.apply else 'would re-date'} {n} paper(s)")
+        return
     with Session(engine) as session:
         counts = asyncio.run(run(session, apply=args.apply, limit=args.limit))
     if args.apply:

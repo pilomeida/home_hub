@@ -152,3 +152,29 @@ async def test_the_insurer_is_not_said_twice_and_a_health_paper_names_the_family
     session.commit()
     assert paper_filing.known_parts(session, hub["policy"])["what"] == "Zurich Lar Seguro General conditions"
     assert paper_filing.known_parts(session, hub["health"])["who"] == "Pedro"
+
+
+def test_a_date_in_the_name_it_came_in_with_comes_before_the_day_it_arrived(session):
+    from app.services import paper_filing
+    doc = lambda name: Document(filename="x", original_filename=name, file_path="/x", content_hash=name,   # noqa: E731
+                                source=DocumentSource.EMAIL)
+    assert paper_filing.date_in_name(doc("detalhe_fatura_20250723.pdf")) == "2025-07-23"
+    assert paper_filing.date_in_name(doc("plano_pagamentos_3000310113_(02_08_2026).pdf")) == "2026-08-02"
+    assert paper_filing.date_in_name(doc("MetLife 3420174447 - condicoes (2023-07-25).pdf")) == "2023-07-25"
+    assert paper_filing.date_in_name(doc("EXTCON202212000356157688020.pdf")) == ""       # an account number: no day
+    assert paper_filing.date_in_name(doc("CGAP3000310040.pdf")) == ""
+
+
+@pytest.mark.asyncio
+async def test_redate_fixes_a_name_dated_by_the_day_it_arrived_and_a_second_run_changes_none(session, hub):
+    from datetime import datetime
+    detail = hub["detail"]
+    detail.created_at = datetime(2026, 9, 28, 10, 0)
+    detail.original_filename, detail.filename = detail.filename, "2026-09-28 · Bill invoice · Fatura amigo.pdf"
+    session.add(detail)
+    session.commit()
+    assert script.redate(session, apply=False) == 1
+    assert session.get(Document, detail.id).filename.startswith("2026-09-28")
+    assert script.redate(session, apply=True) == 1
+    assert session.get(Document, detail.id).filename == "2026-06-23 · Bill invoice · Fatura amigo.pdf"
+    assert script.redate(session, apply=True) == 0

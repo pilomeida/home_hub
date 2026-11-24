@@ -7,6 +7,7 @@ only the name changes, never the bytes or the place on disk. Who and the items a
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Mapping, Optional
 
@@ -89,6 +90,23 @@ def known_parts(session: Session, document: Document) -> dict:
         day = spec.paper_date(session, document)
         parts["paper_date"] = day.isoformat() if day else ""
     return parts
+
+
+_NAME_DAYS = (re.compile(r"(?<!\d)(\d{4})-?(\d{2})-?(\d{2})(?!\d)"),                # 20250723, 2023-07-25
+              re.compile(r"(?<!\d)(\d{2})[_.-](\d{2})[_.-](\d{4})(?!\d)"))          # 02_08_2026 (day first)
+
+
+def date_in_name(document: Document) -> str:
+    """A date written in the name the paper came in with ("detalhe_fatura_20250723.pdf"), checked as a real day
+    (Q1), else "". It comes after the paper's own date and before the day it arrived."""
+    name = document.original_filename or document.filename or ""
+    for n, pattern in enumerate(_NAME_DAYS):
+        for match in pattern.finditer(name):
+            y, m, d = match.groups() if n == 0 else reversed(match.groups())
+            day = _real_day(f"{y}-{m}-{d}")
+            if day:
+                return day
+    return ""
 
 
 def name_from(session: Session, document: Document, parts: Mapping) -> str:
