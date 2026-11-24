@@ -65,7 +65,8 @@ orange: `class="pri"` on a `<button>`, or `.btn.pri` on a link. One orange per f
 stays white. Something that destroys: `class="danger"` (red outline). Links styled as buttons: `.btn`.
 
 **Tag / chip** `.chip` (and `.badge`, the same look): a small pill naming a kind or area. States: `.chip.ok`,
-`.chip.warn`, `.chip.bad`, `.chip.on` (chosen filter, dark). Filters above a list: `.chips` of `a.chip`, or a
+`.chip.warn`, `.chip.bad`, `.chip.on` (chosen filter, dark), `.chip.new` (orange outline: something the Hub suggests
+that does not exist yet and is created on approval: an area, kind, room or person; step 12c). Filters above a list: `.chips` of `a.chip`, or a
 `nav.subnav` of links (the current one `.active`).
 
 **Messages** (the Messages rule in `CLAUDE.md`: what didn't happen, why, what to do): `.msg` with `.what`, `.why`,
@@ -78,6 +79,10 @@ one, the button that makes something (`.empty .btn`).
 **Charts:** the one chart component (`app/ui/charts.py`, `.chart`), on Pedro's scale rule; never a second chart style.
 
 **Paper preview** (step 11c): see section 4.
+
+**What the Hub read** (step 12c) `fieldset.guess` on the Inbox card and the light card (one partial,
+`inbox/_guess.html`): who, date, what it is, tags, and for House papers a `table.tbl.guess-items` of item rows (name,
+room, warranty end, Remove) with "+ Add an item"; a value not on the family or room list carries `.chip.new`.
 
 ## 4. A paper and what the Hub read (step 11c)
 

@@ -39,7 +39,7 @@ class CategorySuggestion:
 MAX_ITEMS, MAX_TAGS = 20, 10
 
 # No stricter than the prompt and the parser (.get with defaults for every field; nothing is indexed directly):
-# the code check (_checked_guess) decides what is kept.
+# the code check (checked_guess) decides what is kept.
 _CATEGORY_SCHEMA = {
     "type": "object",
     "properties": {
@@ -145,7 +145,7 @@ def _match(value: Optional[str], names: Sequence[str]) -> Optional[str]:
     return None
 
 
-def _checked_guess(data: dict, family: Sequence[str], rooms: Sequence[str]) -> dict:
+def checked_guess(data: dict, family: Sequence[str], rooms: Sequence[str]) -> dict:
     """Keep only what can be trusted (Q1): real dates, bounded lists, people and rooms matched to the lists."""
     who = _text(data.get("who"), 80)
     family_name = _match(who, family)
@@ -212,7 +212,7 @@ async def suggest_category_and_kind(
         kind_value = data.get("category") or None
         confidence = min(max(float(data.get("confidence") or 0.0), 0.0), 1.0)
         reason = str(data.get("reason") or "")
-        guess = _checked_guess(data, family, rooms)
+        guess = checked_guess(data, family, rooms)
     except (IndexError, AttributeError, json.JSONDecodeError, TypeError, ValueError) as exc:
         raise CategoryClassificationError(f"Could not parse classifier response: {exc}") from exc
     return _resolve(specs, category_value, kind_value, _text(data.get("new_domain"), 60),

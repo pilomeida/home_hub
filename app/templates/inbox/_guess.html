@@ -1,0 +1,24 @@
+{# What the Hub read (PLAN step 12c): the guess, for Pedro to check and edit; used on the Inbox card and the light card. #}
+{% if guess %}{% set doc_id = entry.document.id %}
+<fieldset class="guess">
+  <legend>What the Hub read</legend>
+  <label>Who it is about
+    <span class="guess-in"><input type="text" name="g_who" value="{{ guess.who }}" list="family-{{ doc_id }}" maxlength="80"
+           placeholder="Nobody: a house paper">{% if guess.new_person %} <span class="chip new">New person</span>{% endif %}</span>
+  </label>
+  <datalist id="family-{{ doc_id }}">{% for name in guess.family %}<option value="{{ name }}">{% endfor %}</datalist>
+  <label>Date of the paper <input type="date" name="g_paper_date" value="{{ guess.paper_date }}"></label>
+  <label>What it is <input type="text" name="g_what" value="{{ guess.what }}" maxlength="120"></label>
+  <label>Tags <input type="text" name="g_tags" value="{{ guess.tags }}" placeholder="Words to find it by, separated by commas"></label>
+  {% if guess.keeps_items %}
+  <table class="tbl guess-items">
+    <thead><tr><th>Item</th><th>Room</th><th>Warranty ends</th><th></th></tr></thead>
+    <tbody id="items-{{ doc_id }}">{% for row in guess.items %}{% include "inbox/_item_row.html" %}{% endfor %}</tbody>
+  </table>
+  <datalist id="rooms-{{ doc_id }}">{% for name in guess.rooms %}<option value="{{ name }}">{% endfor %}</datalist>
+  <p class="btns"><button type="button" class="btn" hx-get="/inbox/{{ doc_id }}/item-row" hx-target="#items-{{ doc_id }}"
+          hx-swap="beforeend">+ Add an item</button></p>
+  {% endif %}
+  <p class="hint">It will be named <b>{{ guess.filed_name }}</b>. Anything marked New is added when you approve.</p>
+</fieldset>
+{% endif %}

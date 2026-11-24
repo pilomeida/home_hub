@@ -38,8 +38,9 @@
 <label>{% if new_area %}Its first kind of paper{% else %}Name of the new kind of paper{% endif %}
   <input type="text" name="new_kind" value="{{ new_kind_value }}" required maxlength="80" placeholder="e.g. Contract">
 </label>
-<small>New: it is created when you approve, and this paper is filed under it.</small>
+<small><span class="chip new">New</span> It is created when you approve, and this paper is filed under it.</small>
 {% endif %}
 {% if errors.category %}<span class="needs-attention">{{ errors.category }}</span>{% endif %}
 {% if errors.file %}<span class="needs-attention">{{ errors.file }}</span>{% endif %}
 {% if form_fields %}{% with id_prefix = "doc-" ~ entry.document.id ~ "-" %}{% include "domains/_field_inputs.html" %}{% endwith %}{% endif %}
+{% include "inbox/_guess.html" %}

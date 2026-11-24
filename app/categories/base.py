@@ -272,6 +272,8 @@ class CategorySpec:
     # A level every kind of this category always has, whatever the settings say (decision D19): Health is High.
     forced_tier: Optional[Tier] = None
     dated_by: Optional[DatedBy] = None                # how its papers are dated, unless the kind says otherwise
+    # True: a paper here can list physical things, one row each with a room and a warranty end (PLAN step 12c: House)
+    keeps_items: bool = False
 
     def __post_init__(self) -> None:
         values = [c.value for c in self.kinds]

@@ -23,6 +23,7 @@ def _room_options(session):
 SPEC = CategorySpec(
     category=Category.HOUSE,
     label="House",
+    keeps_items=True,
     description=(
         "The home itself: appliance and outdoor-gear manuals, warranties and purchase invoices, "
         "maintenance records, floor plans and pipe/electrical layouts, and property ownership documents."

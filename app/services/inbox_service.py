@@ -335,19 +335,46 @@ async def approve(
     remember_words: str = "",
     new_area: str = "",
     new_kind: str = "",
+    guess_form=None,
 ) -> Document:
+    """`guess_form`: the card's "What the Hub read" block as Pedro left it (PLAN step 12c); None keeps the guess."""
     document, item = _pending(session, document_id)
     made = _make_new_types(session, document, category_value, paper_kind, new_area, new_kind, reviewed_by)
     if made:
         category_value, paper_kind = made[0].area, made[-1].kind
     try:
-        return await _approve(session, document, item, category_value=category_value, paper_kind=paper_kind,
-                              fields=fields, reviewed_by=reviewed_by, remember_sender=remember_sender,
-                              remember_words=remember_words)
+        filed = await _approve(session, document, item, category_value=category_value, paper_kind=paper_kind,
+                               fields=fields, reviewed_by=reviewed_by, remember_sender=remember_sender,
+                               remember_words=remember_words)
     except (InvalidClassification, TierHeld):
         if made:
             paper_types.take_back(session, made)      # a refused approval leaves no new type behind
         raise
+    _keep_approved_guess(session, filed, item, guess_form, reviewed_by)
+    return filed
+
+
+def _keep_approved_guess(session: Session, document: Document, item: InboxItem, guess_form,
+                         by: Optional[str]) -> None:
+    """The guess as Pedro approved it stays on the Inbox item (12d files under it); a new room or person is made."""
+    import json
+    from app.services import guess_card
+    if document.category is None or not is_implemented(document.category):
+        return
+    spec = get_spec(document.category)
+    guess = guess_of(item)
+    if guess_form is not None:
+        guess = guess_card.from_form(session, guess_form, guess, keeps_items=spec.keeps_items)
+    if not guess:
+        return
+    if not spec.keeps_items:
+        guess = {**guess, "items": []}                # rows of things belong to areas that keep them (House)
+    guess_card.make_new(session, guess)
+    kind_label = spec.kind_label(document.paper_kind) if document.paper_kind else spec.label
+    final = guess_card.approved(guess, kind_label=kind_label, received=document.created_at, by=by)
+    item.guess_json = json.dumps(final, ensure_ascii=False)
+    session.add(item)
+    session.commit()
 
 
 def _make_new_types(session: Session, document: Document, category_value: str, paper_kind: Optional[str],

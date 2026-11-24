@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; slice 12b landed 2026-11-23 and the 69 waiting papers carry the new guess (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again); next is 12c, the Inbox card. Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
+**Now (2026-11-23):** step 12 (the Inbox sorts every paper by what it is: house or people, items and rooms, people tags, sensible names, caption first) is designed (2026-11-23); slice 12a (foundation) landed 2026-11-23; slice 12b landed 2026-11-23 and the 69 waiting papers carry the new guess (the guess: caption first; area, kind or a new one, who, items with rooms, tags, date to act on, filed name; waiting papers guessed again); slice 12c (the Inbox card: "What the Hub read", item rows, New badges, approval creates what is new) landed 2026-11-24; 12d (filing and finding) is next. Steps 1 to 11 are done and live (section 4). Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What else waits on Pedro is in section 2.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -141,9 +141,20 @@ Slices (Claude, 2026-11-23):
   - Guessing again goes through the same path as a new arrival (rules first, then the AI at High):
     `scripts/guess_waiting_again.py`, dry run first, then in small batches (W1); cents in total.
 - **12c The Inbox card:** item rows (edit, remove, add); "New" badges on a new kind, area, room or person; tags shown
-  and editable; approving creates what is new.
+  and editable; approving creates what is new. ✅ 2026-11-24 (full suite 2995 passed; deploy below) (Pedro: "Yes"). How (Claude, 2026-11-24):
+  - The guess pre-fills the card, including a new area or kind (typed in, marked New); nothing is filed until Pedro
+    presses Approve (W4: each paper is his call), and the "not sure" line stays when the Hub is not sure.
+  - One block, "What the Hub read", on both the Inbox card and the light card (one partial, W2): who (the family,
+    else "New person: <name>", else nobody), the paper's date, what it is, tags (comma separated), and for House
+    papers one row per item (name, room from the room list or "New room: <name>", warranty end = paper date + 3
+    years), each row removable, "+ Add an item". The name the paper will carry is shown, built by the one formatter.
+  - Approving checks the edits by code (Q1, the same limits as the guess), creates a new room or person (S5,
+    subjects), and keeps the approved guess on the Inbox item; a refused approval creates nothing. 12d files under it.
+  - "New" is one chip state (`.chip.new`), written into STYLE.md.
 - **12d Filing and finding:** approval files under the new name, one card per item, tags stored; House filters by room,
-  every people page by who; checked live on the AEG invoice and the Católica diploma (guess only; Pedro approves).
+  every people page by who; the kind's own fields that repeat what the Hub read (House's Item, Room and dates;
+  Education's Who and date) are filled from the approved guess instead of asked again (seen on the 12c card,
+  2026-11-24); checked live on the AEG invoice and the Católica diploma (guess only; Pedro approves).
 - **12e Rename what is already in:** the 273 papers on the live Hub (2026-11-23: 184 Money, 70 waiting in the Inbox,
   16 Insurance, 3 Health) get names by the same rule. A name is built from what the Hub already knows of the paper;
   the AI reads it only where that is not enough, through the privacy gate (D16). W1: backup, a dry run whose list of

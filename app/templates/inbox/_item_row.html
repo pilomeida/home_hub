@@ -1,0 +1,7 @@
+<tr>
+  <td><input type="text" name="g_item_name" value="{{ row.name }}" maxlength="80" aria-label="Item" placeholder="e.g. Dishwasher"></td>
+  <td><span class="guess-in"><input type="text" name="g_item_room" value="{{ row.room }}" list="rooms-{{ entry.document.id }}"
+             maxlength="60" aria-label="Room">{% if row.new_room %} <span class="chip new">New room</span>{% endif %}</span></td>
+  <td><input type="date" name="g_item_warranty" value="{{ row.warranty_end }}" aria-label="Warranty ends"></td>
+  <td><button type="button" class="btn" hx-on:click="this.closest('tr').remove()">Remove</button></td>
+</tr>

@@ -15,8 +15,11 @@
   <form method="post" action="/inbox/{{ entry.document.id }}/card">
     {% if selected_domain %}
     <input type="hidden" name="domain" value="{{ selected_domain }}"><input type="hidden" name="category" value="{{ selected_category }}">
-    <div class="pf"><label>Filed as</label><b>{{ entry.suggestion_label or selected_spec.label }}</b></div>
+    {% if new_area %}<input type="hidden" name="new_area" value="{{ new_area_value }}">{% endif %}
+    {% if new_kind %}<input type="hidden" name="new_kind" value="{{ new_kind_value }}">{% endif %}
+    <div class="pf"><label>Filed as</label><b>{{ entry.suggestion_label or selected_spec.label }}</b>{% if new_area or new_kind %} <span class="chip new">New</span>{% endif %}</div>
     {% with form_fields = key_fields, id_prefix = "card-" %}{% include "domains/_field_inputs.html" %}{% endwith %}
+    {% include "inbox/_guess.html" %}
     {% if errors.file %}<span class="needs-attention">{{ errors.file }}</span>{% endif %}
     <p class="btns">{% if not too_many %}<button class="btn pri" type="submit">Approve</button>{% endif %}
       <a class="btn{% if too_many %} pri{% endif %}" href="/inbox#inbox-{{ entry.document.id }}">Edit</a> <a class="btn" href="/">Later</a></p>

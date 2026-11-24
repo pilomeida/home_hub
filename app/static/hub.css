@@ -72,6 +72,7 @@ main ul, main ol { padding-left: 1.3em; } main li { margin: .2em 0; }
   border: 1px solid var(--line); white-space: nowrap; }
 .chip.ok { color: var(--good); border-color: var(--good); } .chip.warn { color: var(--warn); border-color: var(--warn); }
 .chip.bad { color: var(--bad); border-color: var(--bad); } .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.chip.new { color: var(--accent); border-color: var(--accent); background: var(--surface); font-weight: 600; }
 .chips { display: flex; gap: 6px; margin-bottom: var(--gap); flex-wrap: wrap; }
 .tabs { display: flex; gap: 6px; margin: 0 0 var(--gap); flex-wrap: wrap; }
 .tab { padding: .45rem .95rem; color: var(--muted); font-size: .92em; border-radius: var(--radius-pill); text-decoration: none; }
@@ -688,3 +689,13 @@ tr.oor-row td { background: #FBE3DC; } tr.oor-row td:first-child { box-shadow: i
 body.pv-side { overflow-x: hidden; } body.pv-side .topnav .pills, body.pv-side .topnav .tools { display: none; }
 body.pv-side .phonebar { display: none; }
 td.nowrap, .tbl .date { white-space: nowrap; }
+
+/* What the Hub read, on the Inbox card (PLAN step 12c) */
+.guess { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: flex-start; margin: .4rem 0; }
+.guess legend { font-weight: 600; }
+.guess label { display: flex; flex-direction: column; gap: .25rem; font-size: .92em; }
+.guess .guess-items, .guess .btns, .guess .hint { flex-basis: 100%; margin: 0; }
+.guess-in { display: flex; align-items: center; gap: .4rem; }
+.guess-items input[type="text"] { width: 100%; min-width: 10rem; }
+.guess-items td:first-child { width: 45%; }
+.guess input[name="g_what"] { width: min(36rem, 80vw); }
