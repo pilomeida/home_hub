@@ -21,7 +21,7 @@
   {% elif view == "trend" %}{{ charts.line(h.items, w=760, h=220, trend=True, title=title) }}
   {% elif view == "bars" %}{{ charts.bars(h.bars, w=760, last_label="whole month", title=title) }}
   {% else %}{{ charts.columns(h.items, w=760, h=220, title=title) }}{% endif %}
-  <p class="hint">A past month: the whole month and the same month up to day {{ day_of_month() }}. This month: only what has happened so far. No budget or forecast is drawn.</p>
+  {% if view != "bars" %}{{ charts.key(day_of_month()) }}{% else %}<p class="hint">A past month: the whole month and the same month up to day {{ day_of_month() }}. This month: only what has happened so far.</p>{% endif %}
 </section>
 <section class="card">
   <div class="card-h"><span>By month</span></div>

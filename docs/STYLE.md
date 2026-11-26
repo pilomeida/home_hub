@@ -76,7 +76,7 @@ shows the same banner at the top (`#problem-banner .problem`). Never a bare exce
 **Empty state** `.empty`: one centred grey sentence in a white box saying why there is nothing and, where there is
 one, the button that makes something (`.empty .btn`).
 
-**Charts:** the one chart component (`app/ui/charts.py`, `.chart`), on Pedro's scale rule; never a second chart style.
+**Charts:** the one chart component (`app/ui/charts.py`, `.chart`), on Pedro's scale rule; never a second chart style. Under charts with a whole month (light) and its part up to today's day (dark), one line from `charts.key(day)` (`.chart-key`) says which is which; never a legend box, never the wording typed by hand.
 
 **Paper preview** (step 11c): see section 4.
 

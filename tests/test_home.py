@@ -119,3 +119,14 @@ def test_home_has_one_ask_box_and_other_pages_keep_the_bar_search(client, sessio
     home = client.get("/").text
     assert home.count('role="search"') == 0 and 'placeholder="Ask the Hub"' in home
     assert 'class="nav-search"' in client.get("/papers").text
+
+
+def test_charts_with_a_whole_month_say_which_shade_is_which(client, session):
+    """PLAN step 13c: one line in words under the charts, the same wording everywhere, the day written as a date."""
+    from datetime import date
+    from app.ui import charts
+    assert charts.ordinal(1) == "1st" and charts.ordinal(12) == "12th" and charts.ordinal(23) == "23rd"
+    line = f"Dark: up to the {charts.ordinal(date.today().day)}, like this month so far. Light: the whole month."
+    assert line in client.get("/").text
+    overview = client.get("/overview").text
+    assert line in overview and "1M to 24M: the average month over the last 1 to 24 complete months" in overview

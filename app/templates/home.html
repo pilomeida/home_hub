@@ -27,6 +27,7 @@
     <section class="card">
       <div class="card-h"><span>Money this month</span><a class="card-r" href="/overview">Open ›</a></div>
       <div class="mm">{{ money_block(home.earnings, "e") }}{{ money_block(home.spending, "s") }}</div>
+      {{ charts.key(home.today.day) }}
       {% set a = home.available %}
       {% if a %}
       <div class="avail">

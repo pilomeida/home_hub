@@ -24,7 +24,7 @@
       <div><div class="chart-title">Income</div>{{ charts.columns(charts_items(chart, 'income'), kind='e', w=560, h=200, title="Income per month") }}</div>
       <div><div class="chart-title">Expenses</div>{{ charts.columns(charts_items(chart, 'expense'), kind='s', w=560, h=200, title="Expenses per month") }}</div>
     </div>
-    <p class="hint">A past month: the whole month (pale) and the same month up to day {{ day_of_month() }} (solid). This month: only what has happened so far.</p>
+    {{ charts.key(day_of_month()) }}
   </div>
 
   <div class="fc-section">

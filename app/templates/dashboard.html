@@ -15,6 +15,7 @@
     <div class="fc-cards">
       {% for card in overview.flow_kpis %}{{ kpi.kpi_card(card) }}{% endfor %}
     </div>
+    {{ charts.key(today.day, averages=True) }}
   </div>
 
   <div class="fc-kpi-group">

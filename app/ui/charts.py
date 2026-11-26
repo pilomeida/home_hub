@@ -9,7 +9,9 @@ Pedro's chart rules (2026-11-19, docs/design/ux-workflow-and-screens.md):
    and the value by the same day of the month as today: columns as a tinted block with a solid part; the history line
    as a pale line of full months and a strong line of same-day values; horizontal bars as a tinted track (last month in
    full) and a solid fill (this month so far). A trendline is a dashed straight fit drawn over the data only.
-4. Flat base, rounded ends, no outlines, no legend, faint gridlines; pale for the past, strong for the present.
+4. Flat base, rounded ends, no outlines, no legend box, faint gridlines; pale for the past, strong for the present.
+   Under charts that show a whole month and its same-day part, one line in words says which is which (`key`; Pedro,
+   2026-11-26, PLAN step 13).
 5. Measurements over time: the printed reference range is a pale band, a value outside it is red, the range is written
    under the chart.
 Ported from the mock-up generator (`docs/design/mockups/_build/build_mockups.py`: make_scale, col_chart, line_chart,
@@ -106,6 +108,21 @@ def euros(v: float, cents: bool = False) -> str:
     if cents:                                    # a balance or a bill, to the cent
         return f"€{v:,.2f}"
     return f"€{v:,.0f}" if abs(v) >= 100 or float(v).is_integer() else f"€{v:,.2f}"
+
+
+def ordinal(day: int) -> str:
+    """1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st."""
+    end = "th" if 10 <= day % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{end}"
+
+
+def key(day: int, averages: bool = False) -> Markup:
+    """The one line under charts with a whole month (light) and its part up to today's day (dark); with `averages`,
+    also what the 1M…24M columns are."""
+    text = f"Dark: up to the {ordinal(day)}, like this month so far. Light: the whole month."
+    if averages:
+        text += " 1M to 24M: the average month over the last 1 to 24 complete months, not counting this one."
+    return Markup(f'<p class="chart-key">{escape(text)}</p>')
 
 
 def plain(v: float) -> str:

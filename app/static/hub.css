@@ -95,6 +95,7 @@ main ul, main ol { padding-left: 1.3em; } main li { margin: .2em 0; }
 .chart-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
 .chart-title { font-weight: 600; margin-bottom: 2px; }
 .fc-chart { margin-top: 6px; }
+.chart-key { color: var(--muted); font-size: var(--fs-small); margin: 6px 0 0; }
 .chart-narrow { max-width: 48rem; margin: 0 0 var(--gap); }
 @media (max-width: 760px) { .chart-pair { grid-template-columns: 1fr; } }
 

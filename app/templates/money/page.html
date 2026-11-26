@@ -18,7 +18,7 @@
   <section class="card">
     <div class="card-h"><span>Spending · 12 months</span><a class="card-r" href="/money/history">Category history ›</a></div>
     {{ charts.columns(page.trend, kind="s", w=560, h=200, title="Spending per month, last 12 months") }}
-    <p class="hint">A past month: the whole month (pale) and the same month up to day {{ page.today.day }} (solid). This month: only what has happened so far.</p>
+    {{ charts.key(page.today.day) }}
     <p class="hint">Want one category over time? <a class="btn" href="/money/history">Open category history ›</a></p>
   </section>
 </div>
