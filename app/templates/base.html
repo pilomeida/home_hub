@@ -40,9 +40,11 @@
       {% for l in here.links %}<a class="tab{% if request and (request.url.path == l.url or request.url.path.rstrip('/') == l.url.rstrip('/')) %} on{% endif %}" href="{{ l.url }}">{{ l.label }}</a>{% endfor %}
     </nav>
     {% endif %}
+    {% block navsearch %}
     <form action="/search" method="get" role="search" class="nav-search">
       <input type="search" name="q" placeholder="Ask or search…" aria-label="Search papers" value="{{ request.query_params.get('q', '') if request and request.url.path == '/search' else '' }}">
     </form>
+    {% endblock %}
   </div>
   <nav class="phonebar" aria-label="Menu">
     <a class="pn2{% if here and here.key == 'home' %} on{% endif %}" href="/"><span>⌂</span>Home</a>

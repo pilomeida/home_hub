@@ -112,3 +112,10 @@ def test_the_overview_moved_to_its_own_page(client, session):
     html = client.get("/overview").text
     assert "fc-page" in html and html.count('class="chart"') >= 3
     assert 'class="pill on" href="/"' in html                    # still under Home in the menu
+
+
+def test_home_has_one_ask_box_and_other_pages_keep_the_bar_search(client, session):
+    """PLAN step 13: Home asks in its large box only; the small bar search stays on the other pages."""
+    home = client.get("/").text
+    assert home.count('role="search"') == 0 and 'placeholder="Ask the Hub"' in home
+    assert 'class="nav-search"' in client.get("/papers").text

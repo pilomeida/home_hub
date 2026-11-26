@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Home — Home & Family{% endblock %}
+{% block navsearch %}{# Home asks in its own large box (PLAN step 13) #}{% endblock %}
 {% macro money_block(b, kind) %}
 <div class="mcol">
   <div class="mmh"><span class="mmt">{{ b.title }}</span><span class="sub">so far in {{ home.today.strftime('%B') }}</span></div>

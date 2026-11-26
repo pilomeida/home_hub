@@ -350,3 +350,9 @@ def test_budget_panel_without_loans_keeps_old_caption(client, session):
     html = client.get("/overview/budget?view=month").text
     assert "before loan repayments" in html
     assert "loan instalments" not in html
+
+
+def test_overview_has_no_controls_that_do_nothing(client, session):
+    """PLAN step 13: the month and comparison pills did nothing and are gone."""
+    html = client.get("/overview").text
+    assert "vs Previous month" not in html and "▾" not in html.split('class="fc-brand"')[1].split("fc-kpi-group")[0]

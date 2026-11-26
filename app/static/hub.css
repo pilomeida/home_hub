@@ -378,7 +378,6 @@ details.who summary::-webkit-details-marker { display: none; }
   .fc-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; border-bottom: 1px solid var(--line); }
   .fc-brand { font-weight: 700; font-size: 1.0rem; color: var(--ink); }
   .fc-period { display: flex; align-items: center; gap: 18px; font-size: 0.87rem; color: var(--muted); }
-  .fc-period .pill { padding: 5px 11px; border: 1px solid var(--line); border-radius: var(--radius-s); }
 
   .fc-kpi-group { padding: 16px 22px 8px; }
   .fc-kpi-group-label { font-size: 0.67rem; color: var(--muted); margin-bottom: 10px; }
@@ -594,7 +593,6 @@ details.who summary::-webkit-details-marker { display: none; }
 .fc-section-title, .fc-kpi-group-label, .fc-card-label, .fc-yc-top, .loan-k, .loan-holder, .loan-flags-title, .fc-cat-head {
   font-weight: 600; color: var(--ink); }
 .fc-kpi-group-label, .fc-cat-head, .loan-k { font-weight: 500; color: var(--muted); }
-.fc-period .pill { border-radius: var(--radius-pill); background: var(--surface); }
 .fc-pills a { font-size: .8rem; }
 .tag-refund { border-radius: var(--radius-pill); }
 .loan-savings { background: var(--t2); } .loan-debt { background: var(--t1); }

@@ -14,7 +14,7 @@ and dates, the **wiki** for standing facts (each with its sources, its subject a
 papers** for the long tail. A kind of paper gets its own reader only once the same exact question keeps being asked
 about it.
 
-**Now (2026-11-24):** steps 1 to 12 are done and live (section 4); step 12 landed 2026-11-24 with the 199 filed papers renamed. Nothing is scheduled next. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What waits on Pedro is in section 2: the 69 Inbox papers to approve on their new cards, and Rute's Santander access to renew.
+**Now (2026-11-26):** steps 1 to 13 are done (step 13, the Home and Overview tidy-up, landed 2026-11-26); step 12 landed 2026-11-24 with the 199 filed papers renamed. Nothing is scheduled next. Step 9 D12 is parked until Pedro uploads new Health papers (section 3). What waits on Pedro is in section 2: the 69 Inbox papers to approve on their new cards, and Rute's Santander access to renew.
 
 **How this file is kept (Pedro, 2026-11-19).** This is the live document that rules execution, updated as work
 happens, not afterwards: a new task is written in before it starts; a change to a task is edited into its entry,
@@ -69,6 +69,13 @@ categories last (they need search, reminders and the review queue). Clean-up rid
 D item names, that D item is done in the same step.
 
 Nothing is scheduled after step 12. A new step comes from Pedro, a finding or a bug, and goes here first.
+
+**Step 13 — Home and Overview tidy-up (Pedro, 2026-11-26), S.** ✅ 2026-11-26. (a) Home shows one ask box: the large "Ask the Hub"
+stays, the small "Ask or search…" in the bar is not shown on Home (other pages keep it). (b) Overview: the "2026-11 ▾"
+and "vs Previous month ▾" pills did nothing; removed (Claude, 2026-11-26, a control that does nothing is a defect;
+the months the cards cover are already their columns). Done when: Home's page has one search/ask form, Overview has
+no dead pills. Pedro's questions answered in chat: light = the whole month, dark = the same months up to today's day;
+1M…24M = the average month over the last 1…24 complete months.
 
 ---
 
